@@ -1,0 +1,36 @@
+name = "my-python-app"
+stack = "python"
+base_branch = "main"
+
+[test]
+command = "python -m pytest tests/ -x"
+timeout_secs = 300
+
+[docs_gate]
+enabled = true
+blocking = false
+
+[version]
+strategy = "auto"
+
+[changelog]
+file = "docs/CHANGELOG.md"
+style = "grouped"
+
+[pr]
+template = "default"
+draft = false
+
+[canary]
+url = "http://myserver.com:8000/health"
+timeout_secs = 30
+checks = ["http"]
+
+[deploy]
+provider = "ssh"
+ssh = "deploy@myserver.com:22"
+command = "cd /opt/app && git pull && docker compose up -d --build"
+
+[learn]
+dir = "~/.ship/learnings"
+project_dir = ".ship/learnings"

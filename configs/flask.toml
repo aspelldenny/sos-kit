@@ -1,0 +1,34 @@
+name = "my-flask-app"
+stack = "flask"
+base_branch = "main"
+
+[test]
+command = "./venv/bin/pytest tests/ -x --tb=short"
+timeout_secs = 300
+
+[docs_gate]
+enabled = true
+blocking = false
+
+[version]
+strategy = "auto"
+
+[changelog]
+file = "docs/CHANGELOG.md"
+style = "grouped"
+
+[pr]
+template = "default"
+draft = false
+
+[canary]
+url = "https://my-app.onrender.com"
+timeout_secs = 30
+checks = ["http"]
+
+[deploy]
+provider = "render"
+
+[learn]
+dir = "~/.ship/learnings"
+project_dir = ".ship/learnings"

@@ -1,0 +1,33 @@
+#!/bin/bash
+# Pre-commit hook: type-check + docs-gate
+# Install: git config core.hooksPath .githooks
+
+set -e
+
+echo "🔍 Pre-commit checks..."
+
+# Type check
+echo "  → pnpm type-check"
+pnpm type-check --pretty 2>&1 | tail -3
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+  echo "❌ Type check failed. Fix errors before committing."
+  exit 1
+fi
+echo "  ✅ Type check passed"
+
+# Docs gate (if binary available)
+if command -v docs-gate &> /dev/null || command -v docs-gate.exe &> /dev/null; then
+  echo "  → docs-gate"
+  if ! docs-gate 2>&1; then
+    echo ""
+    echo "⚠️  Docs gate failed. Update docs before committing."
+    echo "  Run: docs-gate --verbose  (to see details)"
+    echo "  Skip: git commit --no-verify  (not recommended)"
+    exit 1
+  fi
+  echo "  ✅ Docs gate passed"
+else
+  echo "  ⏭️  docs-gate not found, skipping"
+fi
+
+echo "✅ Pre-commit checks passed"

@@ -1,0 +1,30 @@
+# Add this job to your .github/workflows/deploy.yml
+# It runs after the deploy job succeeds
+
+  canary:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post-deploy health check
+        run: |
+          echo "Running canary health check..."
+
+          HEALTHY=false
+          for i in 1 2 3; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 ${{ vars.PRODUCTION_URL || 'https://your-app.com' }})
+            LATENCY=$(curl -s -o /dev/null -w "%{time_total}" --max-time 30 ${{ vars.PRODUCTION_URL || 'https://your-app.com' }})
+            echo "  Attempt $i: HTTP $STATUS (${LATENCY}s)"
+
+            if [ "$STATUS" = "200" ]; then
+              HEALTHY=true
+              break
+            fi
+            sleep 10
+          done
+
+          if [ "$HEALTHY" = "false" ]; then
+            echo "❌ CANARY FAILED"
+            exit 1
+          fi
+
+          echo "✅ Canary passed"
