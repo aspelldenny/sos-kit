@@ -61,11 +61,30 @@ After ship outputs PR URL:
 2. Verify PR body has test results + docs-gate status
 3. Check CI pipeline started
 
-### Step 4: Post-deploy Canary (Phase 2)
+### Step 4: Pre-deploy Gate
 
-After PR is merged and deployed:
+Before deploying, run infrastructure checks:
 ```bash
-ship canary
+guard                   # Schema drift? Env mismatch? Production healthy?
+```
+If guard fails: STOP. Fix the issue before deploying.
+- Schema drift → remind user to run migration
+- Env missing → add key to .env.production
+- Canary fail → production already unhealthy, investigate first
+
+### Step 5: Deploy + Post-deploy Canary
+
+After PR is merged:
+```bash
+ship deploy             # Deploy to production
+ship canary             # Verify: HTTP + Docker + custom checks (DB, services)
+vps status              # Confirm all services up
+```
+
+If canary fails after deploy:
+```bash
+vps logs <project> --tail 200 -g ERROR   # Check what went wrong
+vps restart <project>                     # Restart if needed
 ```
 
 ## Options

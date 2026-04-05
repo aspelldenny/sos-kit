@@ -213,3 +213,5 @@ Examples:
 - Before `/ship`: QA is the final gate
 - With `ship learn`: record patterns for future QA
 - With `ship canary`: post-deploy QA on production
+- With `vps logs <project> -g ERROR`: check production logs for runtime errors
+- With `vps status`: verify all services healthy before/after QA
