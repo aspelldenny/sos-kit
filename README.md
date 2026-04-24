@@ -1,21 +1,32 @@
 # SOS Kit — Solo Operating System
 
-One person. No team. Full pipeline from code to production to monitoring.
+One person. No team. Full operating system from inbound request to production health.
 
-SOS Kit is a collection of Rust CLI tools and Claude Code skills that give a solo developer the shipping velocity of a full engineering team.
+SOS Kit is a collection of Rust CLI tools, Claude Code skills, and role-separation protocols that let one human run a software business without dropping context.
 
 ## Why
 
-Building software alone means you're the architect, developer, reviewer, QA, DevOps, and on-call — all at once. Most solo devs skip steps. SOS Kit makes every step a single command so you never skip.
+Building software alone means wearing three hats every day:
+- **Chủ nhà** (Owner) — deciding what's worth doing, vetoing scope creep, approving plans, maintaining vision docs
+- **Kiến trúc sư** (Architect) — reading docs (not code), writing phiếu, specifying architecture
+- **Thợ** (Worker) — reading code, executing the phiếu, running tests, shipping, monitoring, reporting discoveries back
+
+If one brain does all three at once, features ship half-finished, tickets expand mid-build, and production breaks because nobody checked. SOS Kit enforces **role separation** — distinct skills per layer, formalized handoffs — so the same human snaps into different modes cleanly.
+
+See [`docs/LAYERS.md`](./docs/LAYERS.md) for the role boundaries and [`docs/HANDOFF.md`](./docs/HANDOFF.md) for how the layers pass work.
 
 ## The Pipeline
 
 ```
-CODE → REVIEW → QA → SHIP → DEPLOY → MONITOR → LEARN → RETRO
-  │       │       │     │       │        │         │       │
-  you   /review  /qa   ship   ship     ship      ship   /retro
-                       deploy  canary   learn
+ROUTE → PLAN → CODE → REVIEW → QA → SHIP → GUARD → DEPLOY → MONITOR → LEARN → RETRO
+  │       │      │       │       │     │       │        │         │         │       │
+/route  /plan   you   /review  /qa   ship    guard    ship       vps      ship   /retro
+(Chủ   (Kiến   (Thợ)  (Thợ)         deploy   check   canary   logs/stats  learn
+ nhà)  trúc                                                                 (Thợ)
+       sư)
 ```
+
+Each stage belongs to exactly one layer. Crossing layers without a handoff is the anti-pattern SOS Kit is built to prevent.
 
 ## Components
 
@@ -23,8 +34,10 @@ CODE → REVIEW → QA → SHIP → DEPLOY → MONITOR → LEARN → RETRO
 
 | Tool | Binary | What it does |
 |------|--------|-------------|
-| **[ship](https://github.com/aspelldenny/ship)** | 4.7MB | Full release pipeline — test, commit, push, PR in one command |
-| **[docs-gate](https://github.com/aspelldenny/docs-gate)** | 4.7MB | Enforce documentation compliance before every commit |
+| **[ship](https://github.com/aspelldenny/ship)** | 3.4MB | Full release pipeline — test, commit, push, PR in one command |
+| **[docs-gate](https://github.com/aspelldenny/docs-gate)** | 5.2MB | Enforce documentation compliance before every commit |
+| **[guard](https://github.com/aspelldenny/guard)** | 1.9MB | Pre-deploy infrastructure gate — catch schema drift, env sync, canary mismatch before they hit production |
+| **[vps](https://github.com/aspelldenny/vps)** | 1.2MB | Production ops — status, logs, restart, metrics for Docker Compose projects over SSH |
 
 ### ship subcommands
 
@@ -40,14 +53,81 @@ ship learn list         # List recent learnings
 ship serve              # Start MCP server for Claude integration
 ```
 
-### Claude Code Skills
+### guard subcommands
 
-| Skill | Role | When to use |
-|-------|------|-------------|
-| `/review` | Staff Engineer | Before merge — find SQL injection, N+1 queries, auth bypass, logic bugs |
-| `/qa` | QA Lead | After build — run tests, find bugs, fix with regression tests, verify |
-| `/retro` | Team Lead | End of week — shipping velocity, hotspots, patterns, action items |
-| `/ship` | Release Engineer | Ship it — triggers the full ship pipeline |
+```bash
+guard                   # Run all pre-deploy checks (schema drift, env sync, canary)
+guard --dry-run         # Show what would be checked without running SSH
+guard --skip-canary     # Skip canary pre-check (faster, less safe)
+guard serve             # Start MCP server for Claude integration
+```
+
+### vps subcommands
+
+```bash
+vps status              # Docker Compose status for all projects (or one with --name)
+vps logs                # Stream docker compose logs (optional grep filter)
+vps restart             # Restart a project's docker compose
+vps docker-stats        # Per-container CPU and memory usage
+vps info                # Server info (uptime, memory, disk)
+vps init                # Generate example ~/.vps.toml
+vps serve               # Start MCP server (stdio transport)
+```
+
+### Claude Code Skills (grouped by layer)
+
+**Chủ nhà layer** — vision, routing, decisions, relay:
+
+| Skill | Purpose |
+|---|---|
+| `/insight` | Distill raw research / user interviews / competitor observations into structured bullets for PROJECT.md / SOUL.md / CHARACTER.md. |
+| `/route` | Classify inbound request: code / marketing / design / strategy / skip. Produces 5-bullet brief for Architect. |
+| `/decide` | Trade-off triage. Present 2-3 concrete options with user-visible impact, recommend one. |
+
+**Kiến trúc sư layer** — spec what gets built (docs-only access, no code):
+
+| Skill | Purpose |
+|---|---|
+| `/plan` | Read vision + guide docs → write phiếu (ticket) in `phieu/TICKET_TEMPLATE.md` format with Task 0 verification anchors for Thợ to grep-verify. |
+
+**Thợ layer** — execute + ship (full code access):
+
+| Skill | Purpose |
+|---|---|
+| `/verify` | Task 0 grep-first: verify every file/function/constant anchor in the phiếu against real code BEFORE coding. |
+| `/review` | Staff-engineer review before merge — SQL injection, N+1 queries, auth bypass, logic bugs. |
+| `/qa` | QA lead — run tests, find bugs, fix with regression tests, verify. |
+| `/ship` | Release engineer — full ship pipeline (test → commit → PR → deploy → canary). |
+| `/retro` | Weekly retrospective — shipping velocity, hotspots, patterns, action items. |
+
+One skill = one layer + one responsibility. Skills never span layers. See [`docs/LAYERS.md`](./docs/LAYERS.md) for boundaries and the 2-tier authority split (architectural vs detail).
+
+### Phiếu — the ticket workflow
+
+The spine that connects Kiến trúc sư and Thợ. Every non-trivial change goes through a phiếu (Vietnamese for "ticket"):
+
+- Format: `<type>/P<NNN>-<slug>` — e.g. `feat/P042-user-export`
+- Lives at `docs/ticket/P<NNN>-<slug>.md` in the project
+- Written by Kiến trúc sư (using `/plan`), executed by Thợ
+- Discovery Report appended to `docs/DISCOVERIES.md` after each ticket closes
+
+Shell function `phieu <slug>` (sourced from `phieu/phieu.sh`) creates worktree + branch + ticket file in one command, using a per-project counter for unique IDs. See [`phieu/README.md`](./phieu/README.md).
+
+### Vision docs — Chủ nhà's foundation
+
+Before any phiếu can be written, Chủ nhà must maintain:
+
+- `PROJECT.md` — what the product is (vision, personas, monetization, architecture)
+- `SOUL.md` — why it exists (philosophy, positioning, 3 hard lines, anti-product)
+- `CHARACTER.md` — voice / persona (if the product has an AI character)
+
+Skeletons are in [`phieu/VISION_TEMPLATES/`](./phieu/VISION_TEMPLATES/). Copy into your project's `docs/` on day 1, fill iteratively as research matures. Use `/insight` skill to distill raw material into these docs.
+
+### Relay Protocol — Chủ nhà as the courier
+
+Kiến trúc sư (Claude Web Project) and Thợ (Claude Code) are **separate sessions** — they cannot talk directly. When Thợ hits an architectural blocker mid-ticket, Chủ nhà routes between them manually.
+
+The 2-3 minute protocol is in [`phieu/RELAY_PROTOCOL.md`](./phieu/RELAY_PROTOCOL.md).
 
 ### Integrations
 
@@ -77,13 +157,43 @@ git clone https://github.com/aspelldenny/docs-gate.git
 cd docs-gate && cargo install --path .
 ```
 
+### guard
+```bash
+git clone https://github.com/aspelldenny/guard.git
+cd guard && cargo install --path .
+```
+
+### vps
+```bash
+git clone https://github.com/aspelldenny/vps.git
+cd vps && cargo install --path .
+vps init                  # generate ~/.vps.toml with your SSH + project paths
+```
+
 ### Skills
 ```bash
-# Copy skills to Claude Code
-cp -r skills/review ~/.claude/skills/review
-cp -r skills/qa ~/.claude/skills/qa
-cp -r skills/retro ~/.claude/skills/retro
-cp -r skills/ship ~/.claude/skills/ship
+# Copy all skills (Chủ nhà + Kiến trúc sư + Thợ) to Claude Code
+# Chủ nhà layer
+cp -r skills/insight ~/.claude/skills/insight
+cp -r skills/route   ~/.claude/skills/route
+cp -r skills/decide  ~/.claude/skills/decide
+# Kiến trúc sư layer
+cp -r skills/plan    ~/.claude/skills/plan
+# Thợ layer
+cp -r skills/verify  ~/.claude/skills/verify
+cp -r skills/review  ~/.claude/skills/review
+cp -r skills/qa      ~/.claude/skills/qa
+cp -r skills/retro   ~/.claude/skills/retro
+cp -r skills/ship    ~/.claude/skills/ship
+```
+
+### Phiếu shell function
+```bash
+# Add to ~/.zshrc (or ~/.bashrc)
+echo "source ~/path/to/sos-kit/phieu/phieu.sh" >> ~/.zshrc
+source ~/.zshrc
+# Then for each project you want phiếu workflow on:
+phieu-init ~/my-project
 ```
 
 ## Project Setup
@@ -154,52 +264,90 @@ provider = "cargo"
 ```
 </details>
 
-## Daily Workflow
+## Daily Workflow (3-layer version)
 
 ```bash
-# Morning — check what's running
+# Morning — Thợ checks production (Worker)
 ship canary
 
-# Code your feature on a branch
-git checkout -b feat/my-feature
+# -- Inbound request arrives (user email, bug report, your own idea) --
 
-# Before commit — pre-commit hook auto-runs:
-#   ✅ type-check
-#   ✅ docs-gate
+# Layer 1: Chủ nhà — in your preferred Claude Code/Web
+/route                  # code? marketing? design? skip? outputs 5-bullet brief
+/insight                # if this is raw context needing distillation → vision doc update
+
+# Layer 2: Kiến trúc sư — IN CLAUDE WEB PROJECT (separate session)
+/plan                   # reads vision + guide docs (NOT code) → writes phiếu with
+                        #   Task 0 anchors "thợ kiểm tra tại [file]:[function]"
+                        # Chủ nhà reviews phiếu, gives one-word go/veto
+
+# Layer 3: Thợ — IN CLAUDE CODE (separate session)
+phieu feat user-export  # shell function: creates worktree + branch + phiếu file
+                        # Chủ nhà pastes phiếu content from Claude Web into this file
+/verify                 # Task 0 — grep every anchor against real code
+                        # if ❌ architectural → stop, escalate via Chủ nhà → Architect
+                        #   (see RELAY_PROTOCOL.md)
+                        # if ⚠️ detail → self-decide + log Discovery
+                        # if ✅ all → proceed to code
 
 # Ready to review
-/review                 # Claude reviews your diff
+/review                 # find logic bugs, SQL injection, auth bypass, N+1
 
 # Ready to test
-/qa                     # Claude runs tests, finds bugs, fixes them
+/qa                     # Claude runs tests, finds bugs, fixes, verifies
 
 # Ready to ship
-ship                    # test → commit → push → PR (one command)
+ship                    # test → docs-gate → commit → push → PR (one command)
 
 # After merge + deploy
 ship canary             # verify production is healthy
 
-# End of week
+# End of ticket — Discovery Report (Thợ)
+#   → append to docs/DISCOVERIES.md: what phiếu assumed vs reality,
+#     what edge cases appeared, what docs got updated
+#   → Kiến trúc sư reads this BEFORE writing next phiếu
+
+# End of week (Thợ)
 /retro                  # what shipped, velocity, hotspots, action items
 
-# Record what you learned
+# Record what you learned (any layer)
 ship learn add "always run migrations before deploy" -t deploy,db
 ```
+
+Each step is single-layer. Handoffs between them are formatted (see [`docs/HANDOFF.md`](./docs/HANDOFF.md)) — not freestyle Slack threads. Because Kiến trúc sư (Claude Web) and Thợ (Claude Code) cannot talk directly, Chủ nhà is the courier for every cross-session handoff. See [`phieu/RELAY_PROTOCOL.md`](./phieu/RELAY_PROTOCOL.md).
 
 ## Architecture
 
 ```
 sos-kit/
-├── README.md                   # This file
+├── README.md                   # This file — entry point
+├── CLAUDE.md                   # Contributor guide for Claude Code
 ├── docs/
-│   ├── PHILOSOPHY.md           # Why SOS Kit exists
-│   └── SETUP.md                # Detailed setup guide
-├── skills/                     # Claude Code skills
-│   ├── ship/SKILL.md           # /ship — release engineer
-│   ├── review/SKILL.md         # /review — code review
-│   ├── qa/SKILL.md             # /qa — QA verification
-│   └── retro/SKILL.md         # /retro — retrospective
-├── configs/                    # Example .ship.toml configs
+│   ├── PHILOSOPHY.md           # 6 principles
+│   ├── LAYERS.md               # 3-role model (Chủ nhà / Kiến trúc sư / Thợ)
+│   ├── HANDOFF.md              # Inter-layer handoff protocols
+│   └── SETUP.md                # Detailed install guide
+├── phieu/                      # Ticket workflow — spine connecting Kiến trúc sư ↔ Thợ
+│   ├── README.md               # Setup + philosophy
+│   ├── TICKET_TEMPLATE.md      # Phiếu format with Task 0 Verification Anchors
+│   ├── DISCOVERY_PROTOCOL.md   # Thợ → Kiến trúc sư feedback loop + mismatch classification
+│   ├── RELAY_PROTOCOL.md       # Chủ nhà's courier workflow (Thợ ↔ Kiến trúc sư)
+│   ├── VISION_TEMPLATES/       # Day-1 skeletons for Chủ nhà
+│   │   ├── PROJECT_template.md
+│   │   ├── SOUL_template.md
+│   │   └── CHARACTER_template.md
+│   └── phieu.sh                # Shell function: phieu / phieu-list / phieu-done / phieu-init
+├── skills/                     # Claude Code skills (one per layer+responsibility)
+│   ├── insight/SKILL.md        # Chủ nhà — distill raw research → vision docs
+│   ├── route/SKILL.md          # Chủ nhà — classify inbound
+│   ├── decide/SKILL.md         # Chủ nhà — trade-off triage
+│   ├── plan/SKILL.md           # Kiến trúc sư — write phiếu (docs-only, no code access)
+│   ├── verify/SKILL.md         # Thợ — Task 0 grep-first (gate before coding)
+│   ├── review/SKILL.md         # Thợ — code review
+│   ├── qa/SKILL.md             # Thợ — QA verification
+│   ├── ship/SKILL.md           # Thợ — release pipeline
+│   └── retro/SKILL.md          # Thợ — retrospective
+├── configs/                    # .ship.toml examples per stack
 │   ├── nextjs.toml
 │   ├── flask.toml
 │   ├── rust.toml

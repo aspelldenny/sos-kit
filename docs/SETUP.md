@@ -5,32 +5,72 @@
 ### 1. Install Rust tools
 
 ```bash
-# Ship CLI
+# Ship CLI — release pipeline
 git clone https://github.com/aspelldenny/ship.git ~/tools/ship
 cd ~/tools/ship && cargo install --path .
 
-# docs-gate
+# docs-gate — pre-commit docs enforcement
 git clone https://github.com/aspelldenny/docs-gate.git ~/tools/docs-gate
 cd ~/tools/docs-gate && cargo install --path .
+
+# guard — pre-deploy infrastructure gate
+git clone https://github.com/aspelldenny/guard.git ~/tools/guard
+cd ~/tools/guard && cargo install --path .
+
+# vps — production ops (logs, status, restart)
+git clone https://github.com/aspelldenny/vps.git ~/tools/vps
+cd ~/tools/vps && cargo install --path .
+vps init                 # generate ~/.vps.toml with your SSH + project paths
 ```
 
 Verify:
 ```bash
-ship --version    # ship 0.1.0
-docs-gate --version  # docs-gate 0.1.0
+ship --version
+docs-gate --version
+guard --version
+vps --version
 ```
 
-### 2. Install Claude Code skills
+### 2. Install Claude Code skills (all 3 layers)
 
 ```bash
 # From this repo
-cp -r skills/ship ~/.claude/skills/ship
-cp -r skills/review ~/.claude/skills/review
-cp -r skills/qa ~/.claude/skills/qa
-cp -r skills/retro ~/.claude/skills/retro
+# Chủ nhà layer
+cp -r skills/insight ~/.claude/skills/insight
+cp -r skills/route   ~/.claude/skills/route
+cp -r skills/decide  ~/.claude/skills/decide
+# Kiến trúc sư layer
+cp -r skills/plan    ~/.claude/skills/plan
+# Thợ layer
+cp -r skills/verify  ~/.claude/skills/verify
+cp -r skills/review  ~/.claude/skills/review
+cp -r skills/qa      ~/.claude/skills/qa
+cp -r skills/ship    ~/.claude/skills/ship
+cp -r skills/retro   ~/.claude/skills/retro
 ```
 
-### 3. Setup your project
+See [`LAYERS.md`](./LAYERS.md) for which skill belongs to which layer.
+
+### 3. Install phiếu shell function (ticket workflow)
+
+```bash
+# Source the phiếu shell function
+echo "source ~/path/to/sos-kit/phieu/phieu.sh" >> ~/.zshrc
+source ~/.zshrc
+
+# Onboard each project you want the workflow on
+phieu-init ~/my-project       # creates .phieu-counter, ~/my-project-wt/, updates .gitignore
+```
+
+Also copy the ticket template into each project:
+```bash
+mkdir -p ~/my-project/docs/ticket
+cp ~/path/to/sos-kit/phieu/TICKET_TEMPLATE.md ~/my-project/docs/ticket/TICKET_TEMPLATE.md
+```
+
+See [`../phieu/README.md`](../phieu/README.md) for daily commands.
+
+### 4. Setup your project
 
 ```bash
 cd my-project
@@ -38,7 +78,7 @@ ship init           # generates .ship.toml
 docs-gate init      # generates .docs-gate.toml
 ```
 
-### 4. Install pre-commit hook
+### 5. Install pre-commit hook
 
 ```bash
 mkdir -p .githooks
@@ -47,7 +87,7 @@ chmod +x .githooks/pre-commit
 git config core.hooksPath .githooks
 ```
 
-### 5. Add canary to GitHub Actions
+### 6. Add canary to GitHub Actions
 
 Copy the snippet from `integrations/github-actions/canary.yml` into your deploy workflow.
 
@@ -106,8 +146,10 @@ If you have a Telegram bot running 24/7, add the uptime monitor from `integratio
 
 ```bash
 # In your project directory:
-ship check          # should show preflight + test results
-ship canary         # should show health check
-docs-gate           # should show pass/fail
-docs-gate --verbose # show all check details
+ship check               # preflight + test results
+ship canary              # health check of production URL
+docs-gate                # docs compliance pass/fail
+docs-gate --verbose      # show all check details
+guard --dry-run          # pre-deploy checks (no SSH)
+vps status               # production container status (needs ~/.vps.toml)
 ```
