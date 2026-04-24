@@ -104,13 +104,13 @@ Do NOT start coding. Do NOT "fix the phiếu yourself." Wait for Architect to up
 ## Integration with Other Skills
 
 - **Before /verify:** Architect ran `/plan` to produce the phiếu with Task 0 table
-- **After /verify (all ✅):** proceed to implement Nhiệm vụ (Task 1, 2, ...), then `/review` → `/qa` → `/ship`
+- **After /verify (all ✅):** proceed to implement tasks (Task 1, 2, ...), then `/review` → `/qa` → `/ship`
 - **After /verify (any ⚠️/❌):** stop. Architect updates phiếu. Re-run /verify. NO coding until Task 0 passes.
 - **Post-ticket:** write Discovery Report to `docs/DISCOVERIES.md` regardless — even if Task 0 was all ✅, you might have discovered edge cases during code execution.
 
 ## Voice
 
-- Report in Vietnamese with Sếp, English for file paths / commands / code symbols
+- English in skill text; mirror project language in the verification report
 - Be precise: "file:line" or "not found" — no hedging
 - Keep report tight: counts + each mismatch + one recommendation
 
@@ -152,6 +152,6 @@ Task 0 — Verification Report for P044-history-export-csv
 ❌ Not found (1):
   - Assumption 4: no existing export logic — phiếu acknowledges this in Task 2. OK.
 
-Status: 1 ⚠️ → Architect, please update Task 1 wording ("Thay bằng" → "Thêm mới").
+Status: 1 ⚠️ → Kiến trúc sư, please update Task 1 wording (replace → add new).
 Once updated, I'll re-run /verify then proceed to code.
 ```

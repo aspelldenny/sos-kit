@@ -361,24 +361,7 @@ sos-kit/
 
 ## Comparison with gstack
 
-| | SOS Kit | gstack |
-|---|---|---|
-| Author | aspelldenny | Garry Tan (YC CEO) |
-| Language | Rust | Bun/TypeScript |
-| Binary size | 4.7MB + 4.7MB | 58MB |
-| Approach | CLI tools + Skills | 31 Markdown skills |
-| Browser automation | No (not needed) | Playwright daemon |
-| Planning skills | No (use your own methodology) | 6 planning skills |
-| Design skills | No | 4 design skills |
-| Ship automation | ✅ Full (test → PR) | ✅ Full (test → PR) |
-| Deploy | ✅ SSH/Render/Actions/cargo | ❌ Manual |
-| Health monitoring | ✅ Canary + Uptime | ✅ Canary |
-| Cross-project learnings | ✅ JSONL | ✅ JSONL |
-| Docs enforcement | ✅ docs-gate (Rust) | ❌ Manual |
-| MCP server | ✅ 4 tools | ❌ No |
-| Pre-commit hooks | ✅ | ❌ No |
-
-**SOS Kit is smaller, faster, and focused on the ship-to-monitor pipeline.** It doesn't try to replace your planning methodology — it complements whatever process you already use.
+How SOS Kit differs from gstack and when to pick each → [`docs/COMPARISON.md`](./docs/COMPARISON.md).
 
 ## Philosophy
 

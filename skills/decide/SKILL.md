@@ -78,7 +78,7 @@ Use AskUserQuestion with:
     - A with impact + recommended label
     - B with impact
     - (optional C)
-    - optionally "Other — Sếp writes" if you truly don't know
+    - optionally "Other — user writes" if you truly don't know
 ```
 
 ### Step 6: Log the decision
@@ -123,38 +123,38 @@ Revisit: <date or trigger, e.g. "when welcome conversion data has 1k samples">
 
 ## Voice
 
-- Vietnamese with Sếp. Keep it tight.
-- No "it depends" — decide.
+- English in skill text; mirror user language in routing briefs and replies
+- Tight. No "it depends" — decide.
 - Data > opinion, but if no data, say so + your best guess.
-- After the human picks, one line acknowledgement ("OK, chốt A. Đã log.") — don't re-analyze.
+- After the human picks, one-line acknowledgement ("Decided A. Logged.") — don't re-analyze.
 
 ## Example Session
 
 ```
-User: Deep Reading pricing — 15 xu hay 20 xu?
+User: Deep Reading pricing — 15 credits or 20 credits?
 
 Chủ nhà (/decide):
-Decision: Deep Reading price — 15 xu hay 20 xu per reading?
+Decision: Deep Reading price — 15 or 20 credits per reading?
 
 Options:
 
-A. 15 xu (current)
+A. 15 credits (current)
    - User can afford ~2 Deep Readings/week with welcome bonus
-   - Matches Synastry (8 xu) pricing curve — Deep ~2x Synastry
+   - Matches Synastry (8 credits) pricing curve — Deep ~2x Synastry
    - Current conversion data: 12% try-to-paid after welcome
 
-B. 20 xu
+B. 20 credits
    - User affords ~1.5 Deep Readings/week with welcome bonus
    - ~33% higher revenue per user; fewer repeat readings
    - Untested; may reduce trial-to-paid by unknown amount
 
-Em recommend A (15 xu) vì 2 lý do:
-1. Post-pivot brand = "chat with Chị Hạ", frequent small interactions > rare expensive ones
+Recommending A (15 credits) because:
+1. Brand vibe = frequent small interactions > rare expensive ones
 2. 12% conversion is healthy; raising price to test is risk without data baseline
 
 [AskUserQuestion presented with A as Recommended]
 
-User clicks: A
+User picks: A
 
-→ Đã log vào ship learn: "Deep Reading giữ 15 xu sau review 2026-04-24; revisit khi có 1k users post-welcome"
+→ Logged via `ship learn add`: "Deep Reading stays at 15 credits per 2026-04-24 review; revisit when 1k post-welcome users."
 ```

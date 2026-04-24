@@ -176,7 +176,7 @@ done
 - No fluff: skip "great job!" — show numbers
 - Actionable: every "watch out" has a concrete action item
 - Honest: if nothing shipped, say so — don't pad
-- Vietnamese with Sếp
+- Mirror user's language in chat; English in any committed retro document
 - Compare to last retro if available (stored in ship learn)
 
 ## Integration

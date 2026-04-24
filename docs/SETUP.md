@@ -70,13 +70,53 @@ cp ~/path/to/sos-kit/phieu/TICKET_TEMPLATE.md ~/my-project/docs/ticket/TICKET_TE
 
 See [`../phieu/README.md`](../phieu/README.md) for daily commands.
 
-### 4. Setup your project
+### 4. Setup each project you want SOS Kit to run on
+
+Run these once per project. After this, `phieu`, `/plan`, `/verify`, `/ship`, `guard`, `vps` all work on that project.
 
 ```bash
-cd my-project
-ship init           # generates .ship.toml
-docs-gate init      # generates .docs-gate.toml
+cd ~/my-project
+
+# 4a. Phiếu workflow — register project with counter + worktree dir
+phieu-init .                # creates .phieu-counter, ~/my-project-wt/, updates .gitignore
+
+# 4b. Copy ticket template into project
+mkdir -p docs/ticket
+cp ~/path/to/sos-kit/phieu/TICKET_TEMPLATE.md docs/ticket/TICKET_TEMPLATE.md
+
+# 4c. Initialize Discoveries log (worker feedback to architect)
+cat > docs/DISCOVERIES.md <<'EOF'
+# Discoveries Log
+
+> Worker → Architect feedback loop. Each entry records what the phiếu assumed vs. what the code actually was, plus edge cases found during implementation. Architect reads this BEFORE writing the next phiếu.
+>
+> Newest entries on top. See sos-kit `phieu/DISCOVERY_PROTOCOL.md` for format.
+
+---
+
+(no entries yet)
+EOF
+
+# 4d. Copy vision doc skeletons (Chủ nhà fills these iteratively)
+mkdir -p docs
+cp ~/path/to/sos-kit/phieu/VISION_TEMPLATES/PROJECT_template.md docs/PROJECT.md
+cp ~/path/to/sos-kit/phieu/VISION_TEMPLATES/SOUL_template.md docs/SOUL.md
+# CHARACTER.md only if the product has an AI character / named voice
+cp ~/path/to/sos-kit/phieu/VISION_TEMPLATES/CHARACTER_template.md docs/CHARACTER.md
+
+# 4e. Auto-generate ship + docs-gate configs
+ship init                   # detects stack, generates .ship.toml
+docs-gate init              # generates .docs-gate.toml
+
+# 4f. One-time: global vps config (only needs to run once per machine,
+#     not per project — skip if already done)
+vps init                    # generates ~/.vps.toml
+
+# 4g. Edit .ship.toml with your canary URL + deploy target
+#     (see "Per-Stack Setup" below for stack-specific configs)
 ```
+
+After these steps, your project is ready. Chủ nhà fills `docs/PROJECT.md` and `docs/SOUL.md` as vision firms up, then Architect in Claude Web can start writing phiếu.
 
 ### 5. Install pre-commit hook
 

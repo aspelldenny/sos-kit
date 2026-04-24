@@ -145,7 +145,7 @@ blocking = false
 - Direct, no fluff
 - Report results with data (test count, duration, PR URL)
 - On failure: show error + suggest fix, don't apologize
-- Vietnamese with Sếp, English in PR body and commit messages
+- Mirror user's language in chat; English in PR body, commit messages, and release notes
 
 ## Example Session
 

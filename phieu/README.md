@@ -19,6 +19,23 @@ Phiếu solves this with three constraints:
 
 See [`../docs/LAYERS.md`](../docs/LAYERS.md) for how phiếu fits in the 3-role model, and [`../docs/HANDOFF.md`](../docs/HANDOFF.md) for the handoff format.
 
+## First-time checklist (new user, ~5 minutes)
+
+Clone sos-kit, then work through this list once per machine:
+
+- [ ] **1.** Clone sos-kit somewhere permanent: `git clone https://github.com/aspelldenny/sos-kit.git ~/tools/sos-kit`
+- [ ] **2.** Add `source ~/tools/sos-kit/phieu/phieu.sh` to your `~/.zshrc` (or `~/.bashrc`), then `source ~/.zshrc`
+- [ ] **3.** Verify installed: `phieu-list` (should show "No projects registered")
+- [ ] **4.** Onboard your first project: `phieu-init ~/my-project`
+- [ ] **5.** Copy the ticket template into the project: `cp ~/tools/sos-kit/phieu/TICKET_TEMPLATE.md ~/my-project/docs/ticket/TICKET_TEMPLATE.md`
+- [ ] **6.** Create the Discoveries log: `touch ~/my-project/docs/DISCOVERIES.md` (add a header — see `phieu/DISCOVERY_PROTOCOL.md`)
+- [ ] **7.** Copy vision doc skeletons: `cp ~/tools/sos-kit/phieu/VISION_TEMPLATES/*.md ~/my-project/docs/`
+- [ ] **8.** Smoke-test: `phieu my-project chore test-setup` → should create worktree `~/my-project-wt/P001-test-setup/` with a pre-filled ticket file and launch Claude Code. Exit, then `phieu-done my-project P001-test-setup` to clean up.
+
+If all 8 pass: ready for daily use. Skip to "Daily commands" below.
+
+Full end-to-end setup including Rust tools (`ship`, `docs-gate`, `guard`, `vps`) and Claude skills: see [`../docs/SETUP.md`](../docs/SETUP.md).
+
 ## Setup
 
 ### 1. Source the shell function
@@ -69,6 +86,11 @@ phieu my-project feat user-export # explicit project + type
 # List all active phiếu worktrees
 phieu-list                        # if outside project: shows all registered projects
 phieu-list my-project             # detailed list for one project
+
+# Rebase worktree onto latest origin/main (run if main has moved and
+# you want to stay current; halts cleanly on conflict for you to resolve)
+phieu-sync P042-user-export
+phieu-sync my-project P042-user-export
 
 # Remove worktree when phiếu is done + merged
 phieu-done P042-user-export

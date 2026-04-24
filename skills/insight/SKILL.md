@@ -128,36 +128,36 @@ You (the human) review the proposal, paste it into the target doc, commit. Then 
 
 ## Voice
 
-- Plain Vietnamese when paste target is Vietnamese (SOUL.md, CHARACTER.md for VN-audience products)
-- English when target is English docs
+- English in skill text; match the target doc's language in the proposed addition (if SOUL.md is Vietnamese, write the proposed addition in Vietnamese)
 - Bullets > prose for Architect readability
+- Tight — the goal is to compress hundreds of raw lines into ~10 bullets
 
 ## Example Session
 
 ```
-User: Vừa đọc xong 20 user email. Pattern lớn: họ dùng app lúc 2am sau
-       cãi nhau với người yêu. Không phải morning routine như em nghĩ.
+User: Just read 20 user support emails. Pattern: they use the app at 2am
+      after fights with partner. Not a morning routine like we assumed.
 
 Chủ nhà (/insight):
 
 Target doc: PROJECT.md
 Target section: Personas → Persona B "Deep Reader"
-Rationale: Persona B's "hành vi" section describes WHEN they use the
+Rationale: Persona B's behavior section describes WHEN they use the
            product. New data contradicts current assumption (morning
            ritual) → must update.
 
 Proposed addition:
 
-Replace Persona B "Hành vi" bullet with:
-   **Hành vi:** Dùng app ở những khoảnh khắc emotional-weight thấp
-   (morning ritual) NHƯNG spike mạnh ở emotional-weight cao — sau cãi
-   nhau với người yêu (23h-3am), sau quyết định lớn phải một mình.
-   Sessions ở khung giờ khuya có thời lượng gấp 2x so với morning.
+Replace Persona B "Behavior" bullet with:
+   **Behavior:** Uses app in low-emotional-weight moments (morning
+   ritual) BUT spikes strongly at high-emotional-weight moments —
+   after fights with partner (11pm-3am), after big decisions alone.
+   Late-night sessions last 2x as long as morning sessions.
 
 Related corrections:
 - Retention §7 "Morning ritual" assumption is partially wrong — add
   "late-night crisis session" as secondary hook pattern.
-- SOUL §1 One Truth test — the "5 phút ngồi lại với chính mình" framing
+- SOUL §1 One Truth test — the "5 min sitting with yourself" framing
   is still correct, but the time-of-day assumption was wrong.
 
 Source attribution:
@@ -166,7 +166,7 @@ Source attribution:
 
 ---
 
-Anh review rồi paste vào PROJECT.md, sau đó re-upload Claude Web project.
-Nếu anh muốn em cũng propose update cho Retention section, bảo em chạy
-lại /insight riêng cho section đó.
+Review → paste into PROJECT.md → re-upload to Claude Web project.
+If you also want a proposal for the Retention section, run /insight
+separately for that section.
 ```

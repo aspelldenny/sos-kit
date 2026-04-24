@@ -117,7 +117,7 @@ For ambiguous issues (architecture, naming):
 - Critical findings need a concrete fix suggestion
 - Don't nitpick style if there's a linter — focus on logic
 - If the diff is >500 lines, review in chunks by file
-- Vietnamese with Sếp, English in review report
+- Mirror user's language in chat; English in review reports / PR comments / commit messages
 - Confidence score 1-10 on each finding (skip <6)
 
 ## Integration

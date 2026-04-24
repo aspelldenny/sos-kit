@@ -8,6 +8,7 @@
 #   phieu <project> <type> <slug>     # explicit full
 #   phieu-list [project]              # list worktrees (empty = all projects)
 #   phieu-done [project] <P-slug>     # remove worktree
+#   phieu-sync [project] <P-slug>     # rebase worktree on latest origin/main
 #   phieu-init <project-path>         # onboard a new project (creates counter + wt dir)
 #
 # Ticket naming: <type>/P<NNN>-<slug>  where type ∈ feat|fix|chore|docs|infra
@@ -246,6 +247,70 @@ phieu-done() {
 
   local root="${PHIEU_PROJECTS[$project]}"
   _phieu_done_impl "phieu-done $project" "$root" "${root}-wt" "$@"
+}
+
+phieu-sync() {
+  local project
+  if [ $# -ge 1 ] && [[ -n "${PHIEU_PROJECTS[$1]}" ]]; then
+    project="$1"
+    shift
+  fi
+  [ -z "$project" ] && project=$(_phieu_detect_project)
+
+  if [ -z "$project" ] || [ $# -eq 0 ]; then
+    echo "Usage:"
+    echo "  phieu-sync <P042-slug>                # auto-detect project"
+    echo "  phieu-sync <project> <P042-slug>      # explicit"
+    echo ""
+    echo "What it does: rebase the worktree's branch onto latest origin/main"
+    echo "              so your phiếu stays current with main's changes."
+    return 1
+  fi
+
+  local name="$1"
+  local root="${PHIEU_PROJECTS[$project]}"
+  local wt_dir="${root}-wt/${name}"
+
+  if [ ! -d "$wt_dir" ]; then
+    echo "❌ Worktree not found: $wt_dir"
+    return 1
+  fi
+
+  echo "🔄 Syncing worktree $wt_dir with origin/main..."
+  cd "$wt_dir" || return 1
+
+  # Fetch latest origin/main
+  if ! git fetch origin main --quiet 2>/dev/null; then
+    echo "⚠️  git fetch failed — check network"
+    return 1
+  fi
+
+  # Check clean working tree (rebase needs clean)
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "⚠️  Working tree has uncommitted changes. Commit or stash first."
+    git status --short
+    return 1
+  fi
+
+  # Attempt rebase
+  if git rebase origin/main; then
+    echo "✅ Rebased onto origin/main successfully."
+    echo "   Run tests to confirm nothing broke, then continue."
+  else
+    echo ""
+    echo "⚠️  Rebase hit conflict(s). NOT auto-resolving."
+    echo ""
+    echo "Options:"
+    echo "  1. Resolve manually:"
+    echo "     - Edit conflict files (git status shows which)"
+    echo "     - git add <files>"
+    echo "     - git rebase --continue"
+    echo "  2. Abort and stay on old base:"
+    echo "     - git rebase --abort"
+    echo ""
+    echo "You're now in ${wt_dir} — fix or abort from here."
+    return 1
+  fi
 }
 
 # --- Onboard a new project ---

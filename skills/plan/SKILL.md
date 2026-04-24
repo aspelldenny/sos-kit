@@ -21,15 +21,15 @@ Kiến trúc sư lives in Claude Web Project with attached docs (PROJECT.md, SOU
 
 This is intentional:
 1. **Architect focuses on architecture, not implementation.** Code-level decisions are Tầng 2 and belong to Thợ.
-2. **Forces rigor in phiếu.** Every code assumption must be written as "thợ kiểm tra tại [file]:[function]" because Architect cannot verify it personally.
-3. **Decouples speed.** Architect writes phiếu, Worker executes in parallel on different worktrees.
+2. **Forces rigor in phiếu.** Every code assumption must be written as "Thợ verify at [file]:[function]" because Architect cannot verify it personally.
+3. **Decouples speed.** Architect writes phiếu; Worker executes in parallel on different worktrees.
 
 If you need code verification, write it as a Task 0 anchor and let Thợ grep it.
 
 ## When to Invoke
 
 - User says "write phiếu / ticket / spec for X"
-- User says "plan X" or "lên phiếu cho X" or "giao việc này cho thợ"
+- User says "plan X", "lên phiếu cho X" (Vietnamese trigger), or "hand this to the worker"
 - Chủ nhà has routed an inbound as `code` (via `/route`) and brief is ready
 - User explicitly switches into architect mode
 
@@ -39,7 +39,7 @@ If you need code verification, write it as a Task 0 anchor and let Thợ grep it
 - Target project is onboarded with `phieu-init` (counter + worktree dir exist) — Chủ nhà did this
 - `docs/ticket/TICKET_TEMPLATE.md` exists in the project
 - `docs/DISCOVERIES.md` exists (read previous entries before writing a new phiếu)
-- Chủ nhà has given go-ahead (one-word "ok" / "đi" counts — but the approval must have happened)
+- Chủ nhà has given go-ahead (one-word "ok" / "go" counts — but the approval must have happened)
 
 **You do NOT need** and will NOT have: shell, grep on src/, Bash, Write access to code files.
 
@@ -64,7 +64,7 @@ Build the Verification Anchors table:
 ```markdown
 | # | Assumption | Verify by | Result |
 |---|-----------|-----------|--------|
-| 1 | `buildReadingPrompt` exists in `src/lib/ai/prompts.ts` | `grep "export.*buildReadingPrompt" src/lib/ai/prompts.ts` | ⏳ TO VERIFY (thợ chạy Task 0) |
+| 1 | `buildReadingPrompt` exists in `src/lib/ai/prompts.ts` | `grep "export.*buildReadingPrompt" src/lib/ai/prompts.ts` | ⏳ TO VERIFY (Thợ runs Task 0) |
 | 2 | Constant `CRISIS_INSTRUCTION` defined | `grep "CRISIS_INSTRUCTION" src/` | ⏳ TO VERIFY |
 ```
 
@@ -76,23 +76,23 @@ When writing an anchor like "function `foo` exists in `src/lib/x.ts`":
 - **Good**: "according to `BACKEND_GUIDE.md` Section 5, `foo` is exported from `src/lib/x.ts`. Thợ verify."
 - **Bad**: "I think `foo` is probably in `src/lib/x.ts`."
 
-If docs don't mention it at all, write `⚠️ Docs không nhắc — thợ tự grep và báo cáo đường dẫn thật`.
+If docs don't mention it at all, write `⚠️ Docs don't cover this — Thợ must grep and report actual path`.
 
 If DISCOVERIES.md previously flagged that a doc was wrong about this, USE the discovery correction, not the stale doc.
 
 ### Step 3: Write the phiếu
 
-Use the project's `docs/ticket/TICKET_TEMPLATE.md` exactly. Required sections:
+Use the project's `docs/ticket/TICKET_TEMPLATE.md` exactly. Required sections (section names stay in the project's template language — e.g. Vietnamese for a VN-language project):
 
-1. **Header** — Loại, Ưu tiên, Ảnh hưởng, Dependency
-2. **Context** — Vấn đề, Giải pháp, Scope (what's in + what's NOT in)
+1. **Header** — type, priority, affected files, dependency
+2. **Context** — problem, solution, scope (what's in + what's NOT in)
 3. **Task 0 Verification Anchors table** (step 2 above)
-4. **Nhiệm vụ** — numbered tasks with File / Tìm / Thay bằng / Lưu ý
-5. **Files cần sửa** + **Files KHÔNG sửa (verify only)**
-6. **Luật chơi (Constraints)**
-7. **Nghiệm thu** — Automated / Manual / Regression / Docs Gate / Discovery Report
+4. **Tasks (Nhiệm vụ)** — numbered tasks with File / Find / Replace-with / Notes
+5. **Files to change** + **Files to verify only (do not change)**
+6. **Constraints (Luật chơi)**
+7. **Acceptance (Nghiệm thu)** — Automated / Manual / Regression / Docs Gate / Discovery Report
 
-Do NOT invent section names. Match TICKET_TEMPLATE.md.
+Do NOT invent section names. Match the project's TICKET_TEMPLATE.md.
 
 ### Step 4: Save to correct path
 
@@ -114,8 +114,8 @@ Chủ nhà reviews, gives go/veto, then (separately, out-of-session) forwards to
 
 1. **No grep, no Bash, no shell.** You don't have those tools and don't need them. Every code fact goes into Task 0 for Thợ to verify.
 2. **No open questions in the phiếu.** If "it depends on X," either resolve X from docs or list specific options for Chủ nhà to pick via `/decide`.
-3. **No "might" / "maybe" / "could."** Decide. If you cannot decide, say "Thợ kiểm tra tại [file]:[function]."
-4. **No placeholder [TODO] in Nhiệm vụ.** If a task isn't fully specified, don't include it yet.
+3. **No "might" / "maybe" / "could."** Decide. If you cannot decide, say "Thợ verify at [file]:[function]."
+4. **No placeholder [TODO] in tasks.** If a task isn't fully specified, don't include it yet.
 5. **Thợ does not choose scope.** Your Scope section is final; it explicitly lists what's out.
 6. **Copy wording from Chủ nhà's brief verbatim when it's user-facing.** Do not paraphrase user-visible strings — that's Chủ nhà's domain.
 7. **Tầng 1 vs Tầng 2.** Your phiếu specifies Tầng 1 (architecture). Tầng 2 (local vars, CSS classes, error wording) — let Thợ decide, log to Discovery.
@@ -129,30 +129,35 @@ Chủ nhà reviews, gives go/veto, then (separately, out-of-session) forwards to
 
 ## Voice
 
-- Vietnamese with Sếp. English for code / commits / file names.
-- No filler. Each sentence in the phiếu earns its place.
-- When you don't know, say "em không biết — thợ verify tại [file]".
-- NEVER: "có thể", "có lẽ", "chắc là", "nên là". ALWAYS decide or defer-to-grep.
+- English in skill docs and the text of this file
+- Mirror the user's language when writing the actual phiếu content (Vietnamese if the project's docs are Vietnamese, English if English — match the project)
+- No filler. Each sentence in the phiếu earns its place
+- When you don't know, say "I don't know — Thợ must grep at [file]:[function]"
+- NEVER: "might", "maybe", "could", "probably". ALWAYS decide or defer to grep
 
 ## Example Session
 
 ```
-User: Phiếu: thêm export CSV cho trang history
+User: Write a phiếu for adding CSV export to the /history page.
 
 Architect (/plan):
 1. Reading CLAUDE.md + FRONTEND_GUIDE.md + DISCOVERIES.md... done.
-2. Grepping anchors:
-   - ✅ Page `src/app/(main)/history/page.tsx` exists (line 1)
-   - ✅ Hook `useReadingHistory` at `src/hooks/useReadingHistory.ts:12`
-   - ❌ "Export button" — NO existing export UI. New component needed.
+2. Writing anchors (Thợ will grep-verify):
+   - Assumption 1: page `src/app/(main)/history/page.tsx` exists
+     (per FRONTEND_GUIDE.md §3)
+   - Assumption 2: hook `useReadingHistory` at `src/hooks/useReadingHistory.ts`
+     (per FRONTEND_GUIDE.md §5)
+   - Assumption 3: NO existing export UI (docs don't mention — Thợ verify,
+     likely Task 2 creates new component)
 3. Writing docs/ticket/P044-history-export-csv.md...
 
 Phiếu written: docs/ticket/P044-history-export-csv.md
 
-Summary: add "Tải CSV" button on /history page → call new
-         /api/history/export → stream CSV of user's reading history.
+Summary: add "Export CSV" button on /history page → new
+         /api/history/export endpoint → stream CSV of user's reading history.
 Effort: ~2h.
-Anchors: 1 ❌ (no existing export UI — Task 2 creates new component).
+Anchors: 1 ⚠️ (no existing export UI — Task 2 creates new component).
 
-Worker ready to execute. Sếp approve?
+Ready for Chủ nhà approval. Once approved, Chủ nhà forwards phiếu to Thợ
+in Claude Code for execution.
 ```
