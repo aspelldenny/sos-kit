@@ -25,6 +25,28 @@ gstack replaces your entire methodology with 31 AI skills — from ideation (/of
 
 SOS Kit is **just the tail of the pipeline** — from code-ready to production-verified. It doesn't tell you how to plan or think. It trusts that you have your own methodology for that. It just makes sure the code you wrote actually ships safely.
 
+## Principle 0 — Accountability stays human
+
+> *"Whose house is it? The owner's. Does AI bear responsibility? No. When AI makes mistakes, the person losing money and time is still you, so the owner must do the final acceptance."*
+
+Every other principle in this kit serves this one. Roles, envelopes, gates, phiếu, Discovery Reports — they exist to give the human Owner clean checkpoints to inspect and reject AI output. They do NOT exist to remove the human from the loop.
+
+The Owner (Chủ nhà) is structurally required to be human, by design, forever. AI cannot bear the cost of being wrong about your product — you can. So you stay in the chair where it matters: writing vision, approving phiếu, and final acceptance (nghiệm thu) before ship.
+
+The envelopes (Architect can't grep code, Worker can't read vision) exist to make AI output *inspectable* by the Owner. The 3-role split exists to make accountability *unambiguous* — when something ships wrong, the trail is clear: Owner approved this phiếu, Architect wrote these anchors, Worker executed these tasks. No diffusion.
+
+This is the deepest reason SOS Kit refuses "full autonomy" framing even when technically feasible. The human cost of mistakes cannot be delegated to systems that don't pay it.
+
+## The deeper principle: information envelopes (alignment engineering)
+
+The 3-role split isn't only about workflow. It's about **information envelope engineering for LLM alignment**.
+
+LLMs hallucinate in proportion to how much *irrelevant* context they see. An Architect-LLM with grep access invents implementations that "look right" but cite phantom functions. A Worker-LLM with full vision-doc access silently re-architects "while it's there." Both failures are caused by **information leakage across role boundaries**, not by lack of skill.
+
+SOS Kit prevents these failures *structurally*: each role has a different `allowedTools` envelope — Architect reads docs but cannot grep code; Worker reads code but cannot see vision strategy. The same human drives all three, but the AI assisting each role sees only what that role needs. Three envelopes, three accountability surfaces.
+
+This is why we don't share context "for efficiency." Shared context is exactly the leak we're preventing.
+
 ## Six Principles
 
 ### 1. One Command Per Step
@@ -59,3 +81,15 @@ See [`LAYERS.md`](./LAYERS.md) for role boundaries and anti-patterns.
 - **Not an AI coding assistant.** Claude Code does the coding. SOS Kit organizes how you direct it.
 - **Not an external planning methodology.** Shape Up, Vibecode, product discovery frameworks — those live above SOS Kit. SOS Kit starts where Chủ nhà has decided "we're doing this" and ends at "it's shipped and healthy in production."
 - **Not a team tool pretending to work solo.** Every feature here exists because one person needed it. If it smells like team ceremony (stand-ups, sprint planning poker, architecture review boards), it's out of scope.
+
+## Scope — what SOS Kit does and does not govern
+
+SOS Kit governs **what you build and how you verify it**. It does NOT govern:
+
+- **SSH / VPS authentication** — your own key management, not part of the kit
+- **Multi-machine sync** — use git the way you would anyway
+- **Server-side state** — production ops are `vps` CLI's job (a separate kit)
+- **Time-based planning** — SOS Kit is wave-based (sprint = "until done", not "until Friday")
+- **Project scaffolding** — bring your own templates for new projects
+
+Keep these concerns at your infrastructure layer, not inside SOS Kit. Mixing them dilutes the kit's clarity about what it is responsible for.
