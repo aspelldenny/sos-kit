@@ -3,3 +3,10 @@
 .env
 .env.local
 node_modules/
+
+# Rust build artifacts
+bootstrap/*/target/
+**/*.rs.bk
+
+# SOS Kit state (per-project — should not be in sos-kit repo itself)
+.sos/
