@@ -1,12 +1,20 @@
 ---
 name: plan
-version: 0.2.0
+version: 0.3.0
 description: |
   Kiến trúc sư mode — read vision + guide docs, write a phiếu (ticket) in TICKET_TEMPLATE format with Task 0 verification anchors for Thợ to grep-verify.
   Invoke when: user says "write phiếu", "plan this", "spec this out", "lên phiếu", "viết ticket".
 allowed-tools:
   - Read
   - Write
+plan-mode: required-when-claude-code
+# When this skill activates inside Claude Code (not Claude Web), agent MUST enter
+# plan mode (EnterPlanMode) before drafting. This enforces "Kiến trúc sư không
+# động cờ-lê" at tool layer — no Edit/Write to source files allowed until phiếu
+# done + Chủ nhà approves → ExitPlanMode → handoff to Thợ.
+# In Claude Web (no plan mode tool available), the docs-only constraint is
+# enforced by allowed-tools=[Read, Write] alone (Write is intended for the phiếu
+# file itself in docs/ticket/, never for src/).
 ---
 
 # /plan — Kiến trúc sư: Write a Phiếu
@@ -126,6 +134,16 @@ Chủ nhà reviews, gives go/veto, then (separately, out-of-session) forwards to
 - **After /plan:** Chủ nhà reviews phiếu → approves → hands to Thợ in Claude Code session — Thợ runs `/verify` (Task 0), then `/review` → `/qa` → `/ship`
 - **If Thợ's `/verify` finds ⚠️ or ❌:** Thợ escalates to Chủ nhà → Chủ nhà pastes back to you (Claude Web) → you update phiếu → Chủ nhà forwards back to Thợ. See `phieu/RELAY_PROTOCOL.md`.
 - **After Thợ ships:** Thợ writes Discovery Report to `docs/DISCOVERIES.md`. You read it BEFORE writing the next phiếu.
+
+## Plan mode interop (Claude Code env)
+
+When `/plan` is invoked inside Claude Code (not Claude Web):
+1. Agent enters plan mode immediately (`EnterPlanMode`) — Edit/Write to `src/` is blocked at tool layer.
+2. Agent only reads docs + writes to `docs/ticket/P<NNN>-*.md`.
+3. When phiếu is complete + Chủ nhà acks "ok" → `ExitPlanMode` with the phiếu summary as the plan content.
+4. ExitPlanMode hands off to Thợ session (separate Claude Code instance) — does NOT auto-execute the phiếu.
+
+This double-layered enforcement (skill semantic + plan mode technical) is intentional: Kiến trúc sư role must not blur into Thợ even by accident. See `docs/LAYERS.md > Access matrix`.
 
 ## Voice
 

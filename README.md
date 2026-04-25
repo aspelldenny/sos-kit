@@ -17,6 +17,8 @@ See [`docs/LAYERS.md`](./docs/LAYERS.md) for the role boundaries and [`docs/HAND
 
 ## The Pipeline
 
+For an **existing project** (you've already shipped, adding features):
+
 ```
 ROUTE → PLAN → CODE → REVIEW → QA → SHIP → GUARD → DEPLOY → MONITOR → LEARN → RETRO
   │       │      │       │       │     │       │        │         │         │       │
@@ -26,7 +28,17 @@ ROUTE → PLAN → CODE → REVIEW → QA → SHIP → GUARD → DEPLOY → MONI
        sư)
 ```
 
-Each stage belongs to exactly one layer. Crossing layers without a handoff is the anti-pattern SOS Kit is built to prevent.
+For a **new project from scratch** (0→1 — empty folder to launch):
+
+```
+VISION → BLUEPRINT → CONTRACT → SCAFFOLD → ITERATE → LAUNCH
+  │          │           │          │         │         │
+/init   sos blueprint  sos contract  /apply×N  phiếu loop  sos launch
+(Chủ    (Chủ nhà →    (Kiến trúc sư) (Thợ)    (như cũ)  (gate Chủ nhà)
+ nhà)    Kiến trúc sư)
+```
+
+Each stage belongs to exactly one layer. Crossing layers without a handoff is the anti-pattern SOS Kit is built to prevent. See [`docs/GENESIS.md`](./docs/GENESIS.md) for 0→1 details.
 
 ## Components
 
@@ -38,6 +50,7 @@ Each stage belongs to exactly one layer. Crossing layers without a handoff is th
 | **[docs-gate](https://github.com/aspelldenny/docs-gate)** | 5.2MB | Enforce documentation compliance before every commit |
 | **[guard](https://github.com/aspelldenny/guard)** | 1.9MB | Pre-deploy infrastructure gate — catch schema drift, env sync, canary mismatch before they hit production |
 | **[vps](https://github.com/aspelldenny/vps)** | 1.2MB | Production ops — status, logs, restart, metrics for Docker Compose projects over SSH |
+| **sos** (in `bootstrap/sos-rs/`) | (planned) | 0→1 bootstrap — `sos init` / `blueprint` / `contract` / `apply` / `launch`. Bash MVP at `bin/sos.sh`. See [`docs/GENESIS.md`](./docs/GENESIS.md). |
 
 ### ship subcommands
 
@@ -80,6 +93,7 @@ vps serve               # Start MCP server (stdio transport)
 
 | Skill | Purpose |
 |---|---|
+| `/init` | **0→1 only.** Vision capture for new project (empty folder → docs/PROJECT.md, SOUL.md, CHARACTER.md skeleton). |
 | `/insight` | Distill raw research / user interviews / competitor observations into structured bullets for PROJECT.md / SOUL.md / CHARACTER.md. |
 | `/route` | Classify inbound request: code / marketing / design / strategy / skip. Produces 5-bullet brief for Architect. |
 | `/decide` | Trade-off triage. Present 2-3 concrete options with user-visible impact, recommend one. |
@@ -88,13 +102,15 @@ vps serve               # Start MCP server (stdio transport)
 
 | Skill | Purpose |
 |---|---|
-| `/plan` | Read vision + guide docs → write phiếu (ticket) in `phieu/TICKET_TEMPLATE.md` format with Task 0 verification anchors for Thợ to grep-verify. |
+| `/plan` | Read vision + guide docs → write phiếu (ticket) in `phieu/TICKET_TEMPLATE.md` format with Task 0 verification anchors for Thợ to grep-verify. (v0.3.0 enters plan mode in Claude Code env) |
+| `/forge` | **Recipe library extension.** Research official docs + write new recipe to `recipes/<category>/<name>.md` when blueprint demands a recipe library doesn't have yet. |
 
 **Thợ layer** — execute + ship (full code access):
 
 | Skill | Purpose |
 |---|---|
 | `/verify` | Task 0 grep-first: verify every file/function/constant anchor in the phiếu against real code BEFORE coding. |
+| `/apply` | **0→1 only.** Apply 1 recipe from `recipes/` library — auto-generate sub-phiếu P000.N, run Task 0, execute steps, verify, commit. |
 | `/review` | Staff-engineer review before merge — SQL injection, N+1 queries, auth bypass, logic bugs. |
 | `/qa` | QA lead — run tests, find bugs, fix with regression tests, verify. |
 | `/ship` | Release engineer — full ship pipeline (test → commit → PR → deploy → canary). |
@@ -122,6 +138,28 @@ Before any phiếu can be written, Chủ nhà must maintain:
 - `CHARACTER.md` — voice / persona (if the product has an AI character)
 
 Skeletons are in [`phieu/VISION_TEMPLATES/`](./phieu/VISION_TEMPLATES/). Copy into your project's `docs/` on day 1, fill iteratively as research matures. Use `/insight` skill to distill raw material into these docs.
+
+For brand-new projects, `/init` skill runs the capture interactively (3 questions max → 3 docs).
+
+### Recipes — atomic, composable building blocks
+
+For 0→1 (and beyond), SOS Kit replaces "stack-locked scaffolds" with a **recipe library**. Each recipe is one Markdown file solving one concrete need:
+
+```
+recipes/
+├── infra/        docker-compose-postgres, nginx, vps-bootstrap-ubuntu, ...
+├── auth/         nextauth-google-email, supabase-auth, jwt-custom, ...
+├── payment/      payos-vn, stripe-checkout, lemonsqueezy, ...
+├── ai/           multi-model-fallback, credit-atomic-deduct, ...
+├── observability/sentry, umami, canary-github-actions, ...
+└── framework-starter/ nextjs, sveltekit, flask, fastapi, tauri, ...
+```
+
+Kiến trúc sư picks recipes per-project in `BLUEPRINT.md` → Thợ runs `/apply` per recipe. Combo lạ → `/forge` makes a new recipe → save to library → next project benefits. See [`recipes/README.md`](./recipes/README.md).
+
+### Genesis — the master phiếu (P000)
+
+For new projects, `sos contract` generates `phieu/P000-genesis.md` — a single phiếu locking entire MVP scope by SHA256 spec_hash. No phiếu after P000 may add scope without re-locking + audit trail. See [`phieu/GENESIS_TEMPLATE.md`](./phieu/GENESIS_TEMPLATE.md) and [`phieu/LAUNCH_CHECKLIST.md`](./phieu/LAUNCH_CHECKLIST.md) (20-mục launch gate).
 
 ### Relay Protocol — Chủ nhà as the courier
 
