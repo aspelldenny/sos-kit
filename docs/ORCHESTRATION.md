@@ -95,7 +95,7 @@ Default if no phrase matches: Architect → DRAFT, Worker → EXECUTE (backward 
 3. **Debate trail lives in the phiếu file.** No external log, no database. Audit trail = git history of the phiếu.
 4. **Approval gate is mandatory.** Even if Worker accepted V1 with no challenges, orchestrator MUST run AskUserQuestion before EXECUTE_PHASE. Only the human approves code execution.
 5. **User can interrupt anytime.** State machine is suggestive, not enforced — if the user types into the main session mid-debate, orchestrator handles their input first.
-6. **Marker file hygiene.** Architect-guard hook uses `.claude/.architect-active` marker. Orchestrator must `touch` it before spawning Architect (any mode), `rm` it before spawning Worker. Never leave stale markers.
+6. **Marker file hygiene.** Architect-guard hook uses `.sos-state/architect-active` marker. Orchestrator must `mkdir -p .sos-state && touch .sos-state/architect-active` before spawning Architect (any mode), `rm -f .sos-state/architect-active` before spawning Worker. Never leave stale markers. (Marker lives outside `.claude/` so YOLO mode doesn't prompt — `.claude/` is gated even with `--dangerously-skip-permissions`.)
 
 ## Failure modes + recovery
 
@@ -103,7 +103,7 @@ Default if no phrase matches: Architect → DRAFT, Worker → EXECUTE (backward 
 |---|---|
 | Architect RESPOND didn't bump phiếu version | Orchestrator re-spawns once with explicit "bump version to V<N+1>". Second failure → escalate. |
 | Worker CHALLENGE wrote objection without `file:line` citation | Orchestrator rejects, asks Worker to redo with citations. Architect cannot judge an evidence-free objection. |
-| Stale `.architect-active` marker | Orchestrator runs `rm -f .claude/.architect-active` before every spawn. Defensive; cheap. |
+| Stale `.architect-active` marker | Orchestrator runs `rm -f .sos-state/architect-active` before every spawn. Defensive; cheap. |
 | Phiếu version went backwards (V3 → V2) | Refuse — orchestrator escalates as a bug in Architect output. |
 | Same objection raised in 2 consecutive Worker turns | Indicates Architect didn't actually fix the underlying issue. Force-escalate. |
 

@@ -151,7 +151,7 @@ Thêm section sau vào `CLAUDE.md` của project (nếu chưa có sos-kit v1 min
 **Forcing functions:**
 - `docs/BACKLOG.md` — Architect chỉ viết phiếu cho item ở "Active sprint"
 - `/idea` skill — intake idea mới, route vào BACKLOG đúng section
-- Hook `architect-guard.sh` — chặn cứng .py/.rs/.ts read khi marker `.claude/.architect-active`
+- Hook `architect-guard.sh` — chặn cứng .py/.rs/.ts read khi marker `.sos-state/architect-active`
 - Hook `session-start-banner.sh` — show BACKLOG mỗi lần mở Claude Code
 
 **Workflow (v2.1 — auto-debate):**
@@ -175,11 +175,12 @@ bash scripts/session-start-banner.sh
 # → should print BACKLOG Active sprint banner
 
 # Test architect-guard.sh
-touch .claude/.architect-active
+mkdir -p .sos-state
+touch .sos-state/architect-active
 echo '{"tool_input":{"file_path":"src/main.rs"}}' | bash scripts/architect-guard.sh
 # → should exit 2 with "🚫 Architect envelope violation"
 echo "exit code: $?"   # → 2
-rm .claude/.architect-active
+rm .sos-state/architect-active
 
 # Restart Claude Code
 exit
@@ -220,8 +221,8 @@ grep -A2 "Debate Log" .claude/agents/worker.md | head -5
 |--------|-----|
 | `bash: scripts/architect-guard.sh: command not found` (Windows native) | Cài Git Bash hoặc WSL — script là bash, không PowerShell |
 | `Agent type 'architect' not found` | Restart Claude Code (`/exit` + `claude`) — agents load lúc start |
-| `architect-guard.sh` không block | Check `.claude/.architect-active` có tồn tại không (`ls -la .claude/`) |
-| Hook block worker khi spawn | Worker spawn cần marker NOT exist — `rm .claude/.architect-active` trước |
+| `architect-guard.sh` không block | Check `.sos-state/architect-active` có tồn tại không (`ls -la .sos-state/`) |
+| Hook block worker khi spawn | Worker spawn cần marker NOT exist — `rm -f .sos-state/architect-active` trước |
 | `/idea` slash không nhận | Skill load lúc Claude Code start — restart |
 | BACKLOG.md không tồn tại | Bootstrap: `cp ~/sos-kit/templates/BACKLOG_template.md docs/BACKLOG.md` |
 

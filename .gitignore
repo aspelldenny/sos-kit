@@ -8,5 +8,6 @@ node_modules/
 bootstrap/*/target/
 **/*.rs.bk
 
-# SOS Kit state (per-project — should not be in sos-kit repo itself)
+# SOS Kit state (architect marker, per-project state)
 .sos/
+.sos-state/

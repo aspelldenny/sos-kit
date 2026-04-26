@@ -8,14 +8,16 @@
 #   - If Architect is trying to read src/, exits 2 with an error
 #
 # Setup: this script is referenced from .claude/settings.json under hooks.PreToolUse.
-# Architect agent must create marker file `.claude/.architect-active` on spawn.
+# Architect agent must create marker file `.sos-state/architect-active` on spawn.
+# (Marker lives outside .claude/ so YOLO mode doesn't prompt — .claude/ is gated
+# even with --dangerously-skip-permissions because it holds settings/hooks.)
 #
 # Note: NO external deps (no jq) — uses pure shell + sed/grep for cross-platform
 # compatibility (esp. Windows msys2 bash where jq is not bundled).
 
 set -euo pipefail
 
-MARKER_FILE=".claude/.architect-active"
+MARKER_FILE=".sos-state/architect-active"
 
 # If no marker → not running as Architect → allow everything
 [ -f "$MARKER_FILE" ] || exit 0
