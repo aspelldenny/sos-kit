@@ -18,14 +18,25 @@
 
 ---
 
-## 🎯 Next sprint candidates: Single-command install
+## 🎯 Next sprint candidates: Distribution — plugin + Rust CLI cohabit
 
-> **Trigger:** Active sprint shipped + maintainer signs off "drift = 0 on fresh install."
-> **Theme:** Make `sos-kit init <project>` a one-command experience (no manual copy-paste of 8 files like current INSTALL.md Step 1).
+> **Trigger:** Active sprint (P003 + P004 drift fixes) shipped + maintainer signs off "drift = 0 on fresh install."
+> **Theme:** Two install paths, complementary not competing. Plugin = the brain (skills/agents/hooks Claude Code consumes natively). Rust CLI = the hands (filesystem ops, settings.json merge, doctor check, CI scriptable). User picks: plugin-only (simple) or plugin + CLI (recommended for own dogfood).
+> **Plan basis:** Claude Code plugin spec confirmed via `claude-code-guide` agent — manifest at `.claude-plugin/plugin.json`, bundles agents + skills + hooks + bash scripts + templates + MCP. Cannot auto-modify user's `.claude/settings.json`, but plugin's bash script (in `bin/`) can with user permission.
 
-- [ ] **[P032]** Phase 1 MVP — bash installer + `init` subcommand as bash script. `curl -fsSL .../install.sh | bash` adds `sos-kit` shell function to `~/.zshrc`; `sos-kit init <project>` bootstraps `.claude/agents/`, `scripts/`, `docs/BACKLOG.md`, hooks, vision templates.
-- [ ] **[P033]** Phase 2 main — proper Rust CLI `sos-kit` (matches `ship`/`docs-gate` pattern). Subcommands: `init`, `upgrade` (sync `.claude/agents/` from canonical), `doctor` (verify install state), `phieu <slug>` (port shell function as proper subcommand). Distributed via `cargo install sos-kit`.
-- [ ] **[P034]** Phase 2 distribution — Homebrew tap `aspelldenny/homebrew-sos`. Pre-built binaries on GitHub Releases for macOS / Linux / Windows (Git Bash or WSL for hooks).
+- [ ] **[P032]** Phase 1 (MVP) — **sos-kit Claude Code plugin**. Bundle: `agents/architect.md` + `worker.md`, all 9 skills + new `/sos:init` + new `/phieu`, hooks (`hooks/hooks.json` for PreToolUse architect-guard + SessionStart banner), bash scripts in `bin/`, markdown templates (TICKET, BACKLOG, vision/*). Manifest at `.claude-plugin/plugin.json`. User flow: `/plugin install --url https://github.com/aspelldenny/sos-kit` → `/sos:init <project>` → bash script in plugin's `bin/` scaffolds project files + prompts user to merge `.claude/settings.json` (permission gate).
+  - **[P032.1]** `/sos:init <project>` skill + companion bash script (creates `docs/BACKLOG.md`, vision templates, `.phieu-counter`, settings.json merge with permission)
+  - **[P032.2]** `/phieu <slug>` skill — port `phieu.sh` shell function as cross-platform skill (Windows OK without bash setup)
+- [ ] **[P033]** Phase 2 (main, confirmed direction) — **sos-kit Rust CLI**. Standalone binary matching `ship`/`docs-gate`/`guard`/`vps` pattern. Subcommands:
+  - `sos-kit init <project>` — clean JSON merge into `.claude/settings.json` + scaffold (no permission prompt friction since it's the user's own CLI)
+  - `sos-kit upgrade` — sync project's `.claude/agents/` + scripts from canonical sos-kit, detect + report drift
+  - `sos-kit doctor` — verify install (hooks wired, agents register, BACKLOG present, vision docs present)
+  - `sos-kit phieu <slug>` — port shell function as proper subcommand with worktree support
+  - **Unique value over plugin:** runs outside Claude Code session (useful in CI / scripts / cron), proper JSON merge without per-call permission prompts, cross-project ops, can be invoked from other Rust tools. Companion to existing Rust ecosystem.
+- [ ] **[P034]** Distribution channels —
+  - **Plugin:** GitHub URL install (immediately works) + marketplace submission via `platform.claude.com/plugins/submit`
+  - **Rust CLI:** `cargo install sos-kit` + Homebrew tap `aspelldenny/homebrew-sos` + GitHub Releases pre-built binaries (macOS / Linux / Windows)
+  - Documentation in `INSTALL.md` showing both paths side by side
 
 ---
 
