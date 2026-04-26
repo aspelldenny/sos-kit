@@ -2,6 +2,36 @@
 
 > Newest on top, like CHANGELOG. Each entry: phiếu ID + date + what assumptions held vs broke + scope expansions + edge cases + docs touched.
 
+## [P002] — 2026-04-26 — Tarot voice/character template harvest
+
+### Assumptions in phiếu — CORRECT
+- Tarot `CHARACTER_CHI_HA.md`, `VOICE_SACH_CO.md`, `TEST_CASES.md`, `NHA_CHI_HA_DESIGN_SPEC.md` all exist and are battle-tested (Sprint Voice Unify v1.0–v1.3, multiple production phiếu reference).
+- Patterns are generalizable: hard-rules-max-3, voice DNA, anti-pattern diagnostics, phrase bank, pre-flight checklist, voice boundaries, P0/P1/P2 tier model, visual ↔ voice traceability.
+
+### Assumptions in phiếu — WRONG / Adapted
+- **CHARACTER_template.md was less shallow than the gap report claimed.** It already had 12 sections covering Tarot's main spine. The "enrichment" turned out to be: add Phenotype table (Tarot §3 patterned 16 traits), expand Voice DNA from 5 sub-sections to 12 (reactive/proactive, ambiguous-question handling, fatigue-aware, self-disclose cap, prompt-engineer-ready patterns), add UX Tempo Principles, and add "How character relates to product domain." Net: replaced the file rather than incremental edits; full-overwrite with `Write` was cleaner than 5+ Edit calls.
+- **TEST_CASES grid format is more useful than a checklist.** Tarot uses per-test setup + script + check + sample-pass + sample-fail format. Adopted that rather than the flat checklist I'd initially pictured.
+
+### Scope expansions
+- None beyond planned 4 templates. Considered + rejected: harvesting `NARRATIVE.md` and `PROMPT_HANDOFF.md` from Tarot. Both are too product-specific to generalize without diluting the templates.
+
+### Edge cases / limitations found
+- Templates are intentionally long (200–300 lines each) — they're meant to be filled in for one product, not skimmed. Future projects should not feel obligated to fill EVERY section; `(optional)` markers help.
+- TEST_CASES_template references CHARACTER + VOICE + SOUL by section number, but a project might number sections differently. Trade-off: too prescriptive vs. too vague. Chose section-number references — assumes user follows the templates' numbering.
+- DESIGN_SPEC template assumes Next.js + Tailwind file paths (e.g. `tailwind.config.ts`). Generic-enough that projects using SvelteKit / Flask + Jinja can adapt, but a project lead should sanity-check before adoption.
+
+### Docs updated to match reality
+- `phieu/VISION_TEMPLATES/CHARACTER_template.md` — overwritten with enriched version (200 → 250 lines, 14 sections)
+- `phieu/VISION_TEMPLATES/VOICE_template.md` — TẠO MỚI
+- `phieu/VISION_TEMPLATES/TEST_CASES_template.md` — TẠO MỚI
+- `phieu/VISION_TEMPLATES/DESIGN_SPEC_template.md` — TẠO MỚI
+- `README.md` — VISION_TEMPLATES section + Architecture section updated to mention new templates and their Tarot lineage
+
+### Notes for future phiếu
+- Next time a new project onboards, copy these templates into `docs/`, then run `/insight` skill to populate from raw research. The skill should be aware of all 6 templates now (PROJECT/SOUL/CHARACTER/VOICE/TEST_CASES/DESIGN_SPEC) — currently it references only 3. Mark as P003 candidate: extend `/insight` skill to know about new templates.
+
+---
+
 ## [P001] — 2026-04-26 — Architect ↔ Worker debate loop
 
 ### Assumptions in phiếu — CORRECT

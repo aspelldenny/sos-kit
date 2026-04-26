@@ -167,7 +167,9 @@ Before any phiếu can be written, Chủ nhà must maintain:
 - `SOUL.md` — why it exists (philosophy, positioning, 3 hard lines, anti-product)
 - `CHARACTER.md` — voice / persona (if the product has an AI character)
 
-Skeletons for `PROJECT.md` / `SOUL.md` / `CHARACTER.md` are in [`phieu/VISION_TEMPLATES/`](./phieu/VISION_TEMPLATES/). The BACKLOG skeleton is in [`templates/BACKLOG_template.md`](./templates/BACKLOG_template.md). Copy into your project's `docs/` on day 1, fill iteratively as research matures. Use `/insight` to distill raw material into vision docs and `/idea` to feed BACKLOG.
+Skeletons for `PROJECT.md` / `SOUL.md` / `CHARACTER.md` / `VOICE.md` / `TEST_CASES.md` / `DESIGN_SPEC.md` live in [`phieu/VISION_TEMPLATES/`](./phieu/VISION_TEMPLATES/). The BACKLOG skeleton is in [`templates/BACKLOG_template.md`](./templates/BACKLOG_template.md). Copy into your project's `docs/` on day 1, fill iteratively as research matures. Use `/insight` to distill raw material into vision docs and `/idea` to feed BACKLOG.
+
+The voice / character / test-cases / design-spec templates were harvested from a real production app (`tarot`) — they encode patterns proven at scale: phenotype tables, prompt-engineer-ready voice patterns, refusal templates, anti-pattern diagnostics, P0/P1/P2 test tiers, voice-↔-design traceability. Use them when your product has strong character voice; skip when it doesn't (e.g. a B2B dashboard).
 
 For brand-new projects, `/init` skill runs the capture interactively (3 questions max → 3 docs).
 
@@ -409,7 +411,7 @@ sos-kit/
 │   ├── TICKET_TEMPLATE.md      # Phiếu format with Task 0 Verification Anchors
 │   ├── DISCOVERY_PROTOCOL.md   # Thợ → Kiến trúc sư feedback loop + mismatch classification
 │   ├── RELAY_PROTOCOL.md       # Chủ nhà's courier workflow (Web Project mode)
-│   ├── VISION_TEMPLATES/       # Day-1 skeletons for Chủ nhà
+│   ├── VISION_TEMPLATES/       # Day-1 skeletons for Chủ nhà (PROJECT, SOUL, CHARACTER, VOICE, TEST_CASES, DESIGN_SPEC)
 │   │   ├── PROJECT_template.md
 │   │   ├── SOUL_template.md
 │   │   └── CHARACTER_template.md
