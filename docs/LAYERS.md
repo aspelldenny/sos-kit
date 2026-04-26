@@ -31,7 +31,7 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Layer 1 — CHỦ NHÀ (Owner / Router / Vision keeper)             │
-│  Skills: /insight  /route  /decide                              │
+│  Skills: /init  /idea  /insight  /route  /decide                │
 │  Tools: Claude Code OR Claude Web (usually wherever the human is)│
 │  Owns:                                                          │
 │    • Vision docs (PROJECT.md, SOUL.md, CHARACTER.md)            │
@@ -46,7 +46,7 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 │    • Implement (that's Worker)                                  │
 ├─────────────────────────────────────────────────────────────────┤
 │  Layer 2 — KIẾN TRÚC SƯ (Architect / Ticket writer)             │
-│  Skills: /plan  /verify                                         │
+│  Skills: /plan  /forge  /verify                                 │
 │  Tools: Claude Web Project — docs access ONLY                   │
 │  Owns:                                                          │
 │    • Phiếu file with full context, tasks, constraints, Task 0   │
@@ -59,7 +59,7 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 │    • Decide implementation detail (that's Worker's Tầng 2)      │
 ├─────────────────────────────────────────────────────────────────┤
 │  Layer 3 — THỢ (Worker / Executor / Field reporter)             │
-│  Skills: /verify  /review  /qa  /ship  /retro                   │
+│  Skills: /verify  /apply  /review  /qa  /ship  /retro           │
 │  Tools: Claude Code — full shell + code access                  │
 │  Owns:                                                          │
 │    • Execute phiếu Nhiệm vụ after Task 0 passes                 │
@@ -158,15 +158,19 @@ Fix: If Architect notices a vision gap, escalates to Chủ nhà with recommendat
 Symptom: One skill that does "route + plan + implement."
 Fix: One skill = one layer + one responsibility. Split.
 
-## Skills map (8 total)
+## Skills map (13 total)
 
 | Skill | Layer | Purpose |
 |---|---|---|
+| `/init` | Chủ nhà | **0→1 only.** Vision capture — empty folder → PROJECT.md / SOUL.md / CHARACTER.md skeleton |
+| `/idea` | Chủ nhà | Intake new ideas, route into BACKLOG.md (Active / Next / Open / Park). Project-local skill. |
 | `/insight` | Chủ nhà | Distill raw research / feedback into structured vision-doc-ready bullets |
 | `/route` | Chủ nhà | Classify inbound (code / marketing / design / strategy / skip) |
 | `/decide` | Chủ nhà | Trade-off triage, present options + recommend |
 | `/plan` | Kiến trúc sư | Write phiếu in `phieu/TICKET_TEMPLATE.md` format with Task 0 |
+| `/forge` | Kiến trúc sư | Recipe library extension — research + write new recipe to `recipes/<category>/<name>.md` |
 | `/verify` | Thợ (architect-assigned) | Task 0 grep-first anchor check before coding |
+| `/apply` | Thợ | **0→1 only.** Apply 1 recipe from `recipes/` — sub-phiếu P000.N → Task 0 → execute → commit |
 | `/review` | Thợ | Code review before merge |
 | `/qa` | Thợ | Test execution, bug fix, regression |
 | `/ship` | Thợ | Full release pipeline (test → PR → deploy → canary) |

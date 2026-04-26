@@ -232,18 +232,23 @@ vps init                  # generate ~/.vps.toml with your SSH + project paths
 ### Skills (global)
 ```bash
 # Chủ nhà layer
+cp -r skills/init    ~/.claude/skills/init
 cp -r skills/insight ~/.claude/skills/insight
 cp -r skills/route   ~/.claude/skills/route
 cp -r skills/decide  ~/.claude/skills/decide
 # Kiến trúc sư layer
 cp -r skills/plan    ~/.claude/skills/plan
+cp -r skills/forge   ~/.claude/skills/forge
 # Thợ layer
 cp -r skills/verify  ~/.claude/skills/verify
+cp -r skills/apply   ~/.claude/skills/apply
 cp -r skills/review  ~/.claude/skills/review
 cp -r skills/qa      ~/.claude/skills/qa
 cp -r skills/ship    ~/.claude/skills/ship
 cp -r skills/retro   ~/.claude/skills/retro
 ```
+
+> `/idea` is project-local (lives in `.claude/skills/idea/`) — it ships with the v2 subagent envelope per project, not globally.
 
 ### Phiếu shell function
 ```bash
