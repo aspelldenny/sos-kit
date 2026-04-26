@@ -2,6 +2,11 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.1.2] — 2026-04-26
+
+### Fixed
+- **BACKLOG format flexibility (P003).** `scripts/session-start-banner.sh` now falls back to the first `## ` section when no `## ... Active sprint` header is present (previously: silent exit, no banner). `agents/architect.md` Hard rule 0 wording softened to match — the active section is resolved by case-insensitive substring "Active sprint" first, then by first `## ` section. `docs/ORCHESTRATION.md` edge-case greeting (line 32) rewritten to no longer falsely claim "BACKLOG chưa có Active sprint" after fallback resolves a header. Sếp no longer needs to rename their BACKLOG sections to satisfy a literal regex. Tarot's restructured-BACKLOG workaround (2026-04-26 dogfood) is no longer required for new installs.
+
 ## [v2.1.1] — 2026-04-26
 
 ### Added

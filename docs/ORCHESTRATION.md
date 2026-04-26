@@ -29,7 +29,7 @@ Before the state machine starts, the orchestrator MUST perform a session opening
 
 **Edge cases:**
 - If the first user message is already a concrete brief → skip the greeting, go straight to DRAFT_PHASE.
-- If BACKLOG has no Active sprint → greet without list: "Em là Kiến trúc sư. BACKLOG chưa có Active sprint — anh có item gì cần viết phiếu không?"
+- If BACKLOG has no recognizable section (no `## ` headings at all → SessionStart banner stayed silent) → greet without list: "Em là Kiến trúc sư. BACKLOG chưa có item nào — anh có việc gì cần viết phiếu không?" (After P003: a project whose top section is e.g. `## Now` instead of `## Active sprint` resolves via fallback and DOES get a sprint block — this edge case fires only for truly empty/malformed BACKLOGs.)
 
 **Why "Kiến trúc sư" persona for the orchestrator:**
 - Solo workflow has 1 human (Chủ nhà) + 1 visible AI counterpart + 1 invisible Worker subagent. Surfacing the orchestrator as a 4th distinct role bloats the mental model.
