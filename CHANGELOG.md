@@ -2,6 +2,21 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.1.1] — 2026-04-26
+
+### Added
+- **Session opening protocol** (`docs/ORCHESTRATION.md`, new section between "Why a 4th role" and "State machine"). On the first user message in a fresh session, the orchestrator (main session) MUST greet, self-identifying as "Kiến trúc sư" + listing Active sprint items from SessionStart hook context. Without this, the SessionStart hook output (which only injects into the model's context — never visible in the terminal UI) leaves the user without confirmation that the session is alive and context-aware. Edge cases covered: skip greeting if first message is already a concrete brief; alternate greeting if BACKLOG has no Active sprint.
+- Tarot's project-local mirror at `~/tarot/docs/ORCHESTRATOR.md` updated with the same Session opening section (Tarot commit `36e626f`).
+
+### Verified (Tarot dogfood, 2026-04-26)
+- **Debate flow value proven.** P029 smoke test caught a real anchor mismatch — Architect spec'd `export default` for the Next.js middleware file; Worker CHALLENGE grep'd and found `export async function middleware(...)` (named export). Catch happened pre-code, not post-ship. Without CHALLENGE, the comment header would have shipped describing a non-existent export pattern.
+- **Multi-turn debate works end-to-end.** P030 (`.docs-gate.toml` accept chore type): V1 → 2 anchor objections → Architect RESPOND ACCEPT both → V2 → Worker re-CHALLENGE 0 obj → Sếp Approve → Worker EXECUTE → ship. 2 turns total, well under 3-turn cap. Architect RESPOND mode + Worker re-CHALLENGE both verified.
+- **Approval gate is value-add, not friction.** Sếp approved every phiếu with one click via AskUserQuestion; never amended brief mid-debate.
+- **Token cost realistic.** ~42k/multi-turn phiếu (prompt cache hits across subagent spawns within Anthropic's 5-min TTL). Pre-test estimate of 140k was 3× too high. Future v2.2 optimization tickets should baseline 42k, not 140k. Details: `docs/DISCOVERIES.md` v2.1-dogfood entry.
+
+### Known issues (out of sos-kit scope)
+- `docs-gate` CLI default `valid_types` missing `chore` — surfaced when Tarot's P029 commit (type `chore`) was about to fail docs-gate. Fix belongs in `~/docs-gate` Rust binary's default config, not in sos-kit (sos-kit doesn't ship `.docs-gate.toml` templates).
+
 ## [v2.1] — 2026-04-26
 
 ### Added

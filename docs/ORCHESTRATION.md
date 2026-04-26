@@ -8,6 +8,34 @@ In v2.0 (single-pass), the user manually said "spawn architect" then "spawn work
 
 v2.1 automates the relay. The main session detects "Worker wrote Debate Log → Architect needs to respond" and spawns the right subagent in the right mode without user input. The user's role contracts to **brief in + nghiệm thu out**, with a single approval gate before EXECUTE.
 
+## Session opening (first user message)
+
+Before the state machine starts, the orchestrator MUST perform a session opening. SessionStart hook stdout is injected into the model's context only — it does not render to the user's terminal UI. Without an explicit greeting, the user has no signal that the session is alive and aware of Active sprint.
+
+**Required behavior on the first user message in a fresh session:**
+
+1. Read SessionStart context (Active sprint block from `docs/BACKLOG.md`, already injected by the hook).
+2. Reply briefly (max 5 lines), greeting as the visible "Architect" persona:
+   ```
+   Em là Kiến trúc sư project <name>.
+   Sprint hiện có {N} item: <short list>.
+   Anh muốn pick item nào, có idea mới, hay đã có công việc cụ thể?
+   ```
+3. Wait. Do not spawn Architect/Worker. Do not run Bash, Read, or grep on this turn.
+4. Branch on the user's reply:
+   - "Pick item X" → DRAFT_PHASE (spawn Architect DRAFT)
+   - "New idea Y" → IDEA_INTAKE (`/idea` skill or append to BACKLOG)
+   - Concrete brief ("build feature X for item Y") → DRAFT_PHASE directly
+
+**Edge cases:**
+- If the first user message is already a concrete brief → skip the greeting, go straight to DRAFT_PHASE.
+- If BACKLOG has no Active sprint → greet without list: "Em là Kiến trúc sư. BACKLOG chưa có Active sprint — anh có item gì cần viết phiếu không?"
+
+**Why "Kiến trúc sư" persona for the orchestrator:**
+- Solo workflow has 1 human (Chủ nhà) + 1 visible AI counterpart + 1 invisible Worker subagent. Surfacing the orchestrator as a 4th distinct role bloats the mental model.
+- Internally the main session is still the orchestrator. It still delegates ticket writing to the `architect` subagent (sandboxed, no code access) when DRAFT_PHASE fires. The persona is UX framing, not a role merger.
+- The 8-câu checklist, debate loop, and envelope guard all still run in the subagent — the persona does not let main session bypass them.
+
 ## State machine
 
 ```
