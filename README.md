@@ -1,132 +1,414 @@
-# sos-kit v2 draft — Architect-as-Subagent
+# SOS Kit — Solo Operating System
 
-This is a **draft / proof of concept** to test whether Claude Code subagents can replicate the "Architect = docs-only envelope" that Claude Web Project currently provides — but autonomously, no human relay.
+One person. No team. Full operating system from inbound request to production health.
 
-## What's in here
+SOS Kit is a collection of Rust CLI tools, Claude Code skills, subagents, and role-separation protocols that let one human run a software business without dropping context.
 
-```
-sos-kit-v2-draft/
-├── .claude/
-│   ├── agents/
-│   │   ├── architect.md        # Kiến trúc sư — tools: Read, Write, Glob (no Bash, no Grep, no Edit)
-│   │   └── worker.md            # Thợ — full code tools, but cannot read vision docs
-│   └── settings.json            # Hooks config (PreToolUse → architect-guard.sh)
-├── scripts/
-│   └── architect-guard.sh       # Hook that hard-blocks Read/Glob on src/ when Architect active
-└── README.md                    # This file
-```
+## Why
 
-## The mindset shift in 1 paragraph
+Building software alone means wearing three hats every day:
+- **Chủ nhà** (Owner) — deciding what's worth doing, vetoing scope creep, approving plans, maintaining vision docs
+- **Kiến trúc sư** (Architect) — reading docs (not code), writing phiếu, specifying architecture
+- **Thợ** (Worker) — reading code, executing the phiếu, running tests, shipping, monitoring, reporting discoveries back
 
-In v1 sos-kit, Architect lives in Claude Web Project (separate session). Sếp manually relays Architect ↔ Worker via copy-paste. This works but Sếp is the bottleneck.
+If one brain does all three at once, features ship half-finished, tickets expand mid-build, and production breaks because nobody checked. SOS Kit enforces **role separation** — distinct skills per layer, formalized handoffs, and structural envelopes (tool allowlists + hooks) — so the same human snaps into different modes cleanly.
 
-In v2 draft, Architect is a **subagent** in the same Claude Code session as Worker. Same envelope (docs-only), but enforced via:
-1. **`tools` allowlist** in agent frontmatter — Architect literally has no Bash/Grep/Edit
-2. **PreToolUse hook** on Read/Glob — blocks paths under `src/` even if agent tries
-3. **System prompt** — explicit "do not read code" with the *why*
+See [`docs/LAYERS.md`](./docs/LAYERS.md) for the role boundaries and [`docs/HANDOFF.md`](./docs/HANDOFF.md) for how the layers pass work.
 
-Trade-off: lose Web Project's persistent doc context (must reload each spawn, ~3-5s). Gain: orchestrator can spawn Architect → wait for phiếu → spawn Worker → wait for results, all without Sếp pasting between sessions. Sếp only does duyệt + nghiệm thu.
+## Two ways to run the 3-role envelope
 
-## How to test (5 min)
+SOS Kit ships **two enforcement modes** for the Architect ↔ Worker boundary. Pick the one that fits your project; both share the same phiếu format, vision docs, and skills.
 
-### Setup
-1. Copy this draft into a real project that has the sos-kit phiếu workflow set up:
-   ```bash
-   cp -r sos-kit-v2-draft/.claude/agents/* ~/your-project/.claude/agents/
-   cp -r sos-kit-v2-draft/scripts/* ~/your-project/scripts/
-   chmod +x ~/your-project/scripts/architect-guard.sh
-   # Merge .claude/settings.json hooks block into project settings
-   ```
+| Mode | Architect lives in | Enforcement | Best for |
+|---|---|---|---|
+| **Subagent mode** (default in v2) | Claude Code subagent (`.claude/agents/architect.md`) | `tools` allowlist + `PreToolUse` hook blocks code reads | Single-session flow — orchestrator spawns Architect, then Worker, no copy-paste |
+| **Web Project mode** (v1, still supported) | Separate Claude Web Project session | Human discipline + separate session | Iterative phiếu refinement via multi-turn chat with Architect |
 
-2. Make sure your project has docs needed for Architect:
-   - `docs/PROJECT.md`, `docs/SOUL.md` (vision)
-   - `docs/DISCOVERIES.md` (init empty if not exists)
-   - `docs/ticket/TICKET_TEMPLATE.md`
+Subagent mode adds a `BACKLOG.md` forcing function: Architect can only write phiếu for items already in the Active sprint, and a SessionStart hook surfaces the backlog every time you open Claude Code. See [`INSTALL.md`](./INSTALL.md) for setup.
 
-3. Touch the marker file before invoking Architect agent:
-   ```bash
-   touch .claude/.architect-active
-   ```
-   (Later: do this from the orchestrator agent automatically before spawn.)
-
-### Test 1: Architect cannot read source code (envelope works)
-
-Open Claude Code in the project, then:
-```
-/agents architect "Try to read src/main.rs"
-```
-
-Expected: hook fires, you see:
-```
-🚫 Architect envelope violation
-Architect cannot read source code: src/main.rs
-What to do instead: write a Task 0 anchor in the phiếu.
-```
-
-Pass criterion: Architect cannot bypass the block, even if it tries.
-
-### Test 2: Architect can read docs and write phiếu
+## The Pipeline
 
 ```
-/agents architect "Build CSV export for /history page"
+ROUTE → PLAN → CODE → REVIEW → QA → SHIP → GUARD → DEPLOY → MONITOR → LEARN → RETRO
+  │       │      │       │       │     │       │        │         │         │       │
+/route  /plan   you   /review  /qa   ship    guard    ship       vps      ship   /retro
+(Chủ   (Kiến   (Thợ)  (Thợ)         deploy   check   canary   logs/stats  learn
+ nhà)  trúc                                                                 (Thợ)
+       sư)
 ```
 
-Expected: Architect reads `CLAUDE.md`, `PROJECT.md`, `SOUL.md`, `DISCOVERIES.md`, `TICKET_TEMPLATE.md`, then writes `docs/ticket/P00X-csv-export.md` with Task 0 anchors phrased as "Thợ verify tại src/...".
+Each stage belongs to exactly one layer. Crossing layers without a handoff is the anti-pattern SOS Kit is built to prevent.
 
-Pass criterion: phiếu file exists, Task 0 has ⏳ TO VERIFY rows, no ❌ envelope violations triggered, no fabricated function names not cited from docs.
+## Components
 
-### Test 3: Worker executes (and can read code, cannot read vision)
+### Rust CLI Tools
 
-After Architect writes phiếu:
+| Tool | Binary | What it does |
+|------|--------|-------------|
+| **[ship](https://github.com/aspelldenny/ship)** | 3.4MB | Full release pipeline — test, commit, push, PR in one command |
+| **[docs-gate](https://github.com/aspelldenny/docs-gate)** | 5.2MB | Enforce documentation compliance before every commit |
+| **[guard](https://github.com/aspelldenny/guard)** | 1.9MB | Pre-deploy infrastructure gate — catch schema drift, env sync, canary mismatch before they hit production |
+| **[vps](https://github.com/aspelldenny/vps)** | 1.2MB | Production ops — status, logs, restart, metrics for Docker Compose projects over SSH |
+
+### ship subcommands
+
 ```bash
-rm .claude/.architect-active   # remove marker so Worker isn't blocked
+ship                    # Full pipeline: test → docs-gate → version → changelog → commit → push → PR
+ship check              # Pre-flight only (test + docs-gate, no commit)
+ship init               # Auto-detect project stack, generate .ship.toml
+ship canary             # Post-deploy health check (HTTP + Docker via SSH)
+ship deploy             # Deploy to production (SSH, GitHub Actions, Render, cargo, custom)
+ship learn add "msg"    # Record a cross-project learning
+ship learn search "q"   # Search learnings by keyword
+ship learn list         # List recent learnings
+ship serve              # Start MCP server for Claude integration
 ```
 
-Then:
-```
-/agents worker "Execute docs/ticket/P00X-csv-export.md"
-```
+### guard subcommands
 
-Expected: Worker greps the Task 0 anchors, runs tests, edits code, writes Discovery, commits.
-
-Pass criterion: Worker doesn't try to "improve" the phiếu, doesn't read PROJECT.md/SOUL.md, completes tasks in phiếu order.
-
-### Test 4: End-to-end loop (the actual goal)
-
-In Claude Code main session (acting as Orchestrator):
-```
-You are the Orchestrator. Sếp wants: <feature description>.
-
-1. Touch .claude/.architect-active
-2. Invoke architect subagent to draft phiếu
-3. Show phiếu file path to Sếp, wait for "go" or "sửa X"
-4. Remove marker, invoke worker subagent to execute
-5. Show results to Sếp for nghiệm thu
+```bash
+guard                   # Run all pre-deploy checks (schema drift, env sync, canary)
+guard --dry-run         # Show what would be checked without running SSH
+guard --skip-canary     # Skip canary pre-check (faster, less safe)
+guard serve             # Start MCP server for Claude integration
 ```
 
-Pass criterion: Sếp only types 2 things — "go" after seeing phiếu, "ok" after seeing results. No copy-paste between Web and Code sessions.
+### vps subcommands
 
-## What this draft does NOT include yet
+```bash
+vps status              # Docker Compose status for all projects (or one with --name)
+vps logs                # Stream docker compose logs (optional grep filter)
+vps restart             # Restart a project's docker compose
+vps docker-stats        # Per-container CPU and memory usage
+vps info                # Server info (uptime, memory, disk)
+vps init                # Generate example ~/.vps.toml
+vps serve               # Start MCP server (stdio transport)
+```
 
-- **QA/Reviewer subagent** — easy add, follow same pattern: tools restricted to Read+Bash, system prompt enforces "test only, don't fix"
-- **Vision-doc preload caching** — currently Architect re-reads on every spawn. Could cache in MCP server.
-- **Phiếu counter increment** — Architect uses Glob to find next P-number; not as robust as `.phieu-counter` file. Acceptable for v2 draft.
-- **Marker file lifecycle automation** — Orchestrator should touch/rm `.architect-active` automatically. Currently manual for testing.
-- **Hook env var detection** — better than marker files, if Claude Code exposes `CLAUDE_AGENT_NAME`. Check the docs of your installed version; if available, replace marker-file logic in `architect-guard.sh`.
-- **Windows compat** — `architect-guard.sh` is bash. On Windows, either run in WSL/Git Bash, or rewrite as PowerShell.
+### Claude Code Subagents (v2 — Subagent mode)
 
-## Open questions for Sếp to decide
+Two role-bound subagents live in `.claude/agents/` and run inside the same Claude Code session:
 
-1. **Drop Claude Web Project entirely?** v2 makes it optional. If iterative phiếu refinement (multi-turn chat about a draft) is important, keep Web Project as Architect-mode-with-UI; v2 adds a programmatic alternative.
+| Subagent | File | Tools allowed | Cannot |
+|---|---|---|---|
+| **architect** | `.claude/agents/architect.md` | Read, Write, Glob, TaskCreate/Update/List, AskUserQuestion | Bash, Grep, Edit, read source files (blocked by hook) |
+| **worker** | `.claude/agents/worker.md` | Read, Write, Edit, Glob, Grep, Bash, TaskCreate/Update/List, AskUserQuestion | Read PROJECT.md / SOUL.md / CHARACTER.md (vision docs) |
 
-2. **Where does `/decide` (Chủ nhà skill) live?** Currently a separate skill. Question: should Chủ nhà also be a subagent? Or stay as the human typing into orchestrator? Em recommend keep Chủ nhà = human until Sếp wants more autonomy.
+Enforcement is structural: a `PreToolUse` hook (`scripts/architect-guard.sh`) hard-blocks Read/Glob on `src/` paths when the architect marker is active, so even a misbehaving model cannot bypass the envelope.
 
-3. **Lightweight phiếu mode** (cảm hứng tier from earlier conversation) — should Orchestrator auto-detect and skip Architect spawn for trivial work? Heuristic: if request fits "1 file, < 30 min, no schema/auth/payment" → skip phiếu. Worker self-verify.
+### Claude Code Skills (grouped by layer)
 
-## What success looks like
+**Chủ nhà layer** — vision, intake, routing, decisions:
 
-After 1-2 weeks of testing, Sếp can ship a phiếu without copy-pasting between Claude Web and Claude Code. Two interactions: "go" + "ok". Drift in Architect output (phantom function names, etc.) should be ≤ Web Project baseline.
+| Skill | Location | Purpose |
+|---|---|---|
+| `/idea` | `.claude/skills/idea/` | Intake new ideas, route into the right BACKLOG.md section (Active / Next / Open / Park). |
+| `/insight` | `skills/insight/` | Distill raw research / user interviews / competitor observations into structured bullets for PROJECT.md / SOUL.md / CHARACTER.md. |
+| `/route` | `skills/route/` | Classify inbound request: code / marketing / design / strategy / skip. Produces 5-bullet brief for Architect. |
+| `/decide` | `skills/decide/` | Trade-off triage. Present 2-3 concrete options with user-visible impact, recommend one. |
 
-If yes → migrate sos-kit v1 docs to v2 architecture, deprecate `RELAY_PROTOCOL.md`, refactor PHILOSOPHY.md to lead with the "context envelope for LLM alignment" framing.
+**Kiến trúc sư layer** — spec what gets built (docs-only access, no code):
 
-If no (envelope leaks, hallucination higher than Web Project, hooks unreliable) → v2 stays as draft, Web Project remains canonical. Worth knowing either way.
+| Skill | Location | Purpose |
+|---|---|---|
+| `/plan` | `skills/plan/` | Read vision + guide docs → write phiếu (ticket) in `phieu/TICKET_TEMPLATE.md` format with Task 0 verification anchors for Thợ to grep-verify. |
+
+**Thợ layer** — execute + ship (full code access):
+
+| Skill | Location | Purpose |
+|---|---|---|
+| `/verify` | `skills/verify/` | Task 0 grep-first: verify every file/function/constant anchor in the phiếu against real code BEFORE coding. |
+| `/review` | `skills/review/` | Staff-engineer review before merge — SQL injection, N+1 queries, auth bypass, logic bugs. |
+| `/qa` | `skills/qa/` | QA lead — run tests, find bugs, fix with regression tests, verify. |
+| `/ship` | `skills/ship/` | Release engineer — full ship pipeline (test → commit → PR → deploy → canary). |
+| `/retro` | `skills/retro/` | Weekly retrospective — shipping velocity, hotspots, patterns, action items. |
+
+One skill = one layer + one responsibility. Skills never span layers. See [`docs/LAYERS.md`](./docs/LAYERS.md) for boundaries and the 2-tier authority split (architectural vs detail).
+
+`skills/` are project-agnostic and copied into `~/.claude/skills/` for global use. `.claude/skills/idea/` is a project-local skill that ships alongside the v2 subagent envelope.
+
+### Phiếu — the ticket workflow
+
+The spine that connects Kiến trúc sư and Thợ. Every non-trivial change goes through a phiếu (Vietnamese for "ticket"):
+
+- Format: `<type>/P<NNN>-<slug>` — e.g. `feat/P042-user-export`
+- Lives at `docs/ticket/P<NNN>-<slug>.md` in the project
+- Written by Kiến trúc sư (using `/plan` or the `architect` subagent), executed by Thợ
+- Discovery Report appended to `docs/DISCOVERIES.md` after each ticket closes
+
+Shell function `phieu <slug>` (sourced from `phieu/phieu.sh`) creates worktree + branch + ticket file in one command, using a per-project counter for unique IDs. See [`phieu/README.md`](./phieu/README.md).
+
+### Vision docs — Chủ nhà's foundation
+
+Before any phiếu can be written, Chủ nhà must maintain:
+
+- `BACKLOG.md` — live work-in-progress list (Active sprint / Next sprint / Open backlog / Park). The forcing function for v2: Architect refuses to write phiếu for items not in Active sprint.
+- `PROJECT.md` — what the product is (vision, personas, monetization, architecture)
+- `SOUL.md` — why it exists (philosophy, positioning, 3 hard lines, anti-product)
+- `CHARACTER.md` — voice / persona (if the product has an AI character)
+
+Skeletons for `PROJECT.md` / `SOUL.md` / `CHARACTER.md` are in [`phieu/VISION_TEMPLATES/`](./phieu/VISION_TEMPLATES/). The BACKLOG skeleton is in [`templates/BACKLOG_template.md`](./templates/BACKLOG_template.md). Copy into your project's `docs/` on day 1, fill iteratively as research matures. Use `/insight` to distill raw material into vision docs and `/idea` to feed BACKLOG.
+
+### Relay Protocol — Chủ nhà as the courier (Web Project mode)
+
+In v1 / Web Project mode, Kiến trúc sư (Claude Web Project) and Thợ (Claude Code) are **separate sessions** — they cannot talk directly. When Thợ hits an architectural blocker mid-ticket, Chủ nhà routes between them manually.
+
+The 2-3 minute protocol is in [`phieu/RELAY_PROTOCOL.md`](./phieu/RELAY_PROTOCOL.md). v2 Subagent mode bypasses this — orchestrator spawns Architect → Worker in the same session, no copy-paste required.
+
+### Integrations
+
+| Integration | What it does |
+|-------------|-------------|
+| **GitHub Actions canary** | Post-deploy health check in CI pipeline |
+| **Pre-commit hook** | type-check + docs-gate + (v2) BACKLOG and Discovery enforcement |
+| **SessionStart banner** | Surfaces BACKLOG Active sprint every time Claude Code opens (v2) |
+| **Architect guard** | `PreToolUse` hook hard-blocks code reads when architect marker active (v2) |
+| **Jarvis uptime monitor** | Ping production every 10 min, Telegram alert on down |
+| **MCP server** | Tools for Claude Desktop/Code integration via `ship serve` / `guard serve` / `vps serve` |
+
+## Install
+
+For the v2 subagent envelope (recommended), see [`INSTALL.md`](./INSTALL.md) — 5-minute install with verify steps.
+
+For Rust CLIs and global skills:
+
+### Prerequisites
+- Rust toolchain (`rustup`)
+- `gh` CLI (for PR creation)
+- Claude Code v2.1+ (for subagents + SessionStart hook)
+
+### Ship CLI
+```bash
+git clone https://github.com/aspelldenny/ship.git
+cd ship && cargo install --path .
+```
+
+### docs-gate / guard / vps
+```bash
+git clone https://github.com/aspelldenny/docs-gate.git && (cd docs-gate && cargo install --path .)
+git clone https://github.com/aspelldenny/guard.git && (cd guard && cargo install --path .)
+git clone https://github.com/aspelldenny/vps.git && (cd vps && cargo install --path .)
+vps init                  # generate ~/.vps.toml with your SSH + project paths
+```
+
+### Skills (global)
+```bash
+# Chủ nhà layer
+cp -r skills/insight ~/.claude/skills/insight
+cp -r skills/route   ~/.claude/skills/route
+cp -r skills/decide  ~/.claude/skills/decide
+# Kiến trúc sư layer
+cp -r skills/plan    ~/.claude/skills/plan
+# Thợ layer
+cp -r skills/verify  ~/.claude/skills/verify
+cp -r skills/review  ~/.claude/skills/review
+cp -r skills/qa      ~/.claude/skills/qa
+cp -r skills/ship    ~/.claude/skills/ship
+cp -r skills/retro   ~/.claude/skills/retro
+```
+
+### Phiếu shell function
+```bash
+echo "source ~/path/to/sos-kit/phieu/phieu.sh" >> ~/.zshrc
+source ~/.zshrc
+phieu-init ~/my-project   # initialize phiếu workflow in a project
+```
+
+## Project Setup
+
+Run `ship init` in any project to generate `.ship.toml`:
+
+```bash
+cd my-project
+ship init
+# 🔍 Detected: my-project (Next.js)
+# ✅ Created .ship.toml
+```
+
+### Example configs
+
+<details>
+<summary>Next.js project (Tarot)</summary>
+
+```toml
+name = "tarot"
+stack = "nextjs"
+base_branch = "main"
+
+[test]
+command = "pnpm test --run"
+
+[canary]
+url = "https://www.soulsign.me"
+
+[deploy]
+provider = "ssh"
+ssh = "deploy@myserver.com:1994"
+command = "cd /opt/app && git pull && docker compose build && docker compose up -d"
+maintenance_mode = true
+```
+</details>
+
+<details>
+<summary>Flask project (Media Rating)</summary>
+
+```toml
+name = "media-rating"
+stack = "flask"
+
+[test]
+command = "./venv/bin/pytest tests/ -x"
+
+[canary]
+url = "https://my-app.onrender.com"
+
+[deploy]
+provider = "render"
+```
+</details>
+
+<details>
+<summary>Rust project (docs-gate)</summary>
+
+```toml
+name = "docs-gate"
+stack = "rust"
+
+[docs_gate]
+blocking = true
+
+[deploy]
+provider = "cargo"
+```
+</details>
+
+## Daily Workflow
+
+### v2 Subagent mode (default)
+
+```bash
+# Morning — Thợ checks production
+ship canary
+
+# Open Claude Code → SessionStart hook prints BACKLOG Active sprint
+claude
+
+# -- Inbound idea arrives --
+/idea                   # Chủ nhà routes idea into BACKLOG (Active / Next / Open / Park)
+
+# Pick an Active sprint item, then in main session (orchestrator):
+"Spawn architect subagent to write phiếu for item X"
+                        # Architect reads docs (PROJECT/SOUL/BACKLOG/DISCOVERIES),
+                        #   writes docs/ticket/P<NNN>-<slug>.md with Task 0 anchors.
+                        # Hook blocks any attempt to read src/ — envelope is structural.
+
+# Chủ nhà reviews phiếu, types "go"
+"Spawn worker subagent to execute P<NNN>-<slug>.md"
+                        # Worker runs Task 0 (grep anchors), codes, tests,
+                        #   appends Discovery Report, commits.
+
+# Pre-commit hook enforces: type-check + docs-gate + BACKLOG + Discovery
+ship                    # full pipeline → PR → deploy → canary
+```
+
+### v1 Web Project mode (alternative)
+
+```bash
+# Layer 1: Chủ nhà — in your preferred Claude Code/Web
+/route                  # code? marketing? design? skip? outputs 5-bullet brief
+/insight                # if raw context needs distillation → vision doc update
+
+# Layer 2: Kiến trúc sư — IN CLAUDE WEB PROJECT (separate session)
+/plan                   # reads vision + guide docs (NOT code) → writes phiếu
+
+# Layer 3: Thợ — IN CLAUDE CODE
+phieu feat user-export  # creates worktree + branch + phiếu file
+                        # Chủ nhà pastes phiếu content from Web into this file
+/verify                 # Task 0 — grep every anchor against real code
+/review                 # logic bugs, SQL injection, auth bypass, N+1
+/qa                     # run tests, find + fix bugs, verify
+ship                    # test → docs-gate → commit → push → PR
+ship canary             # verify production after merge
+/retro                  # end-of-week retrospective
+
+# Cross-session escalation goes through Chủ nhà as courier (RELAY_PROTOCOL.md)
+ship learn add "always run migrations before deploy" -t deploy,db
+```
+
+Each step is single-layer. Handoffs between them are formatted (see [`docs/HANDOFF.md`](./docs/HANDOFF.md)) — not freestyle Slack threads.
+
+## Architecture
+
+```
+sos-kit/
+├── README.md                   # This file — entry point
+├── INSTALL.md                  # v2 install guide (5-min, with verify)
+├── CLAUDE.md                   # Contributor guide for Claude Code
+├── .claude/                    # v2 subagent envelope (project-local)
+│   ├── agents/
+│   │   ├── architect.md        # Kiến trúc sư subagent (Read/Write/Glob, no Bash/Grep/Edit)
+│   │   └── worker.md           # Thợ subagent (full code tools, no vision docs)
+│   ├── skills/
+│   │   └── idea/SKILL.md       # /idea intake skill (Chủ nhà tier)
+│   └── settings.json           # Hooks: SessionStart banner + PreToolUse architect-guard
+├── docs/
+│   ├── PHILOSOPHY.md           # 6 principles
+│   ├── LAYERS.md               # 3-role model (Chủ nhà / Kiến trúc sư / Thợ)
+│   ├── HANDOFF.md              # Inter-layer handoff protocols
+│   ├── COMPARISON.md           # SOS Kit vs gstack
+│   └── SETUP.md                # Detailed install guide
+├── phieu/                      # Ticket workflow — spine connecting Kiến trúc sư ↔ Thợ
+│   ├── README.md               # Setup + philosophy
+│   ├── TICKET_TEMPLATE.md      # Phiếu format with Task 0 Verification Anchors
+│   ├── DISCOVERY_PROTOCOL.md   # Thợ → Kiến trúc sư feedback loop + mismatch classification
+│   ├── RELAY_PROTOCOL.md       # Chủ nhà's courier workflow (Web Project mode)
+│   ├── VISION_TEMPLATES/       # Day-1 skeletons for Chủ nhà
+│   │   ├── PROJECT_template.md
+│   │   ├── SOUL_template.md
+│   │   └── CHARACTER_template.md
+│   └── phieu.sh                # Shell function: phieu / phieu-list / phieu-done / phieu-init
+├── skills/                     # Global Claude Code skills (one per layer+responsibility)
+│   ├── insight/SKILL.md        # Chủ nhà — distill raw research → vision docs
+│   ├── route/SKILL.md          # Chủ nhà — classify inbound
+│   ├── decide/SKILL.md         # Chủ nhà — trade-off triage
+│   ├── plan/SKILL.md           # Kiến trúc sư — write phiếu (docs-only)
+│   ├── verify/SKILL.md         # Thợ — Task 0 grep-first
+│   ├── review/SKILL.md         # Thợ — code review
+│   ├── qa/SKILL.md             # Thợ — QA verification
+│   ├── ship/SKILL.md           # Thợ — release pipeline
+│   └── retro/SKILL.md          # Thợ — retrospective
+├── templates/
+│   └── BACKLOG_template.md     # BACKLOG.md skeleton (Active / Next / Open / Park)
+├── configs/                    # .ship.toml examples per stack
+│   ├── nextjs.toml
+│   ├── flask.toml
+│   ├── rust.toml
+│   └── python.toml
+├── hooks/
+│   └── pre-commit              # type-check + docs-gate + (v2) BACKLOG + Discovery enforcement
+├── scripts/
+│   ├── architect-guard.sh      # PreToolUse hook — block code reads when architect active
+│   └── session-start-banner.sh # SessionStart hook — show BACKLOG on session open
+└── integrations/
+    ├── github-actions/         # Canary workflow snippet
+    └── jarvis/                 # Uptime monitor for Telegram bots
+```
+
+## Comparison with gstack
+
+How SOS Kit differs from gstack and when to pick each → [`docs/COMPARISON.md`](./docs/COMPARISON.md).
+
+## Philosophy
+
+1. **One command per step.** If it takes more than one command, automate it.
+2. **Gates, not guidelines.** Pre-commit hooks enforce quality. `tools` allowlists enforce role envelope. Don't rely on memory or model discipline.
+3. **Cross-project learnings.** A mistake in project A should prevent the same mistake in project B.
+4. **Rust for tools, AI for judgment.** CLI tools are fast, deterministic, zero-dependency. AI skills + subagents handle the fuzzy stuff (review, QA, retro, planning).
+5. **Solo-first.** No multi-user, no team features, no overhead. Every feature serves one person shipping fast.
+6. **Role separation is a context envelope, not workflow ergonomics.** Architect cannot read code because LLMs hallucinate proportional to irrelevant context. Worker cannot read vision because vision drifts implementation. The boundary is structural alignment, not bureaucracy.
+
+See [`docs/PHILOSOPHY.md`](./docs/PHILOSOPHY.md) for the full set.
+
+## License
+
+MIT
