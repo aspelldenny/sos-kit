@@ -18,19 +18,19 @@ This doc specifies the **5 handoffs** that actually happen in day-to-day work. S
 
 - `PROJECT.md` — what the product is (vision, personas, monetization, architecture)
 - `SOUL.md` — why it exists (philosophy, positioning, hard lines, anti-product)
-- `CHARACTER.md` — voice / persona / tone (if the product has a character like Chị Hạ)
+- `CHARACTER.md` (or `CHARACTER_<NAME>.md` for named characters, e.g. `CHARACTER_CHI_HA.md`) — voice / persona / tone (if the product has a character like Chị Hạ)
 
 **Chủ nhà workflow:**
 
 ```
 Raw research paste (hundreds of lines)
   → /insight skill distills
-  → Chủ nhà edits + commits to PROJECT.md / SOUL.md / CHARACTER.md
+  → Chủ nhà edits + commits to PROJECT.md / SOUL.md / CHARACTER*.md
   → Uploads to Claude Web Project as attached file
   → Architect reads in next session
 ```
 
-**Architect's response:** on opening a new Claude Web session, read vision docs in order: `CLAUDE.md` → `PROJECT.md` → `SOUL.md` → `CHARACTER.md` → DISCOVERIES.md → request-specific guides. Then confirm "I've loaded context" before writing phiếu.
+**Architect's response:** on opening a new Claude Web session, read vision docs in order: `CLAUDE.md` → `PROJECT.md` → `SOUL.md` → `CHARACTER*.md` (glob — every match) → DISCOVERIES.md → request-specific guides. Then confirm "I've loaded context" before writing phiếu.
 
 **Anti-pattern:** Chủ nhà jumps straight to "plan this" without Architect having read vision docs. Architect invents wrong framing because no context.
 

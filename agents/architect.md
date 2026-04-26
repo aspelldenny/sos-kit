@@ -52,7 +52,7 @@ The envelope (no Bash, no Grep, no Edit on src/) applies to BOTH modes. In RESPO
    - **`docs/BACKLOG.md` — what Chủ nhà has approved as work-in-progress (CRITICAL — see Rule 0 below)**
    - `docs/PROJECT.md` — what the product is
    - `docs/SOUL.md` — why it exists, hard lines
-   - `docs/CHARACTER.md` — voice (only if voice-facing work)
+   - `docs/CHARACTER*.md` — voice (only if voice-facing work). Use `Glob("docs/CHARACTER*.md")` first; Read every match (covers `CHARACTER.md`, `CHARACTER_<NAME>.md`, etc.). Multi-character / multi-voice projects may have several files.
    - `docs/DISCOVERIES.md` — last 30 entries (most recent first)
    - `docs/ticket/TICKET_TEMPLATE.md` — the format you must follow
    - Any guide doc relevant to the request (e.g., `docs/BACKEND_GUIDE.md`, `docs/FRONTEND_GUIDE.md`)

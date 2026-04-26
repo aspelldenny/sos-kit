@@ -2,6 +2,51 @@
 
 > Newest on top, like CHANGELOG. Each entry: phiếu ID + date + what assumptions held vs broke + scope expansions + edge cases + docs touched.
 
+## [P004] — 2026-04-26 — Vision doc naming flex (CHARACTER*.md glob)
+
+### Assumptions in phiếu — CORRECT
+- Anchor #1: `agents/architect.md:55` contained exact text `- \`docs/CHARACTER.md\` — voice (only if voice-facing work)` — matched V3 Task 1 Tìm block.
+- Anchor #2: `agents/worker.md:17` contained exact text (line corrected V1→V2 per [O1.3]). Single occurrence. Content matched Task 2 Tìm block.
+- Anchor #3: `agents/architect.md:4` — `tools:` includes `Glob`. No frontmatter change needed.
+- Anchor #4: `agents/worker.md:4` — `tools:` includes both `Glob` and `Grep`. Confirmed.
+- Anchor #5: `scripts/sync-personal-agents.sh` loops `for f in architect.md worker.md` — both handled. Script ran without error; diffs show ONLY `Chủ nhà` → `Sếp` substitutions.
+- Anchor #6: Repo-wide grep at EXECUTE found one NEW out-of-scope hit not in V3 expected set: `bin/sos.sh:94` — shell echo string in user-facing help text ("Generate docs/...CHARACTER.md (if persona)"). This is conceptual description, not an agent envelope rule — same class as `README.md:112` (documented Tầng 2 cosmetic exclusion in phiếu). No escalation required.
+- Anchors #7, #8, #9, #10, #11, #12, #13, #14, #15, #16: All ✅ at V3. Architect Read-confirmed at respective version bumps; no drift detected at EXECUTE re-verify.
+
+### Assumptions in phiếu — WRONG
+- **[Tầng 2 — adapted in phiếu V2 per Turn 1]** Anchor #2 V1 stated "line 19" — actual line was 17. Corrected in V2 per [O1.3]. Exact-text match still succeeded in V1/CHALLENGE; only the stated line number was wrong.
+- **[Scope expansion — Tầng 1 accepted in V2 per Turn 1 [O1.1]]** Anchor #6 V1 expected "5-file scope." V2 expanded to "6-file scope" when Worker Turn 1 grep found `docs/GENESIS.md:16` and `docs/LAYERS.md:37,107` as additional rule-binding sites.
+- **[Scope expansion — Tầng 1 accepted in V3 per Turn 2 [O2.1]]** Anchor #8 V2 expected "lines 21, 33" in HANDOFF.md. V3 expanded to "lines 21, 28, 33" when Worker Turn 2 grep found intra-section inconsistency at line 28 inside the same Handoff 0 section.
+
+### Scope expansions
+- V1 → V2: +2 files in scope (GENESIS.md Task 7, LAYERS.md lines 37+107 expansion of Task 6). Both accepted per debate consensus.
+- V2 → V3: +1 sub-edit within already-scoped HANDOFF.md (line 28, Task 5 expanded from 2 to 3 sub-edits). Zero new files in scope.
+- EXECUTE: `bin/sos.sh:94` found — Tầng 2 exclusion applied per established out-of-scope class. No scope expansion.
+
+### Edge cases / limitations found
+- `scripts/sync-personal-agents.sh` correctly handled both files — idempotent, no drift beyond `Chủ nhà` → `Sếp` substitution.
+- No additional rule-binding `docs/CHARACTER.md` literals beyond the 6-file scope. `bin/sos.sh:94` is descriptive echo text only.
+- LAYERS.md ASCII box line 37: 1-char addition (`CHARACTER.md` → `CHARACTER*.md`) required 1 trailing-space removal to preserve box border alignment. Edit succeeded with correct alignment. Tầng 2 cosmetic — self-decided.
+- HANDOFF.md line 28 ASCII workflow block: leading 2-space indent + `→ ` arrow preserved after `*` insertion. Block reads cleanly top-to-bottom with lines 21, 28, 33 all in glob form (no mid-section convention shift).
+- GENESIS.md table: column count stays at 4 after cell-width expansion in line 16. Markdown tables don't enforce column widths — render confirmed correct.
+- SETUP.md Step 4d: 3 comment lines added (all `#`-prefixed) — valid shell comments; step remains copy-paste scriptable.
+- macOS filesystem (case-insensitive HFS+/APFS): glob `CHARACTER*.md` will match case-insensitively. Projects with `character_foo.md` (lowercase) would also match — acceptable extension of tolerance, not a regression.
+- Debate Log meta: Turn 1 [O1.1] + [O1.2] ACCEPT → V2 (3 micro-edits, 2 new files). Turn 2 [O2.1] ACCEPT → V3 (1 micro-edit, 0 new files). Turn count: 2/3 used. 1h estimate held.
+
+### Docs updated to match reality
+- `agents/architect.md` — Task 1: line 55 glob fix
+- `agents/worker.md` — Task 2: line 17 glob fix
+- `.claude/agents/architect.md` — Task 3: regenerated via sync-personal-agents.sh
+- `.claude/agents/worker.md` — Task 3: regenerated via sync-personal-agents.sh
+- `docs/SETUP.md` — Task 4: 3-line comment block added above `cp` command
+- `docs/HANDOFF.md` — Task 5 (3 sub-edits: lines 21, 28, 33)
+- `docs/LAYERS.md` — Task 6 (3 sub-edits: lines 21, 37, 107)
+- `docs/GENESIS.md` — Task 7: line 16 Phase 0 Vision row
+- `CHANGELOG.md` — v2.1.3 entry added
+- `docs/BACKLOG.md` — P004 marked [x] + added to "Recently shipped"
+
+---
+
 ## [P003] — 2026-04-26 — BACKLOG format flexibility (banner fallback + Architect Rule 0 + ORCHESTRATION.md)
 
 ### Assumptions in phiếu — CORRECT

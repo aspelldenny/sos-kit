@@ -13,8 +13,8 @@
 > **Done when:** Both phiếu shipped (PR merged + CHANGELOG entry + Discovery Report) and a fresh install dry-run on a scratch repo shows zero workarounds needed.
 > **Started:** 2026-04-26
 
-- [x] **[P003]** BACKLOG format flexibility — `scripts/session-start-banner.sh` currently hard-codes `^## .*Active sprint` grep; fall back to first `## ` section if header missing. Architect Rule 0 reads BACKLOG more flexibly. *(Tarot worked around by restructuring its BACKLOG; that workaround should not be mandatory.)*
-- [ ] **[P004]** Vision doc naming flex — `agents/architect.md` envelope rule says "cannot read `docs/CHARACTER.md`" but Tarot's file is `CHARACTER_CHI_HA.md`. Architect should glob `docs/CHARACTER*.md`, OR INSTALL.md should document a rename / symlink convention. *(Tarot worked around with a symlink.)*
+- [x] **[P003]** BACKLOG format flexibility — `scripts/session-start-banner.sh` currently hard-codes `^## .*Active sprint` grep; fall back to first `## ` section if header missing. Architect Rule 0 reads BACKLOG more flexibly. *(Tarot worked around by restructuring its BACKLOG; that workaround should not be mandatory.)* ✅ SHIPPED v2.1.2
+- [x] **[P004]** Vision doc naming flex — `agents/architect.md` envelope rule says "cannot read `docs/CHARACTER.md`" but Tarot's file is `CHARACTER_CHI_HA.md`. Architect should glob `docs/CHARACTER*.md`, OR INSTALL.md should document a rename / symlink convention. *(Tarot worked around with a symlink.)* ✅ SHIPPED v2.1.3
 
 ---
 
@@ -83,6 +83,7 @@
 - ✅ **v2.1.1** — `c786359` (2026-04-26) — Session opening protocol + Tarot dogfood verification (P029 smoke + P030 multi-turn debate, value proven, ~42k tokens/multi-turn cost baseline)
 - ✅ **v2.1 (audit)** — `c172507` (2026-04-26) — `phieu/AUDIT_PROTOCOL.md` (RRI-T-lite periodic audit, 4-result model, Worker AUDIT mode)
 - ✅ **P002** — `4079e41` (2026-04-26) — Vision templates harvest from Tarot (CHARACTER enriched, VOICE / TEST_CASES / DESIGN_SPEC new)
+- ✅ **P004** — v2.1.3 (2026-04-26) — Vision doc naming flex: `docs/CHARACTER*.md` glob in agents + doc consistency (HANDOFF, LAYERS, SETUP, GENESIS)
 - ✅ **P001** — `1642d83` (2026-04-26) — Architect ↔ Worker pre-code debate loop (state machine, Debate Log section, marker hygiene, sed-sync script)
 
 ---
