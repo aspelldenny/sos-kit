@@ -18,7 +18,7 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 
 | | Chủ nhà | Kiến trúc sư | Thợ |
 |---|---|---|---|
-| Vision/strategy docs (PROJECT, SOUL, CHARACTER) | ✏️ maintain | 📖 read | 📖 read |
+| Vision/strategy docs (PROJECT, SOUL, CHARACTER*) | ✏️ maintain | 📖 read | 📖 read |
 | Code (src/, tests/) | 📖 read optional | ❌ **NO access** | ✏️ read+edit |
 | Tickets (phiếu) | 📖 read, approve | ✏️ write | 📖 read, execute |
 | Discovery Reports | 📖 read | 📖 read before next phiếu | ✏️ write |
@@ -34,7 +34,7 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 │  Skills: /init  /idea  /insight  /route  /decide                │
 │  Tools: Claude Code OR Claude Web (usually wherever the human is)│
 │  Owns:                                                          │
-│    • Vision docs (PROJECT.md, SOUL.md, CHARACTER.md)            │
+│    • Vision docs (PROJECT.md, SOUL.md, CHARACTER*.md)           │
 │    • Inbound triage (user feedback, ideas, bug reports)         │
 │    • Approve/veto on phiếu before Worker executes               │
 │    • User-visible wording (email, UI copy — final cut)          │
@@ -104,7 +104,7 @@ The core principle: **Architect decides the house layout. Worker decides where t
 
 This role is often misunderstood. Chủ nhà is NOT just the CEO router. Chủ nhà is the **source of truth provider** for everything domain-related:
 
-1. **Maintain vision docs** — `PROJECT.md` (what it is), `SOUL.md` (why it exists), `CHARACTER.md` (voice). Architect reads these but doesn't write them.
+1. **Maintain vision docs** — `PROJECT.md` (what it is), `SOUL.md` (why it exists), `CHARACTER*.md` (voice — glob covers `CHARACTER.md` and named variants like `CHARACTER_CHI_HA.md`). Architect reads these but doesn't write them.
 2. **Integrate research** — user feedback, competitor lessons, market observation → distill into vision doc sections. `/insight` skill helps.
 3. **Lock principles** — max 3 "hard lines" that cannot be violated. Meta-principle: "Character book, not rule book."
 4. **Route inbound** — classify incoming requests (code / marketing / design / strategy / skip). `/route` skill.

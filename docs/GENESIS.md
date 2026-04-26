@@ -13,7 +13,7 @@
 
 | Phase | Skill / command | Vai | Output |
 |-------|-----------------|-----|--------|
-| 0. Vision | `/init` (skill) | Chủ nhà | `docs/PROJECT.md`, `docs/SOUL.md`, `docs/CHARACTER.md` (nếu persona) |
+| 0. Vision | `/init` (skill) | Chủ nhà | `docs/PROJECT.md`, `docs/SOUL.md`, `docs/CHARACTER*.md` (nếu persona, e.g. `docs/CHARACTER_CHI_HA.md`) |
 | 1. Blueprint | `sos blueprint` (CLI) | Chủ nhà → Kiến trúc sư | `docs/BLUEPRINT.md` (stack, recipes list) |
 | 2. Contract | `sos contract` (CLI) | Kiến trúc sư | `docs/ticket/P000-genesis.md` + spec_hash lock |
 | 3. Scaffold | `/apply` ×N (skill) | Thợ | Code chạy được, mỗi recipe = 1 commit + sub-phiếu P000.N |

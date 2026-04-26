@@ -106,7 +106,10 @@ EOF
 mkdir -p docs
 cp ~/path/to/sos-kit/phieu/VISION_TEMPLATES/PROJECT_template.md docs/PROJECT.md
 cp ~/path/to/sos-kit/phieu/VISION_TEMPLATES/SOUL_template.md docs/SOUL.md
-# CHARACTER.md only if the product has an AI character / named voice
+# CHARACTER.md only if the product has an AI character / named voice.
+# If your project has a named character or multiple character/voice files,
+# rename to docs/CHARACTER_<NAME>.md (e.g. docs/CHARACTER_CHI_HA.md).
+# Architect globs docs/CHARACTER*.md and reads every match — naming is flexible.
 cp ~/path/to/sos-kit/phieu/VISION_TEMPLATES/CHARACTER_template.md docs/CHARACTER.md
 
 # 4e. Auto-generate ship + docs-gate configs
