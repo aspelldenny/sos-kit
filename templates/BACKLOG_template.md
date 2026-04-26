@@ -1,25 +1,25 @@
 # BACKLOG — <Project Name>
 
-> **Purpose:** Single source of truth for "what should Chủ nhà do next".
-> New ideas → enter here first (via /idea skill). Phiếu → only written for items in Active sprint.
-> Wave-based, NOT time-based. Sprint ends when done OR when Chủ nhà changes direction.
+> **Mục đích:** Single source of truth cho "Chủ nhà nên làm gì tiếp theo".
+> Idea mới → vào đây trước (qua /idea skill). Phiếu → chỉ viết cho item trong Active sprint.
+> Wave-based, KHÔNG time-based. Sprint kết thúc khi xong hoặc Chủ nhà đổi hướng.
 >
-> **Architect rule (Rule 0):** Architect only writes phiếu for items in "Active sprint" or items Chủ nhà has explicitly moved up from "Next sprint". No phiếu for "Open backlog" / "Park" items until Chủ nhà picks them.
+> **Quy tắc Architect (Rule 0):** Architect chỉ viết phiếu cho item nằm trong "Active sprint" hoặc Chủ nhà explicit move từ "Next sprint" lên. Không phiếu cho item ở "Open backlog" / "Park" cho đến khi Chủ nhà pick.
 
 ---
 
 ## 🔥 Active sprint: <Sprint name / number>
 
-> **Goal:** <1-2 sentences describing the sprint's goal.>
-> **Done when:** <Exit condition — NOT a time deadline.>
-> **Started:** <DD/MM/YYYY when promoted to Active>
+> **Mục tiêu:** <1-2 câu mô tả mục tiêu sprint này.>
+> **Kết thúc khi:** <Điều kiện kết thúc — không phải deadline thời gian.>
+> **Started:** <DD/MM/YYYY khi pick lên Active>
 
-<!-- 3-7 items Chủ nhà has committed to in this sprint.
-     Tags for classification:
-       [NEW]      = fresh idea from Chủ nhà
-       [DEBT]     = tech debt from Discovery or retro
-       [BUGFIX]   = bug Chủ nhà reported
-       [RESEARCH] = needs investigation first
+<!-- Liệt kê 3-7 item Chủ nhà đã commit sẽ làm trong sprint này.
+     Dùng tag để phân loại:
+       [NEW]      = idea mới từ Chủ nhà
+       [DEBT]     = tech debt từ Discovery hoặc retro
+       [BUGFIX]   = bug Chủ nhà report
+       [RESEARCH] = cần investigate trước
 -->
 
 - [ ] **[NEW]** <Item 1 — short summary>
@@ -29,18 +29,18 @@
 
 ## 🎯 Next sprint: <Sprint name / theme>
 
-> **Trigger:** <When to promote to Active — e.g. "after current sprint done + feedback X".>
-> **Theme:** <One sentence describing the sprint's theme.>
+> **Trigger:** <Khi nào move lên Active — vd "khi sprint hiện tại xong + Chủ nhà dùng feedback X".>
+> **Theme:** <Một câu mô tả chủ đề sprint này.>
 
-<!-- Idea cluster already shaped but not active yet. Can change. -->
+<!-- Idea cluster đã thành hình nhưng chưa active. Có thể thay đổi. -->
 
 - [ ] <Item planned for next sprint>
 
 ---
 
-## 🌊 Future waves (low commitment)
+## 🌊 Future waves (cam kết level low)
 
-> Bigger idea clusters — far-future Phases / Sprints. Subject to change.
+> Idea cluster lớn hơn — Phase / Sprint xa. Có thể thay đổi nhiều.
 
 - [ ] **<Future Sprint name>** — <high-level description>
   - <sub-bullet>
@@ -48,51 +48,51 @@
 
 ---
 
-## 💡 Open backlog (uncategorized)
+## 💡 Open backlog (chưa thuộc sprint)
 
-> Loose ideas, not yet clustered into a sprint. Cluster when 2-3 items share a theme.
+> Idea rời, chưa cluster thành sprint. Khi đủ 2-3 cái cùng chủ đề → cluster.
 
-<!-- Chủ nhà dumps ideas here via /idea skill, or edits manually. -->
+<!-- Sếp dump idea ở đây qua /idea skill, hoặc trực tiếp edit tay. -->
 
-- [ ] <Idea 1 — what + why + rough estimate>
-
----
-
-## 🅿️ Park / think more
-
-> Ideas not ripe yet, or already debated without resolution, or soft-rejected (not hard no).
-
-- [ ] <Idea needing research, or one previously debated without conclusion>
+- [ ] <Idea 1 — gì + tại sao + estimate sơ bộ>
 
 ---
 
-## ✅ Recently shipped (last 3 sprints)
+## 🅿️ Park / nghĩ thêm
 
-> Quick reference. Full history → CHANGELOG.md.
+> Idea chưa chín, hoặc đã suy nghĩ nhưng chưa quyết, hoặc bị reject mềm (chưa hẳn no).
 
-<!-- When a sprint finishes, move 1-line summary here. Keep at most 3 recent sprints. -->
+- [ ] <Idea cần research, hoặc đã debate chưa kết>
+
+---
+
+## ✅ Recently shipped (3 sprint gần nhất)
+
+> Quick reference. Chi tiết đầy đủ → CHANGELOG.md.
+
+<!-- Khi sprint xong, move tóm tắt 1-line vào đây. Giữ tối đa 3 sprint gần nhất. -->
 
 - ✅ **<Sprint name>** (DD/MM/YYYY) — <one-line summary>
 
 ---
 
-## ❌ Rejected (logged so we don't reconsider)
+## ❌ Đã reject (lưu để khỏi nghĩ lại)
 
-> Ideas already considered and decided NOT to pursue. Log the reason clearly so 6 months later you don't reconsider.
+> Idea đã suy nghĩ và quyết KHÔNG làm. Lưu lý do rõ ràng để 6 tháng sau khỏi reconsider.
 
-- **<Idea name>** — rejected DD/MM/YYYY, reason: <brief>
-
----
-
-## 📌 Maintenance rules
-
-1. **New ideas** → `/idea` skill → auto-appends to "Open backlog" or "Active sprint" depending on classification.
-2. **Phiếu shipped** → move item from Active sprint down to "Recently shipped".
-3. **Sprint done** → summarize in CHANGELOG.md, BACKLOG keeps only 3 most recent sprints in "Recently shipped".
-4. **Discovery debt** → from DISCOVERIES.md → append to "Open backlog" with `[DEBT]` prefix.
-5. **Architect rule** (hard): no phiếu for items outside "Active sprint". Chủ nhà must promote first → then Architect writes.
-6. **Monthly review** — Chủ nhà reads Park, decides: promote to Open backlog, or move to Rejected with reason.
+- **<Idea name>** — reject DD/MM/YYYY, lý do: <ngắn gọn>
 
 ---
 
-*This file is LIVE. Chủ nhà can edit directly. Architect/Worker only READ — they never edit while writing a phiếu.*
+## 📌 Quy tắc maintenance
+
+1. **Idea mới** → `/idea` skill → tự append vào "Open backlog" hoặc "Active sprint" tùy phân loại.
+2. **Phiếu xong** → move item từ Active sprint xuống "Recently shipped".
+3. **Sprint xong** → tổng kết trong CHANGELOG.md, BACKLOG chỉ giữ 3 sprint gần nhất ở "Recently shipped".
+4. **Discovery debt** mới → từ DISCOVERIES.md → append vào "Open backlog" với prefix `[DEBT]`.
+5. **Architect rule** (cứng): không viết phiếu cho item nằm ngoài "Active sprint". Chủ nhà move item lên trước → Architect mới viết.
+6. **Review monthly** — Chủ nhà đọc Park, quyết: promote lên Open backlog, hay ship to Reject với lý do.
+
+---
+
+*File này là LIVE. Chủ nhà chỉnh trực tiếp được. Architect/Worker chỉ ĐỌC, không tự edit khi đang viết phiếu.*
