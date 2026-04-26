@@ -18,11 +18,21 @@ BACKLOG="docs/BACKLOG.md"
 # Silent if no BACKLOG.md (project not sos-kit-equipped, OK)
 [ ! -f "$BACKLOG" ] && exit 0
 
-# Find the Active sprint header line number
+# Find the Active sprint header line number — strict match first
 HEADER_LINE=$(grep -n "^## .*Active sprint" "$BACKLOG" 2>/dev/null | head -1 | cut -d: -f1)
+FALLBACK_USED=0
 
-# Silent if no Active sprint section
+# Fallback: first ^## section in the file (treats the top H2 as the active section)
+if [ -z "$HEADER_LINE" ]; then
+    HEADER_LINE=$(grep -n "^## " "$BACKLOG" 2>/dev/null | head -1 | cut -d: -f1)
+    FALLBACK_USED=1
+fi
+
+# Silent if no ^## headings at all (malformed / empty BACKLOG)
 [ -z "$HEADER_LINE" ] && exit 0
+
+# Capture the actual header text for the fallback note (strip leading "## ")
+HEADER_TEXT=$(sed -n "${HEADER_LINE}p" "$BACKLOG" | sed 's/^## *//')
 
 # Find the next "^## " section after Active sprint (to know where to stop)
 NEXT_SECTION_LINE=$(awk -v start="$HEADER_LINE" 'NR > start && /^## / {print NR; exit}' "$BACKLOG")
@@ -52,8 +62,21 @@ echo "$SPRINT_BLOCK" | head -25
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📊 Active sprint: $OPEN_COUNT items đang treo, $DONE_COUNT đã xong"
+if [ "$FALLBACK_USED" = "1" ]; then
+    echo ""
+    echo "📌 Treating \"$HEADER_TEXT\" as Active sprint (no \"Active sprint\" header found)."
+fi
 echo ""
-echo "📌 Architect Rule 0: chỉ viết phiếu cho item trong Active sprint."
+echo "🤖 Orchestrator contract (main session — đọc kỹ, ép tuân thủ):"
+echo "    State machine: DRAFT → CHALLENGE → [RESPOND ⇄ CHALLENGE] → APPROVAL_GATE → EXECUTE"
+echo "    KHÔNG hỏi user giữa các phase. APPROVAL_GATE là gate DUY NHẤT (trước EXECUTE)."
+echo "    KHÔNG đẩy đọc phiếu/code về user — Worker CHALLENGE rà & report ≤5 dòng."
+echo "    Marker: touch .sos-state/architect-active trước spawn architect; rm -f trước spawn worker."
+echo "    Deferred tools MANDATORY (load đầu session, KHÔNG fallback markdown 1/2/3):"
+echo "        ToolSearch select:AskUserQuestion,TaskCreate,TaskUpdate"
+echo "    Spec đầy đủ: docs/ORCHESTRATION.md"
+echo ""
+echo "📌 Architect Rule 0: chỉ viết phiếu cho item trong Active sprint (or first ^## section if absent)."
 echo "    Idea mới → /idea skill (intake vào BACKLOG.md)."
 echo "    Pick item hay add idea?"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

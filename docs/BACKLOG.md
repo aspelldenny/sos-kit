@@ -13,7 +13,7 @@
 > **Done when:** Both phiếu shipped (PR merged + CHANGELOG entry + Discovery Report) and a fresh install dry-run on a scratch repo shows zero workarounds needed.
 > **Started:** 2026-04-26
 
-- [ ] **[P003]** BACKLOG format flexibility — `scripts/session-start-banner.sh` currently hard-codes `^## .*Active sprint` grep; fall back to first `## ` section if header missing. Architect Rule 0 reads BACKLOG more flexibly. *(Tarot worked around by restructuring its BACKLOG; that workaround should not be mandatory.)*
+- [x] **[P003]** BACKLOG format flexibility — `scripts/session-start-banner.sh` currently hard-codes `^## .*Active sprint` grep; fall back to first `## ` section if header missing. Architect Rule 0 reads BACKLOG more flexibly. *(Tarot worked around by restructuring its BACKLOG; that workaround should not be mandatory.)*
 - [ ] **[P004]** Vision doc naming flex — `agents/architect.md` envelope rule says "cannot read `docs/CHARACTER.md`" but Tarot's file is `CHARACTER_CHI_HA.md`. Architect should glob `docs/CHARACTER*.md`, OR INSTALL.md should document a rename / symlink convention. *(Tarot worked around with a symlink.)*
 
 ---
@@ -54,6 +54,7 @@
 - [ ] **[P011]** Worker AUDIT mode handbook section in `agents/worker.md`. Currently AUDIT mode is documented in `phieu/AUDIT_PROTOCOL.md` only; Worker handbook should declare the mode and trigger phrase.
 - [ ] **[P012]** Orchestrator auto-detect "≥N phiếu since last audit" → suggest running AUDIT. State in `docs/ORCHESTRATION.md` or a small `.audit-counter`.
 - [ ] **[P013]** Vietnamese 13-checks (diacritics, VND, GMT+7, font rendering, PDF export, etc.) → CI gate that runs pre-deploy. Currently a manual checklist in AUDIT_PROTOCOL.
+- [ ] **[P035]** Orchestrator contract — full refactor. Banner Option A (shipped 2026-04-26) injects 6-line reminder mỗi session, nhưng main session vẫn có thể drift sau context-compress. Full fix: tạo `agents/orchestrator.md` (system prompt cho main session, condensed từ `docs/ORCHESTRATION.md` ~80 lines), banner reference orchestrator.md, `INSTALL.md` Step 4 CLAUDE.md template thêm explicit anti-pattern warnings ("không fake-gate giữa phase"), sos-kit's own `CLAUDE.md` ref `docs/ORCHESTRATION.md` cho contributors. *(Trigger: verify Option A ≥1 tuần — nếu main session vẫn drift, promote vào sprint.)*
 - [ ] **CLAUDE.md tree refresh** — current tree in `CLAUDE.md` does not list `CHANGELOG.md`, `DISCOVERIES.md`, `BACKLOG.md`, `docs/ORCHESTRATION.md`. Minor doc drift; refresh when next touching CLAUDE.md.
 - [ ] **External (out of sos-kit scope)** — `~/docs-gate` repo: default `valid_types` should include `chore`. Currently every project that uses `chore`-typed phiếu must add it manually to local `.docs-gate.toml` (Tarot fixed in tarot PR #253).
 
@@ -78,6 +79,7 @@
 
 > Quick reference. Full detail in `CHANGELOG.md`.
 
+- ✅ **P003 / v2.1.2** — (2026-04-26) — BACKLOG format flexibility: banner + Architect Rule 0 + ORCHESTRATION.md all tolerate non-"Active sprint" section headers via fallback
 - ✅ **v2.1.1** — `c786359` (2026-04-26) — Session opening protocol + Tarot dogfood verification (P029 smoke + P030 multi-turn debate, value proven, ~42k tokens/multi-turn cost baseline)
 - ✅ **v2.1 (audit)** — `c172507` (2026-04-26) — `phieu/AUDIT_PROTOCOL.md` (RRI-T-lite periodic audit, 4-result model, Worker AUDIT mode)
 - ✅ **P002** — `4079e41` (2026-04-26) — Vision templates harvest from Tarot (CHARACTER enriched, VOICE / TEST_CASES / DESIGN_SPEC new)

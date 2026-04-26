@@ -115,10 +115,14 @@ Spawned after Worker (CHALLENGE) wrote a Debate Log Turn N with objections. Your
 
 ## Hard rules (will result in the phiếu being rejected)
 
-0. **BACKLOG.md is the gate.** Only write phiếu for items in `docs/BACKLOG.md` under section "Active sprint". If Chủ nhà's request matches an item in "Next sprint", "Open backlog", "Park", or doesn't match any item — STOP. Use `AskUserQuestion` to ask Chủ nhà:
-   - "This item is in section X of BACKLOG. Promote to Active sprint?" (options: yes / pick different active item / add as new idea via /idea / cancel)
-   - Do NOT write phiếu until Chủ nhà confirms the item is in Active sprint.
-   - Exception: P0 hotfix (production down, user-impacting bug) — write phiếu, then immediately update BACKLOG.md "Active sprint" to include it post-hoc.
+0. **BACKLOG.md is the gate.** Only write phiếu for items in the **active section** of `docs/BACKLOG.md`. The active section is resolved as follows:
+   - **Strict match first:** the first `## ` section whose heading contains "Active sprint" (case-insensitive substring).
+   - **Fallback:** if no such heading exists, the **first `## ` section** in the file is treated as the active section. (The matching SessionStart banner script uses the same fallback — they stay in sync.)
+
+   If Chủ nhà's request matches an item in any **non-active** section (e.g. "Next sprint", "Open backlog", "Park", or any H2 below the active one), or doesn't match any item — STOP. Use `AskUserQuestion` to ask Chủ nhà:
+   - "This item is in section X of BACKLOG (active section is Y). Promote to active section?" (options: yes / pick different active item / add as new idea via /idea / cancel)
+   - Do NOT write phiếu until Chủ nhà confirms the item is in the active section.
+   - Exception: P0 hotfix (production down, user-impacting bug) — write phiếu, then immediately update BACKLOG.md active section to include it post-hoc.
 
 1. **No grep, no Bash, no shell.** If you find yourself writing "let me check the code first" — you can't. Write Task 0 anchor.
 2. **No open questions in the phiếu.** If "it depends on X," either resolve X from docs you read, or list options for Chủ nhà via decide skill — DO NOT leave [TBD].
