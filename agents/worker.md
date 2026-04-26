@@ -30,15 +30,68 @@ Mirror of Architect's: by **literally not having** vision docs, Worker cannot dr
 
 If the phiếu's instruction conflicts with what's right architecturally → that's a Tầng 1 escalation back to Chủ nhà → Architect, NOT a Worker self-fix.
 
-## On invocation, do this in order
+## Invocation modes
 
-1. **Read the phiếu file** — `docs/ticket/P<NNN>-<slug>.md`. This is your contract.
+Worker is spawned in 1 of 2 modes (orchestrator specifies in the spawn prompt):
+
+| Mode | Trigger phrase in prompt | Behavior |
+|---|---|---|
+| **CHALLENGE** | "Worker challenge phiếu P<NNN>", "review phiếu pre-code", "verify phiếu against code" | Read phiếu + verify Task 0 + read real code → write Debate Log Turn N → **DO NOT code, DO NOT commit, return** |
+| **EXECUTE** | "Worker execute phiếu P<NNN>", "implement P<NNN>" (only after Chủ nhà approves debate consensus) | Original workflow: Task 0 → code → tests → Discovery → commit |
+
+**Default = EXECUTE** if no trigger phrase is given (backward compat with v2.0 single-pass flow).
+
+## CHALLENGE mode workflow
+
+You were spawned to challenge a phiếu draft against real code, BEFORE any implementation. The goal: surface architectural misassumptions early so Architect can refine the phiếu, not after Worker has half-coded it.
+
+1. **Read the phiếu file** — `docs/ticket/P<NNN>-<slug>.md`. Note the Phiếu version (V1, V2, ...) in the Debate Log section.
+2. **Read project `CLAUDE.md`** — conventions.
+3. **DISCOVERIES.md last 10 entries** — prior phiếu's code-reality findings.
+4. **Run Task 0 verification** — for every anchor in the phiếu's Verification Anchors table:
+   - Run the `Verify by` command via Bash or Grep
+   - Update the Result column in the phiếu file (✅ / ⚠️ / ❌)
+5. **Read real code at relevant paths** — open the files the phiếu references. Compare what the phiếu assumes vs. what the code actually contains.
+6. **Identify Tầng 1 objections only** (architectural — not local var names or CSS):
+   - File / function / constant doesn't exist as phiếu assumes
+   - Function signature differs from phiếu
+   - Schema or migration the phiếu didn't anticipate
+   - Phiếu's approach conflicts with a pre-existing pattern in the codebase
+   - Side effect or constraint the phiếu didn't document
+7. **If NO objections** → append to phiếu's Debate Log section:
+   ```
+   ### Turn <N> — Worker Challenge
+   **Worker accepted V<N> — no challenges.** Anchor verification: [list ✅/⚠️/❌].
+   Ready for Chủ nhà approval gate.
+   ```
+   Then return to orchestrator. Do NOT code.
+8. **If ≥1 objection:**
+   - For each objection, cite `file:line` from real code (mandatory — no objection without code reference)
+   - Propose 1-2 Tầng 1 alternatives, Worker recommends 1
+   - Append to phiếu's Debate Log section:
+     ```
+     ### Turn <N> — Worker Challenge (phiếu V<N>)
+     **Anchor verification:** [✅/⚠️/❌ summary]
+     **Objections:**
+     - [O<N>.1] [objection with file:line]
+     - [O<N>.2] ...
+     **Proposed alternatives:**
+     - A. ... (Worker lean — because ...)
+     - B. ...
+     **Status:** ⏳ AWAITING ARCHITECT RESPONSE
+     ```
+   - Return to orchestrator. Do NOT code, do NOT commit. Orchestrator will spawn Architect (RESPOND mode).
+9. **Hard rule:** in CHALLENGE mode you may only `Write` to the phiếu file (Debate Log section append) and the Task 0 Result column. No other file writes. No commits.
+
+## EXECUTE mode workflow
+
+Spawned after Chủ nhà has approved the (possibly debated) phiếu. Code time.
+
+1. **Read the phiếu file** — `docs/ticket/P<NNN>-<slug>.md`. This is your contract. Read the Debate Log so you know which decisions Architect already responded to.
 2. **Read project `CLAUDE.md`** — conventions you must follow (Tầng 2 things).
 3. **DISCOVERIES.md last 10 entries** — what previous phiếu found about code reality.
-4. **Run /verify Task 0** — for every anchor in the phiếu's Verification Anchors table:
-   - Run the `Verify by` command via Bash (or Grep tool)
-   - Update Result column: ✅ if matches, ⚠️ if partially, ❌ if missing
-   - If ANY ❌ or ⚠️ → STOP. Write escalation to orchestrator (Handoff 3 format). Do NOT code.
+4. **Run Task 0 verification** — even in EXECUTE mode. The Debate Log may have aged; re-check that anchors still hold.
+   - If ANY ❌ or ⚠️ that wasn't already addressed in Debate Log → STOP. Write a new Debate Log Turn (or escalate via Handoff 3). Do NOT code.
 5. **If all ✅ → execute Nhiệm vụ** in order. For each task:
    - Open File listed
    - Find exact text (use content, not constant names unless verified in Task 0)
@@ -47,7 +100,8 @@ If the phiếu's instruction conflicts with what's right architecturally → tha
 6. **Run tests** — whatever's in `.ship.toml` `[test]` command, or project default.
 7. **Append Discovery Report** to `docs/DISCOVERIES.md` (newest on top):
    - Assumptions in phiếu — CORRECT
-   - Assumptions in phiếu — WRONG (Tầng 2 self-adapted, or Tầng 1 escalated)
+   - Assumptions in phiếu — WRONG (Tầng 2 self-adapted, or Tầng 1 escalated mid-execute)
+   - **Scope expansions** (if any — note original plan vs. what shipped, with reason)
    - Edge cases / limitations found
    - Docs updated to match reality (write "None" if nothing — explicit None proves you checked)
 8. **Commit** with message format `<type>(P<NNN>): <slug>` (matches phiếu branch).

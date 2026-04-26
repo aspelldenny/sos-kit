@@ -43,6 +43,47 @@
 
 ---
 
+## Debate Log
+
+> Auto-populated by Worker (CHALLENGE mode) and Architect (RESPOND mode) when v2.1 debate flow is active. Chủ nhà chỉ đọc khi nghiệm thu phiếu — không cần can thiệp mid-debate trừ khi orchestrator triệu (max-turn cap reached or DEFER TO Chủ nhà).
+> Schema: 1 turn = 1 cặp Worker Challenge + Architect Response. Phiếu version bump V1 → V2 → ... mỗi turn Architect refine.
+> Cap = 3 turns. Sau Turn 3 chưa consensus → force-escalate Chủ nhà.
+
+**Phiếu version:** V1 (initial draft)
+
+### Turn 1 — Worker Challenge
+*(Worker fills this when invoked in CHALLENGE mode. If no objections, write "Worker accepted V1 — no challenges. Ready for Chủ nhà approval." and skip to Final consensus.)*
+
+**Anchor verification (recap from Task 0):**
+- Anchor #N: ✅/⚠️/❌ + 1-line summary if ⚠️/❌
+
+**Objections (Tầng 1 only — phiếu cần sửa):**
+- [O1.1] Phiếu giả định X tại file Y, code thật là Z (cite `file:line`). Tác động: …
+- [O1.2] …
+
+**Proposed alternatives** (Worker recommends 1):
+- A. … (Worker lean — vì …)
+- B. …
+
+**Status:** ⏳ AWAITING ARCHITECT RESPONSE
+
+### Turn 1 — Architect Response
+*(Architect fills this when invoked in RESPOND mode. Cannot read source code — relies on Worker's `file:line` citations.)*
+
+- [O1.1] → ACCEPT / DEFEND / REFRAME (Tầng 2) / DEFER TO CHỦ NHÀ → action taken
+- [O1.2] → …
+
+**Status:** ✅ RESPONDED — phiếu bumped to V2
+
+*(Repeat Turn 2, Turn 3 if needed. Cap = 3.)*
+
+### Final consensus
+- Phiếu version: V<N>
+- Total turns: <count>
+- Approved by Chủ nhà: [date] — code execution may begin
+
+---
+
 ## Nhiệm vụ
 
 ### Task 1: [task name]

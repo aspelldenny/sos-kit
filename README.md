@@ -24,7 +24,11 @@ SOS Kit ships **two enforcement modes** for the Architect ↔ Worker boundary. P
 | **Subagent mode** (default in v2) | Claude Code subagent (`.claude/agents/architect.md`) | `tools` allowlist + `PreToolUse` hook blocks code reads | Single-session flow — orchestrator spawns Architect, then Worker, no copy-paste |
 | **Web Project mode** (v1, still supported) | Separate Claude Web Project session | Human discipline + separate session | Iterative phiếu refinement via multi-turn chat with Architect |
 
-Subagent mode adds a `BACKLOG.md` forcing function: Architect can only write phiếu for items already in the Active sprint, and a SessionStart hook surfaces the backlog every time you open Claude Code. See [`INSTALL.md`](./INSTALL.md) for setup.
+Subagent mode adds two forcing functions:
+1. **BACKLOG.md gate** — Architect only writes phiếu for items in "Active sprint"; a SessionStart hook surfaces the backlog every time you open Claude Code.
+2. **Pre-code debate loop (v2.1)** — Worker challenges the phiếu against real code BEFORE coding; Architect responds; multi-turn until consensus. Chủ nhà only steps in at 2 points: initial brief and final approval gate. See [`docs/ORCHESTRATION.md`](./docs/ORCHESTRATION.md) and [`docs/HANDOFF.md`](./docs/HANDOFF.md) (Handoff 2.5) for details.
+
+See [`INSTALL.md`](./INSTALL.md) for setup.
 
 ## The Pipeline
 

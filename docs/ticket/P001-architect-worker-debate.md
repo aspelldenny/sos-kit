@@ -93,16 +93,16 @@ Sếp brief → main session orchestrate:
 
 | # | Assumption | Verify by | Result |
 |---|-----------|-----------|--------|
-| 1 | `agents/architect.md` tồn tại + có frontmatter `tools: Read, Write, Glob, TaskCreate, TaskUpdate, TaskList, AskUserQuestion` | `head -10 agents/architect.md` | ⏳ TO VERIFY |
-| 2 | `.claude/agents/architect.md` tồn tại và **chỉ khác** `agents/architect.md` ở từ "Sếp" vs "Chủ nhà" | `diff agents/architect.md .claude/agents/architect.md` | ⏳ TO VERIFY (architect đã verify gián tiếp qua diff lúc viết phiếu — Worker re-verify) |
-| 3 | `agents/worker.md` tồn tại + tools: Read/Write/Edit/Glob/Grep/Bash/Task*/AskUserQuestion | `head -10 agents/worker.md` | ⏳ TO VERIFY |
-| 4 | `.claude/agents/worker.md` khác `agents/worker.md` chỉ ở Sếp/Chủ nhà | `diff agents/worker.md .claude/agents/worker.md` | ⏳ TO VERIFY |
-| 5 | `phieu/TICKET_TEMPLATE.md` chưa có section "Debate Log" | `grep -i "debate" phieu/TICKET_TEMPLATE.md` | ⏳ TO VERIFY (kỳ vọng: empty output) |
-| 6 | `docs/HANDOFF.md` hiện có 5 handoffs (0–4), chưa có 2.5 | `grep -E "^## Handoff" docs/HANDOFF.md` | ⏳ TO VERIFY (kỳ vọng: 5 dòng) |
-| 7 | `scripts/architect-guard.sh` block path `src/` khi marker `.claude/.architect-active` tồn tại | `cat scripts/architect-guard.sh \| grep -A2 'BLOCKED=1'` | ⏳ TO VERIFY |
-| 8 | `INSTALL.md` Step 5 "Verify install" có dòng test architect-guard | `grep -n "architect-guard" INSTALL.md` | ⏳ TO VERIFY |
-| 9 | `docs/ORCHESTRATION.md` chưa tồn tại | `ls docs/ORCHESTRATION.md 2>&1` | ⏳ TO VERIFY (kỳ vọng: No such file) |
-| 10 | `README.md` có section "Two ways to run the 3-role envelope" với table v1/v2 mode | `grep -n "Two ways to run" README.md` | ⏳ TO VERIFY |
+| 1 | `agents/architect.md` tồn tại + có frontmatter `tools: Read, Write, Glob, TaskCreate, TaskUpdate, TaskList, AskUserQuestion` | `head -10 agents/architect.md` | ✅ verified pre-implement |
+| 2 | `.claude/agents/architect.md` tồn tại và **chỉ khác** `agents/architect.md` ở từ "Sếp" vs "Chủ nhà" | `diff agents/architect.md .claude/agents/architect.md` | ⚠️ pre-implement: 7 lines differed beyond name; ✅ post-implement: harmonized via sync script, only Sếp/Chủ nhà differs now |
+| 3 | `agents/worker.md` tồn tại + tools: Read/Write/Edit/Glob/Grep/Bash/Task*/AskUserQuestion | `head -10 agents/worker.md` | ✅ verified pre-implement |
+| 4 | `.claude/agents/worker.md` khác `agents/worker.md` chỉ ở Sếp/Chủ nhà | `diff agents/worker.md .claude/agents/worker.md` | ⚠️ → ✅ same as #2 |
+| 5 | `phieu/TICKET_TEMPLATE.md` chưa có section "Debate Log" | `grep -i "debate" phieu/TICKET_TEMPLATE.md` | ✅ pre-implement empty; post-implement 1 hit (added) |
+| 6 | `docs/HANDOFF.md` hiện có 5 handoffs (0–4), chưa có 2.5 | `grep -E "^## Handoff" docs/HANDOFF.md` | ✅ pre-implement 5 lines; post-implement 6 (added 2.5) |
+| 7 | `scripts/architect-guard.sh` block path `src/` khi marker `.claude/.architect-active` tồn tại | smoke test exit code | ✅ smoke test confirmed exit=2 on `src/main.rs` |
+| 8 | `INSTALL.md` Step 5 "Verify install" có dòng test architect-guard | `grep -n "architect-guard" INSTALL.md` | ✅ verified |
+| 9 | `docs/ORCHESTRATION.md` chưa tồn tại | `ls docs/ORCHESTRATION.md 2>&1` | ✅ pre-implement: No such file; post-implement: 150 lines |
+| 10 | `README.md` có section "Two ways to run the 3-role envelope" với table v1/v2 mode | `grep -n "Two ways to run" README.md` | ✅ verified |
 
 ---
 

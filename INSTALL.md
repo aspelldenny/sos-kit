@@ -44,10 +44,10 @@ Giả sử sos-kit v2 đã clone tại `~/sos-kit` (clone từ aspelldenny/sos-k
 ```bash
 cd ~/your-project
 
-# Agents
+# Agents (canonical, English-neutral, "Chủ nhà" voice)
 mkdir -p .claude/agents
-cp ~/sos-kit/.claude/agents/architect.md .claude/agents/
-cp ~/sos-kit/.claude/agents/worker.md .claude/agents/
+cp ~/sos-kit/agents/architect.md .claude/agents/
+cp ~/sos-kit/agents/worker.md .claude/agents/
 
 # Skills
 mkdir -p .claude/skills/idea
@@ -154,12 +154,17 @@ Thêm section sau vào `CLAUDE.md` của project (nếu chưa có sos-kit v1 min
 - Hook `architect-guard.sh` — chặn cứng .py/.rs/.ts read khi marker `.claude/.architect-active`
 - Hook `session-start-banner.sh` — show BACKLOG mỗi lần mở Claude Code
 
-**Workflow:**
+**Workflow (v2.1 — auto-debate):**
 1. Mở Claude Code → SessionStart hook show BACKLOG → Chủ nhà pick item
-2. `Spawn architect subagent để viết phiếu cho item X` (X phải ở Active sprint)
-3. Architect viết phiếu → Chủ nhà duyệt → `Spawn worker để execute`
-4. Worker chạy Task 0 → code → test → Discovery Report → commit local
-5. Chủ nhà nghiệm thu, deploy
+2. **Chủ nhà đưa 1 câu brief** (e.g., "build feature X cho item Y ở Active sprint")
+3. Main session orchestrate (xem `docs/ORCHESTRATION.md`):
+   a. Spawn architect (DRAFT) → phiếu V1 with Debate Log section
+   b. Spawn worker (CHALLENGE) → verify Task 0 + đọc code thật → Debate Log Turn 1
+   c. (nếu có objection) Spawn architect (RESPOND) → phiếu V2
+   d. Loop tới consensus hoặc max 3 turns
+4. **Chủ nhà approval gate** — orchestrator AskUserQuestion show phiếu cuối + Debate Log → Chủ nhà duyệt
+5. Spawn worker (EXECUTE) → Task 0 → code → test → Discovery → commit
+6. Chủ nhà nghiệm thu, deploy
 ```
 
 ### 5. Verify install
@@ -182,6 +187,10 @@ claude
 # → SessionStart banner should appear
 # → Try: /agents — should list 'architect' and 'worker'
 # → Try: /idea Em test — should invoke idea skill with AskUserQuestion
+
+# Verify v2.1 debate flow (smoke test, see "First phiếu" section below)
+grep -A2 "Debate Log" .claude/agents/worker.md | head -5
+# → expect: "CHALLENGE" mode trigger phrase listed
 ```
 
 ## First phiếu (smoke test)

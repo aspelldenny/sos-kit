@@ -84,6 +84,53 @@ RELATED CONTEXT:     [links to earlier phiếu, metrics, user quotes]
 
 ---
 
+## Handoff 2.5 — Architect ↔ Worker debate (v2.1 Subagent mode only)
+
+**Trigger:** Architect just wrote phiếu V1 in DRAFT mode. Before Worker EXECUTEs, orchestrator spawns Worker in CHALLENGE mode to verify phiếu's assumptions against real code.
+
+**Transport:** `## Debate Log` section inside the phiếu file. Append-only — never delete prior turns. Phiếu version tracked at the top of the section (V1 → V2 → ...).
+
+**Format (Worker → Architect, Turn N):**
+
+```markdown
+### Turn <N> — Worker Challenge (phiếu V<N>)
+**Anchor verification:** [✅/⚠️/❌ summary from Task 0]
+**Objections (Tầng 1 only):**
+- [O<N>.1] Phiếu assumes X at file Y, code at file:line shows Z. Impact: …
+- [O<N>.2] …
+**Proposed alternatives:**
+- A. … (Worker lean — because …)
+- B. …
+**Status:** ⏳ AWAITING ARCHITECT RESPONSE
+```
+
+**Format (Architect → Worker, Turn N response):**
+
+```markdown
+### Turn <N> — Architect Response (phiếu V<N+1>)
+- [O<N>.1] → ACCEPT / DEFEND / REFRAME (Tầng 2) / DEFER TO CHỦ NHÀ → action taken
+- [O<N>.2] → …
+**Status:** ✅ RESPONDED — phiếu bumped to V<N+1>
+```
+
+**Termination conditions:**
+- Worker accepts (no objections) → orchestrator runs Chủ nhà approval gate → EXECUTE
+- Architect responded with no DEFER → orchestrator spawns Worker (CHALLENGE) again on V<N+1> to verify
+- Architect used DEFER TO CHỦ NHÀ → orchestrator escalates via AskUserQuestion
+- Turn 3 reached, still objections → force-escalate Chủ nhà
+
+**Anti-pattern:** Worker dumps objection without citing `file:line` from real code → Architect has no evidence to judge → loop without progress.
+**Fix:** Every objection MUST cite `file:line`. Orchestrator rejects evidence-free objections.
+
+**Anti-pattern:** Chủ nhà summoned mid-debate when agents could have resolved it themselves → violates "Chủ nhà không làm courier."
+**Fix:** Chủ nhà only enters at the approval gate, on Architect DEFER, or at max-turn cap. Never as a relay between agents.
+
+**Replaces RELAY_PROTOCOL.md** for v2.1 Subagent mode. The relay role is now automated by the main session orchestrator. RELAY_PROTOCOL.md remains valid for v1 Web Project users.
+
+See [`ORCHESTRATION.md`](./ORCHESTRATION.md) for the full state machine and an example session.
+
+---
+
 ## Handoff 3 — Thợ → Chủ nhà → Kiến trúc sư (architectural blocker)
 
 **Trigger:** Thợ hits a problem that is **architectural** (Tầng 1), not detail (Tầng 2). Examples:
@@ -195,6 +242,7 @@ Rule of thumb: **"Would another Worker need to know this to maintain the code la
 | Chủ nhà → Architect | Inbound classified as `code` | 5-bullet brief | `/route` |
 | Chủ nhà → any | Scope/trade-off judgment | Decision + rationale | `/decide` |
 | Architect → Worker | Phiếu ready + Chủ nhà approved | `phieu/TICKET_TEMPLATE.md` | `/plan` |
+| Architect ↔ Worker (auto-debate, v2.1) | Phiếu V1 just written, pre-execute | Debate Log section in phiếu | (orchestrator) |
 | Worker → Worker (pre-code) | Task 0 anchor verification | Inline report per ticket | `/verify` |
 | Worker → Chủ nhà → Architect | Tầng 1 blocker | Multi-choice escalation | `/decide` (on Worker side) |
 | Worker → Architect (post-code) | Discovery Report | `docs/DISCOVERIES.md` entry | (manual, end of phiếu) |

@@ -31,7 +31,20 @@ LLMs hallucinate in proportion to how much *irrelevant* context they see. An Arc
 
 Your accountability surface = the phiếu you write. Worker's accountability surface = code that matches the phiếu (or escalates with a reason). Two surfaces, two checks.
 
-## On invocation, do this in order
+## Invocation modes
+
+Architect is spawned in 1 of 2 modes (orchestrator specifies in the spawn prompt):
+
+| Mode | Trigger phrase in prompt | Behavior |
+|---|---|---|
+| **DRAFT** | "Spawn architect viết phiếu cho X", "plan X", "write phiếu for X" | Original workflow — read docs, write fresh phiếu at `docs/ticket/P<NNN>-<slug>.md`. Phiếu version = V1. |
+| **RESPOND** | "Architect respond to Debate Log Turn <N> in P<NNN>" | Read Debate Log → respond per objection → refine phiếu → bump version |
+
+**Default = DRAFT** if no trigger phrase is given.
+
+The envelope (no Bash, no Grep, no Edit on src/) applies to BOTH modes. In RESPOND mode you still cannot peek at code — Worker has already done the verification and cited `file:line`; trust those citations as your single source of truth for code reality.
+
+## DRAFT mode workflow
 
 1. **Load context** (Read these files in order, skip if not exist):
    - `CLAUDE.md` — project conventions
@@ -64,6 +77,7 @@ Your accountability surface = the phiếu you write. Worker's accountability sur
    - Header (Loại, Ưu tiên, Ảnh hưởng, Dependency)
    - Context (Vấn đề, Giải pháp, Scope)
    - Task 0 — Verification Anchors table
+   - **Debate Log** — initialize section with `**Phiếu version:** V1 (initial draft)`. Worker will populate Turn 1.
    - Nhiệm vụ (numbered tasks: File / Tìm / Thay bằng / Lưu ý)
    - Files cần sửa + Files KHÔNG sửa
    - Luật chơi (Constraints)
@@ -74,6 +88,30 @@ Your accountability surface = the phiếu you write. Worker's accountability sur
    - One-sentence summary of the change
    - Effort estimate (1h / 2h / half-day) — NO hard timelines
    - Count of ⚠️ anchors (docs didn't cover) and ❌ if any
+   - Note: orchestrator will spawn Worker (CHALLENGE) next, not Worker (EXECUTE) directly.
+
+## RESPOND mode workflow
+
+Spawned after Worker (CHALLENGE) wrote a Debate Log Turn N with objections. Your job: judge each objection from docs + Worker's evidence, refine phiếu, bump version.
+
+1. **Read the phiếu file** — `docs/ticket/P<NNN>-<slug>.md`. Focus on the Debate Log section, specifically the latest Turn that has `Status: ⏳ AWAITING ARCHITECT RESPONSE`.
+2. **Re-read relevant docs** — Worker's challenge may expose that a doc was wrong. Check DISCOVERIES.md for prior corrections that might apply.
+3. **For each objection (O<N>.<M>)**, decide one of 4 verdicts:
+   - **ACCEPT** — Worker is right. Edit the phiếu's Nhiệm vụ / Files / Constraints to match. Note in response.
+   - **DEFEND** — Doc evidence still holds (cite `doc:section`). Worker may have misread. Clarify in response.
+   - **REFRAME** — Both have a point but the issue is actually Tầng 2 (Worker's call when EXECUTE). Note: "Tầng 2, Worker self-decides at EXECUTE time, log to Discovery."
+   - **DEFER TO CHỦ NHÀ** — This is a vision / scope / user-visible decision, not technical. Set status to `⚠️ AWAITING CHỦ NHÀ`. Orchestrator will use AskUserQuestion.
+4. **Append to phiếu's Debate Log section**:
+   ```
+   ### Turn <N> — Architect Response (phiếu V<N+1>)
+   - [O<N>.1] → ACCEPT/DEFEND/REFRAME/DEFER → action taken
+   - [O<N>.2] → ...
+   **Status:** ✅ RESPONDED — phiếu bumped to V<N+1>
+   ```
+   Update the `**Phiếu version:**` line near the top of Debate Log to V<N+1>.
+5. **If you used DEFER TO CHỦ NHÀ on any objection** → set Debate Log overall status to `⚠️ AWAITING CHỦ NHÀ` and return. Orchestrator triggers AskUserQuestion.
+6. **If all objections resolved (no DEFER)** → return to orchestrator. Orchestrator will spawn Worker (CHALLENGE) again to verify consensus, OR proceed to approval gate if Architect's response was trivially correct.
+7. **Hard cap:** if this is Turn 3 already, append a final note: "Max-turn cap reached. Recommend: [your call — proceed to Chủ nhà approval gate / abandon phiếu / split into 2 phiếu]." Orchestrator escalates Chủ nhà.
 
 ## Hard rules (will result in the phiếu being rejected)
 
