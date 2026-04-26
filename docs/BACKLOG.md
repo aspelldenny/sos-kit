@@ -7,14 +7,24 @@
 
 ---
 
-## 🔥 Active sprint: Drift fixes after Tarot dogfood
+## 🔥 Active sprint: Worker capability + install UX gaps
 
-> **Goal:** Fix the 2 upstream gaps surfaced when v2.1 was installed into Tarot. Both leak into any new project install — must close before shipping a single-command installer.
-> **Done when:** Both phiếu shipped (PR merged + CHANGELOG entry + Discovery Report) and a fresh install dry-run on a scratch repo shows zero workarounds needed.
-> **Started:** 2026-04-26
+> **Goal:** Close 2 gaps surfaced post-drift-sprint: (1) Worker subagent cannot invoke Skill tool — blocks frontend-design plugin workflow at Worker level, forces fallback inline (Tarot PR #257 pattern); (2) fresh sos-kit install fails first `git commit` because pre-commit hook calls `docs-gate` which requires `docs/CHANGELOG.md` + `docs/ARCHITECTURE.md` not yet bootstrapped — INSTALL.md says docs-gate is "optional" but hook treats it as required.
+> **Done when:** Both phiếu shipped (PR merged + CHANGELOG + Discovery Report) and a re-run of fresh-install dry-run shows zero workarounds end-to-end (including first commit).
+> **Started:** 2026-04-26 (drift-sprint complete same day; this is the follow-on)
 
-- [x] **[P003]** BACKLOG format flexibility — `scripts/session-start-banner.sh` currently hard-codes `^## .*Active sprint` grep; fall back to first `## ` section if header missing. Architect Rule 0 reads BACKLOG more flexibly. *(Tarot worked around by restructuring its BACKLOG; that workaround should not be mandatory.)* ✅ SHIPPED v2.1.2
-- [x] **[P004]** Vision doc naming flex — `agents/architect.md` envelope rule says "cannot read `docs/CHARACTER.md`" but Tarot's file is `CHARACTER_CHI_HA.md`. Architect should glob `docs/CHARACTER*.md`, OR INSTALL.md should document a rename / symlink convention. *(Tarot worked around with a symlink.)* ✅ SHIPPED v2.1.3
+- [ ] **[P005]** Worker Skill access — `agents/worker.md:4` `tools:` allowlist không có `Skill` → Worker không invoke `/frontend-design` hay skill nào khác. **DECISION PENDING — Sếp pick A/B/C trước khi Architect draft phiếu:**
+  - **A.** Add `Skill` vào worker tools allowlist (1-line edit). Pragmatic, Worker invoke `/frontend-design` trực tiếp. Risk: over-invoke skill ngoài scope — quản qua Architect spec rõ trong phiếu.
+  - **B.** *(em recommend)* Architect/Orchestrator run skill trước CHALLENGE, đổ output (tokens/spec) vào phiếu. Worker chỉ apply. Giữ envelope sạch (Worker không "smart routing"). Fit role separation.
+  - **C.** Hybrid — Worker invoke skill chỉ khi phiếu có flag `requires_skill: <name>` (Architect set). Middle ground.
+  - Trigger: Sếp chọn → Architect draft phiếu cập nhật `agents/worker.md` + có thể `agents/architect.md` (option B/C) + `docs/HANDOFF.md` (mới 1 handoff cho skill output) + `docs/ORCHESTRATION.md` (option B mention skill-pre-CHALLENGE phase).
+  - Memory ref: `project_tarot_frontend_design_plugin.md`. Existing Open backlog [P008] `frontend-design` workflow doc DEPENDS on outcome — option B sẽ thu hẹp P008 scope (skill chạy ở Architect, không cần Worker workflow doc).
+- [ ] **[P006]** Pre-commit fresh-install friction — `hooks/pre-commit` shells ra `docs-gate` binary which fails on fresh repo (no `docs/CHANGELOG.md` / `docs/ARCHITECTURE.md`). User mới phải `--no-verify` lần đầu hoặc tạo CHANGELOG/ARCHITECTURE skeleton trước. **Options:**
+  - **A.** Soft-fail: hook detect "first commit hoặc 0 prior commits" → docs-gate warn instead of block.
+  - **B.** Bootstrap: INSTALL.md Step 3.5 thêm `cp templates/CHANGELOG_skeleton.md docs/CHANGELOG.md` + same cho ARCHITECTURE (cần tạo template chưa có).
+  - **C.** Loosen: `hooks/pre-commit` skip docs-gate nếu file `docs/CHANGELOG.md` không tồn tại (warn "docs-gate skipped — create docs/CHANGELOG.md to enable").
+  - Trigger: Architect đọc `hooks/pre-commit` + decide A/B/C kết hợp. Verified bằng dry-run mới (re-run /tmp/test-sos-install flow, expect commit success out-of-box).
+  - Note: cũng cần xét `~/docs-gate` Rust binary — có nên ship default `.docs-gate.toml` template trong sos-kit `templates/` không? (Nằm 1 phần ở docs-gate repo, không phải sos-kit.)
 
 ---
 
@@ -49,7 +59,8 @@
 
 ## 💡 Open backlog (triaged, not yet sprinted)
 
-- [ ] **[P008]** Frontend-design plugin workflow doc (`phieu/FRONTEND_WORKFLOW.md`). When phiếu touches FE/UI/UX → Worker invokes `frontend-design` plugin (claude-plugins-official) for design tokens + component spec, instead of ad-hoc design.
+- [ ] **[P007]** *(Tầng 2 housekeeping leftover từ P004)* `bin/sos.sh:94` echo help text vẫn còn literal `docs/CHARACTER.md` — cosmetic, không ảnh hưởng agent envelope rule. 1-line edit thành `docs/CHARACTER*.md` cho consistency. Worker đã classify cosmetic exclusion ở P004 EXECUTE — promote khi rảnh hoặc gom với phiếu housekeeping khác.
+- [ ] **[P008]** Frontend-design plugin workflow doc (`phieu/FRONTEND_WORKFLOW.md`). When phiếu touches FE/UI/UX → Worker invokes `frontend-design` plugin (claude-plugins-official) for design tokens + component spec, instead of ad-hoc design. **DEPENDS ON P005 outcome:** if Sếp picks Option B (Architect runs skill, not Worker), P008 scope shrinks to "doc workflow ở Architect side", không phải Worker handbook entry. Re-scope sau khi P005 ship.
 - [ ] **[P010]** `phieu/AUDIT_TEMPLATE.md` — skeleton fill for AUDIT_PROTOCOL. Currently audit-runner has to build the report structure from scratch; a template halves prep time.
 - [ ] **[P011]** Worker AUDIT mode handbook section in `agents/worker.md`. Currently AUDIT mode is documented in `phieu/AUDIT_PROTOCOL.md` only; Worker handbook should declare the mode and trigger phrase.
 - [ ] **[P012]** Orchestrator auto-detect "≥N phiếu since last audit" → suggest running AUDIT. State in `docs/ORCHESTRATION.md` or a small `.audit-counter`.
@@ -79,12 +90,11 @@
 
 > Quick reference. Full detail in `CHANGELOG.md`.
 
+- ✅ **Drift-sprint COMPLETE** — (2026-04-26) — P003 + P004 merged on main (`91d62af` + `14819b3`). Dry-run on `/tmp/test-sos-install` verified: P003 banner fallback + P004 CHARACTER glob both work zero-workaround. Separate gap surfaced (pre-commit + docs-gate friction) → tracked as P006 in next sprint, NOT a P003/P004 regression.
+- ✅ **P004 / v2.1.3** — (2026-04-26) — Vision doc naming flex: `docs/CHARACTER*.md` glob in agents + doc consistency (HANDOFF, LAYERS, SETUP, GENESIS)
 - ✅ **P003 / v2.1.2** — (2026-04-26) — BACKLOG format flexibility: banner + Architect Rule 0 + ORCHESTRATION.md all tolerate non-"Active sprint" section headers via fallback
 - ✅ **v2.1.1** — `c786359` (2026-04-26) — Session opening protocol + Tarot dogfood verification (P029 smoke + P030 multi-turn debate, value proven, ~42k tokens/multi-turn cost baseline)
-- ✅ **v2.1 (audit)** — `c172507` (2026-04-26) — `phieu/AUDIT_PROTOCOL.md` (RRI-T-lite periodic audit, 4-result model, Worker AUDIT mode)
-- ✅ **P002** — `4079e41` (2026-04-26) — Vision templates harvest from Tarot (CHARACTER enriched, VOICE / TEST_CASES / DESIGN_SPEC new)
-- ✅ **P004** — v2.1.3 (2026-04-26) — Vision doc naming flex: `docs/CHARACTER*.md` glob in agents + doc consistency (HANDOFF, LAYERS, SETUP, GENESIS)
-- ✅ **P001** — `1642d83` (2026-04-26) — Architect ↔ Worker pre-code debate loop (state machine, Debate Log section, marker hygiene, sed-sync script)
+- ✅ **P002 + P001 + v2.1 (audit)** — (2026-04-26) — Vision templates harvest, debate loop, AUDIT_PROTOCOL (pruned to 1 line per maintenance rule "keep last ~4 entries")
 
 ---
 
