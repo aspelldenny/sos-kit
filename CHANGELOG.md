@@ -8,6 +8,11 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 - **Vision doc naming flex (P004).** `agents/architect.md` and `agents/worker.md` now reference `docs/CHARACTER*.md` (glob) instead of literal `docs/CHARACTER.md` — projects with named characters (e.g. Tarot's `docs/CHARACTER_CHI_HA.md`) work without symlink workaround. Architect globs and reads every match; Worker MUST NOT Read any match (Glob/Grep for detection only). Companion edits in `docs/SETUP.md` (canonical-name recommendation), `docs/HANDOFF.md` (Handoff 0: 3 sites — vision-doc list, workflow ASCII block, session-open reading order), `docs/LAYERS.md` (access matrix + Layer 1 inner box + Chủ nhà responsibility #1), `docs/GENESIS.md` (Phase 0 Vision row). Sibling fix to P003; same principle: sos-kit consumes Sếp-owned docs, doesn't dictate names.
 
+## [v2.1.2] — 2026-04-26
+
+### Fixed
+- **BACKLOG format flexibility (P003).** `scripts/session-start-banner.sh` now falls back to the first `## ` section when no `## ... Active sprint` header is present (previously: silent exit, no banner). `agents/architect.md` Hard rule 0 wording softened to match — the active section is resolved by case-insensitive substring "Active sprint" first, then by first `## ` section. `docs/ORCHESTRATION.md` edge-case greeting (line 32) rewritten to no longer falsely claim "BACKLOG chưa có Active sprint" after fallback resolves a header. Sếp no longer needs to rename their BACKLOG sections to satisfy a literal regex. Tarot's restructured-BACKLOG workaround (2026-04-26 dogfood) is no longer required for new installs.
+
 ## [v2.1.1] — 2026-04-26
 
 ### Added

@@ -45,6 +45,47 @@
 - `CHANGELOG.md` — v2.1.3 entry added
 - `docs/BACKLOG.md` — P004 marked [x] + added to "Recently shipped"
 
+---
+
+## [P003] — 2026-04-26 — BACKLOG format flexibility (banner fallback + Architect Rule 0 + ORCHESTRATION.md)
+
+### Assumptions in phiếu — CORRECT
+- All 10 Task 0 anchors verified pre-EXECUTE (anchors #1–#9 from V1, #10 added in V2 after Debate Turn 1).
+- `scripts/session-start-banner.sh` line 22 had the exact strict-regex `^## .*Active sprint`. `set -uo pipefail` (no `-e`) confirmed lines 13-14. `awk` boundary finder confirmed line 28 (now line 38 after Task 1 expansion).
+- `agents/architect.md` Hard rule 0 at lines 118-121 contained the exact literal "Active sprint" text.
+- `scripts/sync-personal-agents.sh` exists, does `sed 's/Chủ nhà/Sếp/g'` for both agents. Task 4 ran clean.
+- `docs/BACKLOG.md` line 10 has `## 🔥 Active sprint:` — strict-match path still fires, no fallback note shown (backwards compat verified via manual test).
+- No other script in `scripts/` referenced "Active sprint" beyond `session-start-banner.sh` (anchor #8).
+- `agents/worker.md` had zero "Active sprint" references (anchor #9).
+- `docs/ORCHESTRATION.md` line 32 contained the exact literal string (anchor #10) — patched in Task 6.
+
+### Assumptions in phiếu — WRONG / Adapted
+- **Task 2 "Tìm" block was stale (Tầng 2 self-adapted).** The phiếu's Task 2 assumed the banner's closing block was 7 lines ending directly after the Rule 0 line. In reality the v2.1.1 banner has a 9-line "Orchestrator contract" block between the `📊 Active sprint:` count line and the `📌 Architect Rule 0:` line (added by P001/v2.1.1 which landed after this phiếu was drafted). Worker adapted by: (a) inserting the `FALLBACK_USED` conditional directly after the count line (correct placement), and (b) updating only the Rule 0 closing line in-situ. Semantics match phiếu intent exactly; only the insertion point differed. Tầng 2 — no escalation needed.
+
+### Scope expansions
+- **V1 → V2 (pre-EXECUTE debate, resolved before EXECUTE):** Worker CHALLENGE Turn 1 raised `docs/ORCHESTRATION.md` line 32 as out-of-scope drift. Architect RESPOND accepted, added Task 6 + anchor #10, bumped to V2. Debate-loop mechanic worked as designed — Docs Gate caught a missing scope item in CHALLENGE mode, not during EXECUTE. This is the first P00N phiếu where the debate loop caught a real scope gap in CHALLENGE mode on sos-kit itself (P029 was the Tarot equivalent).
+- No further expansions during EXECUTE phase. Stayed within 6 tasks of V2.
+
+### Edge cases / limitations found
+- **Fallback resolves to the FIRST `## ` section, not necessarily the user's intended active section.** If a BACKLOG places e.g. `## Future waves` before `## Now`, the fallback picks `## Future waves`. Mitigation: the fallback note tells Sếp which header was used; Sếp reorders BACKLOG if wrong. Strict-match path sidesteps this entirely.
+- **HEADER_TEXT includes emoji if the header has one** (e.g. `## 🔥 Active sprint:` strips to `🔥 Active sprint:` — the `sed 's/^## *//'` is permissive by design). The fallback note then reads `Treating "🔥 Active sprint:" as Active sprint...` — technically redundant on strict-match path (FALLBACK_USED=0) so never fires, but documented for future edge-case awareness.
+- **CHANGELOG.md now contains the literal "BACKLOG chưa có Active sprint" string** in the new v2.1.2 Fixed bullet (describing what was changed). This is historical context in a changelog entry, not a live constraint. The Docs Gate check explicitly scopes exclusions to the phiếu file; CHANGELOG was not listed. This is a Tầng 2 judgment: changelog entries quoting removed behavior are expected; adding CHANGELOG.md to the exclusion list would be noise. Future Docs Gate checks for this string should exclude both `docs/ticket/P003-*.md` AND `CHANGELOG.md`.
+
+### Docs updated to match reality
+- `scripts/session-start-banner.sh` — Tasks 1 + 2: fallback header resolution + fallback-used note
+- `agents/architect.md` — Task 3: Hard rule 0 softened with active-section resolution sub-rule
+- `.claude/agents/architect.md` — Task 4: regenerated via `scripts/sync-personal-agents.sh`
+- `CHANGELOG.md` — Task 5: v2.1.2 entry
+- `docs/ORCHESTRATION.md` — Task 6: line 32 edge-case greeting rewritten
+- `docs/BACKLOG.md` — P003 marked `[x]`, moved to "Recently shipped"
+
+### Notes for future phiếu
+- P004 (vision doc naming flex, sibling drift fix) should follow the same "format-tolerant, never silent" pattern as P003: emit a note when falling back, never silently pick wrong.
+- Future doc-touching phiếu should pre-grep `docs/` for ALL strings whose semantics they change. P003 V1 missed `docs/ORCHESTRATION.md` only because the Architect anchor table didn't enumerate doc-side surfaces exhaustively — Worker's CHALLENGE Docs Gate requirement caught it. Architect should add a standing anchor "grep docs/ for the literal string being removed" for any phiếu that retires a user-visible string.
+- The CHANGELOG historical-quote issue (see Edge cases above) suggests the Docs Gate rule for "no file contains string X" should always list exact exclusions: `docs/ticket/P<NNN>-*.md` (phiếu quotes old string in Tìm/Debate) AND `CHANGELOG.md` (may quote it in Fixed bullet).
+
+---
+
 ## [v2.1-dogfood] — 2026-04-26 — debate flow proven on Tarot (P029 + P030)
 
 ### Assumptions in design — CORRECT
