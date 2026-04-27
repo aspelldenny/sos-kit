@@ -91,6 +91,22 @@ Nếu `.claude/settings.json` đã có, **merge** thay vì overwrite. Add hai ho
 
 Nếu đã có `PreToolUse` hooks khác → merge cùng matcher hoặc thêm entry mới.
 
+### 2.5. Pre-approve marker file Bash ops (skip per-spawn permission prompts)
+
+Orchestrator (main session) touches `.sos-state/architect-active` before spawning Architect and removes it before spawning Worker (marker hygiene per `docs/ORCHESTRATION.md` Hard rule #6). Without pre-approval, Claude Code prompts on every spawn — defeats v2.1 auto-orchestration.
+
+```bash
+# Copy template if .claude/settings.local.json doesn't exist
+[ ! -f .claude/settings.local.json ] && cp ~/sos-kit/templates/claude-settings.local.json .claude/settings.local.json
+```
+
+Nếu `.claude/settings.local.json` đã có, **merge** thêm 3 entry vào `permissions.allow` array:
+- `Bash(mkdir -p .sos-state)`
+- `Bash(touch .sos-state/architect-active)`
+- `Bash(rm -f .sos-state/architect-active)`
+
+`.claude/settings.local.json` là per-user (thường `.gitignore` rồi) — không commit.
+
 ### 3. Bootstrap docs (nếu thiếu)
 
 ```bash
@@ -233,6 +249,7 @@ grep -A2 "Debate Log" .claude/agents/worker.md | head -5
 | Hook block worker khi spawn | Worker spawn cần marker NOT exist — `rm -f .sos-state/architect-active` trước |
 | `/idea` slash không nhận | Skill load lúc Claude Code start — restart |
 | BACKLOG.md không tồn tại | Bootstrap: `cp ~/sos-kit/templates/BACKLOG_template.md docs/BACKLOG.md` |
+| Per-spawn `Bash(touch .sos-state/architect-active)` permission prompt | Bạn chưa làm Step 2.5 — copy `templates/claude-settings.local.json` vào `.claude/settings.local.json` |
 
 ## Uninstall
 

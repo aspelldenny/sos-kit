@@ -2,6 +2,12 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.1.6] — 2026-04-27
+
+### Added
+- **P037: Pre-approve marker file Bash ops via `templates/claude-settings.local.json` template + INSTALL.md Step 2.5.** Eliminates per-spawn permission prompt for `Bash(touch .sos-state/architect-active)` / `Bash(rm -f .sos-state/architect-active)` / `Bash(mkdir -p .sos-state)` observed on Tarot 2026-04-27. New template ships 3-entry `permissions.allow` list; INSTALL.md gets Step 2.5 (copy-or-merge instruction) and a Common gotchas row.
+- Files changed: `templates/claude-settings.local.json` (new), `INSTALL.md`.
+
 ## [v2.1.5] — 2026-04-27
 
 ### Added
