@@ -2,6 +2,36 @@
 
 > Newest on top, like CHANGELOG. Each entry: phiếu ID + date + what assumptions held vs broke + scope expansions + edge cases + docs touched.
 
+## [P037] — 2026-04-27 — Pre-approve marker Bash ops (permission prompt fix) — FIRST skip-CHALLENGE phiếu
+
+### Assumptions in phiếu — CORRECT
+- Anchor #1 (`[verified]`): Marker path `.sos-state/architect-active` confirmed in `docs/ORCHESTRATION.md:115` and `agents/orchestrator.md:57-59`. Exact match.
+- Anchor #2 (`[verified]`): INSTALL.md Step 2 at line 66, Step 3 at line 94 (shifted to 112 after Step 2.5 insert). Step 2.5 slots cleanly between them.
+- Anchor #3 (`[verified]`): `scripts/session-start-banner.sh` line 74 echoes a reminder about the marker but does NOT `touch`/`rm` it. No edit needed.
+- Anchor #4 (`[needs Worker verify]` → RESOLVED): `templates/` directory exists, contains exactly 1 file: `BACKLOG_template.md`. No `mkdir` needed. New `claude-settings.local.json` is the second template file added.
+- Anchor #5 (`[needs Worker verify]` → RESOLVED): Permission string format confirmed as exact literal `Bash(<exact command>)` by reading existing `settings.local.json` files (`~/.claude/settings.local.json` line 16 shows `"Bash(mkdir:*)"` glob style for broad matches, but literal strings like `"Bash(ship --version)"` are also present and correct for fixed commands). The 3 marker ops are fixed commands — literal strings in the template are the right choice. No format adaptation needed.
+
+### Assumptions in phiếu — WRONG
+- None. All 5 anchors held.
+
+### Scope expansions
+- None. Only `templates/claude-settings.local.json` (new) and `INSTALL.md` (Step 2.5 + 1 gotcha row) modified. Exactly the 2 files listed in phiếu.
+
+### Edge cases / limitations found
+- **Docs-gate P006 friction (again):** `docs-gate` installed at `~/docs-gate/target/release/docs-gate` but `docs-gate check` is not a valid subcommand (available: `check-discovery`, `serve`, `init`). No `.docs-gate.toml` in sos-kit root. Gate not runnable as a compliance check — same friction logged in P035 Discovery. P006 remains open.
+- **Step 2.5 placement:** `### 2.5.` heading between `### 2.` and `### 3.` reads naturally. The existing `### 3.5.` heading (pre-commit hook) establishes the half-step convention — P037 follows it. No renumbering needed.
+- **Permission string exact-match vs glob:** Claude Code supports both `Bash(cmd:*)` glob and `Bash(exact cmd)` literal in `permissions.allow`. Exact literals are preferable for the 3 marker ops (closed set, no variants) — they minimize over-granting. If a user has a custom `.sos-state/` path, they would need to adapt — acceptable; default install uses `.sos-state/`.
+
+### Skip-CHALLENGE dogfood evidence (P036 Hard rule #7 — FIRST USE)
+- **Task 0 caught:** Anchor #5 `[needs Worker verify]` — permission string format. Worker confirmed literal strings are correct format; no adaptation needed. This was a real unknown that required on-machine grep of existing settings files. A CHALLENGE phase would have left it `[needs Worker verify]` (Architect has no file access) — same result, just a turn earlier.
+- **CHALLENGE would have additionally caught:** Nothing. All 5 anchors were resolvable at EXECUTE time. The phiếu's scope is narrow (2 files, no schema/API/auth), anchors were well-specified with explicit `[needs Worker verify]` markers, and Architect's `[verified]` anchors all held exactly. Skip-CHALLENGE was safe for this phiếu. P036 routing logic appears correct: Tầng 2 + surgical + well-anchored = skip is safe.
+- **Confidence signal for P036 retrospective:** The `[needs Worker verify]` annotation pattern is the key safety net. As long as Architect marks uncertain anchors correctly, Worker Task 0 catches the uncertainty at EXECUTE time regardless of whether CHALLENGE ran. The skip is safe when anchors are properly classified — not when they're all `[verified]` (false confidence).
+
+### Docs updated to match reality
+- `INSTALL.md`: Step 2.5 added (lines 93-109 approx), Common gotchas row added.
+- `CHANGELOG.md`: v2.1.6 entry added.
+- `templates/claude-settings.local.json`: new file (251 bytes, JSON valid).
+
 ## [P035] — 2026-04-27 — Orchestrator handbook + bulk-input rule + INSTALL anti-patterns (V3)
 
 ### Assumptions in phiếu — CORRECT
