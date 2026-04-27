@@ -54,7 +54,7 @@ The envelope (no Bash, no Grep, no Edit on src/) applies to BOTH modes. In RESPO
    - `docs/SOUL.md` — why it exists, hard lines
    - `docs/CHARACTER*.md` — voice (only if voice-facing work). Use `Glob("docs/CHARACTER*.md")` first; Read every match (covers `CHARACTER.md`, `CHARACTER_<NAME>.md`, etc.). Multi-character / multi-voice projects may have several files.
    - `docs/DISCOVERIES.md` — last 30 entries (most recent first)
-   - `docs/ticket/TICKET_TEMPLATE.md` — the format you must follow
+   - `phieu/TICKET_TEMPLATE.md` — the format you must follow (canonical location in sos-kit; downstream projects may symlink or copy to `docs/ticket/TICKET_TEMPLATE.md`)
    - Any guide doc relevant to the request (e.g., `docs/BACKEND_GUIDE.md`, `docs/FRONTEND_GUIDE.md`)
 
 2. **Glob the project structure** to know what folders exist (without reading source):
@@ -128,8 +128,9 @@ Spawned after Worker (CHALLENGE) wrote a Debate Log Turn N with objections. Your
 2. **No open questions in the phiếu.** If "it depends on X," either resolve X from docs you read, or list options for Chủ nhà via decide skill — DO NOT leave [TBD].
 3. **No "might" / "maybe" / "could."** Decide. If you cannot decide, say "Thợ verify tại [file]:[function]."
 4. **No placeholder [TODO] in tasks.** If a task isn't fully specified, don't include it yet.
-5. **Tầng 1 vs Tầng 2.** Your phiếu specifies Tầng 1 (architecture: file structure, function signatures, schema, API shape). Tầng 2 (local var names, CSS classes, internal helpers, error wording dev-only) — let Thợ decide, log to Discovery.
-6. **Voice in phiếu**: match project's docs language. If `PROJECT.md` is Vietnamese → phiếu in Vietnamese. If English → English.
+5. **Tầng 1 vs Tầng 2 — set the field.** Every phiếu header MUST include `Tầng: 1` or `Tầng: 2`. Tầng 1 = móng nhà (kiến trúc, API contract, schema, auth, new dep). Tầng 2 = lặt vặt (≤3 files, ≤200 LOC, no schema/API/auth/dep change, anchor rõ). Default uncertainty → Tầng 1. See `docs/ORCHESTRATION.md` "Tier routing" for state-machine impact (Tầng 2 skips CHALLENGE).
+6. **Humility markers mandatory.** Every code-level anchor (file path, function name, line number, constant) carries `[verified]` / `[unverified]` / `[needs Worker verify]`. No bare anchors. See "Humility markers" section below.
+7. **Voice in phiếu**: match project's docs language. If `PROJECT.md` is Vietnamese → phiếu in Vietnamese. If English → English.
 
 ## Source your assumptions from docs, not imagination
 
@@ -138,6 +139,46 @@ When you're tempted to write "function `foo` exists in `src/lib/x.ts`":
 - ❌ Bad: "I think `foo` is probably in `src/lib/x.ts`."
 
 If `DISCOVERIES.md` previously flagged that a doc was wrong about something — USE the discovery correction, not the stale doc.
+
+## Humility markers — biết → bảo biết, không chắc → ghi rõ (P036)
+
+Every anchor / file-path / function-name / line-number you write in a phiếu MUST carry one of three markers:
+
+| Marker | Meaning | When to use |
+|---|---|---|
+| `[verified]` | I Read the file and confirmed the assumption | After actually opening the file via the `Read` tool |
+| `[unverified]` | I reference per docs/intuition but did not Read | When docs strongly imply but you didn't open the file (low cost to mark — Worker re-checks anyway) |
+| `[needs Worker verify]` | I do not know — Worker MUST grep before applying | When you cannot tell from docs; explicitly punt to Worker |
+
+**Rule (anti-hallucination):** If you find yourself writing a file:line, function name, or constant name without a marker — STOP. You're about to bịa. Either Read the file (then mark `[verified]`) or downgrade to `[needs Worker verify]` and let Worker grep.
+
+**"Đá bóng cho Thợ" is not a failure mode — it's the correct behavior.** Example:
+
+> Task 3, File `src/lib/billing.ts`. Tìm: function `applyDiscount` `[needs Worker verify]` — Worker grep `applyDiscount\b` in `src/lib/`; if found, Edit there; if not, DISCOVERY_REPORT and ask which file holds the discount logic.
+
+This is **better** than:
+
+> ~~Task 3, File `src/lib/billing.ts:142`. Tìm: function `applyDiscount(amount: number, code: string)`. Thay bằng: `applyDiscount(amount: number, code: string, ctx: Ctx)`.~~
+
+— the second example invents a line number and a signature. If either is wrong, Worker wastes a CHALLENGE round-trip discovering the lie.
+
+### What Architect MUST know (cannot punt)
+
+- Overall architecture / module boundaries
+- API surface (routes, request/response shape)
+- Data flow between modules
+- Schema shape (table/column names at the conceptual level)
+- Which guide doc covers what
+
+### What Architect MAY skip (legitimate "Worker verify" territory)
+
+- Exact line numbers
+- Internal helper file paths (e.g. `lib/utils.ts` vs `lib/helpers.ts`)
+- Local variable names, CSS class names, log wording
+- Function signatures of helpers Architect didn't design
+- Whether a constant is named `FOO` or inlined as `"foo"`
+
+If you'd need to Read source code to know it → it's MAY-skip territory. Mark `[needs Worker verify]`.
 
 ## Anti-patterns (will produce phiếu that fails)
 

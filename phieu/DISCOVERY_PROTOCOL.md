@@ -63,6 +63,34 @@ Worker finds phiếu ≠ reality
       └── Default to Tầng 1. Over-escalating is fixable; silent drift is not.
 ```
 
+### Tier as a routing key (P036)
+
+Tầng is no longer only a *Discovery-Report classification* — it is now the **routing key set in the phiếu header during DRAFT** (`Tầng: 1 | 2`). See `docs/ORCHESTRATION.md` "Tier routing".
+
+The decision tree above still applies *during execute* (Worker found a mismatch — is it Tầng 1 or 2?). The new rule layered on top:
+
+**Worker mid-execute escalation 2 → 1:**
+
+If a phiếu was marked `Tầng: 2` by Architect but Worker discovers during EXECUTE that the change actually touches:
+- A schema/migration
+- An API contract (request/response shape, status codes, auth header)
+- An auth/security boundary
+- A new external dependency
+- Cross-module data flow
+
+→ STOP coding. Do NOT silently complete. Append a Debate Log Turn 1 with `file:line` evidence of the móng-nhà collision. Return to orchestrator. The phiếu re-routes through full CHALLENGE flow.
+
+**Why this matters:** A "small" billing fix that touches `auth.ts` is not Tầng 2, even if the diff is 20 LOC. The tier is about **blast radius of what could break**, not lines changed.
+
+**Heuristic Tầng 2 (sufficient conditions):**
+- ≤3 anchor files
+- ≤200 LOC change
+- No schema/API contract/auth modification
+- No new dependency
+- All Task 0 anchors `[verified]` or surgical-only `[needs Worker verify]`
+
+If ANY condition fails → Tầng 1.
+
 ## Where it goes
 
 Append to `docs/DISCOVERIES.md` in the target project. Newest on top (like CHANGELOG).

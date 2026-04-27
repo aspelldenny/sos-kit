@@ -2,6 +2,44 @@
 
 > Newest on top, like CHANGELOG. Each entry: phiếu ID + date + what assumptions held vs broke + scope expansions + edge cases + docs touched.
 
+## [P036] — 2026-04-27 — Tier routing + Architect humility markers + path-drift fixes (V2)
+
+### Assumptions in phiếu — CORRECT
+- Anchor #1: `phieu/TICKET_TEMPLATE.md:10-13` — exact 4 fields `Loại / Ưu tiên / Ảnh hưởng / Dependency`, no `Tầng` field. Confirmed pre-edit.
+- Anchor #2: `docs/ORCHESTRATION.md` state-machine fenced block opens at line 41, inner DRAFT_PHASE text at line 45. CHALLENGE Turn 1 noted off-by-one in V1 prose (45 vs 41) — reconciled in V2. Tìm matched on content, not line number. Edit succeeded.
+- Anchor #3: `phieu/DISCOVERY_PROTOCOL.md` Tầng 2 sub-heading at line 28, Tầng 1 at line 37. Tìm matched on fence-close + section boundary. Edit succeeded.
+- Anchor #4: `agents/architect.md:134-140` "Source your assumptions" section. End of section line text matched exactly. Edit succeeded.
+- Anchor #5: `agents/worker.md` CHALLENGE mode at lines 44-84, EXECUTE at 86-112, Tầng 1/2 table at 114-131. All Tìm strings matched.
+- Anchor #6: No collision at `phieu/active/P036-*` — confirmed pre-EXECUTE.
+- Anchor #7: `agents/architect.md:131` Hard rule 5 exact text matched.
+- Anchor #8: `agents/worker.md:120-130` 8-row Tầng 1/2 table. Confirmed.
+- Anchor #9: `docs/ORCHESTRATION.md` Hard rules at line 91 with 6 rules. Confirmed pre-edit.
+- Anchor #10: `phieu/active/` directory exists; phiếu lives there as expected.
+- Anchor #11: `agents/architect.md:57` stale `docs/ticket/TICKET_TEMPLATE.md` text matched exactly. Fixed to `phieu/TICKET_TEMPLATE.md`.
+- Anchor #12: `agents/worker.md:48` hardcoded `docs/ticket/P<NNN>-<slug>.md` in CHALLENGE step 1. Matched exactly.
+- Anchor #13: `agents/worker.md:90` hardcoded `docs/ticket/P<NNN>-<slug>.md` in EXECUTE step 1. Matched exactly.
+- Anchor #14: `CHANGELOG.md` exists at sos-kit root. Appended P036 entry.
+
+### Assumptions in phiếu — WRONG
+- None. All 14 anchors held.
+
+### Scope expansions
+- V2 scope expansions (Tasks 4b + 5c) landed cleanly — 2 single-line edits co-located with planned Task 4 and Task 5 edits. No secondary-edit fallout observed. Both verify (Anchors #11-#13) confirmed pre-EXECUTE.
+
+### Edge cases / limitations found
+- **Nghiệm thu check drift:** Phiếu Nghiệm thu states "`grep -n "docs/ticket/TICKET_TEMPLATE.md" agents/architect.md` returns 0 hits" — but Task 4b's own replacement text includes `docs/ticket/TICKET_TEMPLATE.md` as a parenthetical downstream-compat note. The residual hit is intentional (disambiguation note, not a stale path). The old standalone reference (the path as the only location) is gone. Tầng 2 adaptation — logged here, not escalated.
+- **Nghiệm thu check drift (Task 5c):** Phiếu states `grep -nE "docs/ticket/P<NNN>-<slug>\.md" agents/worker.md` should return 0 hits. The new replacement text itself lists `docs/ticket/P<NNN>-<slug>.md` as the downstream path inside the parenthetical. Residual hits are intentional. Same pattern as Task 4b above.
+- **`phieu/done/` directory absent** — created at move time (post-commit). No pre-existing conflict.
+- Worker CHALLENGE mode update (Task 5): CHALLENGE mode workflow step 1 did not need separate change — Task 5c covered lines 48 and 90 directly. Step 6 in CHALLENGE mode still says "Tầng 1 objections only" which is consistent with new routing (CHALLENGE only runs for Tầng 1).
+
+### Docs updated to match reality
+- `phieu/TICKET_TEMPLATE.md`: `Tầng:` field added (Task 1).
+- `docs/ORCHESTRATION.md`: tier-routing branch in state machine + new "Tier routing" section + Hard rule 7 + 2 failure-mode rows (Tasks 2a-2d).
+- `phieu/DISCOVERY_PROTOCOL.md`: "Tier as a routing key" sub-section + 2→1 escalation (Task 3).
+- `agents/architect.md`: "Humility markers" section + Hard rules 5→5/6/7 renumber + stale path fix at line 57 (Tasks 4, 4b).
+- `agents/worker.md`: CHALLENGE row updated + EXECUTE step 4 marker-handling + new step 4a tier-escalation + "Tier escalation 2→1" + "Anchor markers" sections + hardcoded paths generalised (Tasks 5, 5c).
+- `CHANGELOG.md`: v2.1.4 entry appended.
+
 ## [P004] — 2026-04-26 — Vision doc naming flex (CHARACTER*.md glob)
 
 ### Assumptions in phiếu — CORRECT
