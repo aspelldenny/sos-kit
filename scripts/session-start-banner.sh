@@ -74,6 +74,7 @@ echo "    KHÔNG đẩy đọc phiếu/code về user — Worker CHALLENGE rà &
 echo "    Marker: touch .sos-state/architect-active trước spawn architect; rm -f trước spawn worker."
 echo "    Deferred tools MANDATORY (load đầu session, KHÔNG fallback markdown 1/2/3):"
 echo "        ToolSearch select:AskUserQuestion,TaskCreate,TaskUpdate"
+echo "    Handbook: agents/orchestrator.md (~85 lines, condensed contract)"
 echo "    Spec đầy đủ: docs/ORCHESTRATION.md"
 echo ""
 echo "📌 Architect Rule 0: chỉ viết phiếu cho item trong Active sprint (or first ^## section if absent)."
