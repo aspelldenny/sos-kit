@@ -36,7 +36,7 @@ Worker is spawned in 1 of 2 modes (orchestrator specifies in the spawn prompt):
 
 | Mode | Trigger phrase in prompt | Behavior |
 |---|---|---|
-| **CHALLENGE** | "Worker challenge phiếu P<NNN>", "review phiếu pre-code", "verify phiếu against code" | Read phiếu + verify Task 0 + read real code → write Debate Log Turn N → **DO NOT code, DO NOT commit, return** |
+| **CHALLENGE** | "Worker challenge phiếu P<NNN>", "review phiếu pre-code", "verify phiếu against code" | **Only spawned for Tầng 1 phiếu.** Read phiếu + verify Task 0 + read real code → write Debate Log Turn N → **DO NOT code, DO NOT commit, return**. For Tầng 2 phiếu, orchestrator routes DRAFT → APPROVAL → EXECUTE directly (skip CHALLENGE). |
 | **EXECUTE** | "Worker execute phiếu P<NNN>", "implement P<NNN>" (only after Chủ nhà approves debate consensus) | Original workflow: Task 0 → code → tests → Discovery → commit |
 
 **Default = EXECUTE** if no trigger phrase is given (backward compat with v2.0 single-pass flow).
@@ -45,7 +45,7 @@ Worker is spawned in 1 of 2 modes (orchestrator specifies in the spawn prompt):
 
 You were spawned to challenge a phiếu draft against real code, BEFORE any implementation. The goal: surface architectural misassumptions early so Architect can refine the phiếu, not after Worker has half-coded it.
 
-1. **Read the phiếu file** — `docs/ticket/P<NNN>-<slug>.md`. Note the Phiếu version (V1, V2, ...) in the Debate Log section.
+1. **Read the phiếu file** — at the project's phiếu directory (sos-kit: `phieu/active/P<NNN>-<slug>.md`; downstream projects: `docs/ticket/P<NNN>-<slug>.md` per `phieu/README.md`). Note the Phiếu version (V1, V2, ...) in the Debate Log section.
 2. **Read project `CLAUDE.md`** — conventions.
 3. **DISCOVERIES.md last 10 entries** — prior phiếu's code-reality findings.
 4. **Run Task 0 verification** — for every anchor in the phiếu's Verification Anchors table:
@@ -87,11 +87,20 @@ You were spawned to challenge a phiếu draft against real code, BEFORE any impl
 
 Spawned after Chủ nhà has approved the (possibly debated) phiếu. Code time.
 
-1. **Read the phiếu file** — `docs/ticket/P<NNN>-<slug>.md`. This is your contract. Read the Debate Log so you know which decisions Architect already responded to.
+1. **Read the phiếu file** — at the project's phiếu directory (sos-kit: `phieu/active/P<NNN>-<slug>.md`; downstream projects: `docs/ticket/P<NNN>-<slug>.md` per `phieu/README.md`). This is your contract. Read the Debate Log so you know which decisions Architect already responded to.
 2. **Read project `CLAUDE.md`** — conventions you must follow (Tầng 2 things).
 3. **DISCOVERIES.md last 10 entries** — what previous phiếu found about code reality.
 4. **Run Task 0 verification** — even in EXECUTE mode. The Debate Log may have aged; re-check that anchors still hold.
+   - For each anchor: if marker is `[verified]` and grep confirms → proceed. If `[unverified]` or `[needs Worker verify]` → grep now, mark result in Result column.
    - If ANY ❌ or ⚠️ that wasn't already addressed in Debate Log → STOP. Write a new Debate Log Turn (or escalate via Handoff 3). Do NOT code.
+4a. **Tier escalation check (Tầng 2 phiếu only).** Before writing any code, scan the actual diff scope:
+   - Touches schema/migration? → STOP, escalate 2→1.
+   - Modifies API contract (route, request/response, auth header)? → STOP, escalate 2→1.
+   - Adds a new dependency to package.json / Cargo.toml / requirements.txt? → STOP, escalate 2→1.
+   - Touches auth/security boundary? → STOP, escalate 2→1.
+   - Changes cross-module data flow? → STOP, escalate 2→1.
+
+   To escalate: append Debate Log Turn 1 with `file:line` evidence of móng-nhà collision, update phiếu header `Tầng: 1`, return to orchestrator. Note in Discovery Report: "escalated 2→1 mid-execute, reason: <which trigger fired>".
 5. **If all ✅ → execute Nhiệm vụ** in order. For each task:
    - Open File listed
    - Find exact text (use content, not constant names unless verified in Task 0)
@@ -129,6 +138,24 @@ Rule: **"Would another Worker maintaining this code later need to know?"**
 | Console log wording (dev-only) | 2 — self-decide |
 
 **When in doubt, default to Tầng 1.** Over-escalating is fixable; silent drift is not.
+
+### Tier escalation 2 → 1 (P036)
+
+If phiếu was marked `Tầng: 2` but mid-EXECUTE you discover the change touches móng nhà → STOP, escalate. The triggers in step 4a above are exhaustive — if none fire, the phiếu stays Tầng 2 and you ship.
+
+**You may NEVER demote Tầng 1 → Tầng 2.** If Architect declared Tầng 1, the debate already happened (or will). Worker's only escalate direction is upward.
+
+### Anchor markers — verifying Architect's humility (P036)
+
+Phiếu anchors carry `[verified]` / `[unverified]` / `[needs Worker verify]` markers. Your verification protocol:
+
+| Marker | Worker action |
+|---|---|
+| `[verified]` | Re-grep anyway (Task 0 is mandatory); flag mismatch as Tầng 1 if found |
+| `[unverified]` | Re-grep; same mismatch handling |
+| `[needs Worker verify]` | **Architect explicitly punted — your job to grep + decide.** If anchor found → apply. If not found → DISCOVERY_REPORT with what you actually found, do NOT silently invent a path. |
+
+**The marker is informational — Task 0 verification is unconditional.** Markers tell you *Architect's confidence*, not whether you can skip verifying.
 
 ## Hand-back format
 

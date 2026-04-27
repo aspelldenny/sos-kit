@@ -43,7 +43,9 @@ IDLE
  │ user gives brief ("build feature X for BACKLOG item Y")
  ▼
 DRAFT_PHASE                                spawn Architect (DRAFT)
- │ Architect writes phiếu V1 with Debate Log section initialized
+ │ Architect writes phiếu V1 with Debate Log + sets `Tầng: 1|2` in header
+ ├── tầng==2 (lặt vặt) ─────────────────────► APPROVAL_GATE  (skip CHALLENGE)
+ ├── tầng==1 (móng nhà) ────────────────────► CHALLENGE_PHASE
  ▼
 CHALLENGE_PHASE                            spawn Worker (CHALLENGE)
  │ Worker verifies Task 0 + reads code + writes Debate Log Turn N
@@ -75,6 +77,21 @@ FORCE_ESCALATION                           orchestrator runs AskUserQuestion
  └── abandon ─────────────────────────────────────────► IDLE
 ```
 
+## Tier routing (P036)
+
+Architect sets `Tầng: 1` or `Tầng: 2` in the phiếu header during DRAFT. Orchestrator branches:
+
+| Tầng | Path | Reason |
+|---|---|---|
+| 2 (lặt vặt) | DRAFT → APPROVAL_GATE → EXECUTE | Surgical fix, anchor clear, ≤3 files, ≤200 LOC, no schema/API/auth/new-dep change. Worker self-verifies Task 0 in EXECUTE mode. CHALLENGE round-trip is pure overhead. |
+| 1 (móng nhà) | DRAFT → CHALLENGE → [RESPOND ⇄ CHALLENGE] → APPROVAL → EXECUTE | Touches kiến trúc, API contract, data flow, schema, auth boundary, or adds dependency. Worker MUST CHALLENGE before code. |
+
+**Tầng 2 → Tầng 1 escalation (mid-EXECUTE):** If Worker discovers during EXECUTE that the change actually touches móng nhà (schema/API/auth/new dep) — STOP. Append Debate Log Turn 1 with `file:line` evidence of the móng-nhà collision. Return to orchestrator. Orchestrator re-routes through CHALLENGE_PHASE as if phiếu had been Tầng 1 from the start. Update phiếu header `Tầng: 1` and note in Discovery Report ("escalated 2→1 mid-execute, reason: …").
+
+**No Tầng 1 → Tầng 2 demotion mid-flow.** Once Architect declared Tầng 1, the debate runs even if it turns out trivial — sunk cost is fine, silent demotion is not (audit trail).
+
+**Default when Architect uncertain:** `Tầng: 1`. Over-tier costs one extra CHALLENGE round-trip; under-tier risks shipping an architecturally wrong fix. Mirror of "default to Tầng 1" rule in DISCOVERY_PROTOCOL.md.
+
 ## Trigger phrases (orchestrator → subagent spawn prompt)
 
 The subagent files (`agents/architect.md`, `agents/worker.md`) parse the spawn prompt for these phrases to choose mode:
@@ -96,6 +113,7 @@ Default if no phrase matches: Architect → DRAFT, Worker → EXECUTE (backward 
 4. **Approval gate is mandatory.** Even if Worker accepted V1 with no challenges, orchestrator MUST run AskUserQuestion before EXECUTE_PHASE. Only the human approves code execution.
 5. **User can interrupt anytime.** State machine is suggestive, not enforced — if the user types into the main session mid-debate, orchestrator handles their input first.
 6. **Marker file hygiene.** Architect-guard hook uses `.sos-state/architect-active` marker. Orchestrator must `mkdir -p .sos-state && touch .sos-state/architect-active` before spawning Architect (any mode), `rm -f .sos-state/architect-active` before spawning Worker. Never leave stale markers. (Marker lives outside `.claude/` so YOLO mode doesn't prompt — `.claude/` is gated even with `--dangerously-skip-permissions`.)
+7. **Tier is set in DRAFT, escalated up only.** Architect's `Tầng` declaration in the phiếu header is the routing key. Worker may escalate Tầng 2 → Tầng 1 mid-EXECUTE with `file:line` evidence; orchestrator may NOT silently demote Tầng 1 → Tầng 2. Phiếu missing the `Tầng` field is rejected pre-spawn — orchestrator re-spawns Architect with explicit "set Tầng: 1 or 2" instruction.
 
 ## Failure modes + recovery
 
@@ -106,6 +124,8 @@ Default if no phrase matches: Architect → DRAFT, Worker → EXECUTE (backward 
 | Stale `.architect-active` marker | Orchestrator runs `rm -f .sos-state/architect-active` before every spawn. Defensive; cheap. |
 | Phiếu version went backwards (V3 → V2) | Refuse — orchestrator escalates as a bug in Architect output. |
 | Same objection raised in 2 consecutive Worker turns | Indicates Architect didn't actually fix the underlying issue. Force-escalate. |
+| Phiếu missing `Tầng` field in header | Orchestrator rejects, re-spawns Architect with explicit "set Tầng: 1 or 2" instruction. Second failure → escalate. |
+| Worker silently demoted Tầng 1 → Tầng 2 (skipped CHALLENGE on a phiếu marked Tầng 1) | Refuse — orchestrator escalates as a bug in Worker output. Tier escalation is one-way (2→1 only). |
 
 ## Concrete example session
 

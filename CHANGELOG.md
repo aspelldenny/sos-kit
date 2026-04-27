@@ -2,6 +2,12 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.1.4] — 2026-04-27
+
+### Added
+- **P036: Tier routing in state machine + Architect humility markers + path-drift fixes (V2).** Architect now sets `Tầng: 1|2` in every phiếu header during DRAFT. Orchestrator routes Tầng 2 phiếu via DRAFT → APPROVAL → EXECUTE (skip CHALLENGE). Tầng 1 retains full debate flow. Worker can escalate 2→1 mid-EXECUTE with `file:line` evidence. Architect humility markers (`[verified]` / `[unverified]` / `[needs Worker verify]`) are now mandatory on all code-level anchors — bare anchors are rejected. V2 scope expansions: fixed stale `docs/ticket/TICKET_TEMPLATE.md` path in `agents/architect.md` (now `phieu/TICKET_TEMPLATE.md`) and generalised hardcoded `docs/ticket/P<NNN>-<slug>.md` in `agents/worker.md` to support both sos-kit (`phieu/active/`) and downstream (`docs/ticket/`) layouts.
+- Files changed: `phieu/TICKET_TEMPLATE.md`, `docs/ORCHESTRATION.md`, `phieu/DISCOVERY_PROTOCOL.md`, `agents/architect.md`, `agents/worker.md`.
+
 ## [v2.1.3] — 2026-04-26
 
 ### Fixed

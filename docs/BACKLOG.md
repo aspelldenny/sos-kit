@@ -7,24 +7,47 @@
 
 ---
 
-## 🔥 Active sprint: Worker capability + install UX gaps
+## 🔥 Active sprint: Foundation hardening v2.2 — tier routing + orchestrator + permission UX
 
-> **Goal:** Close 2 gaps surfaced post-drift-sprint: (1) Worker subagent cannot invoke Skill tool — blocks frontend-design plugin workflow at Worker level, forces fallback inline (Tarot PR #257 pattern); (2) fresh sos-kit install fails first `git commit` because pre-commit hook calls `docs-gate` which requires `docs/CHANGELOG.md` + `docs/ARCHITECTURE.md` not yet bootstrapped — INSTALL.md says docs-gate is "optional" but hook treats it as required.
-> **Done when:** Both phiếu shipped (PR merged + CHANGELOG + Discovery Report) and a re-run of fresh-install dry-run shows zero workarounds end-to-end (including first commit).
-> **Started:** 2026-04-26 (drift-sprint complete same day; this is the follow-on)
+> **Goal:** Spec hoá 2 rule load-bearing Sếp confirm 2026-04-27 (Worker CHALLENGE selectivity by tier + Architect no-hallucination), harden orchestrator drift (orchestrator vẫn hỏi user pick/order thay vì auto-drive — observed 2026-04-27), và clean up permission friction cho marker file. Sau sprint này: phiếu Tầng 2 surgical hưởng skip-CHALLENGE → ETA 26m/phiếu → ~10m/phiếu.
+> **Done when:** 3 phiếu shipped (PR merged + CHANGELOG + Discovery Report). Acceptance: (a) P037 dry-run thực sự skip CHALLENGE → DRAFT → EXECUTE; (b) orchestrator bulk-dump test — Sếp paste N items KHÔNG bị hỏi pick/order; (c) fresh spawn Architect không trigger permission prompt cho marker file.
+> **Started:** 2026-04-27
 
-- [ ] **[P005]** Worker Skill access — `agents/worker.md:4` `tools:` allowlist không có `Skill` → Worker không invoke `/frontend-design` hay skill nào khác. **DECISION PENDING — Sếp pick A/B/C trước khi Architect draft phiếu:**
-  - **A.** Add `Skill` vào worker tools allowlist (1-line edit). Pragmatic, Worker invoke `/frontend-design` trực tiếp. Risk: over-invoke skill ngoài scope — quản qua Architect spec rõ trong phiếu.
-  - **B.** *(em recommend)* Architect/Orchestrator run skill trước CHALLENGE, đổ output (tokens/spec) vào phiếu. Worker chỉ apply. Giữ envelope sạch (Worker không "smart routing"). Fit role separation.
-  - **C.** Hybrid — Worker invoke skill chỉ khi phiếu có flag `requires_skill: <name>` (Architect set). Middle ground.
-  - Trigger: Sếp chọn → Architect draft phiếu cập nhật `agents/worker.md` + có thể `agents/architect.md` (option B/C) + `docs/HANDOFF.md` (mới 1 handoff cho skill output) + `docs/ORCHESTRATION.md` (option B mention skill-pre-CHALLENGE phase).
-  - Memory ref: `project_tarot_frontend_design_plugin.md`. Existing Open backlog [P008] `frontend-design` workflow doc DEPENDS on outcome — option B sẽ thu hẹp P008 scope (skill chạy ở Architect, không cần Worker workflow doc).
-- [ ] **[P006]** Pre-commit fresh-install friction — `hooks/pre-commit` shells ra `docs-gate` binary which fails on fresh repo (no `docs/CHANGELOG.md` / `docs/ARCHITECTURE.md`). User mới phải `--no-verify` lần đầu hoặc tạo CHANGELOG/ARCHITECTURE skeleton trước. **Options:**
-  - **A.** Soft-fail: hook detect "first commit hoặc 0 prior commits" → docs-gate warn instead of block.
-  - **B.** Bootstrap: INSTALL.md Step 3.5 thêm `cp templates/CHANGELOG_skeleton.md docs/CHANGELOG.md` + same cho ARCHITECTURE (cần tạo template chưa có).
-  - **C.** Loosen: `hooks/pre-commit` skip docs-gate nếu file `docs/CHANGELOG.md` không tồn tại (warn "docs-gate skipped — create docs/CHANGELOG.md to enable").
-  - Trigger: Architect đọc `hooks/pre-commit` + decide A/B/C kết hợp. Verified bằng dry-run mới (re-run /tmp/test-sos-install flow, expect commit success out-of-box).
-  - Note: cũng cần xét `~/docs-gate` Rust binary — có nên ship default `.docs-gate.toml` template trong sos-kit `templates/` không? (Nằm 1 phần ở docs-gate repo, không phải sos-kit.)
+- [ ] **[P036]** *(Wave 1, Tầng 1)* **Workflow tier routing + Architect humility rule.** Spec hoá 2 rule load-bearing vào docs/agents:
+  - `phieu/TICKET_TEMPLATE.md` — add field `tầng: 1 | 2` (Architect set khi DRAFT; Worker được phép escalate 2→1 nếu phát hiện đụng móng trong EXECUTE)
+  - `docs/ORCHESTRATION.md` — state machine routing: `tầng==2` → DRAFT → APPROVAL_GATE → EXECUTE (skip CHALLENGE); `tầng==1` giữ full DRAFT → CHALLENGE → [RESPOND ⇄ CHALLENGE] → APPROVAL_GATE → EXECUTE
+  - `phieu/DISCOVERY_PROTOCOL.md` — strengthen Tầng 1 vs Tầng 2 boundary; document Worker escalate-path 2→1
+  - `agents/architect.md` — rule "biết = biết, không biết = `[needs Worker verify]` (KHÔNG bịa line/file/function)"; PHẢI nắm kiến trúc tổng thể + luồng API + data flow + module boundary; KHÔNG cần biết code lặt vặt
+  - `agents/worker.md` — CHALLENGE bắt buộc cho Tầng 1; Tầng 2 self-execute (vẫn chạy Task 0 grep verify; nếu anchor sai → DISCOVERY_REPORT lift 2→1)
+  - Heuristic tầng 2 mặc định: ≤3 anchor files, ≤200 LOC change, không sửa schema/API contract/auth, không thêm dependency mới
+  - Nghiệm thu: P037 (tầng 2) dry-run skip CHALLENGE thành công + 1 anchor `[needs Worker verify]` được Worker grep verify đúng
+  - Memory ref: `feedback_challenge_selectivity_by_tier.md`, `feedback_architect_no_hallucination.md`
+- [ ] **[P035]** *(Wave 2, Tầng 1, promoted from Open backlog)* **Orchestrator hardening — state machine + bulk input + drift recovery.** Original P035 scope (orchestrator.md system prompt, banner ref, CLAUDE.md template) **PLUS** new scope dựa trên evidence 2026-04-27:
+  - Tạo `agents/orchestrator.md` (system prompt main session, condensed từ `docs/ORCHESTRATION.md` ~80 lines)
+  - SessionStart banner reference `agents/orchestrator.md`
+  - `INSTALL.md` Step 4 CLAUDE.md template thêm explicit anti-pattern: "không fake-gate giữa phase", "không hỏi user pick/order khi đã được ủy quyền 'tùy em'"
+  - sos-kit's own `CLAUDE.md` ref `docs/ORCHESTRATION.md` cho contributors
+  - **NEW — bulk input rule:** Sếp dump N items không qua `/idea` → orchestrator tự append BACKLOG + propose wave order + APPROVAL_GATE 1 lần duy nhất (KHÔNG hỏi "pick item nào trước")
+  - Apply P036 tier rule (phiếu này tầng 1 → full CHALLENGE)
+- [ ] **[P037]** *(Wave 3, Tầng 2)* **Permission marker file fresh-install friction.** `Bash(touch <project>/.claude/.architect-active)` trigger permission prompt mỗi spawn vì path chưa allowlist. Options:
+  - **A.** Pre-approve trong `templates/claude-settings.local.json` (INSTALL.md Step X copy template). User confirm 1 lần duy nhất khi `/sos-init`.
+  - **B.** Chuyển marker → `/tmp/sos-architect-active-<project-hash>` (tmp thường allowlist sẵn). Trade-off: clean on reboot (acceptable — marker chỉ live trong 1 session).
+  - **C.** Chuyển marker → TaskList metadata (in-memory). Trade-off: lose persistence nếu session crash giữa spawn.
+  - Architect decide A/B/C khi DRAFT (Architect đọc current `.claude/settings*.json` template + ORCHESTRATION marker mechanism)
+  - Apply P036 rule: tầng 2 → skip CHALLENGE → DRAFT → APPROVAL_GATE → EXECUTE
+
+---
+
+## ⏸ Paused — Worker capability + install UX gaps (waiting on Foundation v2.2)
+
+> **Why paused 2026-04-27:** P005 DECISION_PENDING (Sếp chưa pick A/B/C, không make sense block sprint). P006 likely tầng 2 surgical → hưởng skip-CHALLENGE từ P036 khi resume. Resume sau khi Foundation v2.2 (P036+P035+P037) ship.
+
+- [ ] **[P005]** Worker Skill access — `agents/worker.md:4` `tools:` allowlist không có `Skill`. **DECISION PENDING:**
+  - **A.** Add `Skill` vào worker tools allowlist (1-line edit). Pragmatic.
+  - **B.** *(em recommend)* Architect/Orchestrator run skill trước CHALLENGE, đổ output vào phiếu. Worker chỉ apply.
+  - **C.** Hybrid — Worker invoke skill chỉ khi phiếu có flag `requires_skill: <name>`.
+  - Memory ref: `project_tarot_frontend_design_plugin.md`. Existing [P008] DEPENDS on outcome.
+- [ ] **[P006]** Pre-commit fresh-install friction — `hooks/pre-commit` shells `docs-gate` failing on fresh repo. **Options:** A (soft-fail), B (bootstrap CHANGELOG/ARCHITECTURE skeleton in INSTALL.md), C (loosen hook). Note: cũng nên xét default `.docs-gate.toml` template trong `templates/`.
 
 ---
 
@@ -66,7 +89,6 @@
 - [ ] **[P011]** Worker AUDIT mode handbook section in `agents/worker.md`. Currently AUDIT mode is documented in `phieu/AUDIT_PROTOCOL.md` only; Worker handbook should declare the mode and trigger phrase.
 - [ ] **[P012]** Orchestrator auto-detect "≥N phiếu since last audit" → suggest running AUDIT. State in `docs/ORCHESTRATION.md` or a small `.audit-counter`.
 - [ ] **[P013]** Vietnamese 13-checks (diacritics, VND, GMT+7, font rendering, PDF export, etc.) → CI gate that runs pre-deploy. Currently a manual checklist in AUDIT_PROTOCOL.
-- [ ] **[P035]** Orchestrator contract — full refactor. Banner Option A (shipped 2026-04-26) injects 6-line reminder mỗi session, nhưng main session vẫn có thể drift sau context-compress. Full fix: tạo `agents/orchestrator.md` (system prompt cho main session, condensed từ `docs/ORCHESTRATION.md` ~80 lines), banner reference orchestrator.md, `INSTALL.md` Step 4 CLAUDE.md template thêm explicit anti-pattern warnings ("không fake-gate giữa phase"), sos-kit's own `CLAUDE.md` ref `docs/ORCHESTRATION.md` cho contributors. *(Trigger: verify Option A ≥1 tuần — nếu main session vẫn drift, promote vào sprint.)*
 - [ ] **CLAUDE.md tree refresh** — current tree in `CLAUDE.md` does not list `CHANGELOG.md`, `DISCOVERIES.md`, `BACKLOG.md`, `docs/ORCHESTRATION.md`. Minor doc drift; refresh when next touching CLAUDE.md.
 - [ ] **External (out of sos-kit scope)** — `~/docs-gate` repo: default `valid_types` should include `chore`. Currently every project that uses `chore`-typed phiếu must add it manually to local `.docs-gate.toml` (Tarot fixed in tarot PR #253).
 

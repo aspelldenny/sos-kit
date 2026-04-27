@@ -9,6 +9,7 @@
 
 > **Loại:** Feature / Bugfix / Prompt-only / Hotfix
 > **Ưu tiên:** P0 / P1 / P2
+> **Tầng:** 1 (móng nhà — kiến trúc/API/schema/auth/new dep) | 2 (lặt vặt — ≤3 files, ≤200 LOC, anchor rõ)
 > **Ảnh hưởng:** [main files affected]
 > **Dependency:** [which phiếu must finish first, or "None"]
 
