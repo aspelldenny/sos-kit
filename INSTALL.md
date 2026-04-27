@@ -165,6 +165,14 @@ Thêm section sau vào `CLAUDE.md` của project (nếu chưa có sos-kit v1 min
 4. **Chủ nhà approval gate** — orchestrator AskUserQuestion show phiếu cuối + Debate Log → Chủ nhà duyệt
 5. Spawn worker (EXECUTE) → Task 0 → code → test → Discovery → commit
 6. Chủ nhà nghiệm thu, deploy
+
+**Anti-patterns (orchestrator MUST NOT):**
+- **Không fake-gate giữa phase.** APPROVAL_GATE là gate user DUY NHẤT (trước EXECUTE). Đừng chèn "is this OK?" giữa DRAFT/CHALLENGE/RESPOND.
+- **Không hỏi user pick/order khi đã được ủy quyền "tùy em".** Bulk input → auto-classify + propose wave + 1 AskUserQuestion duy nhất confirm wave plan.
+- **Không tự code thay vì spawn Worker.** Main session = orchestrator, không phải executor. Code → spawn Worker EXECUTE.
+- **Không skip marker hygiene.** `mkdir -p .sos-state && touch .sos-state/architect-active` trước spawn Architect; `rm -f .sos-state/architect-active` trước spawn Worker.
+
+Full contract: `agents/orchestrator.md` (condensed, ~85 lines) + `docs/ORCHESTRATION.md` (full spec).
 ```
 
 ### 5. Verify install

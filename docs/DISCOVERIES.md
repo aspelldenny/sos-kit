@@ -2,6 +2,38 @@
 
 > Newest on top, like CHANGELOG. Each entry: phiếu ID + date + what assumptions held vs broke + scope expansions + edge cases + docs touched.
 
+## [P035] — 2026-04-27 — Orchestrator handbook + bulk-input rule + INSTALL anti-patterns (V3)
+
+### Assumptions in phiếu — CORRECT
+- Anchor #1 (`[needs Worker verify]`): `agents/orchestrator.md` did NOT exist pre-EXECUTE. Bash `ls agents/orchestrator.md` returned exit:1. File created as planned. P036 dogfood confirmed: anchor stayed `[needs Worker verify]` end-to-end; Worker grep-verified at EXECUTE time and found "file absent."
+- Anchor #2: `docs/ORCHESTRATION.md` Hard rules section at line 108, rules 1-7, `## Failure modes + recovery` heading immediately following rule 7. Confirmed. Edit succeeded (rule #8 inserted at line 117, file now 199 lines).
+- Anchor #4: `scripts/session-start-banner.sh` lines 70-77 confirmed. Line 77 = `echo "    Spec đầy đủ: docs/ORCHESTRATION.md"`. No prior `agents/orchestrator.md` reference. New line inserted at line 77 (Handbook line), Spec line shifted to 78.
+- Anchor #5: `INSTALL.md` fenced template at lines 143-168. "Workflow (v2.1 — auto-debate)" at line 157. Line 167 = "6. Chủ nhà nghiệm thu, deploy". Closing ``` at line 168. Anti-pattern block inserted before closing fence.
+- Anchor #10 (`[needs Worker verify]`): `phieu/active/` confirmed to exist (P035 phiếu was there). `phieu/done/` confirmed to exist (P036 lives there). No directory creation needed.
+- Anchor #11: `wc -l docs/ORCHESTRATION.md` = 198 pre-edit. Confirmed.
+- Anchor #12 (`[needs Worker verify]` in V2, upgraded to `[verified]` in V3): `wc -l agents/orchestrator.md` post-Write = 88 lines. Within ≤90 cap (1-line trim margin remained). Architect's V3 count of 89 was off by 1 — likely trailing-newline difference in counting method. Tầng 2 self-adapt: 88 < 90, cap satisfied, no trim needed.
+- Anchors #3, #6, #7, #8, #9, #13: All held (not re-verified at EXECUTE since no changes needed for those paths; V2 Debate Log confirmations stand).
+
+### Assumptions in phiếu — WRONG
+- Anchor #12 count: Architect counted 89 lines in V3 phiếu block; on-disk write produced 88 lines. Off-by-1 difference (likely trailing newline accounting). Not a violation — 88 < 90 cap. Tầng 2 adaptation, logged here.
+
+### Scope expansions
+- None. All 5 tasks executed as specified. No additional files touched.
+
+### Edge cases / limitations found
+- **Docs-gate P006 friction confirmed:** `docs-gate` installed but no `.docs-gate.toml` in sos-kit root. Default config expects `docs/CHANGELOG.md` and `docs/ARCHITECTURE.md` — both non-existent at those paths (sos-kit's CHANGELOG.md is at root, and there is no ARCHITECTURE.md). `docs-gate` exited 1 with "File not found" errors. This is the P006 known friction. Pre-commit hook uses docs-gate — if hook is installed, commits would fail on fresh-install without a `.docs-gate.toml`. Next phiếu should add a minimal `.docs-gate.toml` to sos-kit root (or disable docs-gate for this meta-kit repo).
+- **Bulk-input rule dry-run (procedural):** Rule #8 wording in `docs/ORCHESTRATION.md` (steps a-d, "MUST NOT ask pick order before steps a-c") and mirror in `agents/orchestrator.md` are consistent and use same a-d labels. On cold-read, the rule is unambiguous: classify first, propose wave second, single gate third. No ambiguity found.
+- **orchestrator.md cold-read test:** file contains session-opening behavior (4-step "Session opening" section), state machine ASCII with peer branches (DEFER + Turn-3 cap as siblings under RESPOND_PHASE), tier routing, trigger phrases, marker hygiene, bulk input, hard rules, anti-patterns. Sufficient for a cold-start session to drive the state machine correctly without reading ORCHESTRATION.md first.
+- **State machine ASCII peer-branch test:** DEFER and Turn-3 cap are `├──`/`└──` siblings under `RESPOND_PHASE → objections` subtree, matching ORCHESTRATION.md lines 55-59 structure. V2 O3 fix confirmed on-disk.
+- **V2 RESPOND confirmation:** O1.1 (line count), O1.2 (session opening), O1.3 (state machine indentation), frontmatter Option C (tools: [] + model: opus + HTML comment) — all present and verified on-disk. `tools: []` field present (grep confirmed). Subagent loader safety: empty allowlist means no tool capability can be accidentally granted.
+- **V3 RESPOND confirmation:** O2.1 (line count) resolved — `wc -l agents/orchestrator.md` = 88 ≤ 90. No Tầng 1 escalation required.
+- **Marker dogfood note (P036 acceptance):** Anchor #1 stayed `[needs Worker verify]` throughout debate (Luật chơi #5 in phiếu). Worker verified at EXECUTE time: file absent. Dogfood pattern confirmed working.
+
+### Docs updated to match reality
+- `CHANGELOG.md` — appended v2.1.5 entry for P035.
+- `docs/DISCOVERIES.md` — this entry (newest on top).
+- `docs/BACKLOG.md` — NOT updated in this phiếu (Nghiệm thu Docs Gate item says move P035 from Active sprint to Recently shipped — left for orchestrator post-commit per BACKLOG maintenance convention; not in phiếu Nhiệm vụ scope).
+
 ## [P036] — 2026-04-27 — Tier routing + Architect humility markers + path-drift fixes (V2)
 
 ### Assumptions in phiếu — CORRECT

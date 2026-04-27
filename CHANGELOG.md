@@ -2,6 +2,12 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.1.5] — 2026-04-27
+
+### Added
+- **P035: Orchestrator handbook (`agents/orchestrator.md`) + bulk-input rule + INSTALL anti-patterns.** Created `agents/orchestrator.md` (~88 lines, ≤90 cap) — condensed system-prompt contract for the main Claude Code session (4th role / orchestrator). Added Hard rule #8 "Bulk input → auto-triage + ONE gate" to `docs/ORCHESTRATION.md`. Updated `scripts/session-start-banner.sh` to reference new handbook. Added 4 anti-pattern bullets to `INSTALL.md` Step 4 CLAUDE.md template. Added "Edit orchestrator behavior" contributor section to sos-kit's `CLAUDE.md` + pointer to `docs/ORCHESTRATION.md` in "Edit docs" list.
+- Files changed: `agents/orchestrator.md` (new), `scripts/session-start-banner.sh`, `INSTALL.md`, `CLAUDE.md`, `docs/ORCHESTRATION.md`.
+
 ## [v2.1.4] — 2026-04-27
 
 ### Added

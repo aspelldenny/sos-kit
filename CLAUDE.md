@@ -102,10 +102,17 @@ sos-kit/
 2. Add a per-stack subsection in `docs/SETUP.md`
 3. Add an expandable example in `README.md` "Example configs"
 
+### Edit orchestrator behavior (`agents/orchestrator.md` + `docs/ORCHESTRATION.md`)
+1. `agents/orchestrator.md` is the condensed handbook (~85 lines, ≤90 cap) — system-prompt contract for the main session in every sos-kit project. Keep terse + imperative.
+2. `docs/ORCHESTRATION.md` is the full spec (state machine, failure modes, concrete example session). When changing state machine logic, update BOTH.
+3. If you add a new orchestrator hard rule, mirror it as a one-liner in `agents/orchestrator.md` "Hard rules" section AND a fuller entry in `docs/ORCHESTRATION.md` "Hard rules".
+4. SessionStart banner (`scripts/session-start-banner.sh`) references both files — verify the banner still surfaces them after edit.
+
 ### Edit docs
 - `README.md` — any tool/skill/integration table MUST match actual folders and binaries. Contributor onboarding breaks if they drift.
 - `docs/PHILOSOPHY.md` — stable. Don't add a 6th principle without strong justification. The 5 principles are load-bearing.
 - `docs/SETUP.md` — must match real binary names and `cargo install` instructions.
+- `docs/ORCHESTRATION.md` — orchestrator full spec; condensed handbook at `agents/orchestrator.md` mirrors hard rules. Edit both together.
 
 ### Add a new integration (`integrations/<name>/`)
 1. Create a folder with a README inside explaining the purpose + setup
