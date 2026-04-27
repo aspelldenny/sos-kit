@@ -7,47 +7,18 @@
 
 ---
 
-## 🔥 Active sprint: Foundation hardening v2.2 — tier routing + orchestrator + permission UX
+## 🔥 Active sprint: Worker capability + install UX gaps (resumed)
 
-> **Goal:** Spec hoá 2 rule load-bearing Sếp confirm 2026-04-27 (Worker CHALLENGE selectivity by tier + Architect no-hallucination), harden orchestrator drift (orchestrator vẫn hỏi user pick/order thay vì auto-drive — observed 2026-04-27), và clean up permission friction cho marker file. Sau sprint này: phiếu Tầng 2 surgical hưởng skip-CHALLENGE → ETA 26m/phiếu → ~10m/phiếu.
-> **Done when:** 3 phiếu shipped (PR merged + CHANGELOG + Discovery Report). Acceptance: (a) P037 dry-run thực sự skip CHALLENGE → DRAFT → EXECUTE; (b) orchestrator bulk-dump test — Sếp paste N items KHÔNG bị hỏi pick/order; (c) fresh spawn Architect không trigger permission prompt cho marker file.
-> **Started:** 2026-04-27
-
-- [ ] **[P036]** *(Wave 1, Tầng 1)* **Workflow tier routing + Architect humility rule.** Spec hoá 2 rule load-bearing vào docs/agents:
-  - `phieu/TICKET_TEMPLATE.md` — add field `tầng: 1 | 2` (Architect set khi DRAFT; Worker được phép escalate 2→1 nếu phát hiện đụng móng trong EXECUTE)
-  - `docs/ORCHESTRATION.md` — state machine routing: `tầng==2` → DRAFT → APPROVAL_GATE → EXECUTE (skip CHALLENGE); `tầng==1` giữ full DRAFT → CHALLENGE → [RESPOND ⇄ CHALLENGE] → APPROVAL_GATE → EXECUTE
-  - `phieu/DISCOVERY_PROTOCOL.md` — strengthen Tầng 1 vs Tầng 2 boundary; document Worker escalate-path 2→1
-  - `agents/architect.md` — rule "biết = biết, không biết = `[needs Worker verify]` (KHÔNG bịa line/file/function)"; PHẢI nắm kiến trúc tổng thể + luồng API + data flow + module boundary; KHÔNG cần biết code lặt vặt
-  - `agents/worker.md` — CHALLENGE bắt buộc cho Tầng 1; Tầng 2 self-execute (vẫn chạy Task 0 grep verify; nếu anchor sai → DISCOVERY_REPORT lift 2→1)
-  - Heuristic tầng 2 mặc định: ≤3 anchor files, ≤200 LOC change, không sửa schema/API contract/auth, không thêm dependency mới
-  - Nghiệm thu: P037 (tầng 2) dry-run skip CHALLENGE thành công + 1 anchor `[needs Worker verify]` được Worker grep verify đúng
-  - Memory ref: `feedback_challenge_selectivity_by_tier.md`, `feedback_architect_no_hallucination.md`
-- [ ] **[P035]** *(Wave 2, Tầng 1, promoted from Open backlog)* **Orchestrator hardening — state machine + bulk input + drift recovery.** Original P035 scope (orchestrator.md system prompt, banner ref, CLAUDE.md template) **PLUS** new scope dựa trên evidence 2026-04-27:
-  - Tạo `agents/orchestrator.md` (system prompt main session, condensed từ `docs/ORCHESTRATION.md` ~80 lines)
-  - SessionStart banner reference `agents/orchestrator.md`
-  - `INSTALL.md` Step 4 CLAUDE.md template thêm explicit anti-pattern: "không fake-gate giữa phase", "không hỏi user pick/order khi đã được ủy quyền 'tùy em'"
-  - sos-kit's own `CLAUDE.md` ref `docs/ORCHESTRATION.md` cho contributors
-  - **NEW — bulk input rule:** Sếp dump N items không qua `/idea` → orchestrator tự append BACKLOG + propose wave order + APPROVAL_GATE 1 lần duy nhất (KHÔNG hỏi "pick item nào trước")
-  - Apply P036 tier rule (phiếu này tầng 1 → full CHALLENGE)
-- [ ] **[P037]** *(Wave 3, Tầng 2)* **Permission marker file fresh-install friction.** `Bash(touch <project>/.claude/.architect-active)` trigger permission prompt mỗi spawn vì path chưa allowlist. Options:
-  - **A.** Pre-approve trong `templates/claude-settings.local.json` (INSTALL.md Step X copy template). User confirm 1 lần duy nhất khi `/sos-init`.
-  - **B.** Chuyển marker → `/tmp/sos-architect-active-<project-hash>` (tmp thường allowlist sẵn). Trade-off: clean on reboot (acceptable — marker chỉ live trong 1 session).
-  - **C.** Chuyển marker → TaskList metadata (in-memory). Trade-off: lose persistence nếu session crash giữa spawn.
-  - Architect decide A/B/C khi DRAFT (Architect đọc current `.claude/settings*.json` template + ORCHESTRATION marker mechanism)
-  - Apply P036 rule: tầng 2 → skip CHALLENGE → DRAFT → APPROVAL_GATE → EXECUTE
-
----
-
-## ⏸ Paused — Worker capability + install UX gaps (waiting on Foundation v2.2)
-
-> **Why paused 2026-04-27:** P005 DECISION_PENDING (Sếp chưa pick A/B/C, không make sense block sprint). P006 likely tầng 2 surgical → hưởng skip-CHALLENGE từ P036 khi resume. Resume sau khi Foundation v2.2 (P036+P035+P037) ship.
+> **Goal:** Close 2 gaps post-Foundation-v2.2: (1) P005 — Worker Skill access (DECISION PENDING — Sếp pick A/B/C); (2) P006 — pre-commit fresh-install friction (`docs-gate` fails on fresh repo). Both now benefit from P036 tier rule — P006 likely Tầng 2 surgical → skip CHALLENGE expected.
+> **Done when:** Both phiếu shipped + dry-run fresh-install zero-workaround.
+> **Started:** 2026-04-26 (paused for Foundation v2.2; resumed 2026-04-27 after Foundation v2.2 ship).
 
 - [ ] **[P005]** Worker Skill access — `agents/worker.md:4` `tools:` allowlist không có `Skill`. **DECISION PENDING:**
   - **A.** Add `Skill` vào worker tools allowlist (1-line edit). Pragmatic.
   - **B.** *(em recommend)* Architect/Orchestrator run skill trước CHALLENGE, đổ output vào phiếu. Worker chỉ apply.
   - **C.** Hybrid — Worker invoke skill chỉ khi phiếu có flag `requires_skill: <name>`.
   - Memory ref: `project_tarot_frontend_design_plugin.md`. Existing [P008] DEPENDS on outcome.
-- [ ] **[P006]** Pre-commit fresh-install friction — `hooks/pre-commit` shells `docs-gate` failing on fresh repo. **Options:** A (soft-fail), B (bootstrap CHANGELOG/ARCHITECTURE skeleton in INSTALL.md), C (loosen hook). Note: cũng nên xét default `.docs-gate.toml` template trong `templates/`.
+- [ ] **[P006]** Pre-commit fresh-install friction — `hooks/pre-commit` shells `docs-gate` failing on fresh repo. **Options:** A (soft-fail), B (bootstrap CHANGELOG/ARCHITECTURE skeleton in INSTALL.md), C (loosen hook). Note: cũng nên xét default `.docs-gate.toml` template trong `templates/`. **Strong P006 evidence accumulated:** P035 + P037 EXECUTE both reported "docs-gate not runnable in sos-kit root (no `.docs-gate.toml`)" — friction confirmed in real motion, not theoretical.
 
 ---
 
@@ -114,11 +85,11 @@
 
 > Quick reference. Full detail in `CHANGELOG.md`.
 
-- ✅ **Drift-sprint COMPLETE** — (2026-04-26) — P003 + P004 merged on main (`91d62af` + `14819b3`). Dry-run on `/tmp/test-sos-install` verified: P003 banner fallback + P004 CHARACTER glob both work zero-workaround. Separate gap surfaced (pre-commit + docs-gate friction) → tracked as P006 in next sprint, NOT a P003/P004 regression.
-- ✅ **P004 / v2.1.3** — (2026-04-26) — Vision doc naming flex: `docs/CHARACTER*.md` glob in agents + doc consistency (HANDOFF, LAYERS, SETUP, GENESIS)
-- ✅ **P003 / v2.1.2** — (2026-04-26) — BACKLOG format flexibility: banner + Architect Rule 0 + ORCHESTRATION.md all tolerate non-"Active sprint" section headers via fallback
-- ✅ **v2.1.1** — `c786359` (2026-04-26) — Session opening protocol + Tarot dogfood verification (P029 smoke + P030 multi-turn debate, value proven, ~42k tokens/multi-turn cost baseline)
-- ✅ **P002 + P001 + v2.1 (audit)** — (2026-04-26) — Vision templates harvest, debate loop, AUDIT_PROTOCOL (pruned to 1 line per maintenance rule "keep last ~4 entries")
+- ✅ **Foundation v2.2 sprint COMPLETE** — (2026-04-27) — P036 + P035 + P037 shipped same day (PRs #3 + #4 + #5 merged). Total ~632k tokens / ~45m drive time across all 3. **P037 first Tầng 2 dogfood:** ~5min/81k tokens (68% reduction vs Tầng 1 baseline). **Rule B working:** 0 anchor mismatches at EXECUTE across all 3 phiếu — humility markers prevented hallucination cleanly.
+- ✅ **P037 / v2.1.6** — (2026-04-27) — `templates/claude-settings.local.json` pre-approves marker file Bash ops + INSTALL.md Step 2.5 (PR #5)
+- ✅ **P035 / v2.1.5** — (2026-04-27) — `agents/orchestrator.md` (~88-line condensed handbook) + ORCHESTRATION.md Hard rule #8 (bulk input → 1 gate) + INSTALL anti-patterns + CLAUDE.md contributor section (PR #4)
+- ✅ **P036 / v2.1.4** — (2026-04-27) — Workflow tier routing (state machine `tầng==2` skip-CHALLENGE) + Architect humility markers (`[verified]` / `[needs Worker verify]`). Foundation rules specced (PR #3)
+- ✅ **Drift-sprint COMPLETE** — (2026-04-26) — P003 + P004 merged on main. Dry-run zero-workaround.
 
 ---
 
