@@ -46,7 +46,7 @@
 
 ## 🌊 Future waves (low commitment)
 
-- [ ] **v2.2 — Debate token optimization.** Park until ≥5 multi-turn phiếu deliver real cost-distribution data. Candidates: skip-CHALLENGE for trivial phiếu (needs criteria), Haiku for Architect DRAFT, inline doc snippets in spawn prompt to skip subagent's Read step. Baseline target: 42k → 25k tokens per multi-turn phiếu.
+- [x] **v2.2 — Debate token optimization.** Closed 2026-05-02 — partially shipped via **P038** (per-phiếu Discovery file pattern, Debate Log strip on phieu-done, banner size-warn at 40k threshold). Remaining candidates (skip-CHALLENGE for trivial phiếu — already done via P036 tier routing; Haiku for Architect DRAFT — still parked, awaiting evidence; inline doc snippets — parked).
 - [ ] **Multi-project support.** Single sos-kit install serving N projects with centralized `agents/` + `scripts/` + project-local override. Avoids the "8 files copied per project" bootstrap cost. Likely depends on P033 Rust CLI.
 
 ---
@@ -77,7 +77,7 @@
 
 - **Pre-merge any PR:** run `/ultrareview <PR#>` for multi-agent cloud review.
 - **After 5–10 phiếu or wave end:** run AUDIT_PROTOCOL (Worker AUDIT mode, read-only, writes `docs/AUDIT_<wave>.md`).
-- **Per phiếu:** Worker writes Discovery Report to `docs/DISCOVERIES.md` (newest on top) before reporting "done."
+- **Per phiếu:** Worker writes Discovery Report to `docs/discoveries/P<NNN>.md` (per-phiếu file, P038 pattern) + appends 1-line index entry to `docs/DISCOVERIES.md` before reporting "done."
 
 ---
 
@@ -85,6 +85,7 @@
 
 > Quick reference. Full detail in `CHANGELOG.md`.
 
+- ✅ **P038 / v2.1.7** — (2026-05-02) — Phiếu lifecycle cleanup + safety rails. `phieu-done` extended (strip Debate Log, move active→done, delete branch -d, cleanup .backup/). Banner doc size-warn at 40k + cleanup-nudge for approved+merged phiếu. Worker safety rules (no force-push, no edit memory/settings outside scope, no rm-rf on absolute paths). Pre-phiếu snapshot Task 0 standard. DISCOVERIES.md per-phiếu file pattern (decouple from monolithic). Trigger: Tarot dogfood 2 weeks → 80% week usage Max plan; cost optimization.
 - ✅ **Foundation v2.2 sprint COMPLETE** — (2026-04-27) — P036 + P035 + P037 shipped same day (PRs #3 + #4 + #5 merged). Total ~632k tokens / ~45m drive time across all 3. **P037 first Tầng 2 dogfood:** ~5min/81k tokens (68% reduction vs Tầng 1 baseline). **Rule B working:** 0 anchor mismatches at EXECUTE across all 3 phiếu — humility markers prevented hallucination cleanly.
 - ✅ **P037 / v2.1.6** — (2026-04-27) — `templates/claude-settings.local.json` pre-approves marker file Bash ops + INSTALL.md Step 2.5 (PR #5)
 - ✅ **P035 / v2.1.5** — (2026-04-27) — `agents/orchestrator.md` (~88-line condensed handbook) + ORCHESTRATION.md Hard rule #8 (bulk input → 1 gate) + INSTALL anti-patterns + CLAUDE.md contributor section (PR #4)

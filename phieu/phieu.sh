@@ -1,5 +1,8 @@
 # phieu.sh — Phiếu (ticket) workflow for SOS Kit
-# Source from ~/.zshrc:  source /path/to/sos-kit/phieu/phieu.sh
+# Source from your shell rc:
+#   bash:  echo 'source ~/sos-kit/phieu/phieu.sh' >> ~/.bashrc
+#   zsh:   echo 'source ~/sos-kit/phieu/phieu.sh' >> ~/.zshrc
+# Requires: bash 4.0+ (associative arrays) or zsh 5+.
 #
 # Commands:
 #   phieu <slug>                      # auto-detect project from cwd, type=feat
@@ -17,17 +20,28 @@
 # Users can also manually add: PHIEU_PROJECTS[name]="/path/to/project"
 typeset -gA PHIEU_PROJECTS 2>/dev/null || declare -gA PHIEU_PROJECTS
 
+# --- Helper: get keys of PHIEU_PROJECTS (cross-shell bash/zsh) ---
+_phieu_keys() {
+  if [ -n "$ZSH_VERSION" ]; then
+    eval 'printf "%s\n" "${(@k)PHIEU_PROJECTS}"'
+  else
+    printf "%s\n" "${!PHIEU_PROJECTS[@]}"
+  fi
+}
+
 # --- Helper: detect project from cwd ---
 _phieu_detect_project() {
   local cwd="$PWD"
-  for key in "${(@k)PHIEU_PROJECTS}"; do
+  local key
+  while IFS= read -r key; do
+    [ -z "$key" ] && continue
     local root="${PHIEU_PROJECTS[$key]}"
     local wt="${root}-wt"
     if [[ "$cwd" == "$root" || "$cwd" == "$root"/* || "$cwd" == "$wt"/* ]]; then
       echo "$key"
       return 0
     fi
-  done
+  done < <(_phieu_keys)
   return 1
 }
 
@@ -155,8 +169,84 @@ _phieu_done_impl() {
   fi
   local name="$1"
   cd "$root" || return 1
-  git worktree remove "${wt_parent}/$name" && \
-    echo "✅ Worktree removed: ${wt_parent}/$name (branch still exists)"
+
+  # Extract phiếu ID (e.g., P038-foo → P038)
+  local phieu_id
+  phieu_id=$(echo "$name" | grep -oE '^P[0-9]+')
+  if [ -z "$phieu_id" ]; then
+    echo "❌ Could not extract phiếu ID from '$name' (expected P<NNN>-<slug>)"
+    return 1
+  fi
+
+  # 1. Detect phiếu file location (sos-kit: phieu/active/, downstream: docs/ticket/)
+  local active_path="" done_path=""
+  if [ -f "phieu/active/${name}.md" ]; then
+    active_path="phieu/active/${name}.md"
+    done_path="phieu/done/${name}.md"
+    mkdir -p "phieu/done"
+  elif [ -f "docs/ticket/${name}.md" ]; then
+    active_path="docs/ticket/${name}.md"
+    done_path="docs/ticket/done/${name}.md"
+    mkdir -p "docs/ticket/done"
+  else
+    echo "⚠️  Phiếu file not found at phieu/active/${name}.md or docs/ticket/${name}.md"
+    echo "    Skipping strip + move; will still remove worktree + branch."
+  fi
+
+  # 2. Strip Debate Log + move active → done
+  if [ -n "$active_path" ]; then
+    # awk: keep all lines EXCEPT "### Turn N — Worker Challenge" / "### Turn N — Architect Response" subsections.
+    # Preserve: header, Context, Task 0, "## Debate Log" header itself, "**Phiếu version:**" line,
+    #          "### Final consensus" subsection, Nhiệm vụ, Files, Constraints, Nghiệm thu.
+    awk '
+      BEGIN { skip = 0 }
+      /^### Turn [0-9]+ — Worker Challenge/ { skip = 1; next }
+      /^### Turn [0-9]+ — Architect Response/ { skip = 1; next }
+      /^### Final consensus/ { skip = 0 }
+      /^---$/ { skip = 0 }
+      /^## / { skip = 0 }
+      skip == 0 { print }
+    ' "$active_path" > "${active_path}.stripped"
+
+    if [ -s "${active_path}.stripped" ]; then
+      mv "${active_path}.stripped" "$done_path"
+      rm -f "$active_path"
+      echo "✅ Phiếu moved + Debate Log stripped: $active_path → $done_path"
+    else
+      rm -f "${active_path}.stripped"
+      echo "⚠️  Strip produced empty file — leaving original at $active_path untouched"
+    fi
+  fi
+
+  # 3. Remove worktree
+  if git worktree remove "${wt_parent}/$name" 2>/dev/null; then
+    echo "✅ Worktree removed: ${wt_parent}/$name"
+  else
+    echo "⚠️  Worktree remove failed (already gone? uncommitted changes?) — continuing"
+  fi
+
+  # 4. Delete local branch (safe -d only, NOT -D force)
+  # Detect branch by listing branches matching the phiếu ID
+  local branch
+  branch=$(git branch --list "*/${name}" "*/${phieu_id}-*" 2>/dev/null | head -1 | sed 's/^[* ] //' | tr -d ' ')
+  if [ -n "$branch" ]; then
+    if git branch -d "$branch" 2>/dev/null; then
+      echo "✅ Branch deleted (safe): $branch"
+    else
+      echo "⚠️  Branch '$branch' not fully merged — keeping it (use 'git branch -D $branch' manually if intentional)"
+    fi
+  else
+    echo "ℹ️  No matching local branch found for $phieu_id — skipping branch delete"
+  fi
+
+  # 5. Cleanup .backup/<phieu-id>/
+  if [ -d ".backup/${phieu_id}" ]; then
+    rm -rf ".backup/${phieu_id}"
+    echo "✅ Backup cleaned: .backup/${phieu_id}/"
+  fi
+
+  echo ""
+  echo "🎉 phieu-done complete for $phieu_id"
 }
 
 _phieu_list_impl() {
@@ -182,8 +272,8 @@ phieu() {
     echo "Usage:"
     echo "  phieu <project> <slug>              # explicit (from anywhere)"
     echo "  cd ~/<project> && phieu <slug>      # auto-detect"
-    if [ -n "${(k)PHIEU_PROJECTS}" ]; then
-      echo "Registered projects: ${(@k)PHIEU_PROJECTS}"
+    if [ "${#PHIEU_PROJECTS[@]}" -gt 0 ]; then
+      echo "Registered projects: $(_phieu_keys | tr '\n' ' ')"
     else
       echo "No projects registered. Run: phieu-init <project-path>"
     fi
@@ -211,17 +301,19 @@ phieu-list() {
   fi
 
   if [ -z "$project" ]; then
-    if [ -z "${(k)PHIEU_PROJECTS}" ]; then
+    if [ "${#PHIEU_PROJECTS[@]}" -eq 0 ]; then
       echo "No projects registered. Run: phieu-init <project-path>"
       return 0
     fi
     echo "📋 Registered projects:"
-    for p in "${(@k)PHIEU_PROJECTS}"; do
+    local p
+    while IFS= read -r p; do
+      [ -z "$p" ] && continue
       local root="${PHIEU_PROJECTS[$p]}"
       local next=$(($(cat "$root/.phieu-counter" 2>/dev/null || echo 0) + 1))
       local wt_count=$(cd "$root" 2>/dev/null && git worktree list 2>/dev/null | wc -l | tr -d ' ')
       printf "  %-20s  %d worktree(s), next ID: P%03d\n" "$p" "$wt_count" "$next"
-    done
+    done < <(_phieu_keys)
     echo ""
     echo "Run 'phieu-list <project>' for project detail."
     return 0
@@ -347,10 +439,18 @@ phieu-init() {
     printf "\n# Phiếu ID counter (local, per-machine)\n.phieu-counter\n" >> "$path/.gitignore"
     echo "✓ Added .phieu-counter to $path/.gitignore"
   fi
-  # Register in current session + persist
+  # Register in current session + persist to detected shell rc
   PHIEU_PROJECTS[$name]="$path"
-  printf "\n# Added by phieu-init\nPHIEU_PROJECTS[%s]=\"%s\"\n" "$name" "$path" >> ~/.zshrc
-  echo "✓ Appended to ~/.zshrc: PHIEU_PROJECTS[$name]=\"$path\""
+  local rc_file
+  if [ -n "$ZSH_VERSION" ]; then
+    rc_file="$HOME/.zshrc"
+  elif [ -n "$BASH_VERSION" ]; then
+    rc_file="$HOME/.bashrc"
+  else
+    rc_file="$HOME/.profile"
+  fi
+  printf "\n# Added by phieu-init\nPHIEU_PROJECTS[%s]=\"%s\"\n" "$name" "$path" >> "$rc_file"
+  echo "✓ Appended to $rc_file: PHIEU_PROJECTS[$name]=\"$path\""
   echo ""
   echo "🎉 Project '$name' is ready. Try:"
   echo "   phieu $name <slug>"

@@ -2,6 +2,27 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.1.7] — 2026-05-02
+
+### Added
+- **P038: Phiếu lifecycle cleanup + safety rails + DISCOVERIES decoupling.** Trigger: 2-week Tarot dogfood pushed Max plan to 80% week usage; root cause analysis (`docs/discoveries/P038.md`) identified 6 sub-scopes — token bloat from monolithic DISCOVERIES.md (110k bytes / 28k tokens auto-loaded per Architect spawn), missing phiếu-done cleanup (Debate Log retained, local branches accumulate, no backup cleanup), missing Worker safety rails (force-push / memory edit / settings overwrite all possible), no pre-phiếu rollback point, no doc size warning, no cleanup nudge for approved+merged phiếu.
+- **`phieu/phieu.sh`** — `_phieu_done_impl` extended: strips Debate Log Turn N subsections (awk preserve-Final-consensus), moves phiếu file `active/` → `done/` (location-detect: `phieu/active/` for sos-kit, `docs/ticket/` for downstream), `git branch -d` safe-delete (refuses unmerged), removes `.backup/<phiếu-id>/` snapshot. Backwards-compat: phiếu without Debate Log = no-op strip.
+- **`scripts/session-start-banner.sh`** — doc size warn (40k byte threshold for CHANGELOG/DISCOVERIES) + phiếu cleanup nudge (scan `phieu/active/` for "Approved by Chủ nhà: <date>" + `git branch --merged main` match → echo `🧹 Phiếu P<NNN> approved + merged. Run: phieu-done P<NNN>`). No `gh` CLI dependency.
+- **`agents/worker.md`** — new "Destructive op safety rails" subsection in Hard envelope rules (no force-push, no reset-hard outside phiếu, no edit memory/settings outside scope, no `.sos-state/` deletion, no `rm -rf` on absolute paths) + new top-level "Anti-patterns" section (memory edits, force-push for rebase, pkill -f, mass rm). Discovery Report path updated to `docs/discoveries/P<NNN>.md` per-phiếu.
+- **`phieu/TICKET_TEMPLATE.md`** — new "Pre-phiếu snapshot" subsection in Task 0 (Worker auto first-step: `mkdir .backup/<P>` + cp settings.local.json + cp .sos-state + git rev-parse HEAD). Discovery Report path updated: `docs/DISCOVERIES.md` → `docs/discoveries/P<NNN>.md` per-phiếu + 1-line index entry. **Line 4 dual-path note** (V3 [O1.2] fix Anchor #9 drift): filename now documents both `phieu/active/` (sos-kit) and `docs/ticket/` (downstream).
+- **`docs/DISCOVERIES.md`** — converted to index-only (table linking to per-phiếu files). Old monolithic content archived at `docs/archive/DISCOVERIES_pre-2026-05.md`.
+- **`docs/ORCHESTRATION.md`** — new "Phiếu lifecycle (post-ship cleanup, P038)" section between "Failure modes" and "Concrete example session".
+- **`agents/orchestrator.md`** — new "Phiếu cleanup nudge (P038)" section after "Marker file hygiene" — condensed to 2 lines (V3 [O1.1] fix CLAUDE.md ≤90 cap), file goes 88 → 90 lines exactly at cap.
+- **`.gitignore`** — added `.backup/`.
+
+### Files changed
+- New: `docs/discoveries/P038.md`, `docs/archive/DISCOVERIES_pre-2026-05.md`
+- Modified: `phieu/phieu.sh`, `scripts/session-start-banner.sh`, `agents/worker.md`, `phieu/TICKET_TEMPLATE.md`, `docs/DISCOVERIES.md`, `docs/ORCHESTRATION.md`, `agents/orchestrator.md`, `docs/BACKLOG.md`, `.gitignore`, `CHANGELOG.md`
+
+### Cost baseline shift
+- Pre-P038: $4.82 / Tầng 2 phiếu (P109 baseline 2026-05-02). Driver: ~28k token DISCOVERIES.md auto-load + cache write 230k Opus.
+- Post-P038 expected: per-phiếu Discovery selective-load → 5-10k token avg (vs 28k flat). Architect cache write reduced proportionally. Real measurement after 5+ phiếu post-ship.
+
 ## [v2.1.6] — 2026-04-27
 
 ### Added

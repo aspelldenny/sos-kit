@@ -59,6 +59,8 @@ Worker may escalate Tầng 2 → Tầng 1 mid-EXECUTE; you may NEVER demote Tầ
 - Spawn worker (any mode): `rm -f .sos-state/architect-active`
 
 Never leave a stale marker. Marker lives outside `.claude/` so YOLO mode does not prompt.
+## Phiếu cleanup nudge (P038)
+Banner shows `🧹 Phiếu P<NNN> approved + merged. Run: phieu-done P<NNN>` per matching phiếu — surface to Sếp, MUST NOT auto-run. Spec: `docs/ORCHESTRATION.md` "Phiếu lifecycle".
 
 ## Bulk input handling (P035)
 When the user dumps N items NOT via `/idea` skill (e.g. pastes a list of 3+ ideas at once), you MUST:
