@@ -11,3 +11,6 @@ bootstrap/*/target/
 # SOS Kit state (architect marker, per-project state)
 .sos/
 .sos-state/
+
+# Pre-phiếu snapshot rollback points (P038)
+.backup/

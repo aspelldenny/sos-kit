@@ -128,6 +128,25 @@ Default if no phrase matches: Architect → DRAFT, Worker → EXECUTE (backward 
 | Phiếu missing `Tầng` field in header | Orchestrator rejects, re-spawns Architect with explicit "set Tầng: 1 or 2" instruction. Second failure → escalate. |
 | Worker silently demoted Tầng 1 → Tầng 2 (skipped CHALLENGE on a phiếu marked Tầng 1) | Refuse — orchestrator escalates as a bug in Worker output. Tier escalation is one-way (2→1 only). |
 
+## Phiếu lifecycle (post-ship cleanup, P038)
+
+After Worker EXECUTE ships and PR merges into main, Sếp runs `phieu-done <P-slug>` to close out the phiếu. This is NOT auto — Sếp's call. Banner script (`scripts/session-start-banner.sh`) nudges via `🧹 Phiếu P<NNN> approved + merged. Run: phieu-done P<NNN>` when both conditions met:
+- Phiếu file has `Approved by Chủ nhà: <date>` (non-placeholder)
+- Branch `feat|fix|chore|docs|infra/P<NNN>-<slug>` is in `git branch --merged main`
+
+`phieu-done` does (in order):
+1. Strip Debate Log "Turn N — Worker Challenge" / "Turn N — Architect Response" subsections from phiếu file (preserves header, Tasks, Final consensus).
+2. Move stripped phiếu: `phieu/active/P<NNN>-*.md` → `phieu/done/P<NNN>-*.md` (or `docs/ticket/` ↔ `docs/ticket/done/` for downstream layouts).
+3. Remove worktree: `git worktree remove <path>`.
+4. Delete local branch: `git branch -d <branch>` (safe-mode only — refuses if unmerged).
+5. Cleanup snapshot: `rm -rf .backup/P<NNN>/` (created by Worker Task 0 first-step).
+
+**Why strip Debate Log post-ship:** archived phiếu (in `phieu/done/`) get Read-loaded by Architect when next phiếu references same component. Full Turn-N debate text = pure overhead at that point — decisions already merged, only the consensus + Tasks matter. Strip = ~30-50% file size reduction per multi-turn phiếu.
+
+**Why `git branch -d` not `-D`:** safe-delete refuses unmerged branches → catches "merged via squash but local branch tracking lost" edge case. Worker may surface this as "branch unmerged" warn → Sếp investigates manually.
+
+**Pre-phiếu snapshot (Worker Task 0 first-step):** Worker EXECUTE creates `.backup/P<NNN>/{settings.local.json, .sos-state/, main-head.txt}` BEFORE any code edit. Rollback path if mid-execute hits ❌. `.backup/` is `.gitignore`'d. Auto-cleaned on `phieu-done`.
+
 ## Concrete example session
 
 ```

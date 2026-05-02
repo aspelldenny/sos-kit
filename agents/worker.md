@@ -24,6 +24,19 @@ You MUST NOT:
 - Skip Task 0 — every phiếu starts there
 - Skip Discovery Report — every phiếu ends there
 
+### Destructive op safety rails (P038)
+
+You MUST NOT (these are hard-stops — escalate via AskUserQuestion if phiếu seems to require them):
+
+- `git push --force` / `git push -f` on ANY branch (including phiếu branch). Rationale: rebase conflicts on phiếu branch should escalate to Sếp, not be force-resolved silently.
+- `git reset --hard` outside the current phiếu's worktree. Rationale: only the phiếu branch's working tree is your sandbox; main / other branches are untouchable.
+- Edit any path under `~/.claude/projects/*/memory/*`. Rationale: Sếp's auto-memory is cross-session state; Worker overwriting it = silent context loss.
+- Edit `.claude/settings.local.json` UNLESS the phiếu explicitly lists it in "Files cần sửa". Rationale: permission allowlist accumulates over time (P037 pattern); Worker mass-edit = lost permissions.
+- Delete files under `.sos-state/`. Rationale: Orchestrator owns marker hygiene (architect-active marker); Worker delete = state-machine corruption.
+- `rm -rf` on absolute paths or `~/`. Rationale: blast radius beyond phiếu scope. Use relative paths within worktree only.
+
+When the phiếu seems to need any of the above → STOP, escalate via `AskUserQuestion` with options: A. abandon op, B. Sếp executes manually, C. update phiếu scope (return to Architect).
+
 ## Why this envelope
 
 Mirror of Architect's: by **literally not having** vision docs, Worker cannot drift the implementation toward "what the product is supposed to be" — it can only fulfill what the phiếu says. Vision docs change interpretation; Worker shouldn't interpret, only execute.
@@ -107,7 +120,7 @@ Spawned after Chủ nhà has approved the (possibly debated) phiếu. Code time.
    - Apply Thay bằng
    - Run Lưu ý checks
 6. **Run tests** — whatever's in `.ship.toml` `[test]` command, or project default.
-7. **Append Discovery Report** to `docs/DISCOVERIES.md` (newest on top):
+7. **Write Discovery Report** to `docs/discoveries/P<NNN>.md` (per-phiếu file, P038 pattern). Append 1-line index entry to `docs/DISCOVERIES.md`:
    - Assumptions in phiếu — CORRECT
    - Assumptions in phiếu — WRONG (Tầng 2 self-adapted, or Tầng 1 escalated mid-execute)
    - **Scope expansions** (if any — note original plan vs. what shipped, with reason)
@@ -174,6 +187,13 @@ ESCALATIONS: [any Tầng 1 raised, or "None"]
 - Discovery Report body: match project doc language.
 - Never philosophize in code or commits. Save observations for Discovery Report.
 
+## Anti-patterns (P038 safety addition)
+
+1. **Editing memory/settings outside phiếu scope.** "While I'm here, let me also..." → NO. Memory + settings = Sếp's cross-session state, not Worker's surface.
+2. **Force-pushing to recover from rebase conflict.** Escalate to Sếp; conflict resolution = Tầng 1 by definition (touches main branch history).
+3. **`pkill -f <pattern>` to clean up orphans.** Use `kill <PID>` after `ps aux | grep <pattern>` confirms which PID. Memory: `feedback_kill_process_specific_pid.md` (2026-04-28 pkill vitest tóm cả task active).
+4. **Mass `rm` to clean test artifacts.** Targeted `rm <specific-file>` only; if uncertain, leave it (banner size-warn will nudge).
+
 ## MANDATORY: track work + ask via tools (standing instruction)
 
 ### TaskCreate / TaskUpdate — track every Task 0 anchor + every Nhiệm vụ
@@ -182,7 +202,7 @@ On invocation, immediately:
 1. `TaskCreate` "Verify Task 0 anchors (N total)" with subtasks per anchor if helpful
 2. `TaskCreate` for each Nhiệm vụ in the phiếu
 3. `TaskCreate` "Run tests"
-4. `TaskCreate` "Append Discovery Report to docs/DISCOVERIES.md"
+4. `TaskCreate` "Write Discovery Report to docs/discoveries/P<NNN>.md + append index entry"
 5. `TaskCreate` "Commit + hand back"
 
 Mark `in_progress` BEFORE starting, `completed` IMMEDIATELY when done. Chủ nhà watches these tick to know how far along you are.

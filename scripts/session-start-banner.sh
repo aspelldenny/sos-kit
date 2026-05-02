@@ -66,6 +66,74 @@ if [ "$FALLBACK_USED" = "1" ]; then
     echo ""
     echo "📌 Treating \"$HEADER_TEXT\" as Active sprint (no \"Active sprint\" header found)."
 fi
+
+# ─────────────────────────────────────────────────────────────────────
+# Doc size warn (P038) — non-blocking nudge, threshold 40k bytes
+# ─────────────────────────────────────────────────────────────────────
+SIZE_THRESHOLD=40960  # 40k bytes
+SIZE_WARNS=""
+for doc in "docs/CHANGELOG.md" "docs/DISCOVERIES.md" "CHANGELOG.md"; do
+    [ ! -f "$doc" ] && continue
+    # Cross-platform byte count: prefer wc -c (POSIX), fall back to stat
+    bytes=$(wc -c < "$doc" 2>/dev/null | tr -d ' ')
+    [ -z "$bytes" ] && continue
+    if [ "$bytes" -gt "$SIZE_THRESHOLD" ]; then
+        kb=$((bytes / 1024))
+        SIZE_WARNS="${SIZE_WARNS}⚠️  ${doc} (${kb}k > 40k threshold) — gọi thợ trim, archive cũ ra docs/archive/\n"
+    fi
+done
+if [ -n "$SIZE_WARNS" ]; then
+    echo ""
+    echo "📏 Doc size warning:"
+    printf "    %b" "$SIZE_WARNS"
+fi
+
+# ─────────────────────────────────────────────────────────────────────
+# Phiếu cleanup nudge (P038) — scan active phiếu for approved+merged
+# ─────────────────────────────────────────────────────────────────────
+NUDGES=""
+# Detect phiếu directory: prefer phieu/active/, fall back to docs/ticket/
+PHIEU_DIR=""
+if [ -d "phieu/active" ]; then
+    PHIEU_DIR="phieu/active"
+elif [ -d "docs/ticket" ]; then
+    PHIEU_DIR="docs/ticket"
+fi
+
+if [ -n "$PHIEU_DIR" ]; then
+    # Get list of branches merged into main (no gh CLI required)
+    MERGED_BRANCHES=$(git branch --merged main 2>/dev/null | sed 's/^[* ] //' | tr -d ' ')
+
+    for phieu_file in "$PHIEU_DIR"/P*.md; do
+        [ ! -f "$phieu_file" ] && continue
+        # Skip TICKET_TEMPLATE.md if it lives here
+        case "$(basename "$phieu_file")" in TICKET_TEMPLATE.md|TEMPLATE.md) continue;; esac
+
+        # Check if phiếu has "Approved by Chủ nhà:" line with non-empty value
+        approved_line=$(grep "Approved by Chủ nhà:" "$phieu_file" 2>/dev/null | head -1)
+        # Skip if no approval line OR approval value is placeholder (e.g., "[date]" or empty)
+        case "$approved_line" in
+            *"[date]"*|*"Approved by Chủ nhà: $"*|"") continue;;
+        esac
+
+        # Extract phiếu ID
+        phieu_id=$(basename "$phieu_file" .md | grep -oE '^P[0-9]+')
+        [ -z "$phieu_id" ] && continue
+
+        # Check if a branch matching this phiếu is merged
+        if echo "$MERGED_BRANCHES" | grep -qE "/${phieu_id}-"; then
+            slug=$(basename "$phieu_file" .md)
+            NUDGES="${NUDGES}🧹 Phiếu ${phieu_id} approved + merged. Run: phieu-done ${slug}\n"
+        fi
+    done
+fi
+
+if [ -n "$NUDGES" ]; then
+    echo ""
+    echo "🧹 Cleanup nudge:"
+    printf "    %b" "$NUDGES"
+fi
+
 echo ""
 echo "🤖 Orchestrator contract (main session — đọc kỹ, ép tuân thủ):"
 echo "    State machine: DRAFT → CHALLENGE → [RESPOND ⇄ CHALLENGE] → APPROVAL_GATE → EXECUTE"

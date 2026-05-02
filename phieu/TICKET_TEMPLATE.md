@@ -1,7 +1,7 @@
 # PHIẾU P<NNN>: <short title>
 
 > **ID format:** `P` + 3 digits (P001, P042, P123). ID is auto-assigned by the `phieu` shell function from `<project>/.phieu-counter` — do not set manually.
-> **Filename:** `docs/ticket/P<NNN>-<slug>.md` (matches branch name, without `<type>/` prefix).
+> **Filename:** `phieu/active/P<NNN>-<slug>.md` (sos-kit dogfood layout) **OR** `docs/ticket/P<NNN>-<slug>.md` (downstream projects using `phieu-create` from `phieu/phieu.sh`). Both paths are recognized by `phieu-done` (P038 location detect — see Task 5).
 > **Branch:** `<type>/P<NNN>-<slug>` where `<type>` ∈ {feat, fix, chore, docs, infra}.
 > **Usually created via `phieu <slug>`** (shell function auto-fills ID + creates branch + worktree + this file).
 
@@ -41,6 +41,24 @@
 | 3 | [Spread list is constant SPREADS_REBUILD] | `grep "SPREADS_REBUILD" src/...` | ❌ NOT FOUND — inline string instead |
 
 **If "Result" column has ❌ → architect acknowledged the wrong assumption and specified how to handle it in the Nhiệm vụ section below.**
+
+### Pre-phiếu snapshot (Worker auto first-step)
+
+> **Worker EXECUTE FIRST ACTION** (before any code edit, before Task 0 grep verification): take a rollback point so failed mid-execute can revert.
+
+```bash
+# Run from project root (worktree root for phiếu workflow):
+PHIEU_ID=$(basename "$(git rev-parse --show-toplevel)" | grep -oE 'P[0-9]+')
+mkdir -p ".backup/${PHIEU_ID}"
+cp .claude/settings.local.json ".backup/${PHIEU_ID}/" 2>/dev/null || true
+[ -d .sos-state ] && cp -r .sos-state ".backup/${PHIEU_ID}/" 2>/dev/null || true
+git rev-parse HEAD > ".backup/${PHIEU_ID}/main-head.txt"
+echo "✓ Snapshot at .backup/${PHIEU_ID}/ — auto-cleaned on phieu-done"
+```
+
+If the phiếu hits ❌ mid-execute and you need to roll back: `cp .backup/${PHIEU_ID}/settings.local.json .claude/` and `git reset --hard $(cat .backup/${PHIEU_ID}/main-head.txt)` (within phiếu worktree only — NEVER on main per safety rails).
+
+`.backup/` is gitignored. `phieu-done` cleans up automatically.
 
 ---
 
@@ -143,7 +161,10 @@
 - [ ] `[GUIDE].md` — [section updated]
 
 ### Discovery Report
-- [ ] Append entry to `docs/DISCOVERIES.md` (newest on top, like CHANGELOG)
-  - Assumptions in phiếu — CORRECT / WRONG
+- [ ] Write to `docs/discoveries/P<NNN>.md` (per-phiếu file, P038 pattern)
+  - Assumptions in phiếu — CORRECT / WRONG (with file:line citations)
+  - Scope expansions (if any — note original vs shipped, with reason)
   - Edge cases / limitations found
-  - Docs updated to match reality
+  - Docs updated to match reality (write "None" if nothing — explicit)
+  - Tier escalations (write "None" if no 2→1 escalation)
+- [ ] Append 1-line index entry to `docs/DISCOVERIES.md` (link to per-phiếu file)
