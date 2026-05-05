@@ -19,6 +19,7 @@
   - **C.** Hybrid — Worker invoke skill chỉ khi phiếu có flag `requires_skill: <name>`.
   - Memory ref: `project_tarot_frontend_design_plugin.md`. Existing [P008] DEPENDS on outcome.
 - [ ] **[P006]** Pre-commit fresh-install friction — `hooks/pre-commit` shells `docs-gate` failing on fresh repo. **Options:** A (soft-fail), B (bootstrap CHANGELOG/ARCHITECTURE skeleton in INSTALL.md), C (loosen hook). Note: cũng nên xét default `.docs-gate.toml` template trong `templates/`. **Strong P006 evidence accumulated:** P035 + P037 EXECUTE both reported "docs-gate not runnable in sos-kit root (no `.docs-gate.toml`)" — friction confirmed in real motion, not theoretical.
+- [ ] **[P038]** Doc drift + symmetry sweep — gộp ~10 finding từ 2 review (2026-05-05) thành 1 phiếu chore Tầng 2 (~50 phút). **Scope:** (1) CLAUDE.md "Repo structure" tree refresh (skills 13 thay 9, add agents/bin/bootstrap/recipes/scripts/templates + CHANGELOG/INSTALL + docs files); (2) 5 hardcoded `/Users/nguyenhuuanh` + `/c/Users/Admin` paths → `~/` hoặc generic; (3) README architecture tree (line 393-443) thêm bin/bootstrap/recipes; (4) PHILOSOPHY "Six Principles" + Principle 0 = 7 → rephrase header + sync CLAUDE.md "5 principles"; (5) PHILOSOPHY skills list refresh (add idea/init/forge/apply); (6) LAYERS line 49+62 `/verify` cross-layer clarify (line 179 đã ack); (7) HANDOFF line 247 `/decide on Worker side` clarify; (8) hooks/pre-commit line 102 fallback đối xứng với session-start-banner.sh:25-27 (P003 pattern reapplied); (9) skills/init/SKILL.md `/blueprint` slashed → `sos blueprint` (CLI command, không phải skill); (10) CLAUDE.md "What this is NOT" rule 1 rephrase để khớp reality recipes/ là acceptable scaffolding form (Sếp đã commit recipes + plan P032/P033). **Tầng 2 surgical → skip CHALLENGE → EXECUTE thẳng. Promoted from "Open backlog" 2026-05-05 by Sếp explicit approve sau 2-review.**
 
 ---
 
@@ -60,7 +61,7 @@
 - [ ] **[P011]** Worker AUDIT mode handbook section in `agents/worker.md`. Currently AUDIT mode is documented in `phieu/AUDIT_PROTOCOL.md` only; Worker handbook should declare the mode and trigger phrase.
 - [ ] **[P012]** Orchestrator auto-detect "≥N phiếu since last audit" → suggest running AUDIT. State in `docs/ORCHESTRATION.md` or a small `.audit-counter`.
 - [ ] **[P013]** Vietnamese 13-checks (diacritics, VND, GMT+7, font rendering, PDF export, etc.) → CI gate that runs pre-deploy. Currently a manual checklist in AUDIT_PROTOCOL.
-- [ ] **CLAUDE.md tree refresh** — current tree in `CLAUDE.md` does not list `CHANGELOG.md`, `DISCOVERIES.md`, `BACKLOG.md`, `docs/ORCHESTRATION.md`. Minor doc drift; refresh when next touching CLAUDE.md.
+- [x] ~~**CLAUDE.md tree refresh** — current tree in `CLAUDE.md` does not list `CHANGELOG.md`, `DISCOVERIES.md`, `BACKLOG.md`, `docs/ORCHESTRATION.md`.~~ **Promoted to [P038] in Active sprint 2026-05-05.**
 - [ ] **External (out of sos-kit scope)** — `~/docs-gate` repo: default `valid_types` should include `chore`. Currently every project that uses `chore`-typed phiếu must add it manually to local `.docs-gate.toml` (Tarot fixed in tarot PR #253).
 
 ---
