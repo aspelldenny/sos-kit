@@ -400,6 +400,14 @@ sos-kit/
 │   ├── skills/
 │   │   └── idea/SKILL.md       # /idea intake skill (Chủ nhà tier)
 │   └── settings.json           # Hooks: SessionStart banner + PreToolUse architect-guard
+├── agents/                     # Global role definitions (orchestrator + layer subagents)
+│   ├── orchestrator.md         # Condensed orchestrator handbook
+│   ├── architect.md
+│   └── worker.md
+├── bin/
+│   └── sos.sh                  # CLI entrypoint — delegates to subcommands
+├── bootstrap/
+│   └── sos-rs/                 # Rust CLI source skeleton (bootstrap target)
 ├── docs/
 │   ├── PHILOSOPHY.md           # 6 principles
 │   ├── LAYERS.md               # 3-role model (Chủ nhà / Kiến trúc sư / Thợ)
@@ -416,12 +424,19 @@ sos-kit/
 │   │   ├── SOUL_template.md
 │   │   └── CHARACTER_template.md
 │   └── phieu.sh                # Shell function: phieu / phieu-list / phieu-done / phieu-init
-├── skills/                     # Global Claude Code skills (one per layer+responsibility)
+├── recipes/                    # DNA snippets — patterns /apply consumes (AI fallback, payment, etc.)
+│   ├── ai/multi-model-fallback.md
+│   └── payment/payos-vn.md
+├── skills/                     # Global Claude Code skills (one per layer+responsibility, 13 total)
+│   ├── init/SKILL.md           # Chủ nhà — 0→1 vision capture
+│   ├── idea/SKILL.md           # Chủ nhà — intake ideas into BACKLOG
 │   ├── insight/SKILL.md        # Chủ nhà — distill raw research → vision docs
 │   ├── route/SKILL.md          # Chủ nhà — classify inbound
 │   ├── decide/SKILL.md         # Chủ nhà — trade-off triage
 │   ├── plan/SKILL.md           # Kiến trúc sư — write phiếu (docs-only)
+│   ├── forge/SKILL.md          # Kiến trúc sư — research + write new recipe
 │   ├── verify/SKILL.md         # Thợ — Task 0 grep-first
+│   ├── apply/SKILL.md          # Thợ — apply 1 recipe from recipes/
 │   ├── review/SKILL.md         # Thợ — code review
 │   ├── qa/SKILL.md             # Thợ — QA verification
 │   ├── ship/SKILL.md           # Thợ — release pipeline

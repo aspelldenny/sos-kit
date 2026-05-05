@@ -17,7 +17,7 @@ What's inside:
   - `DISCOVERY_PROTOCOL.md` — Thợ → Kiến trúc sư feedback + mismatch classification
   - `RELAY_PROTOCOL.md` — Chủ nhà's courier workflow (Thợ cannot ping Kiến trúc sư directly)
   - `VISION_TEMPLATES/` — day-1 skeletons for `PROJECT.md`, `SOUL.md`, `CHARACTER.md`
-- `skills/` — Claude Code skills grouped by layer (3 Chủ nhà + 1 Kiến trúc sư + 5 Thợ = 9 total)
+- `skills/` — Claude Code skills grouped by layer (13 total: 5 Chủ nhà + 2 Kiến trúc sư + 6 Thợ — see `docs/LAYERS.md` skills map for canonical assignment)
 - `configs/` — `.ship.toml` templates per stack (nextjs, flask, rust, python)
 - `hooks/pre-commit` — git hook script (type-check + docs-gate)
 - `integrations/` — CI snippets (GitHub Actions canary) + Telegram uptime monitor
@@ -26,7 +26,7 @@ What's inside:
 ## What this repo is NOT
 
 - **Not a runtime binary source.** The Rust CLIs (`ship`, `docs-gate`, `guard`, `vps`) live in their own repos. This repo only references them.
-- **Not a project scaffolder.** It doesn't generate your app; it ships your app.
+- **Not a boilerplate project scaffolder.** `recipes/` provides battle-tested **patterns** (DNA snippets, decision rationale) that `/apply` consumes — but the kit doesn't generate full app templates from a blank directory. SOS Kit picks up after "code is ready," not "project is empty."
 - **Not a planning methodology.** Use your own (Shape Up, Vibecode, whatever). SOS Kit picks up after "code is ready."
 - **Not a place for experimental features.** If a skill or config hasn't been used on a real project for ≥2 weeks, don't add it here.
 
@@ -36,36 +36,79 @@ What's inside:
 sos-kit/
 ├── README.md               # User-facing entry point — MUST reflect reality
 ├── CLAUDE.md               # This file — for Claude Code contributors
+├── CHANGELOG.md            # Release history — newest entry on top
+├── INSTALL.md              # v2 install guide (5-min, with verify steps)
+├── LICENSE
+├── agents/                 # Orchestrator + role subagent definitions
+│   ├── orchestrator.md     # Condensed orchestrator handbook (≤90 lines, session contract)
+│   ├── architect.md        # Kiến trúc sư subagent (Read/Write/Glob, no Bash/Grep/Edit)
+│   ├── worker.md           # Thợ subagent (full code tools, no vision docs)
+│   └── README.md           # Agent setup instructions
+├── bin/
+│   └── sos.sh              # CLI entrypoint — delegates to subcommands
+├── bootstrap/
+│   └── sos-rs/             # Rust CLI source skeleton (bootstrap target)
+├── configs/                # .ship.toml examples per stack
+│   ├── nextjs.toml
+│   ├── flask.toml
+│   ├── rust.toml
+│   └── python.toml
 ├── docs/
-│   ├── LAYERS.md           # 3-role model (Chủ nhà / Kiến trúc sư / Thợ). Foundation doc.
+│   ├── BACKLOG.md          # Live sprint tracker — surfaced by SessionStart hook
+│   ├── COMPARISON.md       # SOS Kit vs gstack
+│   ├── DISCOVERIES.md      # Phiếu discovery log — newest on top
+│   ├── GENESIS.md          # Kit origin story
 │   ├── HANDOFF.md          # 5 inter-layer protocols (insight, routing, phiếu, escalation, discovery)
-│   ├── PHILOSOPHY.md       # Stable — 6 principles, change carefully
-│   └── SETUP.md            # Install guide — MUST match actual binary names + cargo paths
+│   ├── LAYERS.md           # 3-role model (Chủ nhà / Kiến trúc sư / Thợ). Foundation doc.
+│   ├── ORCHESTRATION.md    # Full orchestrator spec (state machine, failure modes)
+│   ├── PHILOSOPHY.md       # Stable — 6 operational principles + Principle 0, change carefully
+│   ├── SETUP.md            # Install guide — MUST match actual binary names + cargo paths
+│   └── ticket/             # Historical phiếu archive (done + active)
+├── hooks/
+│   └── pre-commit          # type-check + docs-gate + BACKLOG + Discovery enforcement
+├── integrations/           # CI snippets + uptime monitoring
+│   ├── github-actions/     # canary.yml snippet
+│   └── jarvis/             # uptime_monitor.py
 ├── phieu/                  # Ticket workflow backbone
 │   ├── README.md           # Setup + how to use phiếu workflow
 │   ├── TICKET_TEMPLATE.md  # Phiếu format (header, Task 0, tasks, nghiệm thu)
-│   ├── DISCOVERY_PROTOCOL.md  # Thợ → Kiến trúc sư feedback loop + mismatch classification (Tầng 1 vs Tầng 2)
+│   ├── AUDIT_PROTOCOL.md   # RRI-T-lite periodic audit protocol
+│   ├── DISCOVERY_PROTOCOL.md  # Thợ → Kiến trúc sư feedback loop + mismatch classification
+│   ├── GENESIS_TEMPLATE.md # P000 genesis phiếu skeleton
+│   ├── LAUNCH_CHECKLIST.md # Pre-launch gate checklist
 │   ├── RELAY_PROTOCOL.md   # Chủ nhà's courier workflow (Thợ ↔ Kiến trúc sư cross-session)
-│   ├── VISION_TEMPLATES/   # Day-1 skeletons — Chủ nhà copies + fills
-│   │   ├── PROJECT_template.md
-│   │   ├── SOUL_template.md
-│   │   └── CHARACTER_template.md
+│   ├── VISION_TEMPLATES/   # Day-1 skeletons — Chủ nhà copies + fills (PROJECT, SOUL, CHARACTER, ...)
+│   ├── active/             # Phiếu currently in sprint
+│   ├── done/               # Completed phiếu archive
 │   └── phieu.sh            # Shell function: phieu / phieu-init / phieu-done / phieu-list
-├── skills/                 # One skill per layer+responsibility, never spans layers
+├── recipes/                # DNA snippets — patterns /apply consumes
+│   ├── README.md
+│   ├── _TEMPLATE.md        # New recipe skeleton
+│   ├── ai/
+│   │   └── multi-model-fallback.md
+│   └── payment/
+│       └── payos-vn.md
+├── scripts/                # SessionStart + PreToolUse hooks
+│   ├── architect-guard.sh  # PreToolUse hook — block code reads when architect active
+│   ├── session-start-banner.sh  # SessionStart hook — show BACKLOG on session open
+│   └── sync-personal-agents.sh  # Sync agents to ~/.claude/agents/
+├── skills/                 # One skill per layer+responsibility, never spans layers (13 total)
+│   ├── init/SKILL.md       # Chủ nhà — 0→1 vision capture (empty folder → PROJECT/SOUL/CHARACTER)
+│   ├── idea/SKILL.md       # Chủ nhà — intake new ideas, route into BACKLOG
 │   ├── insight/SKILL.md    # Chủ nhà — distill raw research → vision docs
 │   ├── route/SKILL.md      # Chủ nhà — classify inbound
 │   ├── decide/SKILL.md     # Chủ nhà — trade-off triage
 │   ├── plan/SKILL.md       # Kiến trúc sư — write phiếu (docs-only, no code access)
+│   ├── forge/SKILL.md      # Kiến trúc sư — research + write new recipe to recipes/ library
 │   ├── verify/SKILL.md     # Thợ — Task 0 grep-first (gate before coding)
+│   ├── apply/SKILL.md      # Thợ — apply 1 recipe from recipes/ (0→1 sub-phiếu)
 │   ├── review/SKILL.md     # Thợ — code review
 │   ├── qa/SKILL.md         # Thợ — QA verification
 │   ├── ship/SKILL.md       # Thợ — release pipeline
 │   └── retro/SKILL.md      # Thợ — retrospective
-├── configs/                # .ship.toml examples per stack
-├── hooks/pre-commit        # type-check + docs-gate
-└── integrations/
-    ├── github-actions/     # canary.yml snippet
-    └── jarvis/             # uptime_monitor.py
+└── templates/              # Chủ nhà-ready starters
+    ├── BACKLOG_template.md  # BACKLOG.md skeleton (Active / Next / Open / Park)
+    └── claude-settings.local.json  # Pre-approved marker Bash ops template
 ```
 
 ## Common tasks
@@ -110,7 +153,7 @@ sos-kit/
 
 ### Edit docs
 - `README.md` — any tool/skill/integration table MUST match actual folders and binaries. Contributor onboarding breaks if they drift.
-- `docs/PHILOSOPHY.md` — stable. Don't add a 6th principle without strong justification. The 5 principles are load-bearing.
+- `docs/PHILOSOPHY.md` — stable. Don't add a 6th principle without strong justification. The 6 operational principles (plus Principle 0 = accountability) are load-bearing.
 - `docs/SETUP.md` — must match real binary names and `cargo install` instructions.
 - `docs/ORCHESTRATION.md` — orchestrator full spec; condensed handbook at `agents/orchestrator.md` mirrors hard rules. Edit both together.
 

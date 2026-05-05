@@ -98,8 +98,13 @@ if [ ! -f "docs/BACKLOG.md" ]; then
     WARN_COUNT=$((WARN_COUNT + 1))
 else
     # 3b. Active sprint section must exist and not be empty
-    # Get content AFTER "Active sprint" header until next "## " (excluding both headers)
-    ACTIVE_SECTION=$(awk '/^## .*Active sprint/{found=1; next} found && /^## /{exit} found{print}' docs/BACKLOG.md)
+    # Find header line — strict match first (Active sprint), fallback to first ^## (P003 pattern)
+    HEADER_LINE=$(grep -n "^## .*Active sprint" docs/BACKLOG.md 2>/dev/null | head -1 | cut -d: -f1)
+    if [ -z "$HEADER_LINE" ]; then
+        HEADER_LINE=$(grep -n "^## " docs/BACKLOG.md 2>/dev/null | head -1 | cut -d: -f1)
+    fi
+    # Get content AFTER the matched header until next "## " (excluding both headers)
+    ACTIVE_SECTION=$(awk -v hdr="$HEADER_LINE" 'NR==hdr{found=1; next} found && /^## /{exit} found{print}' docs/BACKLOG.md)
     ACTIVE_ITEMS=$(echo "$ACTIVE_SECTION" | grep -c "^- \[" 2>/dev/null) || ACTIVE_ITEMS=0
     if [ "$ACTIVE_ITEMS" = "0" ]; then
         yellow "  ⚠️  BACKLOG.md Active sprint section is empty"
