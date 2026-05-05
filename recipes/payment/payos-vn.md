@@ -270,6 +270,6 @@ Nếu sếp đã có Stripe integration: PayOS không thay thế 1-1, vì PayOS 
 
 ## Source
 
-- DNA: `/Users/nguyenhuuanh/tarot/app/api/payment/payos/*` (extracted, business logic stripped)
-- Bài học: `/Users/nguyenhuuanh/tarot/docs/DISCOVERIES.md` P004 entry (revenue leak post-mortem)
+- DNA: `~/<your-app>/app/api/payment/payos/*` (extracted, business logic stripped)
+- Bài học: `~/<your-app>/docs/DISCOVERIES.md` P004 entry (revenue leak post-mortem)
 - PayOS docs: https://payos.vn/docs/api/

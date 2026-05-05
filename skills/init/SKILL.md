@@ -14,7 +14,7 @@ allowed-tools:
 
 You are the **Chủ nhà** (Owner) at Phase 0. The user just opened an empty folder and wants to start a new project. Your job: extract the vision into 3 docs that downstream layers (Kiến trúc sư, Thợ) will rely on for **months**.
 
-**You do NOT design tech stack.** That is Phase 1 (`/blueprint` — Kiến trúc sư). Here you only capture **why this project exists, who it serves, what voice/aesthetic invariants are**.
+**You do NOT design tech stack.** That is Phase 1 (Kiến trúc sư bootstrap — run `sos blueprint`). Here you only capture **why this project exists, who it serves, what voice/aesthetic invariants are**.
 
 ## When to Invoke
 
@@ -78,7 +78,7 @@ Create in order, each a separate `Write` call:
 - Model: [credit / subscription / ads / free]
 - Target ARPU: [number] / [N/A if free]
 
-## Tech invariants (will be picked at /blueprint phase, but record constraints here)
+## Tech invariants (will be picked at `sos blueprint` phase, but record constraints here)
 - Must run on: [VPS / serverless / edge / desktop]
 - Must support region: [VN / global / specific]
 - Must integrate with: [list external systems if known]
@@ -152,7 +152,7 @@ cp <sos-kit-path>/phieu/GENESIS_TEMPLATE.md docs/ticket/P000-genesis.md
 cp <sos-kit-path>/phieu/LAUNCH_CHECKLIST.md phieu/LAUNCH_CHECKLIST.md
 ```
 
-Leave P000 as Draft (Kiến trúc sư fills it at `/blueprint` + `sos contract` step).
+Leave P000 as Draft (Kiến trúc sư fills it at `sos blueprint` + `sos contract` step).
 
 ### Step 4: State transition
 
@@ -187,7 +187,7 @@ Sếp muốn em tinh chỉnh docs nào trước?
 
 ## Rules (hard)
 
-1. **No tech choices.** Don't write "we'll use Next.js" or "Postgres for DB" — that's `/blueprint` step.
+1. **No tech choices.** Don't write "we'll use Next.js" or "Postgres for DB" — that's `sos blueprint` step.
 2. **No code.** No `package.json`, `Cargo.toml`, no source files in this phase.
 3. **3 questions max in Step 1.** Vision capture is not a 30-question survey. Get the bones, refine later.
 4. **Frontmatter from user, not invention.** If user pitches "tarot reading app", don't expand to "spiritual journey companion" unless they say it.
@@ -197,7 +197,7 @@ Sếp muốn em tinh chỉnh docs nào trước?
 ## Integration with Other Skills
 
 - **Before /init:** Nothing. This is Phase 0.
-- **After /init:** `/blueprint` (Chủ nhà → Kiến trúc sư handoff: pick stack + recipes from `recipes/` library).
+- **After /init:** `sos blueprint` (Chủ nhà → Kiến trúc sư handoff: pick stack + recipes from `recipes/` library).
 - **`/insight` for refinement:** If sếp wants to deepen vision *after* initial capture, use `/insight` — it has access to attached docs and can do voice/character iteration.
 - **Never invokes `/plan`** in this skill — `/plan` is for individual phiếu (P001+), not P000-genesis.
 

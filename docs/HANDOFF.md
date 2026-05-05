@@ -244,7 +244,7 @@ Rule of thumb: **"Would another Worker need to know this to maintain the code la
 | Architect → Worker | Phiếu ready + Chủ nhà approved | `phieu/TICKET_TEMPLATE.md` | `/plan` |
 | Architect ↔ Worker (auto-debate, v2.1) | Phiếu V1 just written, pre-execute | Debate Log section in phiếu | (orchestrator) |
 | Worker → Worker (pre-code) | Task 0 anchor verification | Inline report per ticket | `/verify` |
-| Worker → Chủ nhà → Architect | Tầng 1 blocker | Multi-choice escalation | `/decide` (on Worker side) |
+| Worker → Chủ nhà → Architect | Tầng 1 blocker | Multi-choice escalation | Worker frames choices → Chủ nhà invokes `/decide` |
 | Worker → Architect (post-code) | Discovery Report | `docs/DISCOVERIES.md` entry | (manual, end of phiếu) |
 
 ## Why this matters

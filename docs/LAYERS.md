@@ -46,7 +46,7 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 │    • Implement (that's Worker)                                  │
 ├─────────────────────────────────────────────────────────────────┤
 │  Layer 2 — KIẾN TRÚC SƯ (Architect / Ticket writer)             │
-│  Skills: /plan  /forge  /verify                                 │
+│  Skills: /plan  /forge  /verify *                                 │
 │  Tools: Claude Web Project — docs access ONLY                   │
 │  Owns:                                                          │
 │    • Phiếu file with full context, tasks, constraints, Task 0   │
@@ -59,7 +59,7 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 │    • Decide implementation detail (that's Worker's Tầng 2)      │
 ├─────────────────────────────────────────────────────────────────┤
 │  Layer 3 — THỢ (Worker / Executor / Field reporter)             │
-│  Skills: /verify  /apply  /review  /qa  /ship  /retro           │
+│  Skills: /verify *  /apply  /review  /qa  /ship  /retro           │
 │  Tools: Claude Code — full shell + code access                  │
 │  Owns:                                                          │
 │    • Execute phiếu Nhiệm vụ after Task 0 passes                 │
@@ -176,7 +176,9 @@ Fix: One skill = one layer + one responsibility. Split.
 | `/ship` | Thợ | Full release pipeline (test → PR → deploy → canary) |
 | `/retro` | Thợ | Weekly retrospective, velocity, hotspots |
 
-One skill = one layer (or cross-layer gate as with `/verify`). No skill does work for two layers at once.
+One skill = one layer (or cross-layer gate as with `/verify *`). No skill does work for two layers at once.
+
+\* `/verify` is a cross-layer gate: Architect specifies what must be verified (Task 0 anchors); Worker runs the verification. Listed in both columns above for that reason.
 
 ## Related docs
 

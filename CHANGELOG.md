@@ -2,6 +2,12 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.1.7] — 2026-05-05
+
+### Changed
+- **P038: Doc drift + symmetry sweep (10 surgical edits, Tầng 2).** Refreshed `CLAUDE.md` repo structure tree (13 skills, all real folders including `agents/`, `bin/`, `bootstrap/`, `recipes/`, `scripts/`, `templates/`). Removed 5 hardcoded personal paths (`/Users/nguyenhuuanh/tarot/...` ×4, `/c/Users/Admin/...` ×1). Added `bin/`, `recipes/`, `bootstrap/` to `README.md` architecture tree + all 13 skills listed. Renamed `## Six Principles` → `## Six Operational Principles` in `docs/PHILOSOPHY.md` + synced `CLAUDE.md` from "5 principles" to "6 operational principles". Refreshed `docs/PHILOSOPHY.md` skills list to include `init`, `idea`, `forge`, `apply`. Added `*` cross-layer marker to `/verify` in `docs/LAYERS.md` (both Architect + Worker columns) with footnote. Clarified `/decide (on Worker side)` cell in `docs/HANDOFF.md` → `Worker frames choices → Chủ nhà invokes /decide`. Ported `Active sprint` fallback from `session-start-banner.sh` into `hooks/pre-commit` (P003 pattern). Replaced 5 `/blueprint` slash-form occurrences in `skills/init/SKILL.md` with `sos blueprint` CLI form. Rephrased `CLAUDE.md` "Not a project scaffolder" to clarify `recipes/` role. No logic change except pre-commit fallback.
+- Files changed: `CLAUDE.md`, `README.md`, `docs/PHILOSOPHY.md`, `docs/LAYERS.md`, `docs/HANDOFF.md`, `hooks/pre-commit`, `skills/init/SKILL.md`, `skills/retro/SKILL.md`, `recipes/ai/multi-model-fallback.md`, `recipes/payment/payos-vn.md`.
+
 ## [v2.1.6] — 2026-04-27
 
 ### Added
