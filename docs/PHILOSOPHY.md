@@ -47,7 +47,7 @@ SOS Kit prevents these failures *structurally*: each role has a different `allow
 
 This is why we don't share context "for efficiency." Shared context is exactly the leak we're preventing.
 
-## Six Principles
+## Six Operational Principles
 
 ### 1. One Command Per Step
 If shipping requires 5 manual steps, you'll eventually skip one. `ship` does all 5 in sequence with gates.
@@ -68,7 +68,7 @@ No multi-user auth. No team dashboards. No Slack integrations. Every feature ser
 ### 6. Separate Roles, Separate Brains
 One person running a software business wears three hats: **Chủ nhà** (owner — what to build, what to reject, maintain vision), **Kiến trúc sư** (architect — how to spec it, docs-only access), **Thợ** (worker — execute, ship, report reality back). When one brain does all three at once, you get half-finished features, scope explosions, and architectural drift.
 
-SOS Kit enforces role separation through **distinct skills per layer** — `/insight` `/route` `/decide` for Chủ nhà, `/plan` for Kiến trúc sư, `/verify` `/review` `/qa` `/ship` `/retro` for Thợ. Different prompts, different mental modes, same human.
+SOS Kit enforces role separation through **distinct skills per layer** — `/init` `/idea` `/insight` `/route` `/decide` for Chủ nhà, `/plan` `/forge` for Kiến trúc sư, `/verify` `/apply` `/review` `/qa` `/ship` `/retro` for Thợ. Different prompts, different mental modes, same human.
 
 Handoffs between layers are **formalized** (see [`HANDOFF.md`](./HANDOFF.md)): insight briefing into vision docs, 5-bullet brief from Chủ nhà to Kiến trúc sư, phiếu (ticket) from Kiến trúc sư to Thợ, Discovery Report back up, blocker escalation via Chủ nhà as courier. No freestyle, no "just ping me." Format prevents context loss — the only thing more expensive than overhead is redundant work from misaligned assumptions.
 

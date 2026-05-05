@@ -287,6 +287,6 @@ OPENROUTER_API_KEY=
 
 ## Source
 
-- DNA: `/Users/nguyenhuuanh/tarot/lib/ai/*` (extracted, business prompts stripped)
-- Bài học: `/Users/nguyenhuuanh/tarot/docs/DISCOVERIES.md` SOUL-V98-TIMEOUT entry
+- DNA: `~/<your-app>/lib/ai/*` (extracted, business prompts stripped)
+- Bài học: `~/<your-app>/docs/DISCOVERIES.md` SOUL-V98-TIMEOUT entry
 - Cost notes từ tarot: Opus v98 đạt ~91% cost reduction so với v94 (prompt caching + structured output)

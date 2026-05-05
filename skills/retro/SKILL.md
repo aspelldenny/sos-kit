@@ -153,7 +153,7 @@ If user manages multiple projects, run retro on each:
 ```bash
 for proj in tarot jarvis media-rating-app docs-gate ship; do
   echo "=== $proj ==="
-  cd /c/Users/Admin/$proj 2>/dev/null && \
+  cd ~/$proj 2>/dev/null && \
   git log --oneline --since="1 week ago" 2>/dev/null | wc -l
   cd - > /dev/null
 done
