@@ -19,7 +19,7 @@
   - **C.** Hybrid — Worker invoke skill chỉ khi phiếu có flag `requires_skill: <name>`.
   - Memory ref: `project_tarot_frontend_design_plugin.md`. Existing [P008] DEPENDS on outcome.
 - [ ] **[P006]** Pre-commit fresh-install friction — `hooks/pre-commit` shells `docs-gate` failing on fresh repo. **Options:** A (soft-fail), B (bootstrap CHANGELOG/ARCHITECTURE skeleton in INSTALL.md), C (loosen hook). Note: cũng nên xét default `.docs-gate.toml` template trong `templates/`. **Strong P006 evidence accumulated:** P035 + P037 EXECUTE both reported "docs-gate not runnable in sos-kit root (no `.docs-gate.toml`)" — friction confirmed in real motion, not theoretical.
-- [x] ~~**[P039]** Doc drift + symmetry sweep~~ — **SHIPPED 2026-05-05** (PR pending merge). Originally drafted as P038 then renumbered after collision detect (upstream PR #6 took P038 first). 10 surgical doc edits across CLAUDE.md / README.md / PHILOSOPHY.md / LAYERS.md / HANDOFF.md / hooks/pre-commit / skills/init / skills/retro / recipes/ai / recipes/payment. Tầng 2 surgical, skip-CHALLENGE + skip-APPROVAL_GATE. Discovery at `docs/discoveries/P039.md`.
+- [x] ~~**[P039]** Doc drift + symmetry sweep~~ — **SHIPPED + MERGED 2026-05-05** (PR #8, merge commit `34bafed`). Originally drafted as P038 then renumbered after collision detect (upstream PR #6 took P038 first). 10 surgical doc edits across CLAUDE.md / README.md / PHILOSOPHY.md / LAYERS.md / HANDOFF.md / hooks/pre-commit / skills/init / skills/retro / recipes/ai / recipes/payment. Tầng 2 surgical, skip-CHALLENGE + skip-APPROVAL_GATE. Discovery at `docs/discoveries/P039.md`.
 
 ---
 
@@ -61,7 +61,7 @@
 - [ ] **[P011]** Worker AUDIT mode handbook section in `agents/worker.md`. Currently AUDIT mode is documented in `phieu/AUDIT_PROTOCOL.md` only; Worker handbook should declare the mode and trigger phrase.
 - [ ] **[P012]** Orchestrator auto-detect "≥N phiếu since last audit" → suggest running AUDIT. State in `docs/ORCHESTRATION.md` or a small `.audit-counter`.
 - [ ] **[P013]** Vietnamese 13-checks (diacritics, VND, GMT+7, font rendering, PDF export, etc.) → CI gate that runs pre-deploy. Currently a manual checklist in AUDIT_PROTOCOL.
-- [x] ~~**CLAUDE.md tree refresh** — current tree in `CLAUDE.md` does not list `CHANGELOG.md`, `DISCOVERIES.md`, `BACKLOG.md`, `docs/ORCHESTRATION.md`.~~ **Promoted to [P038] in Active sprint 2026-05-05.**
+- [x] ~~**CLAUDE.md tree refresh** — current tree in `CLAUDE.md` does not list `CHANGELOG.md`, `DISCOVERIES.md`, `BACKLOG.md`, `docs/ORCHESTRATION.md`.~~ **Shipped via [P039] 2026-05-05** (originally promoted as P038, renumbered after upstream collision).
 - [ ] **External (out of sos-kit scope)** — `~/docs-gate` repo: default `valid_types` should include `chore`. Currently every project that uses `chore`-typed phiếu must add it manually to local `.docs-gate.toml` (Tarot fixed in tarot PR #253).
 
 ---
