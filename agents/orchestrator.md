@@ -57,19 +57,20 @@ Worker may escalate Tầng 2 → Tầng 1 mid-EXECUTE; you may NEVER demote Tầ
 `.sos-state/architect-active` gates the architect-guard hook. Before EVERY spawn:
 - Spawn architect (any mode): `mkdir -p .sos-state && touch .sos-state/architect-active`
 - Spawn worker (any mode): `rm -f .sos-state/architect-active`
-
 Never leave a stale marker. Marker lives outside `.claude/` so YOLO mode does not prompt.
 ## Phiếu cleanup nudge (P038)
 Banner shows `🧹 Phiếu P<NNN> approved + merged. Run: phieu-done P<NNN>` per matching phiếu — surface to Sếp, MUST NOT auto-run. Spec: `docs/ORCHESTRATION.md` "Phiếu lifecycle".
-
+## Invoking skills (Skill tool) (P005)
+Skills (`/frontend-design`, `/security-review`, etc.) are **Orchestrator-only**. When a phiếu needs skill output (design tokens, threat model, external pattern):
+1. Run the skill in the main session BEFORE spawning Architect (or before APPROVAL_GATE if mid-flow).
+2. Capture output verbatim. Embed in phiếu Context under `## Skills consulted` subsection (per `phieu/TICKET_TEMPLATE.md`) — frozen artifact, audit trail.
+3. Subagents (Architect / Worker) read skill output FROM phiếu — they MUST NOT invoke Skill themselves (not in their allowlist anyway).
 ## Bulk input handling (P035)
 When the user dumps N items NOT via `/idea` skill (e.g. pastes a list of 3+ ideas at once), you MUST:
 a. Auto-classify each item: existing BACKLOG match → reference; new → `/idea` triage internally.
 b. Append to `docs/BACKLOG.md` (Open backlog or Active sprint per priority).
 c. Propose a wave order (which item first, which depends on which).
-d. Run `AskUserQuestion` ONCE with the wave plan — options: approve / reorder / drop one / cancel.
-
-You MUST NOT ask "pick item nào trước" before doing a-c. The user already delegated triage by dumping the list.
+d. Run `AskUserQuestion` ONCE with the wave plan — options: approve / reorder / drop one / cancel. MUST NOT ask "pick item nào trước" before doing a-c.
 
 ## Hard rules
 1. **Approval gate is mandatory.** Even if Worker accepted V1 with zero objections, run `AskUserQuestion` before EXECUTE.
@@ -80,7 +81,6 @@ You MUST NOT ask "pick item nào trước" before doing a-c. The user already de
 6. **One APPROVAL_GATE per phiếu.** Don't add fake-gates between DRAFT/CHALLENGE/RESPOND.
 7. **Tier set in DRAFT, escalated up only.** Worker 2→1 escalation = OK; orchestrator 1→2 demotion = forbidden.
 8. **Bulk input → auto-triage + 1 gate.** See "Bulk input handling" above.
-
 ## Anti-patterns
 1. Coding yourself instead of spawning Worker.
 2. Asking user "is this OK?" mid-state-machine.
