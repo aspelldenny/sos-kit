@@ -2,6 +2,12 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.1.9] — 2026-05-10
+
+### Fixed
+- **P006: Pre-commit fresh-install friction — docs-gate bootstrap.** Three incidents (P035, P037, media-rating-app P001) showed `hooks/pre-commit` failing ungracefully on repos without `.docs-gate.toml`. Fix: (1) guard preamble in hook — missing config prints yellow warning + skips docs-gate check (no hard fail, other checks still run); (2) `templates/.docs-gate.toml` reference template for downstream sos-kit-style projects; (3) sos-kit root `.docs-gate.toml` dogfood config so kit validates itself; (4) `docs/SETUP.md` bootstrap step added after hook copy instruction.
+- Files changed: `templates/.docs-gate.toml` (new), `.docs-gate.toml` (new), `hooks/pre-commit`, `docs/SETUP.md`, `docs/discoveries/P006.md` (new), `docs/DISCOVERIES.md`.
+
 ## [v2.1.8] — 2026-05-05
 
 ### Changed

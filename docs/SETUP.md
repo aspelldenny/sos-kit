@@ -135,6 +135,23 @@ chmod +x .githooks/pre-commit
 git config core.hooksPath .githooks
 ```
 
+### 5a. Bootstrap `docs-gate` config
+
+The pre-commit hook invokes `docs-gate` to verify documentation hygiene. On a fresh repo, generate the config:
+
+```bash
+docs-gate init
+```
+
+Or copy the reference template and tune it:
+
+```bash
+cp ~/path/to/sos-kit/templates/.docs-gate.toml .docs-gate.toml
+# then tune docs_dir / changelog / [architecture] for your repo
+```
+
+If `.docs-gate.toml` is absent, the hook prints a yellow warning and skips the docs-gate check — other checks (type-check, BACKLOG, Discovery) still run. No hard fail on missing config.
+
 ### 6. Add canary to GitHub Actions
 
 Copy the snippet from `integrations/github-actions/canary.yml` into your deploy workflow.

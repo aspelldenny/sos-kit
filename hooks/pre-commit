@@ -70,7 +70,11 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 blue "[2/3] docs-gate (v1: CHANGELOG + ARCHITECTURE 9 sections)"
 
-if command -v docs-gate >/dev/null 2>&1 || command -v docs-gate.exe >/dev/null 2>&1; then
+# --- docs-gate (P006: graceful skip on fresh install) ---
+if [ ! -f .docs-gate.toml ]; then
+    yellow "  ⚠️  docs-gate skipped: no .docs-gate.toml — run \`docs-gate init\` to bootstrap."
+    WARN_COUNT=$((WARN_COUNT + 1))
+elif command -v docs-gate >/dev/null 2>&1 || command -v docs-gate.exe >/dev/null 2>&1; then
     echo "  → docs-gate"
     if ! docs-gate 2>&1; then
         red "  ❌ docs-gate failed"
@@ -83,6 +87,7 @@ else
     yellow "  ⚠️  docs-gate binary not found — skipping v1 checks"
     WARN_COUNT=$((WARN_COUNT + 1))
 fi
+# --- /docs-gate ---
 
 echo ""
 

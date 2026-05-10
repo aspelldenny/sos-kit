@@ -10,6 +10,7 @@
 
 | Phiếu | Date | 1-line summary |
 |---|---|---|
+| [P006](discoveries/P006.md) | 2026-05-10 | docs-gate bootstrap: missing-config guard in hook + dogfood config + template |
 | [P039](discoveries/P039.md) | 2026-05-05 | Doc drift + symmetry sweep (10 surgical edits, Tầng 2; orchestrator-fetch lesson) |
 | [P038](discoveries/P038.md) | 2026-05-02 | Phiếu lifecycle cleanup + safety rails + DISCOVERIES decoupling |
 | [P037](archive/DISCOVERIES_pre-2026-05.md#p037----2026-04-27----pre-approve-marker-bash-ops-permission-prompt-fix----first-skip-challenge-phiếu) | 2026-04-27 | Marker file pre-approve template (skip-CHALLENGE first dogfood) |
