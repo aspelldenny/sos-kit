@@ -27,6 +27,16 @@
 - CHỈ sửa [list files]
 - KHÔNG sửa [list files that must not be touched]
 
+### Skills consulted (optional)
+
+<!-- Orchestrator: nếu bạn đã chạy skill (e.g., /frontend-design, /security-review) trước khi spawn Architect, paste output VERBATIM here. Frozen artifact for reproducibility. Most phiếu won't need this section — leave blank or delete it if no skill consulted. -->
+
+<!-- Format example:
+**Skill:** `/frontend-design` — invoked by Orchestrator 2026-MM-DD
+**Output:**
+[verbatim skill output here — design tokens, color palette, component spec, etc.]
+-->
+
 ---
 
 ## Task 0 — Verification Anchors

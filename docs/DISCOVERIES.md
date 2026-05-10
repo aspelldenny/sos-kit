@@ -10,6 +10,7 @@
 
 | Phiếu | Date | 1-line summary |
 |---|---|---|
+| [P005](discoveries/P005.md) | 2026-05-10 | Skills are Orchestrator-only — option B locked (frozen-artifact pattern in phiếu Context) |
 | [P006](discoveries/P006.md) | 2026-05-10 | docs-gate bootstrap: missing-config guard in hook + dogfood config + template |
 | [P039](discoveries/P039.md) | 2026-05-05 | Doc drift + symmetry sweep (10 surgical edits, Tầng 2; orchestrator-fetch lesson) |
 | [P038](discoveries/P038.md) | 2026-05-02 | Phiếu lifecycle cleanup + safety rails + DISCOVERIES decoupling |

@@ -2,6 +2,12 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.1.10] — 2026-05-10
+
+### Changed
+- **P005: Worker Skill access — option B locked (Skills are Orchestrator-only).** ~2 weeks of A/B/C debate (started 2026-04-26) closed 2026-05-10. Option B: Orchestrator (main Claude Code session) invokes skills BEFORE spawning Architect/Worker, captures output verbatim, embeds in phiếu Context under `### Skills consulted` subsection as frozen artifact. Subagent `tools:` allowlists unchanged — `Skill` intentionally absent from both `agents/architect.md` and `agents/worker.md` (audit trail: option B = handbook codification, NOT tools-list change). Reproducibility: re-running a phiếu yields the same skill output.
+- Files changed: `agents/orchestrator.md` (new "Invoking skills" section), `agents/architect.md` (1 bullet in DRAFT load-context), `agents/worker.md` (1 sentence in Hard envelope rules), `docs/ORCHESTRATION.md` (Hard rule #9 + example session paragraph), `phieu/TICKET_TEMPLATE.md` (optional `### Skills consulted` subsection), `docs/LAYERS.md` (access matrix Skills row + footnote), `docs/BACKLOG.md` (flip P005 + re-scope P008), `docs/discoveries/P005.md` (new), `docs/DISCOVERIES.md` (index row).
+
 ## [v2.1.9] — 2026-05-10
 
 ### Fixed

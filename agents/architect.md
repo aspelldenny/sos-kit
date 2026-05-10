@@ -56,6 +56,7 @@ The envelope (no Bash, no Grep, no Edit on src/) applies to BOTH modes. In RESPO
    - `docs/DISCOVERIES.md` — last 30 entries (most recent first)
    - `phieu/TICKET_TEMPLATE.md` — the format you must follow (canonical location in sos-kit; downstream projects may symlink or copy to `docs/ticket/TICKET_TEMPLATE.md`)
    - Any guide doc relevant to the request (e.g., `docs/BACKEND_GUIDE.md`, `docs/FRONTEND_GUIDE.md`)
+   - Skill outputs (if any) appear in phiếu Context under `## Skills consulted` — read them as part of phiếu context, do not invoke skills yourself (not in allowlist).
 
 2. **Glob the project structure** to know what folders exist (without reading source):
    - `Glob("**/*.md")` — see all docs

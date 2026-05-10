@@ -115,6 +115,7 @@ Default if no phrase matches: Architect → DRAFT, Worker → EXECUTE (backward 
 6. **Marker file hygiene.** Architect-guard hook uses `.sos-state/architect-active` marker. Orchestrator must `mkdir -p .sos-state && touch .sos-state/architect-active` before spawning Architect (any mode), `rm -f .sos-state/architect-active` before spawning Worker. Never leave stale markers. (Marker lives outside `.claude/` so YOLO mode doesn't prompt — `.claude/` is gated even with `--dangerously-skip-permissions`.)
 7. **Tier is set in DRAFT, escalated up only.** Architect's `Tầng` declaration in the phiếu header is the routing key. Worker may escalate Tầng 2 → Tầng 1 mid-EXECUTE with `file:line` evidence; orchestrator may NOT silently demote Tầng 1 → Tầng 2. Phiếu missing the `Tầng` field is rejected pre-spawn — orchestrator re-spawns Architect with explicit "set Tầng: 1 or 2" instruction.
 8. **Bulk input → auto-triage + ONE gate.** When user dumps N items not via `/idea` skill (paste a list of 3+ ideas in one message), orchestrator MUST: (a) auto-classify each item (existing BACKLOG match → reference; new → triage as if `/idea` ran internally); (b) append to `docs/BACKLOG.md` under correct section (Open backlog or Active sprint per priority); (c) propose a wave order with rationale; (d) run `AskUserQuestion` ONCE with the wave plan (options: approve / reorder / drop one / cancel). Orchestrator MUST NOT ask "pick item nào trước" before steps a-c — the user already delegated triage by bulk-dumping. Only re-prompt on (d). Failure mode: orchestrator asks the user to pick order before classifying → violates delegation; recovery = redo the auto-triage step then run gate (d).
+9. **Skills are Orchestrator-only.** Architect and Worker MUST NOT invoke `Skill`. Orchestrator runs the skill in the main session BEFORE spawning Architect (or before APPROVAL_GATE if mid-flow), captures output verbatim, embeds in phiếu Context under `## Skills consulted` subsection as frozen artifact. Reproducibility: re-running the phiếu yields the same output. Allowlist: subagent `tools:` lists do NOT include `Skill` — this is intentional, not an oversight (P005, option B).
 
 ## Failure modes + recovery
 
@@ -150,12 +151,17 @@ After Worker EXECUTE ships and PR merges into main, Sếp runs `phieu-done <P-sl
 ## Concrete example session
 
 ```
-USER: build a phiếu cho item "Add user export" ở Active sprint
+USER: build a phiếu cho item "Add user export" ở Active sprint — phiếu này có UI form, cần design tokens
 
-ORCHESTRATOR: spawning architect (DRAFT)...
+ORCHESTRATOR: phiếu touches UI → running /frontend-design first to capture design tokens, freezing into phiếu Context.
+
+  [SKILL /frontend-design output captured 2026-05-10 — pasted into Architect spawn prompt + phiếu Context under ## Skills consulted]
+
+ORCHESTRATOR: spawning architect (DRAFT) with frozen design-token context...
 
   [ARCHITECT DRAFT]
   Read CLAUDE.md, BACKLOG.md, PROJECT.md, DISCOVERIES.md.
+  Read phiếu Context `## Skills consulted` — design tokens already frozen.
   Glob docs/ticket/*.md → next ID is P042.
   Wrote docs/ticket/P042-user-export.md (V1) with 3 anchors, 4 tasks.
   Returns: 1 ⚠️ anchor (export format not in docs).
