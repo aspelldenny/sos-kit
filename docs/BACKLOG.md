@@ -7,15 +7,28 @@
 
 ---
 
-## 🔥 Active sprint: Worker capability + install UX gaps (resumed)
+## 🔥 Active sprint: Tarot recipe harvest — Tier 1 (5 recipes)
 
-> **Goal:** Close 2 gaps post-Foundation-v2.2: (1) P005 — Worker Skill access (DECISION PENDING — Sếp pick A/B/C); (2) P006 — pre-commit fresh-install friction (`docs-gate` fails on fresh repo). Both now benefit from P036 tier rule — P006 likely Tầng 2 surgical → skip CHALLENGE expected.
-> **Done when:** Both phiếu shipped + dry-run fresh-install zero-workaround.
-> **Started:** 2026-04-26 (paused for Foundation v2.2; resumed 2026-04-27 after Foundation v2.2 ship).
+> **Goal:** Extract 5 high-value battle-tested patterns from Tarot (post-2-week production stability) into `recipes/<category>/<name>.md` so future Next.js projects can `/apply` instead of re-discover. **Pipeline:** Tarot ✅ (now) → media-rating-app cycle 2 → jarvis cycle 2 → … Each project ships → harvest → next project applies.
+> **Done when:** 5 recipes shipped to `recipes/`, each follows `_TEMPLATE.md` (Inputs/Outputs/Steps/Verification anchors/Discovery hooks/Env vars/Source-DNA). Dogfood `/forge` skill (first heavy use — currently underutilized in workflow).
+> **Started:** 2026-05-10 (post Worker capability sprint close).
+> **Order:** P040 first (Sếp explicit pick — PayOS webhook deep). After P040 → measure cost/recipe → batch P041-P044 or sequential.
 
-- [x] ~~**[P005]** Worker Skill access~~ — **SHIPPED 2026-05-10 (option B locked).** Skills are Orchestrator-only; subagent allowlists kept tight (no `Skill` added). Outputs frozen in phiếu Context under `### Skills consulted`. Codified in `agents/orchestrator.md` "Invoking skills" section + `docs/ORCHESTRATION.md` Hard rule #9 + `phieu/TICKET_TEMPLATE.md` optional subsection. Discovery: `docs/discoveries/P005.md`.
-- [ ] **[P006]** Pre-commit fresh-install friction — `hooks/pre-commit` shells `docs-gate` failing on fresh repo. **Options:** A (soft-fail), B (bootstrap CHANGELOG/ARCHITECTURE skeleton in INSTALL.md), C (loosen hook). Note: cũng nên xét default `.docs-gate.toml` template trong `templates/`. **Strong P006 evidence accumulated:** P035 + P037 EXECUTE both reported "docs-gate not runnable in sos-kit root (no `.docs-gate.toml`)" — friction confirmed in real motion, not theoretical. **NEW evidence 2026-05-10 from media-rating-app P001 EXECUTE (cross-project dogfood):** Worker hit `docs-gate` v0.1.0 schema mismatch — Architect assumed `[[trigger]]` syntax, reality is flat-string (`docs_dir`, `changelog`, `[architecture]` section). Worker recovered in-flight via `docs-gate init` + corrected `.docs-gate.toml`. **Sos-kit kit-shoot-foot:** sos-kit own root has NO `.docs-gate.toml` — kit doesn't dogfood its own hook. **Ship target:** `templates/.docs-gate.toml` reference + sos-kit's own root `.docs-gate.toml` + hook resilience (graceful skip if config missing) + INSTALL.md step.
-- [x] ~~**[P039]** Doc drift + symmetry sweep~~ — **SHIPPED + MERGED 2026-05-05** (PR #8, merge commit `34bafed`). Originally drafted as P038 then renumbered after collision detect (upstream PR #6 took P038 first). 10 surgical doc edits across CLAUDE.md / README.md / PHILOSOPHY.md / LAYERS.md / HANDOFF.md / hooks/pre-commit / skills/init / skills/retro / recipes/ai / recipes/payment. Tầng 2 surgical, skip-CHALLENGE + skip-APPROVAL_GATE. Discovery at `docs/discoveries/P039.md`.
+- [ ] **[P040]** `recipes/payment/payos-webhook-deep.md` — webhook signature verify + idempotency + replay test. Source: `tarot/scripts/{register-webhook,verify-payos,test-webhook}.ts` (191 LOC) + `tarot/src/lib/payment/payos.ts`. Companion to existing `payos-vn.md` (which covers create-order + DB schema; this deepens the webhook side: HMAC verify, replay protection, idempotency keys, test harness).
+- [ ] **[P041]** `recipes/ai/safety-classifier.md` — Pre-AI-response content moderation gate. Source: `tarot/src/lib/ai/safety-classifier.ts` + `tarot/src/lib/safety/`. Pattern: classify input → block / sanitize / allow before hitting expensive LLM call.
+- [ ] **[P042]** `recipes/ops/encryption-at-rest.md` — PII encrypt-in-place migration pattern. Source: `tarot/src/lib/encryption.ts` (+ test) + `tarot/scripts/encrypt-existing-data.ts`. Real-world: encrypt existing rows without downtime, key rotation hooks.
+- [ ] **[P043]** `recipes/ops/rate-limit.md` — Rate limit Next.js API routes. Source: `tarot/src/lib/rate-limit.ts` + tests. Likely token-bucket or fixed-window; harvest exact backend (Redis vs in-memory).
+- [ ] **[P044]** `recipes/ops/sentry-nextjs.md` — Sentry server vs client instrumentation split. Source: `tarot/instrumentation.ts` + `instrumentation-client.ts` + `tarot/src/lib/sentry.ts`. Critical because Next.js 15 instrumentation API is non-obvious.
+
+---
+
+## ✅ Recently closed sprint: Worker capability + install UX gaps (2026-04-26 → 2026-05-10)
+
+- [x] ~~**[P005]**~~ SHIPPED 2026-05-10 option B (Skills are Orchestrator-only). PR #10 / `b929bfe`. Codified in `agents/orchestrator.md` + `docs/ORCHESTRATION.md` Hard rule #9 + `phieu/TICKET_TEMPLATE.md` optional `### Skills consulted` subsection. Discovery: `docs/discoveries/P005.md`.
+- [x] ~~**[P006]**~~ SHIPPED 2026-05-10 (docs-gate bootstrap). PR #9 / `1086fe2`. Shipped 4 deliverables: `templates/.docs-gate.toml` reference, sos-kit own root `.docs-gate.toml` (kit dogfoods now), hooks/pre-commit graceful-skip guard, `docs/SETUP.md` bootstrap step. Cross-project evidence from media-rating-app P001 EXECUTE (live `docs-gate init` recovery) informed design — schema = flat-string v0.1.0, NOT `[[trigger]]`. Discovery: `docs/discoveries/P006.md`.
+- [x] ~~**[P039]**~~ SHIPPED 2026-05-05 (doc drift sweep). PR #8 / `34bafed`. 10 surgical doc edits. Discovery: `docs/discoveries/P039.md`.
+
+**Cross-project event in same window:** `media-rating-app` got full sos-kit migration (PR #4 + #5 in that repo, 2026-05-10) — Tarot-mirror parity. Provided live dogfood evidence for P006 design.
 
 ---
 
