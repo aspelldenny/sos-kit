@@ -23,6 +23,9 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 | Tickets (phiếu) | 📖 read, approve | ✏️ write | 📖 read, execute |
 | Discovery Reports | 📖 read | 📖 read before next phiếu | ✏️ write |
 | Running commands (bash, pnpm, git) | ❌ delegates | ❌ cannot | ✏️ runs |
+| Skills (`/frontend-design`, `/security-review`, etc.) | ❌ delegates | ❌ NO access | ❌ NO access |
+
+**Skills note:** `Skill` tool is **Orchestrator-only** (main Claude Code session, the 4th role per `docs/ORCHESTRATION.md` "Why a 4th role"). Subagents (Architect / Worker) cannot invoke skills — outputs come pre-frozen in phiếu Context per `phieu/TICKET_TEMPLATE.md` `### Skills consulted` (P005, option B).
 
 **Critical**: Kiến trúc sư lives in Claude Web Project. No Bash, no Grep on source, no filesystem access beyond project's attached docs. This is why Task 0 grep-first + Discovery Report exist — they are the Architect's only connection to code reality.
 

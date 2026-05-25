@@ -1,0 +1,36 @@
+# sos-kit dogfood — docs-gate config tuned for sos-kit's own docs structure.
+# Schema: flat-string v0.1.0
+
+docs_dir = "docs"
+
+# Changelog is at repo root (not docs/CHANGELOG.md — verified anchor #11).
+# Path is relative to docs_dir, so "../CHANGELOG.md" resolves to repo root.
+changelog = "../CHANGELOG.md"
+changelog_max_age_days = 1
+# changelog_staged disabled: docs-gate v0.1.0 path normalization bug — when changelog
+# path contains "../" (needed because docs_dir="docs" but CHANGELOG.md is at repo root),
+# the staged-files check compares "docs/../CHANGELOG.md" which never matches git's "CHANGELOG.md".
+# Age check (changelog_max_age_days) still enforces freshness.
+changelog_staged = false
+
+rules = []
+staleness = []
+doc_structure = []
+count_check = []
+cross_doc = []
+
+[architecture]
+# sos-kit uses LAYERS.md as its primary architecture doc.
+# Sections enforced: 0 (flexible — sos-kit foundation docs span multiple files).
+enabled = false
+file = "docs/LAYERS.md"
+required_sections = 0
+required_non_empty = []
+
+[ticket]
+# sos-kit phiếu live in docs/ticket/ (relative to docs_dir → resolves to docs/ticket).
+ticket_dir = "ticket"
+type_pattern = ""
+valid_types = []
+# Exclude legacy + template files from ticket validation.
+exclude_files = []

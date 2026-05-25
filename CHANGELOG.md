@@ -13,6 +13,18 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 - New: `scripts/parsers/pnpm_lock_v9.py`, `scripts/parsers/package_lock_v3.py`, `scripts/parsers/requirements_txt.py`, `scripts/parsers/pyproject_toml.py`, `scripts/parsers/cargo_lock.py`, `scripts/parsers/go_sum.py`, `templates/.sos-stack.toml.example`, `docs/discoveries/P040.md`
 - Modified: `bin/sos.sh`, `docs/SETUP.md`, `README.md`, `.gitignore`, `CHANGELOG.md`
 
+## [v2.1.10] — 2026-05-10
+
+### Changed
+- **P005: Worker Skill access — option B locked (Skills are Orchestrator-only).** ~2 weeks of A/B/C debate (started 2026-04-26) closed 2026-05-10. Option B: Orchestrator (main Claude Code session) invokes skills BEFORE spawning Architect/Worker, captures output verbatim, embeds in phiếu Context under `### Skills consulted` subsection as frozen artifact. Subagent `tools:` allowlists unchanged — `Skill` intentionally absent from both `agents/architect.md` and `agents/worker.md` (audit trail: option B = handbook codification, NOT tools-list change). Reproducibility: re-running a phiếu yields the same skill output.
+- Files changed: `agents/orchestrator.md` (new "Invoking skills" section), `agents/architect.md` (1 bullet in DRAFT load-context), `agents/worker.md` (1 sentence in Hard envelope rules), `docs/ORCHESTRATION.md` (Hard rule #9 + example session paragraph), `phieu/TICKET_TEMPLATE.md` (optional `### Skills consulted` subsection), `docs/LAYERS.md` (access matrix Skills row + footnote), `docs/BACKLOG.md` (flip P005 + re-scope P008), `docs/discoveries/P005.md` (new), `docs/DISCOVERIES.md` (index row).
+
+## [v2.1.9] — 2026-05-10
+
+### Fixed
+- **P006: Pre-commit fresh-install friction — docs-gate bootstrap.** Three incidents (P035, P037, media-rating-app P001) showed `hooks/pre-commit` failing ungracefully on repos without `.docs-gate.toml`. Fix: (1) guard preamble in hook — missing config prints yellow warning + skips docs-gate check (no hard fail, other checks still run); (2) `templates/.docs-gate.toml` reference template for downstream sos-kit-style projects; (3) sos-kit root `.docs-gate.toml` dogfood config so kit validates itself; (4) `docs/SETUP.md` bootstrap step added after hook copy instruction.
+- Files changed: `templates/.docs-gate.toml` (new), `.docs-gate.toml` (new), `hooks/pre-commit`, `docs/SETUP.md`, `docs/discoveries/P006.md` (new), `docs/DISCOVERIES.md`.
+
 ## [v2.1.8] — 2026-05-05
 
 ### Changed
