@@ -16,12 +16,7 @@
 - [x] ~~**[P040]**~~ SHIPPED 2026-05-25 — bootstrap stack detection (`sos init security` subcommand + `.sos-stack.toml` schema + 6 parser stubs underscores). PR #11 / `8047525`. Discovery: `docs/discoveries/P040.md`.
 - [ ] **[P041]** Trinh sát (advisory-watch) generic agent — port từ tarot's `.claude/agents/advisory-watch.md`, strip tarot-specific paths (extract-pnpm-versions.py, INV-107 critical list). Generic skeleton reads `.sos-stack.toml` → invoke phù hợp parser từ P040 → query GHSA + vendor pages → return sentinel-wrapped rows. Add `templates/advisory-inbox.md` empty queue. Add `.claude/commands/advisory-scan.md` slash command (orchestrator-side caller does file append). **Tầng 1.** Depends P040.
 - [ ] **[P042]** Giám sát (boundary-check) generic agent — port từ tarot's `.claude/agents/boundary-check.md`, strip 7→5 INV (drop INV-102 nginx + INV-105 `users.credits` tarot-specific). 5 INV generic: env var / external service / cross-user / webhook / dep major. Add `templates/INVARIANTS-template.md` skeleton (5 INV + placeholder cho user-added INV). Add `.claude/commands/security-review.md` slash command. ADVISORY mode (KHÔNG block merge). **Tầng 1.** Depends P040.
-- [ ] **[P043]** Doc drift consolidate (Quản đốc persona codify + alignment engineering) — full sweep:
-  - `docs/LAYERS.md` add Layer 0 Quản đốc (main session, spawn-only, no code edit)
-  - `docs/PHILOSOPHY.md` thêm rationale "alignment engineering / information envelopes" (vì sao role separation chống hallucination — từ tarot's PHILOSOPHY)
-  - `docs/ORCHESTRATION.md` rewrite line 34-37 "Why Quản đốc persona" (consolidate inline edit 2026-05-25), thêm greeting turn + tier priority + session opening script sections từ tarot 141-line orchestrator.md
-  - Cross-ref check: README.md tables, CLAUDE.md repo structure, HANDOFF.md persona references
-  - **Tầng 1** (foundation doc touch, ripple wide). Required to resolve inconsistency from 2026-05-25 inline edit.
+- [x] ~~**[P043]**~~ SHIPPED 2026-05-25 — Doc drift consolidate (Quản đốc persona codify + alignment engineering + deferred-tool loading). PR #12 / `569e02f`. Discovery: `docs/discoveries/P043.md`.
 
 ---
 
@@ -127,6 +122,7 @@
 
 > Quick reference. Full detail in `CHANGELOG.md`.
 
+- ✅ **P043 / v2.2.1** — (2026-05-25) — Doc drift consolidate: Quản đốc persona codify, alignment engineering expansion, deferred-tool loading, cap raise ≤90→≤105. PR #12 / `569e02f`.
 - ✅ **P040 / v2.2.0** — (2026-05-25) — Bootstrap stack detection (`sos init security` + `.sos-stack.toml` schema + 6 parser stubs underscores). PR #11 / `8047525`. First Tarot port wave 1 phiếu shipped.
 - ✅ **Inline edit 2026-05-25** — `agents/orchestrator.md` line 9 + 21: main session persona `Kiến trúc sư` → `Quản đốc` (2-line surgical, no phiếu). Trigger: Sếp directive sau tarot recon — tarot dogfood đã đổi sang Quản đốc, sos-kit cần consistent. **Inconsistency tạm thời:** `docs/ORCHESTRATION.md` line 34-37 vẫn nói "Why Kiến trúc sư persona" — sẽ folded into **[P043]** doc drift consolidate.
 - ✅ **Foundation v2.2 sprint COMPLETE** — (2026-04-27) — P036 + P035 + P037 shipped same day (PRs #3 + #4 + #5 merged). Total ~632k tokens / ~45m drive time across all 3. **P037 first Tầng 2 dogfood:** ~5min/81k tokens (68% reduction vs Tầng 1 baseline). **Rule B working:** 0 anchor mismatches at EXECUTE across all 3 phiếu — humility markers prevented hallucination cleanly.
