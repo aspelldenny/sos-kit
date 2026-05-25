@@ -14,7 +14,7 @@
 > **Started:** 2026-05-25. Trigger: tarot dogfood evolution 2026-04 → 2026-05 reveal 3 new specialist roles (advisory-watch / boundary-check / prompt-reviewer) + Quản đốc persona codify + AI BIAS catalog. Filter applied 3-câu (generic-able / reinforce boundary / proven ≥2-tuần) → 8 candidate items, top 4 promoted Active.
 
 - [x] ~~**[P040]**~~ SHIPPED 2026-05-25 — bootstrap stack detection (`sos init security` subcommand + `.sos-stack.toml` schema + 6 parser stubs underscores). PR #11 / `8047525`. Discovery: `docs/discoveries/P040.md`.
-- [ ] **[P041]** Trinh sát (advisory-watch) generic agent — port từ tarot's `.claude/agents/advisory-watch.md`, strip tarot-specific paths (extract-pnpm-versions.py, INV-107 critical list). Generic skeleton reads `.sos-stack.toml` → invoke phù hợp parser từ P040 → query GHSA + vendor pages → return sentinel-wrapped rows. Add `templates/advisory-inbox.md` empty queue. Add `.claude/commands/advisory-scan.md` slash command (orchestrator-side caller does file append). **Tầng 1.** Depends P040.
+- [x] ~~**[P041]**~~ SHIPPED 2026-05-25 — Trinh sát (advisory-watch) specialist subagent + pnpm/npm parsers. PR #13 / `b253eff`. Discovery: `docs/discoveries/P041.md`.
 - [ ] **[P042]** Giám sát (boundary-check) generic agent — port từ tarot's `.claude/agents/boundary-check.md`, strip 7→5 INV (drop INV-102 nginx + INV-105 `users.credits` tarot-specific). 5 INV generic: env var / external service / cross-user / webhook / dep major. Add `templates/INVARIANTS-template.md` skeleton (5 INV + placeholder cho user-added INV). Add `.claude/commands/security-review.md` slash command. ADVISORY mode (KHÔNG block merge). **Tầng 1.** Depends P040.
 - [x] ~~**[P043]**~~ SHIPPED 2026-05-25 — Doc drift consolidate (Quản đốc persona codify + alignment engineering + deferred-tool loading). PR #12 / `569e02f`. Discovery: `docs/discoveries/P043.md`.
 
@@ -122,6 +122,7 @@
 
 > Quick reference. Full detail in `CHANGELOG.md`.
 
+- ✅ **P041 / v2.2.2** — (2026-05-25) — Trinh sát (advisory-watch) specialist subagent + pnpm/npm parsers + slash command `/advisory-scan`. PR #13 / `b253eff`. CHALLENGE round caught 3 V1→V2 issues.
 - ✅ **P043 / v2.2.1** — (2026-05-25) — Doc drift consolidate: Quản đốc persona codify, alignment engineering expansion, deferred-tool loading, cap raise ≤90→≤105. PR #12 / `569e02f`.
 - ✅ **P040 / v2.2.0** — (2026-05-25) — Bootstrap stack detection (`sos init security` + `.sos-stack.toml` schema + 6 parser stubs underscores). PR #11 / `8047525`. First Tarot port wave 1 phiếu shipped.
 - ✅ **Inline edit 2026-05-25** — `agents/orchestrator.md` line 9 + 21: main session persona `Kiến trúc sư` → `Quản đốc` (2-line surgical, no phiếu). Trigger: Sếp directive sau tarot recon — tarot dogfood đã đổi sang Quản đốc, sos-kit cần consistent. **Inconsistency tạm thời:** `docs/ORCHESTRATION.md` line 34-37 vẫn nói "Why Kiến trúc sư persona" — sẽ folded into **[P043]** doc drift consolidate.
