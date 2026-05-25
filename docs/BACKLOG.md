@@ -7,15 +7,13 @@
 
 ---
 
-## 🔥 Active sprint: Tarot port wave 1 — security pipeline + persona codify
+## ✅ COMPLETE sprint: Tarot port wave 1 — security pipeline + persona codify
 
-> **Goal:** Port lessons từ tarot dogfood về sos-kit canon. Focus: (1) Quản đốc persona codify (kit-level naming consistency), (2) security pipeline skeleton (Trinh sát + Giám sát generic, stack-detect bootstrap).
-> **Done when:** 4 phiếu shipped (P040 + P041 + P042 + P043). Dry-run fresh install: `sos init security` detect stack đúng → `/advisory-scan` chạy zero-workaround → `/security-review <PR>` post advisory comment.
-> **Started:** 2026-05-25. Trigger: tarot dogfood evolution 2026-04 → 2026-05 reveal 3 new specialist roles (advisory-watch / boundary-check / prompt-reviewer) + Quản đốc persona codify + AI BIAS catalog. Filter applied 3-câu (generic-able / reinforce boundary / proven ≥2-tuần) → 8 candidate items, top 4 promoted Active.
+> **SPRINT COMPLETE 2026-05-25** — all 4 phiếu shipped. "Done when" criteria verified: `sos init security` detect stack đúng → `/advisory-scan` chạy zero-workaround → `/security-review <PR>` post advisory comment. Sprint closed.
 
 - [x] ~~**[P040]**~~ SHIPPED 2026-05-25 — bootstrap stack detection (`sos init security` subcommand + `.sos-stack.toml` schema + 6 parser stubs underscores). PR #11 / `8047525`. Discovery: `docs/discoveries/P040.md`.
 - [x] ~~**[P041]**~~ SHIPPED 2026-05-25 — Trinh sát (advisory-watch) specialist subagent + pnpm/npm parsers. PR #13 / `b253eff`. Discovery: `docs/discoveries/P041.md`.
-- [ ] **[P042]** Giám sát (boundary-check) generic agent — port từ tarot's `.claude/agents/boundary-check.md`, strip 7→5 INV (drop INV-102 nginx + INV-105 `users.credits` tarot-specific). 5 INV generic: env var / external service / cross-user / webhook / dep major. Add `templates/INVARIANTS-template.md` skeleton (5 INV + placeholder cho user-added INV). Add `.claude/commands/security-review.md` slash command. ADVISORY mode (KHÔNG block merge). **Tầng 1.** Depends P040.
+- [x] ~~**[P042]**~~ SHIPPED 2026-05-25 — Giám sát (boundary-check) specialist subagent — 5 generic INV, ADVISORY mode, sentinel markers, `/security-review` slash command. PR #14 / `ddaa25b`. Discovery: `docs/discoveries/P042.md`.
 - [x] ~~**[P043]**~~ SHIPPED 2026-05-25 — Doc drift consolidate (Quản đốc persona codify + alignment engineering + deferred-tool loading). PR #12 / `569e02f`. Discovery: `docs/discoveries/P043.md`.
 
 ---

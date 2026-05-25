@@ -2,6 +2,10 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Sprint close: Tarot port wave 1 — 2026-05-25
+
+All 4 phiếu complete: P040 (stack-detect `sos init security`) + P041 (Trinh sát advisory-watch) + P042 (Giám sát boundary-check) + P043 (Quản đốc persona codify). Security pipeline both sides shipped: `/advisory-scan` (external CVE/GHSA scan via Trinh sát) + `/security-review` (internal invariant scan via Giám sát). Kit now ships: stack detection → advisory scan → boundary check → ADVISORY PR comment flow. CHANGELOG range: v2.2.0 → v2.2.3.
+
 ## [v2.2.3] — 2026-05-25
 
 ### Added
