@@ -11,6 +11,8 @@ Building software alone means wearing three hats every day:
 - **Kiến trúc sư** (Architect) — reading docs (not code), writing phiếu, specifying architecture
 - **Thợ** (Worker) — reading code, executing the phiếu, running tests, shipping, monitoring, reporting discoveries back
 
+In v2.1+ Subagent mode, the main Claude Code session surfaces as **Quản đốc** (Layer 0 orchestrator persona) — automates the relay between Kiến trúc sư and Thợ subagents, runs the state machine, gates approval. Still 3 hats for the human; Quản đốc is the AI orchestrator persona. See [`docs/LAYERS.md`](./docs/LAYERS.md#access-matrix--who-can-see-what) for Layer 0 specifics.
+
 If one brain does all three at once, features ship half-finished, tickets expand mid-build, and production breaks because nobody checked. SOS Kit enforces **role separation** — distinct skills per layer, formalized handoffs, and structural envelopes (tool allowlists + hooks) — so the same human snaps into different modes cleanly.
 
 See [`docs/LAYERS.md`](./docs/LAYERS.md) for the role boundaries and [`docs/HANDOFF.md`](./docs/HANDOFF.md) for how the layers pass work.
@@ -53,7 +55,7 @@ VISION → BLUEPRINT → CONTRACT → SCAFFOLD → ITERATE → LAUNCH
  nhà)    Kiến trúc sư)
 ```
 
-Each stage belongs to exactly one layer. Crossing layers without a handoff is the anti-pattern SOS Kit is built to prevent. See [`docs/GENESIS.md`](./docs/GENESIS.md) for 0→1 details.
+Each stage belongs to exactly one layer. Crossing layers without a handoff is the anti-pattern SOS Kit is built to prevent. **In Subagent mode, Quản đốc (the main-session orchestrator persona) sits across all stages — it routes between layers and runs the state machine but does no stage work itself.** See [`docs/GENESIS.md`](./docs/GENESIS.md) for 0→1 details.
 
 ## Components
 
@@ -104,12 +106,15 @@ vps serve               # Start MCP server (stdio transport)
 
 ### Claude Code Subagents (v2 — Subagent mode)
 
-Two role-bound subagents live in `.claude/agents/` and run inside the same Claude Code session:
+Two role-bound subagents live in `.claude/agents/` and run inside the same Claude Code session, alongside the main-session orchestrator (Quản đốc):
 
 | Subagent | File | Tools allowed | Cannot |
 |---|---|---|---|
+| **orchestrator** (Quản đốc) | `agents/orchestrator.md` (handbook for main session) | Read, Write, Glob, Grep, Bash (marker ops), Task*, AskUserQuestion, Skill | Read source code for "context"; write production code; edit vision docs; skip APPROVAL_GATE |
 | **architect** | `.claude/agents/architect.md` | Read, Write, Glob, TaskCreate/Update/List, AskUserQuestion | Bash, Grep, Edit, read source files (blocked by hook) |
 | **worker** | `.claude/agents/worker.md` | Read, Write, Edit, Glob, Grep, Bash, TaskCreate/Update/List, AskUserQuestion | Read PROJECT.md / SOUL.md / CHARACTER.md (vision docs) |
+
+Quản đốc is NOT a spawnable subagent — it's the main Claude Code session itself, with `agents/orchestrator.md` serving as its system-prompt handbook. The two `.claude/agents/*.md` subagents (architect + worker) are spawned by Quản đốc as work demands.
 
 Enforcement is structural: a `PreToolUse` hook (`scripts/architect-guard.sh`) hard-blocks Read/Glob on `src/` paths when the architect marker is active, so even a misbehaving model cannot bypass the envelope.
 

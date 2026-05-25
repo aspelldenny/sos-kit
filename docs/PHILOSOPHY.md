@@ -43,9 +43,27 @@ The 3-role split isn't only about workflow. It's about **information envelope en
 
 LLMs hallucinate in proportion to how much *irrelevant* context they see. An Architect-LLM with grep access invents implementations that "look right" but cite phantom functions. A Worker-LLM with full vision-doc access silently re-architects "while it's there." Both failures are caused by **information leakage across role boundaries**, not by lack of skill.
 
-SOS Kit prevents these failures *structurally*: each role has a different `allowedTools` envelope — Architect reads docs but cannot grep code; Worker reads code but cannot see vision strategy. The same human drives all three, but the AI assisting each role sees only what that role needs. Three envelopes, three accountability surfaces.
+### How envelopes are enforced
 
-This is why we don't share context "for efficiency." Shared context is exactly the leak we're preventing.
+SOS Kit prevents these failures *structurally*. Each role has a different `allowedTools` envelope:
+
+- **Quản đốc (Layer 0, orchestrator persona for the main Claude Code session)** — spawns subagents, drives state machine, invokes Skills. NO source-code reads (envelope guard); NO production code edits. Sees the phiếu, the BACKLOG, the Debate Log — enough to route, not enough to second-guess.
+- **Kiến trúc sư (Architect subagent)** — `Read`, `Write`, `Glob`. NO Bash, NO Grep, NO Edit on source. Reads docs (PROJECT/SOUL/CHARACTER/guides/BACKLOG/DISCOVERIES) but cannot grep source code. Writes phiếu with Task 0 anchors — every assumption framed as "Worker verify at file:line."
+- **Thợ (Worker subagent)** — full code tools (`Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`). Cannot Read vision docs (PROJECT.md / SOUL.md / CHARACTER*.md) — prevents silent re-architecture from "knowing" the why beyond the phiếu.
+
+Three envelopes, three accountability surfaces. Plus Layer 0 (Quản đốc) routing between them. The same human drives all four mental modes; the AI assisting each one sees only what that mode needs.
+
+### Why "share context for efficiency" is the trap
+
+The intuitive optimization — give every role more context "so it can help better" — is exactly the leak we prevent. Architect with code access invents anchors. Worker with vision access drifts scope. Quản đốc with source-code access starts coding instead of spawning Worker.
+
+The envelopes are not a workflow inconvenience; they are the **alignment surface**. Removing them removes the alignment.
+
+### Why role separation, not just prompt discipline
+
+Prompt discipline ("please don't read code, Architect") fails because LLMs reach for what they have access to. The fix is structural: don't ship the tool. `allowedTools: [Read, Write, Glob]` in Architect's frontmatter, plus a `PreToolUse` hook (`scripts/architect-guard.sh`) hard-blocking `Read` on `src/` paths when the architect marker is active. Even a misbehaving model cannot bypass.
+
+This is also why we don't lean on "trust the model": the hallucination-by-irrelevant-context failure mode is **load-bearing**, not occasional. The 3-role split is the minimum viable structure for catching it.
 
 ## Six Operational Principles
 
@@ -67,6 +85,8 @@ No multi-user auth. No team dashboards. No Slack integrations. Every feature ser
 
 ### 6. Separate Roles, Separate Brains
 One person running a software business wears three hats: **Chủ nhà** (owner — what to build, what to reject, maintain vision), **Kiến trúc sư** (architect — how to spec it, docs-only access), **Thợ** (worker — execute, ship, report reality back). When one brain does all three at once, you get half-finished features, scope explosions, and architectural drift.
+
+In v2.1+ Subagent mode, a 4th persona — **Quản đốc** (Layer 0, the main Claude Code session as orchestrator) — automates the relay between Kiến trúc sư and Thợ. Quản đốc is not a 4th *human* role; it's the AI persona surfacing the orchestrator state machine to Sếp. The human still wears three hats. See [`LAYERS.md`](./LAYERS.md) for Layer 0 specifics.
 
 SOS Kit enforces role separation through **distinct skills per layer** — `/init` `/idea` `/insight` `/route` `/decide` for Chủ nhà, `/plan` `/forge` for Kiến trúc sư, `/verify` `/apply` `/review` `/qa` `/ship` `/retro` for Thợ. Different prompts, different mental modes, same human.
 

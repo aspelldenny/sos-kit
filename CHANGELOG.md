@@ -2,6 +2,15 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.2.1] — 2026-05-25
+
+### Changed
+- **P043: Doc drift consolidate — Quản đốc persona codify + alignment engineering + deferred-tool loading.** Main-session orchestrator persona renamed from "Kiến trúc sư" → "Quản đốc" across all operational docs (disambiguates from Kiến trúc sư subagent). Layer 0 Quản đốc row added to `docs/LAYERS.md` access matrix + ASCII diagram. `docs/PHILOSOPHY.md` "alignment engineering" subsection expanded with 3 sub-headings (How envelopes are enforced / Why "share context" is the trap / Why role separation not just prompt discipline). `docs/ORCHESTRATION.md` greeting script + edge case updated; "Why Quản đốc persona" subsection rewritten + 3 new subsections added (Greeting turn template / Tier priority routing rationale / Session opening script). Deferred-tool loading instruction added to `agents/orchestrator.md` + `CLAUDE.md`. `CLAUDE.md:149` orchestrator handbook cap raised ≤90 → ≤105 (Sếp decision 2026-05-25). Cross-ref pass: README.md + CLAUDE.md + HANDOFF.md updated. Dangling staged files (agents/orchestrator.md + docs/BACKLOG.md) committed atomically.
+
+### Files changed
+- Modified: `docs/LAYERS.md`, `docs/PHILOSOPHY.md`, `docs/ORCHESTRATION.md`, `agents/orchestrator.md`, `CLAUDE.md`, `README.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md`, `docs/DISCOVERIES.md`
+- New: `docs/discoveries/P043.md`
+
 ## [v2.2.0] — 2026-05-25
 
 ### Added

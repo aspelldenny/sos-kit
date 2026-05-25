@@ -16,23 +16,46 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 
 ## Access matrix — who can see what
 
-| | Chủ nhà | Kiến trúc sư | Thợ |
-|---|---|---|---|
-| Vision/strategy docs (PROJECT, SOUL, CHARACTER*) | ✏️ maintain | 📖 read | 📖 read |
-| Code (src/, tests/) | 📖 read optional | ❌ **NO access** | ✏️ read+edit |
-| Tickets (phiếu) | 📖 read, approve | ✏️ write | 📖 read, execute |
-| Discovery Reports | 📖 read | 📖 read before next phiếu | ✏️ write |
-| Running commands (bash, pnpm, git) | ❌ delegates | ❌ cannot | ✏️ runs |
-| Skills (`/frontend-design`, `/security-review`, etc.) | ❌ delegates | ❌ NO access | ❌ NO access |
+> Note: Quản đốc = Layer 0 = main-session orchestrator persona. Still 3-role model — Quản đốc orchestrates, doesn't replace Chủ nhà / Kiến trúc sư / Thợ.
 
-**Skills note:** `Skill` tool is **Orchestrator-only** (main Claude Code session, the 4th role per `docs/ORCHESTRATION.md` "Why a 4th role"). Subagents (Architect / Worker) cannot invoke skills — outputs come pre-frozen in phiếu Context per `phieu/TICKET_TEMPLATE.md` `### Skills consulted` (P005, option B).
+| | Chủ nhà | Quản đốc (Layer 0, main session) | Kiến trúc sư | Thợ |
+|---|---|---|---|---|
+| Vision/strategy docs (PROJECT, SOUL, CHARACTER*) | ✏️ maintain | 📖 read (briefing context only) | 📖 read | 📖 read |
+| Code (src/, tests/) | 📖 read optional | ❌ **NO access** (spawn-only) | ❌ **NO access** | ✏️ read+edit |
+| Tickets (phiếu) | 📖 read, approve | 📖 read, route between subagents | ✏️ write | 📖 read, execute |
+| Discovery Reports | 📖 read | 📖 read (next-phiếu briefing) | 📖 read before next phiếu | ✏️ write |
+| Running commands (bash, pnpm, git) | ❌ delegates | ⚠️ marker file ops only (mkdir/touch/rm `.sos-state/`) | ❌ cannot | ✏️ runs |
+| Skills (`/frontend-design`, `/security-review`, etc.) | ❌ delegates | ✏️ invoke (Orchestrator-only per P005) | ❌ NO access | ❌ NO access |
+
+**Skills note:** `Skill` tool is **Quản đốc-only** (the main Claude Code session, Layer 0 orchestrator per `docs/ORCHESTRATION.md`). Subagents (Architect / Worker) cannot invoke skills — outputs come pre-frozen in phiếu Context per `phieu/TICKET_TEMPLATE.md` `### Skills consulted` (P005, option B).
 
 **Critical**: Kiến trúc sư lives in Claude Web Project. No Bash, no Grep on source, no filesystem access beyond project's attached docs. This is why Task 0 grep-first + Discovery Report exist — they are the Architect's only connection to code reality.
 
 ## The 3 layers in detail
 
+> Note: Quản đốc = Layer 0 = main-session orchestrator persona. Still 3-role model — Quản đốc orchestrates between layers, doesn't replace any of the three human roles.
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
+│  Layer 0 — QUẢN ĐỐC (Orchestrator / Main session)               │
+│  Tools: Read, Write, Glob, Grep, Bash (marker file ops only),   │
+│         Task, AskUserQuestion, Skill                            │
+│  Owns:                                                          │
+│    • State machine (DRAFT → CHALLENGE → RESPOND → APPROVAL      │
+│      → EXECUTE)                                                 │
+│    • Subagent spawn (architect + worker), marker file hygiene   │
+│    • Skill invocation (Orchestrator-only per P005), output      │
+│      capture into phiếu Context as frozen artifact              │
+│    • Approval gate via AskUserQuestion (one mandatory gate      │
+│      before EXECUTE_PHASE)                                      │
+│    • Narration of every state transition (no silent state)      │
+│  Does NOT:                                                      │
+│    • Write production code (Worker's surface)                   │
+│    • Read source files (src/, lib/, etc.) for "context"         │
+│    • Edit vision docs (Chủ nhà's surface)                       │
+│    • Skip APPROVAL_GATE — even for V1-accepted phiếu            │
+│  Full spec: `docs/ORCHESTRATION.md`                             │
+├─────────────────────────────────────────────────────────────────┤
 │  Layer 1 — CHỦ NHÀ (Owner / Router / Vision keeper)             │
 │  Skills: /init  /idea  /insight  /route  /decide                │
 │  Tools: Claude Code OR Claude Web (usually wherever the human is)│
