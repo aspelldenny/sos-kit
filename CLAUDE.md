@@ -37,7 +37,7 @@ sos-kit/
 ├── README.md               # User-facing entry point — MUST reflect reality
 ├── CLAUDE.md               # This file — for Claude Code contributors
 ├── .claude/
-│   └── commands/           # Slash command files (P041+ — first: advisory-scan.md)
+│   └── commands/           # Slash command files (P041+: advisory-scan.md, security-review.md)
 ├── CHANGELOG.md            # Release history — newest entry on top
 ├── INSTALL.md              # v2 install guide (5-min, with verify steps)
 ├── LICENSE
@@ -46,6 +46,7 @@ sos-kit/
 │   ├── architect.md        # Kiến trúc sư subagent (Read/Write/Glob, no Bash/Grep/Edit)
 │   ├── worker.md           # Thợ subagent (full code tools, no vision docs)
 │   ├── advisory-watch.md   # Trinh sát specialist subagent (P041 — scoped Bash, queries GHSA)
+│   ├── boundary-check.md   # Giám sát specialist subagent (P042 — scoped Bash for git+grep, checks 5 INV)
 │   └── README.md           # Agent setup instructions
 ├── bin/
 │   └── sos.sh              # CLI entrypoint — delegates to subcommands
@@ -112,6 +113,7 @@ sos-kit/
 └── templates/              # Chủ nhà-ready starters
     ├── BACKLOG_template.md  # BACKLOG.md skeleton (Active / Next / Open / Park)
     ├── advisory-inbox.md    # Empty queue template for security advisories (P041)
+    ├── INVARIANTS-template.md  # 5-INV skeleton + user-added section (P042)
     └── claude-settings.local.json  # Pre-approved marker Bash ops template
 ```
 

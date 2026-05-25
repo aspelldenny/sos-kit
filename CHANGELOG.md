@@ -2,6 +2,15 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.2.3] — 2026-05-25
+
+### Added
+- **P042: Giám sát (boundary-check) specialist subagent — generic port from tarot, strips 7 INV → 5 generic (drop tarot's nginx + users.credits).** Adds `agents/boundary-check.md` (read-only-output specialist, tools: Read/Grep/Glob/Bash-scoped-to-git-and-grep), `templates/INVARIANTS-template.md` (5-INV skeleton + user-added section), `.claude/commands/security-review.md` (orchestrator-side spawn-only caller, posts PR comment in ADVISORY mode — KHÔNG block merge). 5 generic INV: env var template / external service timeout / cross-user binding / webhook signature / dep major changelog audit. Sentinel markers: `<!-- security-review-start -->` / `<!-- security-review-end -->`. Silent-when-clean rule preserved from tarot P275 lesson. `docs/LAYERS.md` Giám sát column filled. `docs/HANDOFF.md` stub expanded to full handoff entry. `README.md` boundary-check subagent row + Security section extended. `docs/SETUP.md` Security pipeline Step 5 added. `CLAUDE.md` repo tree updated. Wave 1 final phiếu shipped — P040+P041+P042+P043 complete.
+
+### Files changed
+- New: `agents/boundary-check.md`, `templates/INVARIANTS-template.md`, `.claude/commands/security-review.md`
+- Modified: `docs/LAYERS.md`, `docs/HANDOFF.md`, `README.md`, `docs/SETUP.md`, `CLAUDE.md`, `CHANGELOG.md`, `docs/DISCOVERIES.md`
+
 ## [v2.2.2] — 2026-05-25
 
 ### Added

@@ -10,6 +10,7 @@
 
 | Phiếu | Date | 1-line summary |
 |---|---|---|
+| [P042](discoveries/P042.md) | 2026-05-25 | Giám sát (boundary-check) — 5 generic INV port from tarot (drops nginx+credits), sentinel rename, ADVISORY-only; Anchor #18 Bash allowlist confirmed non-blocking; 0 tarot refs; Wave 1 sprint COMPLETE |
 | [P041](discoveries/P041.md) | 2026-05-25 | Trinh sát (advisory-watch) — generic port from tarot; pnpm+npm parsers shipped; CHALLENGE caught 3 real V1→V2 issues (PyYAML, parser location, Bash scope); 0 tarot refs in delivered files |
 | [P043](discoveries/P043.md) | 2026-05-25 | Doc drift consolidate — Quản đốc persona codify + alignment engineering + deferred-tool loading; tarot skeletons self-contained; CHALLENGE caught concrete Thay bằng gap V1→V2 |
 | [P040](discoveries/P040.md) | 2026-05-25 | Bootstrap stack detection — `sos init security` + 6 parser stubs; .gitignore __pycache__ expansion; CHALLENGE caught dash/underscore Tầng 1 issue pre-EXECUTE |

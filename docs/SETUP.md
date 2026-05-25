@@ -213,7 +213,7 @@ provider = "cargo"               # cargo publish
 
 If you have a Telegram bot running 24/7, add the uptime monitor from `integrations/jarvis/uptime_monitor.py`. It pings your production URL every 10 minutes and alerts you on Telegram if it goes down.
 
-## Security pipeline (P040 + P041)
+## Security pipeline (P040 + P041 + P042)
 
 Once your project has shipped its first version, optionally enable the security pipeline:
 
@@ -239,6 +239,12 @@ Once your project has shipped its first version, optionally enable the security 
    - Create a follow-on phiếu via `phieu <slug>` to patch.
 
 Currently implemented parsers: pnpm v9 + npm v3 (P041). Other ecosystems (pip, cargo, go) have stubs only — implementation deferred to follow-on phiếu.
+
+5. **Pre-merge security boundary check** (manual or on each PR):
+   In Claude Code session: `/security-review <PR-number>` (or `/security-review <branch>` / `<range>` / no-arg = current branch vs main).
+   This spawns the Giám sát subagent (read-only-output, scoped Bash for `git diff` + `grep` only) which checks the diff against 5 generic INV (env var template / external service timeout / cross-user binding / webhook signature / dep major changelog audit) and posts an ADVISORY comment to the PR. KHÔNG block merge — Chủ nhà reads comment and decides.
+
+   Extend the INV catalog with project-specific INV-6+ by copying `templates/INVARIANTS-template.md` to your project (typically `docs/security/INVARIANTS.md`) and filling the "User-added INV" section.
 
 ## Verify Setup
 
