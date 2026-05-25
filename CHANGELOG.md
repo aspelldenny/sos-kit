@@ -2,6 +2,15 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.2.2] — 2026-05-25
+
+### Added
+- **P041: Trinh sát (advisory-watch) specialist subagent — generic port from tarot, strips tarot-specific paths.** Adds `agents/advisory-watch.md` (read-only-output specialist, tools: Read/Grep/Glob/WebFetch/WebSearch/Bash-scoped-to-parsers), `templates/advisory-inbox.md` (queue with sentinel wrappers `<!-- advisory-start --> / <!-- advisory-end -->`), `.claude/commands/advisory-scan.md` (orchestrator-side spawn-only slash command — first file in `.claude/commands/`). Implements `scripts/parsers/pnpm_lock_v9.py` (PyYAML, 2-level importers layout, peer-suffix strip) + `scripts/parsers/package_lock_v3.py` (JSON flat layout, v2/v3 compatible). Other 4 parsers stay P040 stubs. `docs/LAYERS.md` Specialist subagents subsection. `docs/HANDOFF.md` appendix for specialist-subagent pattern. `README.md` advisory-watch subagent row + Security pipeline mention. `docs/SETUP.md` Security pipeline subsection (PyYAML install + sos init security + /advisory-scan flow). `CLAUDE.md` repo tree updated. State persistence + vendor-page expansion deferred to follow-on phiếu.
+
+### Files changed
+- New: `agents/advisory-watch.md`, `templates/advisory-inbox.md`, `.claude/commands/advisory-scan.md`, `docs/discoveries/P041.md`
+- Modified: `scripts/parsers/pnpm_lock_v9.py`, `scripts/parsers/package_lock_v3.py`, `docs/LAYERS.md`, `docs/HANDOFF.md`, `README.md`, `docs/SETUP.md`, `CLAUDE.md`, `CHANGELOG.md`, `docs/DISCOVERIES.md`
+
 ## [v2.2.1] — 2026-05-25
 
 ### Changed

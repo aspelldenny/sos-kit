@@ -213,6 +213,33 @@ provider = "cargo"               # cargo publish
 
 If you have a Telegram bot running 24/7, add the uptime monitor from `integrations/jarvis/uptime_monitor.py`. It pings your production URL every 10 minutes and alerts you on Telegram if it goes down.
 
+## Security pipeline (P040 + P041)
+
+Once your project has shipped its first version, optionally enable the security pipeline:
+
+1. **Install PyYAML** (one-time, required by pnpm-lock parser):
+   ```bash
+   python3 -c 'import yaml' || pip3 install pyyaml
+   ```
+   (Trinh sát subagent also runs this check at Bước 0 — but pre-installing keeps the first scan smooth.)
+
+2. **Detect stack** (one-time per project):
+   ```bash
+   sos init security
+   ```
+   Writes `.sos-stack.toml` documenting which package manifest + lock file your project uses. See P040 ship notes.
+
+3. **Run advisory scan** (manual or via cron):
+   In Claude Code session: `/advisory-scan`
+   This spawns the Trinh sát subagent (read-only-output, scoped Bash for parser invocation) which queries GitHub Advisory Database + vendor pages, matches advisories against your resolved dep versions, and appends results to `docs/security/advisory-inbox.md`.
+
+4. **Review inbox** (Chủ nhà):
+   Open `docs/security/advisory-inbox.md`. For each row, either:
+   - Mark status `dismissed` (false positive or unaffected code path), or
+   - Create a follow-on phiếu via `phieu <slug>` to patch.
+
+Currently implemented parsers: pnpm v9 + npm v3 (P041). Other ecosystems (pip, cargo, go) have stubs only — implementation deferred to follow-on phiếu.
+
 ## Verify Setup
 
 ```bash

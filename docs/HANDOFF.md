@@ -264,3 +264,52 @@ Rarely. Specifically:
 - **Pure refactor (no behavior change):** phiếu is lightweight — scope + nghiệm thu only. Task 0 still mandatory.
 
 Anything longer than those: use the full format. The overhead is small, the friction it prevents is large.
+
+---
+
+## Appendix — Specialist subagent handoffs (P041+)
+
+Starting P041, a new category of specialist subagents extends the 3-role model without replacing it. These subagents are **read-only-output verifiers** — they surface data (advisory rows, boundary violations) into queues that Chủ nhà reviews at session start. The handoff pattern differs from the 5 main handoffs (0–4) because the output is data (not a phiếu or a code change).
+
+### Pattern: Quản đốc ↔ Trinh sát (advisory-watch)
+
+**Trigger:** User runs `/advisory-scan` in Claude Code (or a cron job does).
+
+**Flow:**
+
+```
+Chủ nhà (session start)
+  → Quản đốc (orchestrator main session):
+      1. Verify .sos-stack.toml exists (product of P040 sos init security)
+      2. Bootstrap advisory-inbox.md if missing (copy from templates/advisory-inbox.md)
+      3. Spawn Trinh sát subagent (Task tool, subagent_type: "advisory-watch")
+            ↓ subagent runs:
+            • Bước 0: PyYAML pre-flight
+            • Bước 1: Read .sos-stack.toml → invoke parsers via scoped Bash
+            • Bước 2: Query GHSA + vendor advisory pages (WebFetch/WebSearch)
+            • Bước 3: Grep codebase for dep usage (Grep/Glob)
+            • Bước 4–5: Format + return sentinel-wrapped rows in final report
+            ↑ subagent returns report
+      4. Extract sentinel block (<!-- advisory-start --> ... <!-- advisory-end -->)
+      5. Append rows to advisory-inbox.md (Write — Quản đốc, NOT Trinh sát)
+      6. Report N new advisories to Chủ nhà
+  → Chủ nhà: review inbox, mark each row dismissed or create follow-on phiếu
+```
+
+**Key architectural distinctions from main handoffs:**
+
+- **Quản đốc does NOT invoke parsers directly** — parser invocation lives inside Trinh sát subagent (scoped Bash). Quản đốc is spawn-only + sentinel-extract + inbox-append.
+- **Trinh sát is structurally Write/Edit-free** — its output is a report with sentinel-wrapped rows. All inbox writes happen in the main session (Quản đốc's side). Structural enforcement via tools allowlist (no Write/Edit in frontmatter).
+- **Chủ nhà gates each row** — no auto-patch, no auto-close. Every advisory row stays `open` until Chủ nhà marks it `dismissed` or creates a phiếu to fix it.
+- **Sentinel markers are LOAD-BEARING:** `<!-- advisory-start -->` / `<!-- advisory-end -->` in `templates/advisory-inbox.md` and the subagent's Bước 5 output must match exactly. Renaming = breaking change requires phiếu.
+- **Handoff terminus = Chủ nhà's review queue** (not a code commit). This is the key difference from Handoffs 0–4 where terminus is always a doc, phiếu, or code commit.
+
+### Upcoming: Giám sát (boundary-check, P042 — pending)
+
+Same structural pattern as Trinh sát, but scans INVARIANT map internally rather than querying external advisory databases. P042 will spec the Giám sát tools, input (`INVARIANTS.md`), and output format. Likely same sentinel-marker-based inbox pattern.
+
+### Summary row for Handoff triggers table
+
+| From → To | Trigger | Format | Skill |
+|---|---|---|---|
+| Quản đốc → Trinh sát → Quản đốc | `/advisory-scan` command | Sentinel-wrapped rows in agent report | (slash command — P041) |
