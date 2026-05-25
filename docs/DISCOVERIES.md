@@ -10,6 +10,7 @@
 
 | Phiếu | Date | 1-line summary |
 |---|---|---|
+| [P043](discoveries/P043.md) | 2026-05-25 | Doc drift consolidate — Quản đốc persona codify + alignment engineering + deferred-tool loading; tarot skeletons self-contained; CHALLENGE caught concrete Thay bằng gap V1→V2 |
 | [P040](discoveries/P040.md) | 2026-05-25 | Bootstrap stack detection — `sos init security` + 6 parser stubs; .gitignore __pycache__ expansion; CHALLENGE caught dash/underscore Tầng 1 issue pre-EXECUTE |
 | [P005](discoveries/P005.md) | 2026-05-10 | Skills are Orchestrator-only — option B locked (frozen-artifact pattern in phiếu Context) |
 | [P006](discoveries/P006.md) | 2026-05-10 | docs-gate bootstrap: missing-config guard in hook + dogfood config + template |

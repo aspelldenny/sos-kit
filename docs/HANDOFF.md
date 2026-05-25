@@ -4,7 +4,9 @@
 
 This doc specifies the **5 handoffs** that actually happen in day-to-day work. See [`LAYERS.md`](./LAYERS.md) for who does what.
 
-**Critical context**: Kiến trúc sư (Claude Web Project) and Thợ (Claude Code) are **separate sessions**. They cannot ping each other. Chủ nhà (the human) is the only bridge. Every handoff that crosses Architect ↔ Worker goes through Chủ nhà as a manual paste.
+**Critical context (v1 Web Project mode)**: Kiến trúc sư (Claude Web Project) and Thợ (Claude Code) are **separate sessions**. They cannot ping each other. Chủ nhà (the human) is the only bridge. Every handoff that crosses Architect ↔ Worker goes through Chủ nhà as a manual paste.
+
+**Critical context (v2.1 Subagent mode)**: Both Kiến trúc sư and Thợ run as subagents inside the same Claude Code session. The main-session orchestrator persona — **Quản đốc** — automates the relay (see Handoff 2.5 below). Chủ nhà is no longer the courier; Chủ nhà only enters at brief-in and APPROVAL_GATE.
 
 ---
 
@@ -86,7 +88,7 @@ RELATED CONTEXT:     [links to earlier phiếu, metrics, user quotes]
 
 ## Handoff 2.5 — Architect ↔ Worker debate (v2.1 Subagent mode only)
 
-**Trigger:** Architect just wrote phiếu V1 in DRAFT mode. Before Worker EXECUTEs, orchestrator spawns Worker in CHALLENGE mode to verify phiếu's assumptions against real code.
+**Trigger:** Architect just wrote phiếu V1 in DRAFT mode. Before Worker EXECUTEs, the main-session orchestrator (persona name: **Quản đốc**) spawns Worker in CHALLENGE mode to verify phiếu's assumptions against real code.
 
 **Transport:** `## Debate Log` section inside the phiếu file. Append-only — never delete prior turns. Phiếu version tracked at the top of the section (V1 → V2 → ...).
 

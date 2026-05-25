@@ -7,18 +7,46 @@
 
 ---
 
-## 🔥 Active sprint: Tarot recipe harvest — Tier 1 (5 recipes)
+## 🔥 Active sprint: Tarot port wave 1 — security pipeline + persona codify
 
-> **Goal:** Extract 5 high-value battle-tested patterns from Tarot (post-2-week production stability) into `recipes/<category>/<name>.md` so future Next.js projects can `/apply` instead of re-discover. **Pipeline:** Tarot ✅ (now) → media-rating-app cycle 2 → jarvis cycle 2 → … Each project ships → harvest → next project applies.
-> **Done when:** 5 recipes shipped to `recipes/`, each follows `_TEMPLATE.md` (Inputs/Outputs/Steps/Verification anchors/Discovery hooks/Env vars/Source-DNA). Dogfood `/forge` skill (first heavy use — currently underutilized in workflow).
-> **Started:** 2026-05-10 (post Worker capability sprint close).
-> **Order:** P040 first (Sếp explicit pick — PayOS webhook deep). After P040 → measure cost/recipe → batch P041-P044 or sequential.
+> **Goal:** Port lessons từ tarot dogfood về sos-kit canon. Focus: (1) Quản đốc persona codify (kit-level naming consistency), (2) security pipeline skeleton (Trinh sát + Giám sát generic, stack-detect bootstrap).
+> **Done when:** 4 phiếu shipped (P040 + P041 + P042 + P043). Dry-run fresh install: `sos init security` detect stack đúng → `/advisory-scan` chạy zero-workaround → `/security-review <PR>` post advisory comment.
+> **Started:** 2026-05-25. Trigger: tarot dogfood evolution 2026-04 → 2026-05 reveal 3 new specialist roles (advisory-watch / boundary-check / prompt-reviewer) + Quản đốc persona codify + AI BIAS catalog. Filter applied 3-câu (generic-able / reinforce boundary / proven ≥2-tuần) → 8 candidate items, top 4 promoted Active.
 
-- [ ] **[P040]** `recipes/payment/payos-webhook-deep.md` — webhook signature verify + idempotency + replay test. Source: `tarot/scripts/{register-webhook,verify-payos,test-webhook}.ts` (191 LOC) + `tarot/src/lib/payment/payos.ts`. Companion to existing `payos-vn.md` (which covers create-order + DB schema; this deepens the webhook side: HMAC verify, replay protection, idempotency keys, test harness).
-- [ ] **[P041]** `recipes/ai/safety-classifier.md` — Pre-AI-response content moderation gate. Source: `tarot/src/lib/ai/safety-classifier.ts` + `tarot/src/lib/safety/`. Pattern: classify input → block / sanitize / allow before hitting expensive LLM call.
-- [ ] **[P042]** `recipes/ops/encryption-at-rest.md` — PII encrypt-in-place migration pattern. Source: `tarot/src/lib/encryption.ts` (+ test) + `tarot/scripts/encrypt-existing-data.ts`. Real-world: encrypt existing rows without downtime, key rotation hooks.
-- [ ] **[P043]** `recipes/ops/rate-limit.md` — Rate limit Next.js API routes. Source: `tarot/src/lib/rate-limit.ts` + tests. Likely token-bucket or fixed-window; harvest exact backend (Redis vs in-memory).
-- [ ] **[P044]** `recipes/ops/sentry-nextjs.md` — Sentry server vs client instrumentation split. Source: `tarot/instrumentation.ts` + `instrumentation-client.ts` + `tarot/src/lib/sentry.ts`. Critical because Next.js 15 instrumentation API is non-obvious.
+- [x] ~~**[P040]**~~ SHIPPED 2026-05-25 — bootstrap stack detection (`sos init security` subcommand + `.sos-stack.toml` schema + 6 parser stubs underscores). PR #11 / `8047525`. Discovery: `docs/discoveries/P040.md`.
+- [ ] **[P041]** Trinh sát (advisory-watch) generic agent — port từ tarot's `.claude/agents/advisory-watch.md`, strip tarot-specific paths (extract-pnpm-versions.py, INV-107 critical list). Generic skeleton reads `.sos-stack.toml` → invoke phù hợp parser từ P040 → query GHSA + vendor pages → return sentinel-wrapped rows. Add `templates/advisory-inbox.md` empty queue. Add `.claude/commands/advisory-scan.md` slash command (orchestrator-side caller does file append). **Tầng 1.** Depends P040.
+- [ ] **[P042]** Giám sát (boundary-check) generic agent — port từ tarot's `.claude/agents/boundary-check.md`, strip 7→5 INV (drop INV-102 nginx + INV-105 `users.credits` tarot-specific). 5 INV generic: env var / external service / cross-user / webhook / dep major. Add `templates/INVARIANTS-template.md` skeleton (5 INV + placeholder cho user-added INV). Add `.claude/commands/security-review.md` slash command. ADVISORY mode (KHÔNG block merge). **Tầng 1.** Depends P040.
+- [ ] **[P043]** Doc drift consolidate (Quản đốc persona codify + alignment engineering) — full sweep:
+  - `docs/LAYERS.md` add Layer 0 Quản đốc (main session, spawn-only, no code edit)
+  - `docs/PHILOSOPHY.md` thêm rationale "alignment engineering / information envelopes" (vì sao role separation chống hallucination — từ tarot's PHILOSOPHY)
+  - `docs/ORCHESTRATION.md` rewrite line 34-37 "Why Quản đốc persona" (consolidate inline edit 2026-05-25), thêm greeting turn + tier priority + session opening script sections từ tarot 141-line orchestrator.md
+  - Cross-ref check: README.md tables, CLAUDE.md repo structure, HANDOFF.md persona references
+  - **Tầng 1** (foundation doc touch, ripple wide). Required to resolve inconsistency from 2026-05-25 inline edit.
+
+---
+
+## 🅿️ Paused sprint: Tarot recipe harvest — Tier 1 (5 recipes)
+
+> **Paused 2026-05-25** — refocused to Tarot port wave 1. Item content + Source-DNA paths preserved here. **ID renumbering needed at resume** — original P040-P044 IDs reused by wave 1; harvest items will be assigned fresh `P0NN` upon promotion.
+
+- [ ] **[TBD]** `recipes/payment/payos-webhook-deep.md` — webhook signature verify + idempotency + replay test. Source: `tarot/scripts/{register-webhook,verify-payos,test-webhook}.ts` (191 LOC) + `tarot/src/lib/payment/payos.ts`. Companion to existing `payos-vn.md`.
+- [ ] **[TBD]** `recipes/ai/safety-classifier.md` — Pre-AI-response content moderation gate. Source: `tarot/src/lib/ai/safety-classifier.ts` + `tarot/src/lib/safety/`.
+- [ ] **[TBD]** `recipes/ops/encryption-at-rest.md` — PII encrypt-in-place migration pattern. Source: `tarot/src/lib/encryption.ts` (+ test) + `tarot/scripts/encrypt-existing-data.ts`.
+- [ ] **[TBD]** `recipes/ops/rate-limit.md` — Rate limit Next.js API routes. Source: `tarot/src/lib/rate-limit.ts` + tests.
+- [ ] **[TBD]** `recipes/ops/sentry-nextjs.md` — Sentry server vs client instrumentation split. Source: `tarot/instrumentation.ts` + `instrumentation-client.ts` + `tarot/src/lib/sentry.ts`.
+
+---
+
+## 🅿️ Paused sprint: Worker capability + install UX gaps
+
+> **Paused 2026-05-25** per Sếp directive — refocus to tarot port wave 1. P005 + P006 still valid; resume after wave 1 ship. P005 may be implicitly resolved by tarot's architect.md 563-line capability matrix pattern (check khi resume).
+
+- [ ] **[P005]** Worker Skill access — `agents/worker.md:4` `tools:` allowlist không có `Skill`. **DECISION PENDING:**
+  - **A.** Add `Skill` vào worker tools allowlist (1-line edit). Pragmatic.
+  - **B.** *(em recommend)* Architect/Orchestrator run skill trước CHALLENGE, đổ output vào phiếu. Worker chỉ apply.
+  - **C.** Hybrid — Worker invoke skill chỉ khi phiếu có flag `requires_skill: <name>`.
+  - Memory ref: `project_tarot_frontend_design_plugin.md`. Existing [P008] DEPENDS on outcome.
+- [ ] **[P006]** Pre-commit fresh-install friction — `hooks/pre-commit` shells `docs-gate` failing on fresh repo. **Options:** A (soft-fail), B (bootstrap CHANGELOG/ARCHITECTURE skeleton in INSTALL.md), C (loosen hook). Note: cũng nên xét default `.docs-gate.toml` template trong `templates/`. **Strong P006 evidence accumulated:** P035 + P037 EXECUTE both reported "docs-gate not runnable in sos-kit root (no `.docs-gate.toml`)" — friction confirmed in real motion, not theoretical.
 
 ---
 
@@ -70,6 +98,10 @@
 - [ ] **[P011]** Worker AUDIT mode handbook section in `agents/worker.md`. Currently AUDIT mode is documented in `phieu/AUDIT_PROTOCOL.md` only; Worker handbook should declare the mode and trigger phrase.
 - [ ] **[P012]** Orchestrator auto-detect "≥N phiếu since last audit" → suggest running AUDIT. State in `docs/ORCHESTRATION.md` or a small `.audit-counter`.
 - [ ] **[P013]** Vietnamese 13-checks (diacritics, VND, GMT+7, font rendering, PDF export, etc.) → CI gate that runs pre-deploy. Currently a manual checklist in AUDIT_PROTOCOL.
+- [ ] **[P044]** CLAUDE.md AI BIAS WARNINGS section (tarot port wave 1 leftover) — port 4 sub-mechanism failure catalog từ tarot CLAUDE.md §2: Trigger gap / Capability gap / Migration completeness gap / Persistence lifecycle gap + Task 0 capability check matrix. **DEFER promote:** "proven ≥2-tuần" rule (CLAUDE.md sos-kit) — tarot catalog mới ~1 tuần (P281-287 ngày 2026-05-24). Promote sau 2026-06-08 nếu Sếp confirm pattern stable.
+- [ ] **[P045]** Skill drift sweep — 6 file drift nhẹ giữa tarot vs sos-kit: `apply` (+2 dòng), `init` (+2 dòng), `forge` `idea` `plan` `retro` (same lines, inline edit). Diff từng file, port relevant content updates. **Tầng 2 surgical.** Run sau wave 1 ship để giảm noise.
+- [ ] **[P046]** `block-env-edit.sh` hook port — chống Edit/Write trên `.env*` files (allow `.env.example`). Port từ tarot's `.claude/scripts/block-env-edit.sh`. Add vào `scripts/` + `templates/claude-settings.local.json` PreToolUse matcher `Edit|Write`. **Tầng 2.**
+- [ ] **[P047]** Phiếu mid-chat counter UX — `.phieu-counter` file driven ID generation, Architect không hỏi Sếp ID mới mỗi lần. Port từ tarot CLAUDE.md §4. Reduce friction khi DRAFT_PHASE fire trong chat. **Tầng 2.**
 - [x] ~~**CLAUDE.md tree refresh** — current tree in `CLAUDE.md` does not list `CHANGELOG.md`, `DISCOVERIES.md`, `BACKLOG.md`, `docs/ORCHESTRATION.md`.~~ **Shipped via [P039] 2026-05-05** (originally promoted as P038, renumbered after upstream collision).
 - [ ] **External (out of sos-kit scope)** — `~/docs-gate` repo: default `valid_types` should include `chore`. Currently every project that uses `chore`-typed phiếu must add it manually to local `.docs-gate.toml` (Tarot fixed in tarot PR #253).
 
@@ -95,11 +127,12 @@
 
 > Quick reference. Full detail in `CHANGELOG.md`.
 
+- ✅ **P040 / v2.2.0** — (2026-05-25) — Bootstrap stack detection (`sos init security` + `.sos-stack.toml` schema + 6 parser stubs underscores). PR #11 / `8047525`. First Tarot port wave 1 phiếu shipped.
+- ✅ **Inline edit 2026-05-25** — `agents/orchestrator.md` line 9 + 21: main session persona `Kiến trúc sư` → `Quản đốc` (2-line surgical, no phiếu). Trigger: Sếp directive sau tarot recon — tarot dogfood đã đổi sang Quản đốc, sos-kit cần consistent. **Inconsistency tạm thời:** `docs/ORCHESTRATION.md` line 34-37 vẫn nói "Why Kiến trúc sư persona" — sẽ folded into **[P043]** doc drift consolidate.
 - ✅ **Foundation v2.2 sprint COMPLETE** — (2026-04-27) — P036 + P035 + P037 shipped same day (PRs #3 + #4 + #5 merged). Total ~632k tokens / ~45m drive time across all 3. **P037 first Tầng 2 dogfood:** ~5min/81k tokens (68% reduction vs Tầng 1 baseline). **Rule B working:** 0 anchor mismatches at EXECUTE across all 3 phiếu — humility markers prevented hallucination cleanly.
 - ✅ **P037 / v2.1.6** — (2026-04-27) — `templates/claude-settings.local.json` pre-approves marker file Bash ops + INSTALL.md Step 2.5 (PR #5)
 - ✅ **P035 / v2.1.5** — (2026-04-27) — `agents/orchestrator.md` (~88-line condensed handbook) + ORCHESTRATION.md Hard rule #8 (bulk input → 1 gate) + INSTALL anti-patterns + CLAUDE.md contributor section (PR #4)
 - ✅ **P036 / v2.1.4** — (2026-04-27) — Workflow tier routing (state machine `tầng==2` skip-CHALLENGE) + Architect humility markers (`[verified]` / `[needs Worker verify]`). Foundation rules specced (PR #3)
-- ✅ **Drift-sprint COMPLETE** — (2026-04-26) — P003 + P004 merged on main. Dry-run zero-workaround.
 
 ---
 

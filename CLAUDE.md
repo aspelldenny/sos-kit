@@ -5,7 +5,7 @@
 
 ## What this repo is
 
-SOS Kit = "Solo Operating System" — a distribution center that packages a **3-role workflow** for one-person software teams: **Chủ nhà** (owner / vision / routing), **Kiến trúc sư** (architect / ticket writer / docs-only), **Thợ** (worker / code executor).
+SOS Kit = "Solo Operating System" — a distribution center that packages a **3-role workflow + orchestrator persona** for one-person software teams: **Chủ nhà** (owner / vision / routing), **Kiến trúc sư** (architect / ticket writer / docs-only), **Thợ** (worker / code executor), plus **Quản đốc** (Layer 0 — the main Claude Code session's orchestrator persona in v2.1+ Subagent mode). See `docs/LAYERS.md` for layer specifics.
 
 What's inside:
 - `docs/LAYERS.md` — the 3-role model, access matrix, 2-tier authority, anti-patterns
@@ -40,7 +40,7 @@ sos-kit/
 ├── INSTALL.md              # v2 install guide (5-min, with verify steps)
 ├── LICENSE
 ├── agents/                 # Orchestrator + role subagent definitions
-│   ├── orchestrator.md     # Condensed orchestrator handbook (≤90 lines, session contract)
+│   ├── orchestrator.md     # Quản đốc handbook (main-session orchestrator persona, ≤105 lines, session contract — includes deferred-tool loading section)
 │   ├── architect.md        # Kiến trúc sư subagent (Read/Write/Glob, no Bash/Grep/Edit)
 │   ├── worker.md           # Thợ subagent (full code tools, no vision docs)
 │   └── README.md           # Agent setup instructions
@@ -146,7 +146,7 @@ sos-kit/
 3. Add an expandable example in `README.md` "Example configs"
 
 ### Edit orchestrator behavior (`agents/orchestrator.md` + `docs/ORCHESTRATION.md`)
-1. `agents/orchestrator.md` is the condensed handbook (~85 lines, ≤90 cap) — system-prompt contract for the main session in every sos-kit project. Keep terse + imperative.
+1. `agents/orchestrator.md` is the condensed Quản đốc handbook (~95 lines after P043 deferred-tool section, ≤105 cap) — system-prompt contract for the main session in every sos-kit project. Keep terse + imperative.
 2. `docs/ORCHESTRATION.md` is the full spec (state machine, failure modes, concrete example session). When changing state machine logic, update BOTH.
 3. If you add a new orchestrator hard rule, mirror it as a one-liner in `agents/orchestrator.md` "Hard rules" section AND a fuller entry in `docs/ORCHESTRATION.md` "Hard rules".
 4. SessionStart banner (`scripts/session-start-banner.sh`) references both files — verify the banner still surfaces them after edit.
@@ -188,6 +188,22 @@ Changes to these belong in their respective repos, not here. SOS Kit only refere
 Public-facing docs (`README.md`, `docs/SETUP.md`, `docs/PHILOSOPHY.md`, `SKILL.md` files) are English — this repo may be published open-source.
 
 Internal conversations with the maintainer (Denny / Nguyen) are in Vietnamese; see the maintainer's personal tarot/CLAUDE.md for that convention. This `CLAUDE.md` stays in English so external contributors can read it.
+
+## Deferred-tool loading (Claude Code session start)
+
+Claude Code's `AskUserQuestion`, `TaskCreate`, `TaskUpdate`, `TaskList` are **deferred** tools — they don't auto-load in fresh sessions. Direct invocation fails with `InputValidationError: tool not loaded`.
+
+The main-session orchestrator (Quản đốc) and Architect subagent both rely on these:
+- `AskUserQuestion` — APPROVAL_GATE + FORCE_ESCALATION (orchestrator), multi-choice escalation (Architect)
+- `TaskCreate` / `TaskUpdate` / `TaskList` — sprint tracking visibility (both)
+
+**On every new Claude Code session in a sos-kit project**, the first turn MUST invoke `ToolSearch` to register them:
+
+```
+ToolSearch query="select:AskUserQuestion,TaskCreate,TaskUpdate,TaskList"
+```
+
+This is documented as a mandatory orchestrator session-start step in `agents/orchestrator.md` "Deferred-tool loading" section. Contributors editing the orchestrator handbook must preserve this instruction — removing it causes silent state-machine failure on later turns (approval gate cannot fire = phiếu cannot be approved = workflow halts).
 
 ## Maintainer-only conventions
 
