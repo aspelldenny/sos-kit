@@ -33,19 +33,19 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 
 Specialist subagents sit **beside** the 3 main roles — not replacing them. They are read-only-output verifiers for narrow security audits, spawned by Quản đốc on demand. Specialist subagents (Trinh sát, Giám sát) are read-only-output verifiers that sit beside the 3 main roles; they don't replace them. Spawned by Quản đốc for narrow security audits.
 
-| | Trinh sát (advisory-watch) | Giám sát (boundary-check, P042 — pending) |
+| | Trinh sát (advisory-watch) | Giám sát (boundary-check) |
 |---|---|---|
-| Role | Specialist subagent — soi advisory ngoài (external CVE/GHSA) | Specialist subagent — soi INVARIANT trong (internal boundary violations) |
+| Role | Specialist subagent — soi advisory ngoài (external CVE/GHSA) | Specialist subagent — soi INVARIANT trong (PR diff against 5 generic boundary rules) |
 | Spawned by | Quản đốc via `/advisory-scan` | Quản đốc via `/security-review` |
-| Tools | Read, Grep, Glob, WebFetch, WebSearch, **Bash (scoped: parser scripts only)** | (P042 will spec) |
-| Cannot | Edit, Write, Task, Skill, arbitrary Bash | (P042 will spec) |
-| Output | Sentinel-wrapped advisory rows → caller appends to inbox | (P042 will spec) |
+| Tools | Read, Grep, Glob, WebFetch, WebSearch, **Bash (scoped: parser scripts only)** | Read, Grep, Glob, **Bash (scoped: `git diff/show/log` + `grep` only)** |
+| Cannot | Edit, Write, Task, Skill, arbitrary Bash | Edit, Write, WebFetch, WebSearch, Task, Skill, `gh pr comment`, arbitrary Bash |
+| Output | Sentinel-wrapped advisory rows → caller appends to inbox | Sentinel-wrapped verdict block (5 INV + APPROVE/NEEDS_REVIEW) → caller posts as PR comment (or local fallback file) |
 
 **Critical**: Kiến trúc sư lives in Claude Web Project. No Bash, no Grep on source, no filesystem access beyond project's attached docs. This is why Task 0 grep-first + Discovery Report exist — they are the Architect's only connection to code reality.
 
 ## The 3 layers in detail
 
-> Note: Quản đốc = Layer 0 = main-session orchestrator persona. Still 3-role model — Quản đốc orchestrates between layers, doesn't replace any of the three human roles. **Specialist subagents** (Trinh sát / advisory-watch P041, Giám sát / boundary-check P042) are read-only-output verifiers that sit beside the 3 main roles — spawned by Quản đốc for narrow security audits, not replacing any layer.
+> Note: Quản đốc = Layer 0 = main-session orchestrator persona. Still 3-role model — Quản đốc orchestrates between layers, doesn't replace any of the three human roles. **Specialist subagents** (Trinh sát / advisory-watch P041, Giám sát / boundary-check P042) are read-only-output verifiers that sit beside the 3 main roles — spawned by Quản đốc for narrow security audits (`/advisory-scan` + `/security-review`), not replacing any layer.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

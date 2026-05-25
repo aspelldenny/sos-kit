@@ -304,12 +304,44 @@ Chủ nhà (session start)
 - **Sentinel markers are LOAD-BEARING:** `<!-- advisory-start -->` / `<!-- advisory-end -->` in `templates/advisory-inbox.md` and the subagent's Bước 5 output must match exactly. Renaming = breaking change requires phiếu.
 - **Handoff terminus = Chủ nhà's review queue** (not a code commit). This is the key difference from Handoffs 0–4 where terminus is always a doc, phiếu, or code commit.
 
-### Upcoming: Giám sát (boundary-check, P042 — pending)
+### Pattern: Quản đốc ↔ Giám sát (boundary-check)
 
-Same structural pattern as Trinh sát, but scans INVARIANT map internally rather than querying external advisory databases. P042 will spec the Giám sát tools, input (`INVARIANTS.md`), and output format. Likely same sentinel-marker-based inbox pattern.
+**Trigger:** User runs `/security-review <PR>` in Claude Code (or `/security-review <branch>` / `<range>` / no-arg variants).
+
+**Flow:**
+
+```
+Chủ nhà (PR push or pre-merge review request)
+  → Quản đốc (orchestrator main session):
+      1. Determine review scope (PR # / branch / range / current HEAD)
+      2. Capture diff via Bash (`gh pr diff <N>` or `git diff <range>`) + PR body if PR mode
+      3. Spawn Giám sát subagent (Task tool, subagent_type: "boundary-check")
+            ↓ subagent runs:
+            • Bước 0: receive context (diff + file list + PR body)
+            • Bước 1: identify scope per 5 INV (env var / external service / cross-user / webhook / dep major)
+            • Bước 2: check rubric per fired INV (scoped Bash for cross-INV correlation)
+            • Bước 3: compose verdict (APPROVE if all 5 PASS or N/A; NEEDS_REVIEW if ≥1 FLAG)
+            • Bước 4: emit sentinel-wrapped block in final report
+            ↑ subagent returns report
+      4. Extract sentinel block (<!-- security-review-start --> ... <!-- security-review-end -->)
+      5. Apply silent-when-clean rule: APPROVE + 0 FLAG → no comment
+      6. Otherwise: post block as PR comment via `gh pr comment <N>` (or fallback to `docs/security/last-review.md`)
+      7. Report verdict to user
+  → Chủ nhà: read PR comment (or local file), decide to address each FLAG or accept risk
+```
+
+**Key architectural distinctions from Trinh sát:**
+
+- **No persistent inbox.** Trinh sát appends to `advisory-inbox.md` (queue lives across sessions). Giám sát posts to PR comment thread (queue lives WITH the PR — merged or closed = queue closed). Local file fallback only when no PR context.
+- **ADVISORY mode is structural.** Slash command does NOT call `gh pr merge --block` or set any blocking status. Even with NEEDS_REVIEW verdict, merge gate is unaffected. Kit-level neutral; user can extend with project-local CI block if they want.
+- **Silent-when-clean rule (from tarot P275 lesson, generic).** APPROVE + 0 FLAG → no comment posted. Reduces approve-fatigue noise. Logic lives in slash command (caller), not in Giám sát (subagent always returns sentinel block; caller decides post-or-skip).
+- **5 INV are generic, not stack-specific.** env var / external service / cross-user / webhook / dep major bump — these patterns apply across npm/python/rust/go/shell. Project-specific INV-6+ live in user's local `INVARIANTS.md` (extending `templates/INVARIANTS-template.md` "User-added INV" section); kit-level Giám sát doesn't check those automatically.
+- **Bash scoped tighter than Trinh sát.** Trinh sát scope: `python3 <parser>` + `pip3 install`. Giám sát scope: `git diff/show/log` + `grep` only. No external network (no WebFetch, no `gh pr comment` — that's slash command's job).
+- **Handoff terminus = PR comment thread** (or local fallback file). Differs from Trinh sát's inbox file. Both differ from main Handoffs 0-4 where terminus is doc/phiếu/code commit.
 
 ### Summary row for Handoff triggers table
 
 | From → To | Trigger | Format | Skill |
 |---|---|---|---|
 | Quản đốc → Trinh sát → Quản đốc | `/advisory-scan` command | Sentinel-wrapped rows in agent report | (slash command — P041) |
+| Quản đốc → Giám sát → Quản đốc | `/security-review <PR>` command | Sentinel-wrapped verdict in agent report | (slash command — P042) |
