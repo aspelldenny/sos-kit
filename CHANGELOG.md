@@ -2,6 +2,17 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## [v2.2.0] — 2026-05-25
+
+### Added
+- **P040: Bootstrap stack detection — `sos init security` subcommand** auto-detects Node/Python/Rust/Go via manifest files (`package.json`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `go.mod`) and lock files, writes `.sos-stack.toml` schema at project root. Adds 6 parser skeleton stubs at `scripts/parsers/` (all return `[]`; P041 fills implementations). Foundation for advisory-scan (P041) + security-review (P042). Schema: `schema_version`, `detected_at`, `sos_kit_version`, `[[stack]]` with `type`/`manifest`/`lock_file`/`lock_format`/`parser`. `sos init` (no args) Phase 0 behavior unchanged. `sos help` updated.
+- `templates/.sos-stack.toml.example` — example schema for inspection/manual authoring.
+- `.gitignore` — `__pycache__/` + `*.pyc` (P040 adds first Python files to repo).
+
+### Files changed
+- New: `scripts/parsers/pnpm_lock_v9.py`, `scripts/parsers/package_lock_v3.py`, `scripts/parsers/requirements_txt.py`, `scripts/parsers/pyproject_toml.py`, `scripts/parsers/cargo_lock.py`, `scripts/parsers/go_sum.py`, `templates/.sos-stack.toml.example`, `docs/discoveries/P040.md`
+- Modified: `bin/sos.sh`, `docs/SETUP.md`, `README.md`, `.gitignore`, `CHANGELOG.md`
+
 ## [v2.1.8] — 2026-05-05
 
 ### Changed

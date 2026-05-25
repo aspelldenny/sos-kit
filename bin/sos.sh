@@ -25,6 +25,7 @@ sos — 0→1 bootstrap for SOS Kit
 
 Usage:
   sos init                     Phase 0 — vision capture (Chủ nhà)
+  sos init security            Bootstrap stack detection — write .sos-stack.toml (foundation for advisory-scan / security-review)
   sos blueprint                Phase 1 — pick stack + recipes (Chủ nhà → Kiến trúc sư)
   sos contract                 Phase 2 — lock P000-genesis.md (Kiến trúc sư)
   sos apply <category>/<name>  Phase 3 — apply 1 recipe (Thợ)
@@ -76,6 +77,15 @@ sos_state_set_phase() {
 }
 
 sos_init() {
+  # Subcommand dispatch: `sos init security` → new bootstrap; `sos init` (no args) → Phase 0 vision capture (legacy)
+  local subcmd="${1:-}"
+  if [[ "$subcmd" == "security" ]]; then
+    shift
+    sos_init_security "$@"
+    return $?
+  fi
+
+  # Legacy Phase 0 vision capture (unchanged behavior)
   if [[ -f docs/PROJECT.md ]]; then
     echo "⚠ docs/PROJECT.md already exists. This project is past phase 0."
     echo "  Use '/insight' skill to refine, or 'sos status' to see current phase."
@@ -97,6 +107,148 @@ sos_init() {
   echo "  5. Update .sos/state.toml → phase = VISION_CAPTURED"
   echo ""
   echo "After /init done: 'sos blueprint' to continue Phase 1."
+}
+
+sos_init_security() {
+  # Detect stack(s) by manifest file existence, write .sos-stack.toml.
+  # Foundation for advisory-scan (P041) + security-review (P042).
+
+  if [[ -f .sos-stack.toml ]]; then
+    echo "⚠ .sos-stack.toml already exists at project root."
+    echo "  Inspect with: cat .sos-stack.toml"
+    echo "  To refresh: delete and re-run 'sos init security'."
+    return 1
+  fi
+
+  local ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local stacks_found=0
+  local tmpfile
+  tmpfile="$(mktemp)"
+
+  # Header
+  cat > "$tmpfile" <<EOF
+# .sos-stack.toml — written by 'sos init security' on $ts
+# Generic stack metadata. Consumed by advisory-scan (P041) + security-review (P042).
+# Schema version 1. Bump if breaking.
+
+schema_version = 1
+detected_at = "$ts"
+sos_kit_version = "P040"
+
+EOF
+
+  # Node — package.json
+  if [[ -f package.json ]]; then
+    local node_lock=""
+    local node_format=""
+    local node_parser=""
+    if [[ -f pnpm-lock.yaml ]]; then
+      node_lock="pnpm-lock.yaml"
+      node_format="pnpm-v9"
+      node_parser="scripts/parsers/pnpm_lock_v9.py"
+    elif [[ -f package-lock.json ]]; then
+      node_lock="package-lock.json"
+      node_format="npm-v3"
+      node_parser="scripts/parsers/package_lock_v3.py"
+    fi
+    cat >> "$tmpfile" <<EOF
+[[stack]]
+type = "node"
+manifest = "package.json"
+lock_file = "$node_lock"
+lock_format = "$node_format"
+parser = "$node_parser"
+
+EOF
+    stacks_found=$((stacks_found + 1))
+  fi
+
+  # Python — pyproject.toml (preferred) OR requirements.txt
+  if [[ -f pyproject.toml ]]; then
+    cat >> "$tmpfile" <<EOF
+[[stack]]
+type = "python"
+manifest = "pyproject.toml"
+lock_file = ""
+lock_format = "pyproject-toml"
+parser = "scripts/parsers/pyproject_toml.py"
+
+EOF
+    stacks_found=$((stacks_found + 1))
+  fi
+  if [[ -f requirements.txt ]]; then
+    cat >> "$tmpfile" <<EOF
+[[stack]]
+type = "python"
+manifest = "requirements.txt"
+lock_file = "requirements.txt"
+lock_format = "requirements-txt"
+parser = "scripts/parsers/requirements_txt.py"
+
+EOF
+    stacks_found=$((stacks_found + 1))
+  fi
+
+  # Rust — Cargo.toml
+  if [[ -f Cargo.toml ]]; then
+    local rust_lock=""
+    if [[ -f Cargo.lock ]]; then
+      rust_lock="Cargo.lock"
+    fi
+    cat >> "$tmpfile" <<EOF
+[[stack]]
+type = "rust"
+manifest = "Cargo.toml"
+lock_file = "$rust_lock"
+lock_format = "cargo-lock"
+parser = "scripts/parsers/cargo_lock.py"
+
+EOF
+    stacks_found=$((stacks_found + 1))
+  fi
+
+  # Go — go.mod
+  if [[ -f go.mod ]]; then
+    local go_lock=""
+    if [[ -f go.sum ]]; then
+      go_lock="go.sum"
+    fi
+    cat >> "$tmpfile" <<EOF
+[[stack]]
+type = "go"
+manifest = "go.mod"
+lock_file = "$go_lock"
+lock_format = "go-sum"
+parser = "scripts/parsers/go_sum.py"
+
+EOF
+    stacks_found=$((stacks_found + 1))
+  fi
+
+  # No stack found — write empty .sos-stack.toml with hint
+  if [[ "$stacks_found" -eq 0 ]]; then
+    cat >> "$tmpfile" <<'EOF'
+# No stack manifest detected at project root.
+# Expected one of: package.json / pyproject.toml / requirements.txt / Cargo.toml / go.mod
+# Add [[stack]] entries manually if your project layout is non-standard, or
+# re-run 'sos init security' from a directory containing one of the above.
+EOF
+  fi
+
+  mv "$tmpfile" .sos-stack.toml
+
+  echo "✓ .sos-stack.toml written (${stacks_found} stack(s) detected)"
+  if [[ "$stacks_found" -gt 0 ]]; then
+    echo ""
+    echo "Next:"
+    echo "  - Inspect: cat .sos-stack.toml"
+    echo "  - Run advisory scan (when P041 ships): /advisory-scan"
+    echo "  - Run boundary check (when P042 ships): /security-review <PR>"
+  else
+    echo ""
+    echo "⚠ No stack detected. See .sos-stack.toml comments for next steps."
+    return 2
+  fi
 }
 
 sos_blueprint() {

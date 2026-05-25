@@ -122,6 +122,12 @@ vps init                    # generates ~/.vps.toml
 
 # 4g. Edit .ship.toml with your canary URL + deploy target
 #     (see "Per-Stack Setup" below for stack-specific configs)
+
+# 4h. Initialize security pipeline metadata (P040+)
+# Detects stack (Node/Python/Rust/Go) via manifest files, writes .sos-stack.toml.
+# Required before /advisory-scan (P041) or /security-review (P042) — those subagents
+# read .sos-stack.toml to know which parser + which ecosystem to query.
+sos init security
 ```
 
 After these steps, your project is ready. Chủ nhà fills `docs/PROJECT.md` and `docs/SOUL.md` as vision firms up, then Architect in Claude Web can start writing phiếu.
