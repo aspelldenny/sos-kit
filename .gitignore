@@ -14,3 +14,7 @@ bootstrap/*/target/
 
 # Pre-phiếu snapshot rollback points (P038)
 .backup/
+
+# Python bytecode (P040 — scripts/parsers/ added)
+__pycache__/
+*.pyc

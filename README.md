@@ -65,7 +65,7 @@ Each stage belongs to exactly one layer. Crossing layers without a handoff is th
 | **[docs-gate](https://github.com/aspelldenny/docs-gate)** | 5.2MB | Enforce documentation compliance before every commit |
 | **[guard](https://github.com/aspelldenny/guard)** | 1.9MB | Pre-deploy infrastructure gate — catch schema drift, env sync, canary mismatch before they hit production |
 | **[vps](https://github.com/aspelldenny/vps)** | 1.2MB | Production ops — status, logs, restart, metrics for Docker Compose projects over SSH |
-| **sos** (in `bootstrap/sos-rs/`) | (planned) | 0→1 bootstrap — `sos init` / `blueprint` / `contract` / `apply` / `launch`. Bash MVP at `bin/sos.sh`. See [`docs/GENESIS.md`](./docs/GENESIS.md). |
+| **sos** (in `bootstrap/sos-rs/`) | (planned) | 0→1 bootstrap — `sos init` / `sos init security` / `blueprint` / `contract` / `apply` / `launch`. Bash MVP at `bin/sos.sh`. See [`docs/GENESIS.md`](./docs/GENESIS.md). |
 
 ### ship subcommands
 
@@ -192,6 +192,8 @@ Kiến trúc sư picks recipes per-project in `BLUEPRINT.md` → Thợ runs `/ap
 ### Genesis — the master phiếu (P000)
 
 For new projects, `sos contract` generates `phieu/P000-genesis.md` — a single phiếu locking entire MVP scope by SHA256 spec_hash. No phiếu after P000 may add scope without re-locking + audit trail. See [`phieu/GENESIS_TEMPLATE.md`](./phieu/GENESIS_TEMPLATE.md) and [`phieu/LAUNCH_CHECKLIST.md`](./phieu/LAUNCH_CHECKLIST.md) (20-mục launch gate).
+
+After `sos init`, optionally run `sos init security` to bootstrap stack detection for the advisory-scan + security-review subagents (introduced in P040; consumed by P041 + P042). This writes `.sos-stack.toml` at the project root — a machine-readable manifest of which lock files and parser stubs to use per ecosystem.
 
 ### Relay Protocol — Chủ nhà as the courier (Web Project mode)
 
