@@ -29,11 +29,23 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 
 **Skills note:** `Skill` tool is **Quản đốc-only** (the main Claude Code session, Layer 0 orchestrator per `docs/ORCHESTRATION.md`). Subagents (Architect / Worker) cannot invoke skills — outputs come pre-frozen in phiếu Context per `phieu/TICKET_TEMPLATE.md` `### Skills consulted` (P005, option B).
 
+### Specialist subagents (P041+)
+
+Specialist subagents sit **beside** the 3 main roles — not replacing them. They are read-only-output verifiers for narrow security audits, spawned by Quản đốc on demand. Specialist subagents (Trinh sát, Giám sát) are read-only-output verifiers that sit beside the 3 main roles; they don't replace them. Spawned by Quản đốc for narrow security audits.
+
+| | Trinh sát (advisory-watch) | Giám sát (boundary-check, P042 — pending) |
+|---|---|---|
+| Role | Specialist subagent — soi advisory ngoài (external CVE/GHSA) | Specialist subagent — soi INVARIANT trong (internal boundary violations) |
+| Spawned by | Quản đốc via `/advisory-scan` | Quản đốc via `/security-review` |
+| Tools | Read, Grep, Glob, WebFetch, WebSearch, **Bash (scoped: parser scripts only)** | (P042 will spec) |
+| Cannot | Edit, Write, Task, Skill, arbitrary Bash | (P042 will spec) |
+| Output | Sentinel-wrapped advisory rows → caller appends to inbox | (P042 will spec) |
+
 **Critical**: Kiến trúc sư lives in Claude Web Project. No Bash, no Grep on source, no filesystem access beyond project's attached docs. This is why Task 0 grep-first + Discovery Report exist — they are the Architect's only connection to code reality.
 
 ## The 3 layers in detail
 
-> Note: Quản đốc = Layer 0 = main-session orchestrator persona. Still 3-role model — Quản đốc orchestrates between layers, doesn't replace any of the three human roles.
+> Note: Quản đốc = Layer 0 = main-session orchestrator persona. Still 3-role model — Quản đốc orchestrates between layers, doesn't replace any of the three human roles. **Specialist subagents** (Trinh sát / advisory-watch P041, Giám sát / boundary-check P042) are read-only-output verifiers that sit beside the 3 main roles — spawned by Quản đốc for narrow security audits, not replacing any layer.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

@@ -36,6 +36,8 @@ What's inside:
 sos-kit/
 ├── README.md               # User-facing entry point — MUST reflect reality
 ├── CLAUDE.md               # This file — for Claude Code contributors
+├── .claude/
+│   └── commands/           # Slash command files (P041+ — first: advisory-scan.md)
 ├── CHANGELOG.md            # Release history — newest entry on top
 ├── INSTALL.md              # v2 install guide (5-min, with verify steps)
 ├── LICENSE
@@ -43,6 +45,7 @@ sos-kit/
 │   ├── orchestrator.md     # Quản đốc handbook (main-session orchestrator persona, ≤105 lines, session contract — includes deferred-tool loading section)
 │   ├── architect.md        # Kiến trúc sư subagent (Read/Write/Glob, no Bash/Grep/Edit)
 │   ├── worker.md           # Thợ subagent (full code tools, no vision docs)
+│   ├── advisory-watch.md   # Trinh sát specialist subagent (P041 — scoped Bash, queries GHSA)
 │   └── README.md           # Agent setup instructions
 ├── bin/
 │   └── sos.sh              # CLI entrypoint — delegates to subcommands
@@ -108,6 +111,7 @@ sos-kit/
 │   └── retro/SKILL.md      # Thợ — retrospective
 └── templates/              # Chủ nhà-ready starters
     ├── BACKLOG_template.md  # BACKLOG.md skeleton (Active / Next / Open / Park)
+    ├── advisory-inbox.md    # Empty queue template for security advisories (P041)
     └── claude-settings.local.json  # Pre-approved marker Bash ops template
 ```
 
