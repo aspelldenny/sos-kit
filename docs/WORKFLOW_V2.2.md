@@ -77,20 +77,15 @@ Guarded lane: full quyền (dài, full RESPOND, Sub-mech matrix).
 Fast lane: ≤ 100 dòng phiếu, KHÔNG architect, worker tự execute, oracle-first only.
 ```
 
-### Override — phải ĐAU (chọn 1)
-- **(a) Chủ nhà duyệt** override, KHÔNG orchestrator tự duyệt.
-- **(b)** Override-rate **hard-fail ngưỡng**: vượt 20% trong 50 PR gần nhất → STOP cả sprint.
+### Override — Chủ nhà gate + metric
 
-Cả hai option ngăn drift "gặp phiếu dài, gõ reason, qua".
+**Gate (round 5 ChatGPT #1):** Override BẮT BUỘC Chủ nhà approval với reason explicit. Orchestrator KHÔNG tự duyệt.
+
+**Metric (Tier 2):** `doctor lane-override-rate` compute rolling 50 PR. Vượt 20% → open workflow-tune ticket (KHÔNG hard-fail sprint — có thể budget sai, không nhất thiết team sai). Sếp + orchestrator review weekly.
 
 ### Enforcement
 - `[gate]` pre-CHALLENGE: `doctor lane-check --ticket <path>` đếm dòng + anchor + constraint vs lane field. Vượt budget không có cờ override → block.
-- Token cap đi kèm (N2 ship cùng nhịp):
-  - Fast: 30k token / subagent
-  - Normal: 80k token / subagent
-  - Guarded: 150k token / subagent
-
-Vượt cap → orchestrator AskUserQuestion "scope creep?".
+- Token cap: xem §10 watchlist N2 sensor — log/observe mode trước, chưa block cho đến khi có data P95 từ phiếu Normal lành mạnh.
 
 ### Verification
 ```bash
@@ -113,14 +108,22 @@ Ba objection đắt nhất sprint (P003/P011/P013) đều oracle phán được 
 1. Loại objection? (mechanical / shape / design)
 2. **Oracle nào phán đúng CLAIM, và SOUND hay PARTIAL?**
 
-**Routing:**
+**Routing — tách CHALLENGE mode vs EXECUTE mode (round 5 ChatGPT #3):**
 
 ```
-[mechanical + oracle SOUND đóng-claim]   → Worker fix trực tiếp. KHÔNG Architect.
-[shape + oracle SOUND đóng-claim]        → Worker compile/probe, fix tại chỗ. KHÔNG Architect.
-[shape + oracle PARTIAL]                  → Worker chạy oracle như SÀNG. Phần chạm contract cần contract-test HOẶC Architect short.
-[shape + architecture-impact]             → Architect short respond.
-[design / security / cross-cutting]       → Architect full respond.
+CHALLENGE mode (Worker chưa được code):
+  [mechanical + oracle SOUND đóng-claim]   → Worker self-close objection, ghi fix plan / ticket patch.
+                                              KHÔNG edit code. KHÔNG Architect.
+  [shape + oracle SOUND đóng-claim]        → Worker self-close, ghi probe result. KHÔNG edit code.
+  [shape + oracle PARTIAL]                  → Worker chạy oracle như SÀNG. Phần chạm contract → contract-test trong EXECUTE
+                                              HOẶC Architect short.
+  [shape + architecture-impact]             → Architect short respond.
+  [design / security / cross-cutting]       → Architect full respond.
+
+EXECUTE mode (Worker được code):
+  [mechanical / shape + oracle SOUND đóng-claim]  → Worker apply fix trong edit_allow (§5), commit.
+  [shape + oracle PARTIAL]                          → Worker chạy contract-test thật qua boundary, commit nếu pass.
+  [design / security / cross-cutting]               → Worker KHÔNG self-decide, return Architect.
 ```
 
 ### Oracle SOUND vs PARTIAL — table
@@ -222,6 +225,11 @@ surfaces:
     research_gate: [docs BẮT BUỘC đọc — special class]
     contract_test: [test files chạm boundary, không mock]
     blast: "câu mô tả 'đổi cái này gãy đâu'"
+    # Optional — recommended cho load_bearing: true (round 5 ChatGPT nice-to-have)
+    # Nối AGENT_MAP với §2 oracle-soundness, tránh map chỉ nói đọc gì mà không nói verify bằng gì.
+    oracle_soundness:
+      typecheck: sound | partial | none
+      integration_test: required | optional | n/a
 
 never_default_read:
   - <docs nặng KHÔNG nạp default — CHANGELOG/DISCOVERIES/BACKLOG/Archive>
@@ -238,11 +246,12 @@ never_default_read:
 doctor validate-map --map docs/AGENT_MAP.yaml
 # Check 1: mọi path trong edit/read_shallow/read_deep/research_gate/contract_test tồn tại (test -e)
 # Check 2: mọi anchor #section còn trong file đích
-# Check 3: contract_test files compile/parse (per stack)
 # Exit 0 = OK | 1 = drift | 2 = parse error
 ```
 
 Chạy pre-commit. Map drift còn tệ hơn không map vì nó chủ động nói architect "leaf, đọc nông" trong khi load-bearing, và partial-oracle không vớt.
+
+**Round 5 Claude Web #3 fix:** Check 3 cũ ("contract_test files compile/parse per stack") đã bỏ — đó là oracle PARTIAL lẻn vào gate SOUND. validate-map CHỈ kiểm path + anchor tồn tại (SOUND, rẻ). Pass/fail contract_test là việc của §5 `contract_tests` gate, không lẫn 2 mục đích.
 
 ### Ranh giới mini-map pilot
 
@@ -270,7 +279,7 @@ verify_read:          # [guidance] — worker self-report
   - src/parser/**
   - docs/PARSER.md
   - tests/parser.rs
-contract_tests:       # [gate] — must pass before EXECUTE
+contract_tests:       # [gate] — must pass pre-commit/pre-merge
   - tests/parser_boundary.rs
 ```
 
@@ -278,7 +287,7 @@ contract_tests:       # [gate] — must pass before EXECUTE
 
 - **`edit_allow` = `[gate]`** pre-commit: `git diff --name-only` vs `edit_allow` glob → block file touched outside allow.
 - **`verify_read` = `[guidance]`** worker.md: worker self-declare "đã đọc" trong discovery. KHÔNG enforce được agent đã đọc thật.
-- **`contract_tests` = `[gate]`** pre-EXECUTE: test pass mới được commit.
+- **`contract_tests` = `[gate]`** **pre-commit/pre-merge** (round 5 ChatGPT #4 fix): nhiều contract test chỉ pass SAU khi code viết. Pre-EXECUTE gate sẽ fail vì chưa có implementation. Đúng timing: gate pre-commit (worker đã code xong) hoặc pre-merge (CI). Pre-EXECUTE chỉ check "test target được name/plan", không chạy.
 
 ### Asymmetric reason
 "Agent edit ngoài allow" grep từ git diff (verifiable). "Agent đã đọc đủ file verify" không grep được → ép gate giả sẽ phán bừa (Luật 3).
@@ -292,21 +301,22 @@ contract_tests:       # [gate] — must pass before EXECUTE
 
 ### Cơ chế
 
-**`.phieu-counter` — atomic increment `[hook]`:**
+**`.phieu-counter` — atomic increment qua `doctor phieu-next` wrapper `[hook]`:**
 
+Doctrine (round 5 ChatGPT #5 fix): doctrine spec KHÔNG nhúng shell function. Function shell tự chế có 3 vấn đề: `trap EXIT` không reliable cross-shell, hardcode path repo, không robust crash recovery.
+
+Yêu cầu:
+- Repo-root auto-detect (git toplevel).
+- `mkdir` lock atomic (cross-platform).
+- Cleanup on RETURN/EXIT + stale lock cleanup via PID/TTL (như `.sos-state/architect-active` lock dưới).
+- Implementation: `doctor phieu-next <slug>` — Rust binary handle robust hơn shell.
+
+User-facing alias (single-line wrapper):
 ```bash
-# Function phieu() trong ~/.zshrc — KHÔNG echo gõ tay
-phieu() {
-  local counter_dir="$HOME/<repo>/.phieu-lock"
-  mkdir "$counter_dir" 2>/dev/null || { echo "lock busy"; return 1; }
-  trap "rm -rf $counter_dir" EXIT
-  local n=$(($(cat ~/<repo>/.phieu-counter) + 1))
-  echo $n > ~/<repo>/.phieu-counter
-  # ... create branch + ticket file
-}
+phieu() { doctor phieu-next "$@"; }
 ```
 
-`mkdir` atomic guarantee — không race. Trap cleanup khi exit (kể cả crash).
+Đẩy logic vào binary. Spec doctrine reference subcmd, không inline shell snippet.
 
 **`.sos-state/architect-active` — lock with TTL `[hook]`:**
 
@@ -421,25 +431,13 @@ Canary 2 (2026-05-28) — repro test:
 
 ---
 
-## §9. Hook tiering — 3 tier
+## §9. ~~Hook tiering~~ — REMOVED (round 5 Claude Web #1)
 
-### Bệnh
-Nếu chuyển hết prose → hook (lane budget + sparse discovery + validate-map + rotate cap + .phieu-counter + .sos-state + 6 sub-mech + rubric inject), pre-commit chạy 8-10 check/commit → workflow chậm → người bắt đầu `--no-verify` → Sub-mech A precedent phản tác dụng.
+**Đây là phòng-xa cho bệnh giả định, vi phạm chính Luật 2 của spec.**
 
-### Cơ chế
+Bệnh cũ viết: "Nếu chuyển hết prose → hook, pre-commit chạy 8-10 check, workflow chậm, người bắt đầu `--no-verify`". Chữ "nếu" — bệnh GIẢ ĐỊNH. Chưa có 8-10 hook, chưa ai `--no-verify`, chưa đo wall-time. Em đang thiết kế 3 tầng + wrapper + `violations.jsonl` + weekly digest cho cơn đau tưởng tượng. **§9 cũ là một mảng phòng thủ 3 tầng cho 1 bệnh chưa tồn tại — vi phạm Luật 2 (cấm 3 tầng).** Mỉa mai: vừa lập luật cấm ở §0.1 thì §9 phá.
 
-| Tier | Examples | Bypass policy |
-|------|----------|---------------|
-| **Tier 1 [block, no-bypass]** | Token leak (INV-009), unsafe merge, `.git/config` plaintext token, edit_allow violation, contract_tests fail | `--no-verify` BLOCKED bằng wrapper script. Chỉ Chủ nhà override với reason explicit. |
-| **Tier 2 [warn, review weekly]** | Lane budget exceed, sparse discovery missing field, validate-map drift, rotate soft-cap, oracle SOUND/PARTIAL checklist | Warn nhưng pass. Orchestrator review weekly aggregated count. >X violations/week → trigger lane budget tune. |
-| **Tier 3 [advisory]** | Commit msg format, doctrine home: field, naming convention | Informational. KHÔNG block. |
-
-### Enforcement
-- Tier 1 hooks call `set -e` + `exit 1` + reason.
-- Tier 2 hooks log to `.sos-state/violations.jsonl` + echo warning + `exit 0`.
-- Tier 3 hooks echo info + `exit 0`.
-
-Orchestrator weekly digest tail `.sos-state/violations.jsonl` → Tier 2 pattern.
+→ Hạ xuống `§10 watchlist N4 sensor`. Trước khi bệnh nổ thật, mọi hook cứ là block hết (đơn giản nhất). Khi sensor nổ → lúc đó tier hóa mới chính đáng (và lúc đó Tier 1 phải có CI/server-side fallback per round 5 ChatGPT #6).
 
 ---
 
@@ -449,8 +447,9 @@ Orchestrator weekly digest tail `.sos-state/violations.jsonl` → Tier 2 pattern
 
 | ID | Vùng chưa test | Sensor (1 cơ chế) | Cờ |
 |----|----------------|-------------------|-----|
-| **N2** | Token cháy/subagent | Cap theo lane (Fast 30k / Normal 80k / Guarded 150k) → vượt = AskUserQuestion | `[gate]` |
+| **N2** | Token cháy/subagent | **Log + observe trước, KHÔNG cap block** (round 5 converge). Log token mỗi subagent call vài sprint → có P95 phiếu Normal lành → đặt cap = P95 sau đó. Telemetry chưa chắc thì giữ ở Tier 2 warning. Số gợi ý cũ (Fast 30k/Normal 80k/Guarded 150k) chỉ là **starting prior**, không phải gate cứng. | `[guidance]` → `[gate]` sau data |
 | **N3** | Hook cross-repo fail (P013 bug đã lộ) | block-unsafe-merge detect `-R <owner>/<repo>` flag → invoke gh đúng repo | `[hook]` |
+| **N4** | Hook tiering — pre-commit chậm / `--no-verify` thật (round 5 Claude Web #1) | Sensor: `doctor hook-wall-time` (đếm hook count + đo pre-commit wall-time). Nổ khi wall-time >10s HOẶC ai đó `--no-verify` lần đầu → lúc đó tier hóa chính đáng (Tier 1 phải có CI fallback per ChatGPT #6). Trước đó: mọi hook block. | `[guidance]` |
 | **M1** | Real legacy data ≠ fixture (P013 hit format thứ 4) | Migration phiếu thiếu file snapshot trong `fixtures/` từ real export → block | `[hook]` |
 | **M2** | Branch stale / rebase mid-flight | `git merge-base --is-ancestor origin/main HEAD` pre-EXECUTE | `[hook]` |
 | **M3** | NEEDS_REVIEW path chưa chạy lần nào | Verdict NEEDS_REVIEW → orchestrator AskUserQuestion, KHÔNG tự skip | `[hook]` |
@@ -479,7 +478,8 @@ Ghi rõ KHÔNG làm gì, để tránh scope creep:
 - ❌ Multi-developer concurrency (advisory-inbox + tarot solo — defer M6 stress).
 - ❌ AGENT_MAP load_bearing validator advanced (chỉ check path/anchor, không check "load_bearing flag khớp số caller").
 - ❌ Subagent diff lớn (500+ dòng) test — defer organic Python pilot.
-- ❌ Sub-mechanism G "Spec myopia" full fix — observe Python pilot first (em raise Round 2, defer).
+
+> **Round 5 Claude Web #4 removed:** "Sub-mechanism G 'Spec myopia'" entry cũ — khái niệm này em raise Round 2 inside-view nhưng KHÔNG forge qua rounds 3-4 với evidence. Một khái niệm lẻn vào spec dạng defer = giữ chỗ cho giả định. Nếu Python pilot fire instance thật → re-introduce với chẩn đoán. Đến lúc đó, KHÔNG nằm trong scope/out-of-scope v2.2.
 
 ---
 
@@ -502,8 +502,8 @@ Mỗi mục có verify command. Không tick được = không ship.
 | §7 | doctor binary | `which doctor && doctor --version` | binary exists |
 | §7 | runtime-scan | `doctor runtime-scan` on repo with token in .git/config | flag |
 | §8 | rubric inject | Spawn boundary-check on canary PR with INV-LOCAL-* | inject in prompt |
-| §9 | tier 1 no-bypass | `git commit --no-verify` on Tier 1 violation | blocked by wrapper |
-| §10 | sensors armed | All M1-M6 + N2-N3 sensors có code path | spot-check |
+| §10 | sensors armed | All M1-M6 + N2-N4 sensors có code path | spot-check |
+| §10 | N4 hook wall-time | `doctor hook-wall-time` measure pre-commit | < 10s trên repo nhỏ |
 
 ---
 
@@ -570,6 +570,7 @@ Mỗi mục có verify command. Không tick được = không ship.
 | 3b | Claude Web | Override phải ĐAU; canary 2-PR; mini-map test validator-mechanism only |
 | 4 | Orchestrator tarot | Thứ tự nhịp unified, doctor=Rust, edit/verify asymmetric |
 | 4b | Sếp + Orchestrator tarot | Canary 1+2 chạy. N1-Fix cắt 3 tầng → 1 hook. Luật vàng 2 "một bệnh một cơ chế" thêm |
+| 5 | Claude Web + ChatGPT (cross-review spec) | 9 patch sau khi Sếp ship spec draft: §9 hook tiering remove (vi phạm Luật 2), §1 token cap log/observe trước, §4 validate-map check 3 bỏ, Sub-mech G xóa, §1 override chốt (a)+metric, §2 CHALLENGE/EXECUTE tách, §5 contract_tests timing pre-commit/pre-merge, §6 phieu doctor wrapper, §4 oracle_soundness field |
 
 Full retro trace: `~/sos-kit/docs/retro/WORKFLOW_V2.2_RETRO_advisory-inbox.md` (CLOSED 2026-05-28).
 
@@ -582,9 +583,9 @@ Pilot vòng 2 Python sẽ trả lời:
 1. Lane budget 250 dòng — cứng hay tune?
 2. Oracle SOUND/PARTIAL table — Go/Java/Ruby khi gặp xếp đâu?
 3. AGENT_MAP load_bearing flag drift — có cần advanced validator?
-4. Hook tier threshold — Tier 2 warn weekly có đủ không, hay cần tier 1.5 daily?
-5. Subagent consistency — 2 spawn cùng diff verdict identical?
-6. Sub-mechanism G "Spec myopia" (P010 → P011) — fire trong Python pilot không?
+4. N2 token cap — sau bao nhiêu sprint log data đủ để promote `[gate]`?
+5. N4 hook wall-time — nổ ở repo nào trước, threshold 10s tune?
+6. Subagent consistency — 2 spawn cùng diff verdict identical?
 7. Cross-repo phiếu (P013 pattern) — generalize hay exception?
 8. Brownfield migration overhead — tarot AGENT_MAP build vs maintenance ROI?
 
