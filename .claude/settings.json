@@ -20,6 +20,24 @@
             "command": "bash scripts/architect-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/block-env-edit.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/block-unsafe-merge.sh"
+          }
+        ]
       }
     ]
   }
