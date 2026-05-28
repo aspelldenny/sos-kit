@@ -82,6 +82,12 @@
 
 ---
 
+## 📌 Decision pending mai (2026-05-29)
+
+- [ ] **Bootstrap automation — `sos-init.sh` stopgap → cargo `sos-kit init` doctrine.** Full analysis: `docs/BOOTSTRAP_AUTOMATION_DRAFT.md`. **Diagnosis (Sếp 2026-05-28):** em manual setup doc-rotate 30+ tool call = bệnh "agent copy thiếu" — đang bắt LLM nhớ. Slogan "đừng bắt LLM nhớ, bắt cơ chế nói sự thật" → bootstrap PHẢI là tool. **Framework:** 3 category (BẤT BIẾN đổ cứng / TUNABLE default override / PHẢI KHÁC khung rỗng+validator). **Timing cảnh báo:** đừng cargo hóa NGAY — sos-kit chưa chín, pattern phải lặp ≥3 repo mới biết cái gì thật bất biến. **Stopgap:** bash `sos-init.sh` ~50 dòng, ~20 min viết, giải đau ngay. **Cargo proper:** post pilot vòng 2 + ≥1 repo thứ 3. **6 decision points** for Sếp mai: location / V0 scope / apply first repo / validator integration / --stack values / cargo timeline.
+
+---
+
 ## 💡 Open backlog (triaged, not yet sprinted)
 
 - [ ] **[P007]** *(Tầng 2 housekeeping leftover từ P004)* `bin/sos.sh:94` echo help text vẫn còn literal `docs/CHARACTER.md` — cosmetic, không ảnh hưởng agent envelope rule. 1-line edit thành `docs/CHARACTER*.md` cho consistency. Worker đã classify cosmetic exclusion ở P004 EXECUTE — promote khi rảnh hoặc gom với phiếu housekeeping khác.

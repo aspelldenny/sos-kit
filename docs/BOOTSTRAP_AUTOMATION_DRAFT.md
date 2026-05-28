@@ -1,0 +1,167 @@
+# Bootstrap Automation — Draft Doctrine (2026-05-28)
+
+> **Status:** DRAFT — captured from Sếp + Claude Web analysis during doc-rotate pilot setup (2026-05-28 chiều).
+> **Decision pending:** Sếp xử lý mai (2026-05-29). Pilot doc-rotate vẫn chạy bằng manual bootstrap hiện tại.
+> **Why draft (not full doctrine):** sos-kit chưa chín cho cargo hóa. Pattern phải lặp qua ≥2-3 repo mới biết cái gì thật bất biến. Doc-rotate là data source vòng 2.
+
+---
+
+## §0. Diagnosis (Sếp catch 2026-05-28)
+
+Em manual setup doc-rotate **30+ tool call** (mkdir + Write × 15 + cp × 7 + chmod + git + commit × 3). Đáng lẽ là 1 lệnh `sos-kit init`.
+
+**Bệnh gốc (Sếp word):** *"Việc agent copy sos-kit vào repo mới = đang bắt LLM NHỚ phải copy đủ file gì, đặt đúng đâu, config ra sao. Và nó quên — đúng như mọi lần LLM được giao việc-phải-nhớ. Mày không gặp lỗi mới. Mày gặp lại đúng con bệnh cũ ở tầng bootstrap."*
+
+**Slogan áp dụng:** "Đừng bắt LLM nhớ, bắt cơ chế nói sự thật." Bootstrap là việc deterministic nhất đời — PHẢI là tool, không phải prompt. 6 binary trước (ship/docs-gate/guard/vps/quality-gate/advisory-inbox) đã apply pattern này. Cargo hóa bootstrap = nhận ra cái bootstrap cũng là một binary.
+
+**Đối xứng với v2.2 §2 SOUND/PARTIAL:** Bootstrap là việc SOUND (deterministic). Đổ cứng bằng tool = SOUND oracle. Phần PARTIAL (mỗi repo khác) giữ cho agent + validator gác ranh.
+
+---
+
+## §1. Phân loại 3 category (refinement em add — analysis gốc chỉ 2)
+
+Sếp + Claude Web phân 2 category. Em thêm 3rd để full spectrum:
+
+### A. BẤT BIẾN — đổ cứng (SOUND, tool gánh)
+
+Mỗi repo GIỐNG NHAU. Cargo-hóa thắng lớn ở đây — hết quên, hết drift.
+
+| Item | Source | Why bất biến |
+|---|---|---|
+| `agents/architect.md`, `worker.md`, `orchestrator.md`, `advisory-watch.md`, `boundary-check.md` | sos-kit canonical | Subagent contract — workflow v2.X-bound, không repo-tune |
+| `hooks/pre-commit` | sos-kit canonical | Hook chain integrity |
+| `scripts/block-env-edit.sh`, `block-unsafe-merge.sh`, `architect-guard.sh`, `session-start-banner.sh` | sos-kit canonical | Universal security/orchestration hooks |
+| `scripts/install-hooks.sh`, `pre-push-hook.sh` | sos-kit canonical | Bootstrap helpers |
+| Directory structure: `src/`, `tests/`, `docs/`, `.claude/agents`, `.claude/commands`, `phieu/active`, `phieu/done`, `templates/` | sos-kit pattern | Convention |
+| `phieu/TICKET_TEMPLATE.md`, `phieu.sh`, `AUDIT_PROTOCOL.md`, `DISCOVERY_PROTOCOL.md`, `GENESIS_TEMPLATE.md`, `LAUNCH_CHECKLIST.md`, `RELAY_PROTOCOL.md` | sos-kit canonical | Phiếu workflow contract |
+| `phieu/VISION_TEMPLATES/*` | sos-kit canonical | Vision skeleton |
+| `.claude/commands/advisory-scan.md`, `security-review.md` | sos-kit canonical | Slash command spec |
+| Doctor binary install (`cargo install --path ~/Doctor`) | external bootstrap | Required dep |
+
+### B. TUNABLE — default sensible, project override OK (NEW em add)
+
+Sinh default value, project có thể tune. Validator KHÔNG block nếu giữ default.
+
+| Item | Default | Tune example |
+|---|---|---|
+| `.docs-gate.toml` `changelog_max_age_days` | 1 | Long-running project tune 7 |
+| `.docs-gate.toml` `[architecture] file` | `LAYERS.md` (sos-kit), `ARCHITECTURE.md` (downstream) | Per repo |
+| `.docs-gate.toml` `[ticket] ticket_dir` | `phieu/active` | Per repo if different convention |
+| Hook chain SECTION list (which gate fires in pre-commit) | type-check + docs-gate + v2 sos-kit + security gate | Per stack disable/add |
+| `.mcp.json` server list | minimal core (doctor + docs-gate + ship + guard + advisory-cron) | Add github/sentry per project need |
+| Lane budget thresholds (v2.2 §1 — Normal 250 dòng / 5 anchors) | per v2.2 default | Per repo tune via override marker |
+
+### C. PHẢI KHÁC — khung rỗng + validator gác (PARTIAL, agent điền)
+
+Mỗi repo bắt buộc tự điền. Validator BLOCK nếu còn placeholder.
+
+| Item | Template form | Validator check |
+|---|---|---|
+| `docs/AGENT_MAP.yaml` | Skeleton với example surface COMMENTED OUT + `# TODO: fill at least 1 surface` marker | Grep `# TODO` → fail. + `doctor validate-map` path/anchor exist. |
+| `templates/INVARIANTS-template.md` → `docs/security/INVARIANTS.md` (per-repo) | 5 generic INV + section `## INV-LOCAL-*` empty với placeholder | Grep `<INV-LOCAL-N>` placeholder → warn (allow zero local INV if explicit `# No local INV` marker). |
+| `CLAUDE.md` per-project section | Skeleton "## Project context" + `# TODO: fill stack + role + constraint` | Grep `# TODO` → fail. |
+| `docs/BACKLOG.md` Active sprint | Empty section with `# TODO: pick from Open backlog` | sos-kit v2 hook đã check Active sprint not empty — extends validator. |
+| `.sos-stack.toml` (if not auto-detected) | Skeleton `[[stack]] type = "?"` | `sos init security` detect stack → write OR fail-and-prompt. |
+| `pyproject.toml` / `Cargo.toml` / `package.json` (stack-specific) | Per-stack template | Stack-detect from CLI flag `--stack python|rust|ts`. |
+| Pilot-specific rules in CLAUDE.md (if pilot mode) | Optional section "## Pilot rules" | If `--pilot true` flag → include section template. |
+
+---
+
+## §2. `sos-kit init` should do 3 things (Sếp + Claude Web framework)
+
+```
+sos-kit init <project> --stack <python|rust|ts> [--pilot true]
+
+1. ĐỔ CỨNG Category A (BẤT BIẾN)
+   - Copy agents/, hooks/, scripts/, phieu/, templates/, .claude/commands/
+   - Copy doctor binary symlink check (fail if cargo install not done)
+   - Copy directory structure scaffold
+   - No prompts, no agent decisions.
+
+2. SINH KHUNG RỖNG Category C (PHẢI KHÁC)
+   - Generate AGENT_MAP.yaml skeleton with commented examples + # TODO markers
+   - Generate INVARIANTS.md skeleton with INV-LOCAL placeholder section
+   - Generate CLAUDE.md skeleton with project-context placeholder
+   - Generate BACKLOG.md skeleton (sos-kit template)
+   - Generate pyproject.toml/Cargo.toml/package.json from per-stack template (if --stack flag)
+
+3. ĐỔ DEFAULT Category B (TUNABLE)
+   - .docs-gate.toml via `docs-gate init` (proper bootstrap)
+   - .mcp.json with minimal core server list
+   - Hook chain default sections in pre-commit
+   - Lane budget defaults
+
+4. CHẠY VALIDATOR — gác ranh A+B+C
+   - doctor validate-map (path/anchor exist)
+   - doctor verify-setup (hooks wired + agents register + BACKLOG present)
+   - Grep <TODO> / # TODO markers in C templates → list to user
+   - Output: "✅ A+B đổ cứng X files. ⚠️ C còn N placeholder cần điền: <list>"
+
+5. Optional: --commit flag → git init + first commit if no .git exists
+```
+
+---
+
+## §3. Timing cảnh báo (Sếp word — CRITICAL)
+
+> *"Đừng build cái này NGAY BÂY GIỜ. Mày đang giữa nhịp 3 (doctor) và sắp chạy nhịp 4 (pilot doc-rotate). Cargo-hóa-sos-kit là một dự án riêng — nếu mày nhảy vào nó bây giờ, mày bỏ dở pilot, mất luôn cái thí nghiệm partial-oracle đang cần. Tệ hơn: sos-kit chưa chín, v2.2 chưa được pilot doc-rotate kiểm chứng. Nếu mày cargo-hóa bây giờ, mày đóng băng một cái khuôn có thể còn sai, rồi mọi repo sau đẻ ra từ cái khuôn sai đó."*
+
+**Pattern doctrine:** Mày chỉ biết cái gì NÊN đổ-cứng SAU KHI đã thấy nó GIỐNG NHAU qua vài repo.
+
+**Sequence đúng:**
+1. ✅ Pilot vòng 1 advisory-inbox (Rust SOUND) — done
+2. 🔄 Pilot vòng 2 doc-rotate (Python PARTIAL) — đang chạy
+3. ⏸ Pilot vòng 3 repo thứ 3 (TBD, có thể TS partial-oracle) — pending
+4. After 3 repo: pattern lặp đủ để biết cái gì THẬT bất biến
+5. **Then** cargo-hóa `sos-kit init` proper
+
+**Lý do:** Cargo crate là contract đóng cứng. Mỗi update v2.X → cargo bump → migrate downstream. Nếu schema còn evolving rapidly (v2.1 → v2.2 ship 2 ngày trước, v2.3 sẽ ship sau pilot vòng 2), cargo-hóa = lock vào schema rồi force-migrate khi update.
+
+**Sub-mech reference:** Đây là pattern Sub-mech B (capability gap) — ship doctrine TRƯỚC khi verify đủ instance. Em đã sai pattern này nhiều lần (P285 documented). Cargo-hóa-sớm = lặp pattern ở scale lớn hơn.
+
+---
+
+## §4. Stopgap — bash 50 dòng (Sếp đề xuất)
+
+Pre-cargo solution để giải đau ngay:
+
+```
+~/sos-kit/bin/sos-init.sh <project> [--stack python|rust|ts] [--pilot true]
+
+1. Đổ cứng (Category A): cp/mkdir batch
+2. Sinh khung rỗng (Category C): cp templates với # TODO markers
+3. Đổ default (Category B): chạy docs-gate init + .mcp.json minimal copy
+4. Chạy validator: doctor validate-map + grep TODO
+5. Output diagnostic: list ✅ A+B done + ⚠️ C TODO
+```
+
+**~50 dòng bash, ~20 phút viết.** Đủ chữa đau cho repo TEST mới + future pilot. Doc-rotate vẫn dùng manual setup hiện tại (đang chạy pilot, không động).
+
+**Cargo proper:** roadmap post-pilot doc-rotate + ≥1 repo thứ 3, khi pattern đã lặp đủ.
+
+---
+
+## §5. Decision points cho mai (2026-05-29)
+
+Em chờ Sếp quyết:
+
+1. **Location:** `~/sos-kit/bin/sos-init.sh` (extend existing sos.sh) hay `~/sos-kit/bootstrap/sos-init.sh` (new dir)?
+2. **Scope V0:** Full 4-bước (A+B+C+validator)? Hay phase 0 chỉ A (đổ cứng), B+C+validator sau?
+3. **Apply first:** repo TEST mới (verify clean baseline) hay defer to doc-rotate re-bootstrap post-pilot?
+4. **Validator integration:** invoke `doctor` binary subcmds? Hay inline grep TODO trong bash?
+5. **--stack flag values:** chỉ Python+Rust+TS (current 3 pilot stacks) hay open list?
+6. **Cargo timeline:** sau pilot vòng 2 only? Hay đợi vòng 3?
+
+---
+
+## §6. Cross-reference
+
+- `~/sos-kit/docs/WORKFLOW_V2.2.md §2` — SOUND vs PARTIAL doctrine (đối xứng bootstrap)
+- `~/sos-kit/docs/WORKFLOW_V2.2.md §7` — Sub-mech B capability gap (pattern "ship trước verify đủ")
+- `~/sos-kit/docs/BACKLOG.md` — P032 (plugin) + P033 (Rust CLI `sos-kit init`) đã có vision, doctrine này refine
+- `~/doc-rotate/` — data source vòng 2, pilot đang chạy
+- Tarot evolution — em manual backport P230/P273/P285+/P297/P305/P306 vào sos-kit 30+ commit. Cargo hóa sẽ giảm future backport cost.
+
+---
+
+**Provenance:** Sếp 3 messages 2026-05-28 chiều + Claude Web analysis (forwarded by Sếp) + em (Quản đốc) 3 refinement add.
