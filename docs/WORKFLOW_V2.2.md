@@ -304,22 +304,18 @@ contract_tests:       # [gate] — must pass pre-commit/pre-merge
 
 ### Cơ chế
 
-**`.phieu-counter` — atomic increment qua `doctor phieu-next` wrapper `[hook]`:**
+**`.phieu-counter` — atomic increment `[hook]`:**
 
-Doctrine (round 5 ChatGPT #5 fix): doctrine spec KHÔNG nhúng shell function. Function shell tự chế có 3 vấn đề: `trap EXIT` không reliable cross-shell, hardcode path repo, không robust crash recovery.
+Doctrine (round 5 ChatGPT #5 + round 7 Claude Web tune):
+- **Solo MVP (current):** shell function với `mkdir` lock atomic đủ. Counter race chỉ nổ ở team push parallel — M6 watchlist, em solo chưa gặp.
+- **Khi M6 fire thật** (team push parallel race confirmed): promote sang `doctor phieu-next` Rust subcmd cho cross-shell reliability + repo-root auto-detect + PID/TTL stale cleanup.
 
-Yêu cầu:
-- Repo-root auto-detect (git toplevel).
-- `mkdir` lock atomic (cross-platform).
-- Cleanup on RETURN/EXIT + stale lock cleanup via PID/TTL (như `.sos-state/architect-active` lock dưới).
-- Implementation: `doctor phieu-next <slug>` — Rust binary handle robust hơn shell.
+Yêu cầu solo MVP shell:
+- Repo-root: `$(git rev-parse --show-toplevel)`.
+- `mkdir` lock atomic (`mkdir "$REPO/.phieu-lock" || exit 1`).
+- Cleanup on RETURN/EXIT via `trap` (best-effort cho solo — không reliable cross-shell, nhưng counter race chưa nổ thì OK).
 
-User-facing alias (single-line wrapper):
-```bash
-phieu() { doctor phieu-next "$@"; }
-```
-
-Đẩy logic vào binary. Spec doctrine reference subcmd, không inline shell snippet.
+Spec doctrine reference: shell minimal cho MVP, doctor phieu-next defer M6 fire.
 
 **`.sos-state/architect-active` — lock with TTL `[hook]`:**
 
@@ -381,27 +377,30 @@ Toàn bộ "Layer 2 capability check" trong CLAUDE.md (hiện prose) → cơ ch�
 
 Repo `~/doctor/`. Pattern khớp 6 binary đã ship (vps/ship/guard/quality-gate/advisory-cron/advisory-inbox). 1 binary nhiều subcmd, KHÔNG nhiều binary riêng.
 
-**MVP subcommands (nhịp 3 ship trước — round 6 Claude Web #3 fix):**
+**MVP subcommands (nhịp 3 ship — round 7 Claude Web tune, MỖI subcmd có mã phiếu xác chết):**
 
-```
-doctor lane-check       # §1 lane budget (đếm dòng phiếu, anchor, constraint)
-doctor validate-map     # §4 AGENT_MAP path/anchor exist (SOUND only)
-doctor phieu-next       # §6 atomic counter increment + branch + ticket file
-doctor rotate-check     # §6 dòng cap DISCOVERIES/CHANGELOG
-doctor runtime-scan     # Sub-mech F token leak scan
-```
+| Subcmd | Doctrine | Mã phiếu / lỗi thật đã xảy ra |
+|--------|----------|--------------------------------|
+| `doctor lane-check` | §1 lane budget (đếm dòng phiếu, anchor, constraint) | **P003** 643 dòng cho 6 test |
+| `doctor validate-map` | §4 AGENT_MAP path/anchor exist (SOUND only) | DISCOVERIES tarot 265KB — rule không enforce thì drift |
+| `doctor rotate-check` | §6 dòng cap DISCOVERIES/CHANGELOG | DISCOVERIES tarot over-cap 5x |
+| `doctor runtime-scan` | Sub-mech F token leak (`.git/config`, `.ssh/config`, `.env*`, `.mcp.json`) | **P305** token plaintext local + VPS (instance #10) |
 
-5 cái critical cho nhịp 3 + per-repo bootstrap. Đây là cái thước đo MECHANICAL sound thôi — đừng phình thành cái não.
+4 cái — không 5. Mỗi cái fix một lỗi ĐÃ XẢY RA THẬT (có mã phiếu).
 
 **Deferred subcommands (ship khi sensor nổ thật / batch sau):**
 
 ```
+doctor phieu-next          # §6 counter increment — defer vì counter race là M6 watchlist (team scenario, em solo chưa có).
+                             Solo MVP dùng shell + mkdir lock đủ. Build khi team push parallel thật.
 doctor migrate-check       # Sub-mech C (ship khi migration phiếu fire)
 doctor doctrine-check      # Sub-mech D commit msg home: field
 doctor hook-wall-time      # §10 N4 sensor (ship khi tiering chính đáng)
 doctor lane-override-rate  # §1 metric Tier 2 (ship sau khi có data 50 PR)
 doctor verify-setup        # per-repo bootstrap verification
 ```
+
+**Criterion build MVP (round 7 Claude Web doctrine):** *Mỗi subcmd phải trả lời được "lỗi nào đã xảy ra thật mà mày chặn?". Trả lời được bằng MỘT MÃ PHIẾU thì build. Trả lời bằng "phòng khi..." thì là sensor, để watchlist, đừng cho vào MVP.*
 
 **Cảnh báo:** Doctor là **thước đo mechanical sound**, không phải cái não. Lane-check đếm dòng. Validate-map check path. Rotate-check đếm dòng. Runtime-scan grep token. Đừng để nó ôm logic judgment.
 
@@ -471,7 +470,7 @@ Bệnh cũ viết: "Nếu chuyển hết prose → hook, pre-commit chạy 8-10 
 | **M3** | NEEDS_REVIEW path chưa chạy lần nào | Verdict NEEDS_REVIEW → orchestrator AskUserQuestion, KHÔNG tự skip | `[hook]` |
 | **M4** | Hotfix lane / interrupt mid-sprint | Hotfix lane scope cứng (prod-down/security/user-blocking), security-review POST-merge | `[guidance]` |
 | **M5** | CI flake / retry policy | Max 2 retry + 1-line flake reason, >2 = bug thật return Worker | `[guidance]` |
-| **M6** | Counter/marker race (team) | Counter `mkdir` atomic; architect-active PID-tagged | `[hook]` (đã ship §6) |
+| **M6** | Counter/marker race (team push parallel) | Solo: shell + `mkdir` lock atomic đủ. Khi M6 fire thật → promote `doctor phieu-next` (deferred subcmd §7) | `[hook]` shell MVP / `doctor` defer |
 
 ### Phân biệt cốt lõi
 
@@ -588,6 +587,7 @@ Mỗi mục có verify command. Không tick được = không ship.
 | 4b | Sếp + Orchestrator tarot | Canary 1+2 chạy. N1-Fix cắt 3 tầng → 1 hook. Luật vàng 2 "một bệnh một cơ chế" thêm |
 | 5 | Claude Web + ChatGPT (cross-review spec) | 9 patch sau khi Sếp ship spec draft: §9 hook tiering remove (vi phạm Luật 2), §1 token cap log/observe trước, §4 validate-map check 3 bỏ, Sub-mech G xóa, §1 override chốt (a)+metric, §2 CHALLENGE/EXECUTE tách, §5 contract_tests timing pre-commit/pre-merge, §6 phieu doctor wrapper, §4 oracle_soundness field |
 | 6 | Claude Web (final approve 9/10) | 6 patch dọn nhà: §13 nhắc Tier 1/2/3 (lệch §9 remove), §12 "Override hard-fail" label cũ, §7 doctor MVP vs Deferred restructure, §4 typo "Sếp"→"Architect", §2 P013 ví dụ SOUND chỉ sau smoke (không --help alone), §2 contract-test wording khớp §5 pre-commit. APPROVE sau patch. |
+| 7 | Claude Web (tune nhịp 3 prep) | 2 sửa: (1) lý do A→C→B đúng = B bị doctrine ràng scope (KHÔNG phải bootstrap sớm); ghim bẫy v2.2-không-răng giữa A+C ship và B chưa xong. (2) MVP doctor 5→4 — bỏ phieu-next sang deferred vì counter race là M6 (team scenario, em solo chưa nổ). Criterion build: mỗi subcmd phải có mã phiếu xác chết, "phòng khi" = sensor không phải MVP. |
 
 Full retro trace: `~/sos-kit/docs/retro/WORKFLOW_V2.2_RETRO_advisory-inbox.md` (CLOSED 2026-05-28).
 
