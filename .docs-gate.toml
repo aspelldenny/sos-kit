@@ -26,16 +26,17 @@ cross_doc = []
 
 [architecture]
 # sos-kit uses LAYERS.md as its primary architecture doc.
-# Sections enforced: 0 (flexible — sos-kit foundation docs span multiple files).
-enabled = false
-file = "docs/LAYERS.md"
+# enabled = true (Sếp catch 2026-05-28: disable check = lose primary docs drift detection).
+# required_sections = 0 (flexible — foundation docs span LAYERS+PHILOSOPHY+HANDOFF, not single file).
+enabled = true
+file = "LAYERS.md"
 required_sections = 0
 required_non_empty = []
 
 [ticket]
-# sos-kit phiếu live in docs/ticket/ (relative to docs_dir → resolves to docs/ticket).
-ticket_dir = "ticket"
+# Current phiếu pattern: phieu/active/ → phieu/done/ (P005+).
+# Legacy docs/ticket/ holds P001/P003/P004 historical only — KHÔNG check legacy.
+ticket_dir = "phieu/active"
 type_pattern = ""
 valid_types = []
-# Exclude legacy + template files from ticket validation.
 exclude_files = []
