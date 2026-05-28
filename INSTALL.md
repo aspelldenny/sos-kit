@@ -1,7 +1,9 @@
-# sos-kit v2 — Install Guide
+# sos-kit v2.2 — Install Guide
 
-> Cài v2 vào project hiện có (đã có git, đã có docs/ basic) hoặc project trống.
-> v2 = 3-role envelope (Chủ nhà / Kiến trúc sư / Thợ) + BACKLOG forcing function + hooks.
+> Cài v2.2 vào project hiện có (đã có git, đã có docs/ basic) hoặc project trống.
+> v2.2 = 3-role envelope + Orchestrator + Workflow v2.2 doctrine (lane budgets, oracle-first, AGENT_MAP, hooks-not-prose, watchlist sensors).
+>
+> **Doctrine source:** `~/sos-kit/docs/WORKFLOW_V2.2.md` — read once per project setup. Retro trace: `~/sos-kit/docs/retro/WORKFLOW_V2.2_RETRO_advisory-inbox.md` (CLOSED 7-round forge).
 
 ## Prerequisites
 
@@ -124,6 +126,22 @@ cp ~/sos-kit/templates/BACKLOG_template.md docs/BACKLOG.md
 # Ticket template (từ v1, nếu thiếu)
 mkdir -p docs/ticket
 [ ! -f docs/ticket/TICKET_TEMPLATE.md ] && cp ~/sos-kit/phieu/TICKET_TEMPLATE.md docs/ticket/TICKET_TEMPLATE.md
+
+# v2.2 ADDITIONS:
+
+# Security INVARIANTS (cho rubric inject vào boundary-check — v2.2 §8 canary 2 finding)
+mkdir -p docs/security
+[ ! -f docs/security/INVARIANTS.md ] && cp ~/sos-kit/templates/INVARIANTS-template.md docs/security/INVARIANTS.md
+# Project-specific INV-LOCAL-* live trong file này. Quản đốc inject vào spawn prompt khi
+# trigger /security-review. Subagent KHÔNG tự grep.
+
+# AGENT_MAP (CHỈ nếu repo > 10 docs OR docs > 500KB total — v2.2 §4)
+# Skip cho repo nhỏ — grep convention đủ.
+if [ -d docs ] && [ $(find docs -name "*.md" | wc -l) -gt 10 ]; then
+  [ ! -f docs/AGENT_MAP.yaml ] && cp ~/sos-kit/configs/AGENT_MAP.example.yaml docs/AGENT_MAP.yaml
+  echo "⚠ docs/AGENT_MAP.yaml created — EDIT fill in real surfaces before next phiếu"
+  echo "⚠ Validator: doctor validate-map (run pre-commit). Build doctor binary (cụm B pending)."
+fi
 ```
 
 ### 3.5. Setup pre-commit hook (CRITICAL — enforces docs gate)
@@ -151,6 +169,28 @@ git config core.hooksPath hooks
    - Code + phiếu changed → warn nếu thiếu DISCOVERIES + CHANGELOG
 
 **Bypass khi cần** (rare): `git commit --no-verify`. NOT recommended cho normal flow.
+
+### 3.6. doctor binary (v2.2 §7 — pending cụm B build)
+
+`doctor` binary cung cấp 5 MVP subcmd cho v2.2 gates:
+
+```bash
+doctor lane-check       # §1 lane budget
+doctor validate-map     # §4 AGENT_MAP path/anchor
+doctor rotate-check     # §6 dòng cap DISCOVERIES/CHANGELOG
+doctor runtime-scan     # Sub-mech F token leak
+```
+
+**Status (2026-05-28):** doctor binary CHƯA build (cụm B pending). Trong khoảng này:
+- Lane budget unenforced — manually count phiếu dòng + anchor vs v2.2 §1 budgets.
+- validate-map skip — map có thể drift, đề cao manual review pre-commit.
+- rotate-check skip — manual rotate khi >1000 dòng.
+- runtime-scan skip — manual grep `.git/config` token leak định kỳ.
+
+**Quản đốc PHẢI narrate "v2.2 doctrine ship, doctor binary pending" cho Sếp KHÔNG tự lừa.**
+v2.2 chỉ có răng đủ khi doctor binary cài xong (cụm B nhịp 3).
+
+Khi cụm B ship: `cargo install --path ~/doctor` + thêm `.mcp.json` entry `"doctor": { "command": "~/.cargo/bin/doctor", "args": ["serve"] }`.
 
 ### 4. Update CLAUDE.md (project root)
 

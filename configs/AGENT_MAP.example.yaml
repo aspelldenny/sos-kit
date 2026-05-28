@@ -1,0 +1,134 @@
+# AGENT_MAP.example.yaml — sample shape per WORKFLOW_V2.2 §4
+#
+# WHEN TO USE: repo > 10 docs OR docs > 500KB total.
+# Skip cho repo nhỏ (advisory-inbox precedent: < 10 docs → grep convention đủ).
+#
+# WHAT IT SOLVES:
+#   Architect default đọc full docs mỗi phiếu (P004 tarot draft 113.9k token).
+#   AGENT_MAP cho architect quyền DỪNG đọc khi đã thấy hết vùng nổ (blast field).
+#
+# HOW TO USE: copy this file to <project>/docs/AGENT_MAP.yaml, fill per project.
+#   Architect Read("docs/AGENT_MAP.yaml") FIRST, identify surface, load read_shallow OR read_deep ONLY.
+#
+# VALIDATOR: `doctor validate-map --map docs/AGENT_MAP.yaml` (pre-commit hook).
+#   Check 1: mọi path tồn tại (test -e).
+#   Check 2: mọi anchor #section còn trong file đích.
+#   Map drift = thuốc độc chậm — nó chủ động nói architect "leaf, đọc nông" trong khi load-bearing,
+#   và partial-oracle không vớt.
+#
+# MINI-MAP RANH GIỚI (round 3b):
+#   Greenfield pilot dùng mini-map 3-5 surface để test cơ chế validator.
+#   NHƯNG mini-map chỉ test VALIDATOR MECHANISM (path/anchor exist).
+#   KHÔNG test giá trị blast-radius / load_bearing flag — vì greenfield surface là BỊA.
+#   Cái sau chỉ kiểm được trên repo có lịch sử thật.
+
+version: 1
+
+surfaces:
+  # Example 1 — pure logic surface (leaf, không load-bearing)
+  parser:
+    load_bearing: false
+    edit:
+      - src/parser/**
+    read_shallow:
+      - docs/PARSER.md
+    blast: "Local parser logic. Bug chỉ ảnh hưởng input parsing — không cascade khác module."
+
+  # Example 2 — API boundary (load-bearing, có contract test)
+  api_boundary:
+    load_bearing: true
+    edit:
+      - src/api/**
+      - src/handlers/**
+    read_deep:
+      - docs/API_GUIDE.md
+      - docs/SCHEMAS.md
+    contract_test:
+      - tests/api_boundary_test.rs
+      - tests/handler_integration_test.py
+    blast: "Đổi route/contract kéo theo mọi client gọi API. Schema sai = data corruption."
+    # Optional field — recommended cho load_bearing surface (round 5 ChatGPT nice-to-have)
+    oracle_soundness:
+      typecheck: sound      # Rust SOUND cho shape
+      integration_test: required
+
+  # Example 3 — state file (load-bearing, migration risk)
+  state_file:
+    load_bearing: true
+    edit:
+      - src/state/**
+      - migrations/**
+    read_deep:
+      - docs/STATE_SCHEMA.md
+      - docs/MIGRATIONS.md
+    contract_test:
+      - tests/migration_test.rs
+    blast: "State schema thay đổi = legacy data DRIFT. P282/P286 tarot precedent: state field added DB chưa migrate."
+    oracle_soundness:
+      typecheck: sound
+      integration_test: required  # PHẢI test migration với real legacy data, không fixture tự chế (M1 sensor)
+
+  # Example 4 — runtime env / secrets surface (load-bearing, security boundary)
+  runtime_env:
+    load_bearing: true
+    edit:
+      - .env.example
+      - src/config/**
+      - docker-compose.yml
+    read_deep:
+      - docs/security/SURFACE_MAP.md
+      - docs/security/INVARIANTS.md
+    research_gate:
+      # Special class — BẮT BUỘC đọc trước khi spec
+      - docs/security/THREAT_MODEL.md
+    blast: "Env var leak = token plaintext. P305 tarot precedent: .git/config token in URL, INV-009 source-clean nhưng runtime DIRTY."
+    oracle_soundness:
+      typecheck: none       # env var read = string parsing, compiler câm
+      integration_test: required
+
+  # Example 5 — frontend component (leaf, voice surface)
+  frontend_leaf:
+    load_bearing: false
+    edit:
+      - src/components/**
+    read_shallow:
+      - docs/FRONTEND_GUIDE.md
+    blast: "UI component thuần. Bug visual chỉ ảnh hưởng render, không state."
+
+  # Example 6 — character voice surface (load_bearing for voice projects)
+  # SKIP entry này nếu project không có character/voice
+  character_voice:
+    load_bearing: true
+    edit:
+      - src/lib/character/**
+      - src/lib/ai/**
+    read_deep:
+      - docs/CHARACTER_*.md
+      - docs/PROMPT_HANDOFF.md
+      - docs/PROMPTS.md
+    research_gate:
+      # Research Gate — character work BẮT BUỘC cite research trước viết phiếu
+      - docs/RESEARCH-voice-methodology.md
+      - docs/RESEARCH-voice-deep.md
+    blast: "Đổi character voice kéo theo toàn site narrative. Voice drift = user trust loss."
+    oracle_soundness:
+      typecheck: partial    # TypeScript `any` nuốt lỗi shape
+      integration_test: required
+
+# never_default_read — files KHÔNG nạp default khi architect read context
+# Ăn 50%+ token cháy mà KHÔNG đổi lấy gì (log + idea, không doctrine)
+never_default_read:
+  - docs/CHANGELOG.md         # Lịch sử thay đổi — tra khi cần, KHÔNG nạp default
+  - docs/DISCOVERIES.md       # Operational log — rotate khi >1000 dòng (tarot precedent 265KB over-cap)
+  - docs/BACKLOG.md           # Idea chưa lên phiếu — KHÔNG phải doctrine
+  - docs/Archive/**           # Historical artifacts
+  - docs/ticket/archive/**    # Phiếu đã đóng
+
+# READING CONTRACT (architect reads this file FIRST):
+#
+# 1. Identify which surface(s) the phiếu touches.
+# 2. If touch leaf (load_bearing: false) → load read_shallow ONLY.
+# 3. If touch load_bearing surface → load read_deep + research_gate (if listed).
+# 4. NEVER load files in never_default_read unless phiếu explicitly references chúng.
+# 5. Use blast: line as STOP SIGNAL — khi đã thấy hết vùng nổ, STOP reading.
+# 6. If surface has oracle_soundness field → match against §2 oracle-first routing.

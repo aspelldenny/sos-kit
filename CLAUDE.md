@@ -3,6 +3,8 @@
 > Read this before editing anything in this repo.
 > This is a **meta-kit** (documentation + templates + skill definitions). It is **not** a production app.
 
+**Workflow doctrine source (single-source-of-truth):** `docs/WORKFLOW_V2.2.md`. All agent handbooks (`agents/*.md`) reference v2.2 — conflict resolution: WORKFLOW_V2.2.md wins. Retro trace: `docs/retro/WORKFLOW_V2.2_RETRO_advisory-inbox.md` (CLOSED 2026-05-28, 7-round forge).
+
 ## What this repo is
 
 SOS Kit = "Solo Operating System" — a distribution center that packages a **3-role workflow + orchestrator persona** for one-person software teams: **Chủ nhà** (owner / vision / routing), **Kiến trúc sư** (architect / ticket writer / docs-only), **Thợ** (worker / code executor), plus **Quản đốc** (Layer 0 — the main Claude Code session's orchestrator persona in v2.1+ Subagent mode). See `docs/LAYERS.md` for layer specifics.
@@ -152,10 +154,20 @@ sos-kit/
 3. Add an expandable example in `README.md` "Example configs"
 
 ### Edit orchestrator behavior (`agents/orchestrator.md` + `docs/ORCHESTRATION.md`)
-1. `agents/orchestrator.md` is the condensed Quản đốc handbook (~95 lines after P043 deferred-tool section, ≤105 cap) — system-prompt contract for the main session in every sos-kit project. Keep terse + imperative.
+1. `agents/orchestrator.md` is the condensed Quản đốc handbook (~148 lines after v2.2 cụm A additions — lane budget + rubric inject + sensor arm) — system-prompt contract for the main session in every sos-kit project. Keep terse + imperative.
 2. `docs/ORCHESTRATION.md` is the full spec (state machine, failure modes, concrete example session). When changing state machine logic, update BOTH.
 3. If you add a new orchestrator hard rule, mirror it as a one-liner in `agents/orchestrator.md` "Hard rules" section AND a fuller entry in `docs/ORCHESTRATION.md` "Hard rules".
 4. SessionStart banner (`scripts/session-start-banner.sh`) references both files — verify the banner still surfaces them after edit.
+
+### Edit Workflow doctrine (`docs/WORKFLOW_V2.2.md`)
+1. **PRIMARY doctrine — single-source-of-truth.** Agent handbooks (`agents/*.md`) reference v2.2; conflict → v2.2 wins.
+2. Doctrine changes go through **retro process** (see `docs/retro/WORKFLOW_V2.2_RETRO_advisory-inbox.md` for 7-round forge precedent). KHÔNG edit doctrine ad-hoc trong production session.
+3. Round flow: pilot end-to-end → retro CHẨN ĐOÁN → forge through multi-reviewer rounds → ĐƠN THUỐC v2.X → hạ vào sos-kit template → next pilot.
+4. New retro file naming: `WORKFLOW_V<N>_RETRO_<pilot-name>.md` (e.g., `WORKFLOW_V2.3_RETRO_python-pilot.md`). KHÔNG edit closed retro.
+5. **3 luật cứng** (v2.2 §0.1) — every doctrine change must check:
+   - Mỗi fix gắn cờ `[gate]` / `[hook]` / `[guidance]` — KHÔNG prose
+   - Một bệnh, một cơ chế rẻ nhất bắt 80% — cấm 3 tầng cho 1 bệnh
+   - Mechanical mới gate, judgment giữ guidance
 
 ### Edit docs
 - `README.md` — any tool/skill/integration table MUST match actual folders and binaries. Contributor onboarding breaks if they drift.

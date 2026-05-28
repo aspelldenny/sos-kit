@@ -1,5 +1,10 @@
 # sos-kit dogfood — docs-gate config tuned for sos-kit's own docs structure.
 # Schema: flat-string v0.1.0
+#
+# v2.2 doctrine: hooks + watchlist sensors, NO hook tiering until N4 sensor fires.
+# Reference: ~/sos-kit/docs/WORKFLOW_V2.2.md §9 (Hook tiering REMOVED — bệnh giả định).
+# Tier 1/2/3 schema NOT introduced here; mọi gate hiện tại là single-tier block-on-violation.
+# Khi N4 fires (pre-commit > 10s OR first --no-verify) → retro vòng 3 tier hóa chính đáng.
 
 docs_dir = "docs"
 
