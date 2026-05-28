@@ -68,6 +68,34 @@ You were spawned to challenge a phiếu draft against real code, BEFORE any impl
 4. **Run Task 0 verification** — for every anchor in the phiếu's Verification Anchors table:
    - Run the `Verify by` command via Bash or Grep
    - Update the Result column in the phiếu file (✅ / ⚠️ / ❌)
+
+   **Task 0 verification = 2 layers (WORKFLOW_V2.2.md §7 Sub-mech B doctrine):**
+
+   - **Layer 1 — Existence check:** thing tồn tại không? (file/function/constant/line). Grep, Read, ls. Basic.
+   - **Layer 2 — Capability check:** thing *làm được* như phiếu giả định không? Mọi capability phiếu giả định BẮT BUỘC có 1 lệnh verify CHẠY trong Task 0 — KHÔNG khẳng định trong spec. Sparse per §3 — chỉ log Sub-mech rows that fire, KHÔNG full A-F matrix N/A. Examples per Sub-mech:
+
+     | Sub-mech | Phiếu giả định | Capability check command |
+     |----------|----------------|--------------------------|
+     | **A** (trigger gap) | Spec "cron daily fires" | `grep -n "if: *false" .github/workflows/<name>.yml` → expect 0 hits |
+     | **A** | Spec "pre-commit hook fires" | `ls -la hooks/pre-commit && [[ -x hooks/pre-commit ]]` → expect "executable" |
+     | **A** | Spec "MCP server X connected" | check `.mcp.json` config + OAuth token / API key env var set |
+     | **B** (capability) | Spec "POST /v1/X API works" | `curl -X POST ... -w "%{http_code}"` → expect 200, NOT 405 |
+     | **B** | Spec "agent tool X supports protocol Y" | Read `.claude/agents/<agent>.md` frontmatter `tools:` line |
+     | **B** | Spec "binary X installed" | `which X && X --version` → expect path + version |
+     | **B** | Spec "route file exports legal handler shape" (e.g. Next.js route.ts) | `grep "export " <route>.ts \| grep -vE "GET\|POST\|PUT\|DELETE\|PATCH\|HEAD\|OPTIONS"` → expect 0 hits |
+     | **C** (migration) | Spec "schema upgrade preserve data" | `jq '.field \| length' new_state` vs source count → expect equal |
+     | **C** | Spec "DB migration adds column with default" | `psql ... SELECT count(*) WHERE col IS NULL` → expect 0 (backfilled) |
+     | **D** (persistence) | Spec "ship durable doctrine to handbook" | `grep -l "<rule name>" CLAUDE.md agents/*.md docs/security/INVARIANTS.md` → expect ≥ 1 persistent location (NOT only DISCOVERIES.md which rotates) |
+     | **D** | Spec "lesson em remember" | Reject — memory per-session. Move to agents/architect.md / agents/worker.md / CLAUDE.md mandatory |
+     | **E** (env drift) | Phiếu touching dep version OR post-dependabot merge | `<pkg-mgr> install --frozen-lockfile && <build>` → expect PASS. Local test PASS = weak signal — fresh install reveal type drift. |
+     | **F** (runtime state) | Phiếu touch security surface (`.mcp.json`, `.claude/settings*`, `scripts/security*`, `docs/security/`, `hooks/pre-commit`, `.git/config`) | `doctor runtime-scan --repo .` → expect exit 0 OR `python3 scripts/check-runtime-secrets.py` → expect `INV-010: PASS` |
+
+   **Why 2 layers:** "Đã viết ra / đã định nghĩa / đã ship" ≠ "đã thật sự hoạt động". Layer 1 only catches absence; Layer 2 catches mismatch giữa spec intent vs runtime capability. WORKFLOW_V2.2.md §7 ship doctrine after pilot vòng 1 confirmed 11 instance fail (advisory-watch trigger gap / security:gate auto-fire miss / OSV POST 405 / Next.js route export shape / .git/config token-in-URL / .mcp.json plaintext token / etc.).
+
+   **Sparse rule (v2.2 §3):** Discovery Report ONLY logs Sub-mech rows that FIRED. KHÔNG dump full A-F matrix với N/A. Hook (§7) tự nổ đúng cái liên quan — agent KHÔNG phải chứng minh "đã nhớ catalog".
+
+   **Limit:** Capability check chỉ bắt giả-định-đã-biết. Unknown-unknowns (giả định em không biết mình đang giả định) vẫn lọt — chỉ va vấp mới phơi ra. Đừng để check ru ngủ.
+
 5. **Read real code at relevant paths** — open the files the phiếu references. Compare what the phiếu assumes vs. what the code actually contains.
 6. **Identify Tầng 1 objections only** (architectural — not local var names or CSS):
    - File / function / constant doesn't exist as phiếu assumes
