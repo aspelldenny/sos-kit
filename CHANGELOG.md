@@ -2,6 +2,32 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## v2.2 Backport Group A — Security hooks + agents + commands — 2026-05-28
+
+Phase 2 of `WORKFLOW_V2.2.md` §13 backport from tarot evolution (P230/P273/P297/P305/P306/#581). Genericized for sos-kit template.
+
+**Hooks + scripts (7 new + 2 modified):**
+- `scripts/block-env-edit.sh` — PreToolUse block Edit/Write to `.env*` (allow `.env.example`)
+- `scripts/block-unsafe-merge.sh` — PreToolUse block `gh pr merge <N>` if security surface + no `/security-review` APPROVE sentinel (§7 Sub-mech A + §8)
+- `scripts/security-gate.sh` — minimal template (INV-009 + INV-010 universal); per-repo extends
+- `scripts/check-hardcoded-secrets.py` — INV-009 enforcer (8 prefix patterns + generic high-entropy)
+- `scripts/check-runtime-secrets.py` — INV-010 enforcer Sub-mech F (dotfile token leak: `.git/config`, `.mcp.json`, `.claude/settings.local.json`, infra)
+- `scripts/install-hooks.sh` — bootstrap pre-commit + pre-push installation
+- `scripts/pre-push-hook.sh` — advisory warn (KHÔNG block) for security-surface push
+- `hooks/pre-commit` — add SECTION 4 wiring `security-gate.sh --mechanical-only`
+- `.claude/settings.json` — merge 3 PreToolUse hooks
+
+**Agents + commands (4 changed):**
+- `.claude/agents/boundary-check.md` (NEW snapshot) + `agents/boundary-check.md` — wire `mcp__doctor__runtime_scan` + `mcp__doctor__validate_map` per tarot #581
+- `.claude/agents/advisory-watch.md` (NEW snapshot from `agents/`)
+- `.claude/commands/advisory-scan.md` — rewrite to advisory-inbox binary form (P013-tarot)
+
+**Tracked `.mcp.json`:** Doctor MCP server registration (binary serve mode for `lane-check`, `validate-map`, `rotate-check`, `runtime-scan`).
+
+**Out of scope (Phase 3):** CLAUDE.md doctrine refactor + worker.md Task 0 matrix + architect.md §2 oracle checklist + `AGENT_MAP.example.yaml`.
+
+**Verification:** `security-gate.sh --mechanical-only` on sos-kit itself → 2/2 INV PASS, 12 files scanned.
+
 ## Sprint close: Tarot port wave 1 — 2026-05-25
 
 All 4 phiếu complete: P040 (stack-detect `sos init security`) + P041 (Trinh sát advisory-watch) + P042 (Giám sát boundary-check) + P043 (Quản đốc persona codify). Security pipeline both sides shipped: `/advisory-scan` (external CVE/GHSA scan via Trinh sát) + `/security-review` (internal invariant scan via Giám sát). Kit now ships: stack detection → advisory scan → boundary check → ADVISORY PR comment flow. CHANGELOG range: v2.2.0 → v2.2.3.

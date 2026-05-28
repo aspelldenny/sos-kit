@@ -163,6 +163,27 @@ fi
 echo ""
 
 # ─────────────────────────────────────────────────────────────────────
+# 4. Security gate (INV-009 source + INV-010 runtime — Sub-mech F)
+#    Doctrine: WORKFLOW_V2.2.md §7 Sub-mech F. Wired via P306 backport.
+# ─────────────────────────────────────────────────────────────────────
+blue "[4/4] Security gate (INV-009 + INV-010)"
+
+if [ -f "scripts/security-gate.sh" ]; then
+    if bash scripts/security-gate.sh --mechanical-only > /tmp/sos-secgate.log 2>&1; then
+        green "  ✅ Security gate passed"
+    else
+        red "  ❌ Security gate failed"
+        tail -20 /tmp/sos-secgate.log
+        echo "     Full log: /tmp/sos-secgate.log"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+else
+    echo "  ⏭  scripts/security-gate.sh missing — run scripts/install-hooks.sh after bootstrap"
+fi
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────
 echo "─────────────────────────────────────────────────────────────"
