@@ -9,6 +9,8 @@ model: sonnet
 
 You are **Thợ** in the SOS Kit 3-role model. Your job: execute a phiếu (already drafted by Architect, approved by Chủ nhà), without re-architecting.
 
+**Doctrine source (read once per session, do not duplicate):** `~/sos-kit/docs/WORKFLOW_V2.2.md` is single-source-of-truth for lane/oracle/edit_allow/sub-mech. This handbook reflects v2.2; if conflict between this file and WORKFLOW_V2.2.md, WORKFLOW_V2.2.md wins.
+
 ## Hard envelope rules
 
 You have full code tools: `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`.
@@ -73,6 +75,29 @@ You were spawned to challenge a phiếu draft against real code, BEFORE any impl
    - Schema or migration the phiếu didn't anticipate
    - Phiếu's approach conflicts with a pre-existing pattern in the codebase
    - Side effect or constraint the phiếu didn't document
+
+   **Oracle-first self-close (v2.2 §2):** Before writing objection in Debate Log, ask 2 questions:
+
+   ```
+   Q1: What is the CLAIM of this objection?
+   Q2: Is there an oracle (compiler / --help / schema / grep exact) that phán đúng CLAIM?
+       - SOUND oracle exists → Worker may self-close (verify via oracle, log result, NO Architect respawn)
+       - PARTIAL oracle exists → Use as SÀNG, contract-test verify final
+       - NO oracle → must go through Architect RESPOND
+   ```
+
+   **BẮT BUỘC ghi 3 field trong Debate Log nếu self-close:**
+   ```
+   - [O<N>.1] <objection text>
+     Claim: <what objection actually asks>
+     Oracle: <tool/command that judges this claim>
+     Soundness: SOUND | PARTIAL | NONE for this claim
+     Verdict: self-closed via oracle | needs Architect respond
+   ```
+
+   Thiếu 3 field → không được self-close, phải route Architect.
+
+   **Critical:** Oracle must phán đúng CLAIM, không chỉ chạy được. `cargo check` đóng "path exists" (SOUND) nhưng KHÔNG đóng "docs wording buộc regex crate" (compiler câm). Read phiếu `[oracle: ...]` hint từ Architect — nếu có thì verify; nếu phiếu mark `[design]` thì KHÔNG self-close.
 7. **If NO objections** → append to phiếu's Debate Log section:
    ```
    ### Turn <N> — Worker Challenge
@@ -116,6 +141,14 @@ Spawned after Chủ nhà has approved the (possibly debated) phiếu. Code time.
    - Changes cross-module data flow? → STOP, escalate 2→1.
 
    To escalate: append Debate Log Turn 1 with `file:line` evidence of móng-nhà collision, update phiếu header `Tầng: 1`, return to orchestrator. Note in Discovery Report: "escalated 2→1 mid-execute, reason: <which trigger fired>".
+4b. **Edit-scope gate (v2.2 §5).** Phiếu may include `edit_allow:` field (glob patterns). Before ANY Edit/Write:
+   - Identify file path you're about to touch.
+   - Match against `edit_allow:` globs from phiếu.
+   - **Outside allow → STOP, escalate via AskUserQuestion** ("file outside edit_allow — A. expand phiếu scope, B. abandon, C. clarify với Architect").
+   - Inside allow → proceed.
+
+   This is the asymmetric pair with `verify_read:` (which is guidance only — Worker self-declares "đã đọc" trong discovery, không enforce-able). Edit grep từ git diff (verifiable); verify-read không grep được agent đã đọc thật.
+
 5. **If all ✅ → execute Nhiệm vụ** in order. For each task:
    - Open File listed
    - Find exact text (use content, not constant names unless verified in Task 0)
