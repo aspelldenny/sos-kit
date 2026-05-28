@@ -115,8 +115,8 @@ CHALLENGE mode (Worker chưa được code):
   [mechanical + oracle SOUND đóng-claim]   → Worker self-close objection, ghi fix plan / ticket patch.
                                               KHÔNG edit code. KHÔNG Architect.
   [shape + oracle SOUND đóng-claim]        → Worker self-close, ghi probe result. KHÔNG edit code.
-  [shape + oracle PARTIAL]                  → Worker chạy oracle như SÀNG. Phần chạm contract → contract-test trong EXECUTE
-                                              HOẶC Architect short.
+  [shape + oracle PARTIAL]                  → Worker chạy oracle như SÀNG. Phần chạm contract → đánh dấu contract-test,
+                                              verify ở pre-commit gate (§5) HOẶC Architect short.
   [shape + architecture-impact]             → Architect short respond.
   [design / security / cross-cutting]       → Architect full respond.
 
@@ -156,8 +156,11 @@ P011 import path Parameters sai
 
 P013 --report - có nhận stdin
   CLAIM = "flag behavior thế nào"
-  Oracle: --help / smoke test
-  Verdict: SOUND, ĐÓNG ĐƯỢC → Worker self-fix.
+  Oracle:
+    - --help confirms stdin handled (documented by omitting --report)  → PARTIAL (chứng minh tài liệu, không chứng minh runtime)
+    - smoke test (echo "..." | binary --report -) confirms behavior     → SOUND
+  Verdict: SOUND only after smoke test, NOT --help alone (round 6 Claude Web #5 fix).
+  → Worker self-fix sau smoke pass.
 
 P003 str::find vs regex
   CLAIM = "docs wording 'regex' có buộc dùng regex crate không"
@@ -220,8 +223,8 @@ surfaces:
   <surface_name>:
     load_bearing: true | false
     edit: [glob patterns of files allowed to edit]
-    read_shallow: [docs Sếp đọc khi touch surface KHÔNG load-bearing]
-    read_deep: [docs Sếp đọc khi touch surface load-bearing]
+    read_shallow: [docs Architect đọc khi touch surface KHÔNG load-bearing]
+    read_deep: [docs Architect đọc khi touch surface load-bearing]
     research_gate: [docs BẮT BUỘC đọc — special class]
     contract_test: [test files chạm boundary, không mock]
     blast: "câu mô tả 'đổi cái này gãy đâu'"
@@ -376,18 +379,31 @@ Toàn bộ "Layer 2 capability check" trong CLAUDE.md (hiện prose) → cơ ch�
 
 ### Doctor binary — Rust, sống trong sos-kit golden template
 
-Repo `~/doctor/`. Subcommands:
+Repo `~/doctor/`. Pattern khớp 6 binary đã ship (vps/ship/guard/quality-gate/advisory-cron/advisory-inbox). 1 binary nhiều subcmd, KHÔNG nhiều binary riêng.
+
+**MVP subcommands (nhịp 3 ship trước — round 6 Claude Web #3 fix):**
 
 ```
-doctor lane-check     # §1 lane budget
-doctor validate-map   # §4 AGENT_MAP path/anchor
-doctor rotate-check   # §6 dòng cap
-doctor migrate-check  # Sub-mech C
-doctor doctrine-check # Sub-mech D
-doctor runtime-scan   # Sub-mech F
+doctor lane-check       # §1 lane budget (đếm dòng phiếu, anchor, constraint)
+doctor validate-map     # §4 AGENT_MAP path/anchor exist (SOUND only)
+doctor phieu-next       # §6 atomic counter increment + branch + ticket file
+doctor rotate-check     # §6 dòng cap DISCOVERIES/CHANGELOG
+doctor runtime-scan     # Sub-mech F token leak scan
 ```
 
-1 binary, 6 subcmd, không 6 binary riêng. Pattern khớp 6 binary đã ship (vps/ship/guard/quality-gate/advisory-cron/advisory-inbox).
+5 cái critical cho nhịp 3 + per-repo bootstrap. Đây là cái thước đo MECHANICAL sound thôi — đừng phình thành cái não.
+
+**Deferred subcommands (ship khi sensor nổ thật / batch sau):**
+
+```
+doctor migrate-check       # Sub-mech C (ship khi migration phiếu fire)
+doctor doctrine-check      # Sub-mech D commit msg home: field
+doctor hook-wall-time      # §10 N4 sensor (ship khi tiering chính đáng)
+doctor lane-override-rate  # §1 metric Tier 2 (ship sau khi có data 50 PR)
+doctor verify-setup        # per-repo bootstrap verification
+```
+
+**Cảnh báo:** Doctor là **thước đo mechanical sound**, không phải cái não. Lane-check đếm dòng. Validate-map check path. Rotate-check đếm dòng. Runtime-scan grep token. Đừng để nó ôm logic judgment.
 
 ### Ranh giới
 
@@ -490,7 +506,7 @@ Mỗi mục có verify command. Không tick được = không ship.
 | §  | Mục | Verify command | Expected |
 |----|-----|----------------|----------|
 | §1 | Lane budgets | `doctor lane-check --ticket <phiếu Normal vượt 250 dòng>` | exit 1 |
-| §1 | Override hard-fail | `doctor lane-override-rate` (compute 50 PR rolling) | < 20% trong steady state |
+| §1 | Override rate metric | `doctor lane-override-rate` (compute 50 PR rolling) | reports rolling 50 PR; >20% opens workflow-tune ticket |
 | §2 | Oracle checklist enforced | grep `discovery.md` for 3 field claim/oracle/sound | all present |
 | §3 | Sparse discovery | grep `discovery.md` for "N/A, không áp dụng" | 0 hits |
 | §4 | validate-map runs | `doctor validate-map --map docs/AGENT_MAP.yaml` pre-commit | exit 0 trên clean repo |
@@ -526,7 +542,7 @@ Mỗi mục có verify command. Không tick được = không ship.
    - pre-commit-doctrine-home (mới)
    - session-start-runtime-scan (mới)
 8. AGENT_MAP shape template trong configs/AGENT_MAP.example.yaml
-9. Update .docs-gate.toml để reflect Tier 1/2/3 settings
+9. Update .docs-gate.toml to reflect v2.2 hooks + watchlist sensors (NO hook tiering until N4 sensor fires per §10)
 10. CLAUDE.md template update — reference WORKFLOW_V2.2.md, remove duplicate doctrine prose
 ```
 
@@ -554,7 +570,7 @@ Mỗi mục có verify command. Không tick được = không ship.
 **Test giả thuyết:**
 - v2.2 có chống mù khi compiler không vớt không?
 - AGENT_MAP shape có thay được tấm lưới rustc không?
-- Hook tier 1/2/3 có giảm bypass không?
+- N4 hook-wall-time có nổ không, và có cần tiering trong v2.3 không?
 - Sensors M1-M6 cái nào nổ thật?
 
 ---
@@ -571,6 +587,7 @@ Mỗi mục có verify command. Không tick được = không ship.
 | 4 | Orchestrator tarot | Thứ tự nhịp unified, doctor=Rust, edit/verify asymmetric |
 | 4b | Sếp + Orchestrator tarot | Canary 1+2 chạy. N1-Fix cắt 3 tầng → 1 hook. Luật vàng 2 "một bệnh một cơ chế" thêm |
 | 5 | Claude Web + ChatGPT (cross-review spec) | 9 patch sau khi Sếp ship spec draft: §9 hook tiering remove (vi phạm Luật 2), §1 token cap log/observe trước, §4 validate-map check 3 bỏ, Sub-mech G xóa, §1 override chốt (a)+metric, §2 CHALLENGE/EXECUTE tách, §5 contract_tests timing pre-commit/pre-merge, §6 phieu doctor wrapper, §4 oracle_soundness field |
+| 6 | Claude Web (final approve 9/10) | 6 patch dọn nhà: §13 nhắc Tier 1/2/3 (lệch §9 remove), §12 "Override hard-fail" label cũ, §7 doctor MVP vs Deferred restructure, §4 typo "Sếp"→"Architect", §2 P013 ví dụ SOUND chỉ sau smoke (không --help alone), §2 contract-test wording khớp §5 pre-commit. APPROVE sau patch. |
 
 Full retro trace: `~/sos-kit/docs/retro/WORKFLOW_V2.2_RETRO_advisory-inbox.md` (CLOSED 2026-05-28).
 
