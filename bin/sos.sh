@@ -645,12 +645,43 @@ exclude_files = []
 TOML
     added="${added}    + .docs-gate.toml\n"
   else conflicts="${conflicts}    ~ .docs-gate.toml (exists — kept; verify ticket_dir + architecture)\n"; fi
-  # Never scaffold CLAUDE.md/BACKLOG/ARCHITECTURE/CHANGELOG into an existing repo — clobber-or-guess
-  # would destroy the repo's own docs. Report if missing; the human adds/merges by hand.
-  local f
-  for f in CLAUDE.md docs/BACKLOG.md docs/ARCHITECTURE.md CHANGELOG.md; do
-    [[ -e "$target/$f" ]] || conflicts="${conflicts}    ! ${f} (MISSING — add by hand; adopt won't clobber-or-guess)\n"
-  done
+  # Cat-C docs: GENERATE a skeleton when ABSENT (additive → repo passes its OWN pre-commit,
+  # born-ready like sos new). NEVER overwrite an EXISTING one (that's the repo's content).
+  # CLAUDE.md = product identity → report-only (never auto-generate over a brownfield).
+  local _name; _name="$(basename "$(cd "$target" && pwd)")"
+  if [[ -f "$target/CHANGELOG.md" ]]; then conflicts="${conflicts}    ~ CHANGELOG.md (exists — kept)\n"
+  else
+    printf '# Changelog\n\nFormat loosely follows Keep a Changelog.\n\n## v0.0.0 — sos adopt — %s\n\n- Spine retrofitted via `sos adopt`.\n' "$(date -u +%Y-%m-%d)" > "$target/CHANGELOG.md"
+    added="${added}    + CHANGELOG.md (skeleton)\n"
+  fi
+  if [[ -f "$target/docs/ARCHITECTURE.md" ]]; then conflicts="${conflicts}    ~ docs/ARCHITECTURE.md (exists — kept)\n"
+  else
+    cat > "$target/docs/ARCHITECTURE.md" <<EOF
+# Architecture — $_name
+
+> # TODO: fill. docs-gate [architecture] points here.
+
+## Overview
+
+# TODO: what this repo is, one paragraph.
+
+## Components
+
+# TODO: main modules / surfaces.
+
+## Data flow
+
+# TODO: how data moves through the system.
+EOF
+    added="${added}    + docs/ARCHITECTURE.md (skeleton)\n"
+  fi
+  if [[ -f "$target/docs/BACKLOG.md" ]]; then conflicts="${conflicts}    ~ docs/BACKLOG.md (exists — kept)\n"
+  elif [[ -f "$K/templates/BACKLOG_template.md" ]]; then
+    cp "$K/templates/BACKLOG_template.md" "$target/docs/BACKLOG.md"
+    added="${added}    + docs/BACKLOG.md (template — fill Active sprint)\n"
+  fi
+  [[ -f "$target/CLAUDE.md" ]] && conflicts="${conflicts}    ~ CLAUDE.md (exists — kept)\n" \
+    || conflicts="${conflicts}    ! CLAUDE.md (MISSING — add a project CLAUDE.md by hand; adopt won't guess product identity)\n"
 
   echo "[3/3] Validator"
   local doctor_bin="${DOCTOR_BIN:-doctor}"
@@ -666,6 +697,12 @@ TOML
       echo "      (A) wire genuinely not connected → fix the repo"
       echo "      (B) verify-setup doesn't know THIS repo's pattern → teach it / label brittle (NOT a repo bug)"
       echo "      (C) product gap → you decide the content"
+    fi
+    # adopt self-check: validate-map catches the map-lie class (map paths must exist).
+    if [[ -f "$target/docs/AGENT_MAP.yaml" ]]; then
+      set +e; ( cd "$target" && "$doctor_bin" validate-map --map docs/AGENT_MAP.yaml >/dev/null 2>&1 ); local vm=$?; set -e
+      [[ "$vm" -eq 0 ]] && echo "  ✓ validate-map: AGENT_MAP paths resolve" \
+        || echo "  ⚠ validate-map: map drift (rc=$vm) — run: doctor validate-map --map docs/AGENT_MAP.yaml"
     fi
   else
     echo "  ⏭ doctor not found (set DOCTOR_BIN=/path or cargo install --path ~/doctor)"
