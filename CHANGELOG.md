@@ -2,6 +2,21 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## v2.3 forge (in progress) — Phiếu path unified + sentinel fix — 2026-05-29
+
+Forge rounds 1–4 of `docs/retro/WORKFLOW_V2.3_RETRO_doc-rotate.md` (doc-rotate pilot vòng 2 retro). Doctrine still in forge — only mechanical/path fixes shipped here; doctrine questions Q-D2…Q-D7 (Lane/Tầng, markers, inject location, vocab-consistency, verify-setup + quality-canary split) remain OPEN.
+
+**Phiếu path unified to `docs/ticket/` (Q-D1 resolved):**
+- Migrated sos-kit's own phiếu `phieu/active|done/` → `docs/ticket/` (active root) + `docs/ticket/done/` (14 phiếu archive). No more dogfood-exception — single path matches the fleet default (downstream repos already use `docs/ticket/`).
+- `hooks/pre-commit` now **reads `ticket_dir` from `.docs-gate.toml`** instead of hardcoding `^docs/ticket/` — revives the Discovery-enforcement gate (was structurally dead on phieu/ repos) and makes it portable per-repo (single-source principle).
+- Swept: `.docs-gate.toml` (`ticket_dir = "docs/ticket"`), `scripts/session-start-banner.sh`, `phieu/phieu.sh` (location-detect), `phieu/TICKET_TEMPLATE.md`, `agents/worker.md` (×2), `CLAUDE.md` structure, `docs/BOOTSTRAP_AUTOMATION_DRAFT.md` default, `docs/ORCHESTRATION.md`.
+- Preserved: historical phiếu content + this CHANGELOG (no rewrite history); `phieu/` backbone (TICKET_TEMPLATE/phieu.sh/protocols/VISION_TEMPLATES) retained as the workflow component; legacy `phieu/active` fallback kept in `phieu.sh` + banner for older repos.
+
+**Sentinel mismatch fixed (Step-1):**
+- `scripts/block-unsafe-merge.sh` grepped `<!-- SECURITY_REVIEW_START -->` (UPPERCASE/underscore) while `agents/boundary-check.md` + `/security-review` emit `<!-- security-review-start -->` (lowercase/hyphen) — the merge-gate verdict block never matched, breaking the advisory→merge-block chain at its root. Fixed grep to match the emitted marker.
+
+Verified: gate canary fires on `docs/ticket/`; `bash -n` clean on edited scripts. Open production-risk tracked in retro: tarot's Giám sát (boundary-check v166) runs live but has never been quality-canaried.
+
 ## v2.2 Backport Group A — Security hooks + agents + commands — 2026-05-28
 
 Phase 2 of `WORKFLOW_V2.2.md` §13 backport from tarot evolution (P230/P273/P297/P305/P306/#581). Genericized for sos-kit template.

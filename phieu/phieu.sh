@@ -178,18 +178,18 @@ _phieu_done_impl() {
     return 1
   fi
 
-  # 1. Detect phiếu file location (sos-kit: phieu/active/, downstream: docs/ticket/)
+  # 1. Detect phiếu file location (unified: docs/ticket/; phieu/active/ legacy fallback)
   local active_path="" done_path=""
-  if [ -f "phieu/active/${name}.md" ]; then
-    active_path="phieu/active/${name}.md"
-    done_path="phieu/done/${name}.md"
-    mkdir -p "phieu/done"
-  elif [ -f "docs/ticket/${name}.md" ]; then
+  if [ -f "docs/ticket/${name}.md" ]; then
     active_path="docs/ticket/${name}.md"
     done_path="docs/ticket/done/${name}.md"
     mkdir -p "docs/ticket/done"
+  elif [ -f "phieu/active/${name}.md" ]; then
+    active_path="phieu/active/${name}.md"
+    done_path="phieu/done/${name}.md"
+    mkdir -p "phieu/done"
   else
-    echo "⚠️  Phiếu file not found at phieu/active/${name}.md or docs/ticket/${name}.md"
+    echo "⚠️  Phiếu file not found at docs/ticket/${name}.md or phieu/active/${name}.md"
     echo "    Skipping strip + move; will still remove worktree + branch."
   fi
 

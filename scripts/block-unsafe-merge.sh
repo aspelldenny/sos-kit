@@ -97,9 +97,9 @@ fi
 
 # PR touch security surface — check security-review comment APPROVE chưa
 COMMENTS=$(gh pr view "$PR" --json comments --jq '.comments[].body' 2>/dev/null || echo "")
-if echo "$COMMENTS" | grep -q '<!-- SECURITY_REVIEW_START -->'; then
+if echo "$COMMENTS" | grep -q '<!-- security-review-start -->'; then
   # Có review block. Check verdict.
-  VERDICT_LINE=$(echo "$COMMENTS" | grep -A 50 '<!-- SECURITY_REVIEW_START -->' | grep -E '^Verdict:' | head -1)
+  VERDICT_LINE=$(echo "$COMMENTS" | grep -A 50 '<!-- security-review-start -->' | grep -E '^Verdict:' | head -1)
   if echo "$VERDICT_LINE" | grep -q 'APPROVE'; then
     # APPROVE → allow
     exit 0

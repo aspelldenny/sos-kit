@@ -35,7 +35,11 @@ Capture PR body (PR mode only, for INV-5 changelog check): `gh pr view <N> --jso
 
 ## Step 2 — Spawn Giám sát subagent
 
-Use `Task` tool with `subagent_type: "boundary-check"`. Prompt format:
+**Step 2a — Inject project-local invariants (INV-LOCAL slot).** Giám sát ships only the *generic* 5-INV rubric and by contract does NOT self-read INVARIANTS.md (`agents/boundary-check.md`: *"Caller's responsibility to inject INV-LOCAL-*"*). The caller MUST fill the INV-LOCAL slot below:
+- If `docs/security/INVARIANTS.md` exists → read it and extract the block of entries whose headings match `^##\s*INV-LOCAL-` (dynamic read — do NOT hardcode the INV list into this command; it is an N-repo template).
+- If the file is absent OR has no `INV-LOCAL-*` entries → the slot value is the literal string `N/A — no project-local invariants defined`.
+
+**Step 2b — Spawn.** Use `Task` tool with `subagent_type: "boundary-check"`. Fill EVERY `< >` slot in the template — including the INV-LOCAL slot (do NOT drop it):
 
 ```
 You are Giám sát. Run your full workflow (Bước 0 receive context → Bước 1 identify scope per INV → Bước 2 check rubric → Bước 3 compose verdict → Bước 4 emit final report).
@@ -44,11 +48,12 @@ Review scope: <PR #N | branch <name> | range <range>>
 Diff content: <inline diff OR path to /tmp/security-review-diff-<id>.txt>
 Files touched: <list>
 PR body (for INV-5 changelog check, optional): <body OR "N/A — not a PR">
+Project-local invariants (INV-LOCAL-*, check IN ADDITION to your generic 5 INV): <paste the INV-LOCAL block extracted in Step 2a verbatim — OR "N/A — no project-local invariants defined">
 
 Return your final report with `<!-- security-review-start -->` ... `<!-- security-review-end -->` block as specified.
 ```
 
-Wait for subagent return. Subagent handles 5-INV scan + verdict composition entirely on its own (scoped Bash for cross-INV correlation if needed).
+Wait for subagent return. Subagent handles 5-INV (+ any injected INV-LOCAL-*) scan + verdict composition entirely on its own (scoped Bash for cross-INV correlation if needed).
 
 ## Step 3 — Extract sentinel block from subagent output
 
@@ -84,6 +89,7 @@ Tell user:
 - Giám sát is the WORKHORSE. Diff inspection, 5-INV rubric (INV-1 through INV-5), verdict composition all happen INSIDE the subagent (scoped Bash for cross-INV correlation only). Main session ONLY captures diff + spawns + posts comment.
 - ADVISORY mode is structural: this slash command does NOT call `gh pr merge --block` or set any blocking status. KHÔNG bao giờ.
 - Sentinel markers `<!-- security-review-start -->` / `<!-- security-review-end -->` are LOAD-BEARING. Do not rename, do not duplicate, do not move.
+- The INV-LOCAL slot (Step 2a/2b) is part of the spawn template, NOT optional. Fill it every spawn — paste the `INV-LOCAL-*` block from `docs/security/INVARIANTS.md`, or the literal `N/A — no project-local invariants defined`. Silently dropping it = the doc-rotate dormancy (project-local invariants never checked because the inject step lived only in a handbook, not here). Dynamic-read per-repo; never hardcode the INV list into this template.
 - Silent-when-clean rule (generic anti-approve-fatigue principle): `APPROVE + 0 FLAG → no comment`. Apply this rule HERE in slash command, NOT in Giám sát (Giám sát always returns sentinel block; silent decision is caller's).
 - 5 INV are the contract from P042. Adding INV-6+ requires updating BOTH `agents/boundary-check.md` rubric + `templates/INVARIANTS-template.md` user-added section in a new phiếu.
 - If Giám sát reports "diff capture failed / no diff content" → relay verbatim, NOT a silent success.

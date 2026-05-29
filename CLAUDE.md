@@ -69,7 +69,7 @@ sos-kit/
 │   ├── ORCHESTRATION.md    # Full orchestrator spec (state machine, failure modes)
 │   ├── PHILOSOPHY.md       # Stable — 6 operational principles + Principle 0, change carefully
 │   ├── SETUP.md            # Install guide — MUST match actual binary names + cargo paths
-│   └── ticket/             # Historical phiếu archive (done + active)
+│   └── ticket/             # Phiếu dir — active (root) + done/ archive. Canonical: .docs-gate.toml ticket_dir
 ├── hooks/
 │   └── pre-commit          # type-check + docs-gate + BACKLOG + Discovery enforcement
 ├── integrations/           # CI snippets + uptime monitoring
@@ -84,9 +84,7 @@ sos-kit/
 │   ├── LAUNCH_CHECKLIST.md # Pre-launch gate checklist
 │   ├── RELAY_PROTOCOL.md   # Chủ nhà's courier workflow (Thợ ↔ Kiến trúc sư cross-session)
 │   ├── VISION_TEMPLATES/   # Day-1 skeletons — Chủ nhà copies + fills (PROJECT, SOUL, CHARACTER, ...)
-│   ├── active/             # Phiếu currently in sprint
-│   ├── done/               # Completed phiếu archive
-│   └── phieu.sh            # Shell function: phieu / phieu-init / phieu-done / phieu-list
+│   └── phieu.sh            # Shell function: phieu / phieu-init / phieu-done / phieu-list  (phiếu files live in docs/ticket/)
 ├── recipes/                # DNA snippets — patterns /apply consumes
 │   ├── README.md
 │   ├── _TEMPLATE.md        # New recipe skeleton
@@ -182,13 +180,47 @@ sos-kit/
 
 ## Rules
 
-1. **No runtime code in this repo.** Rust source belongs in their own repos (`ship`, `docs-gate`, `guard`, `vps`). This repo is documentation, templates, and skill markdown only. `phieu/phieu.sh` is an exception — a single shell function file users source — but it does no computation beyond git and file ops.
-2. **Every new file must justify its existence.** No `TODO.md`, no placeholder directories, no "might use later" stubs.
-3. **No hardcoded personal paths.** Replace `/Users/<name>/...` with `~/` or a generic example before committing.
-4. **README is the single source of truth.** If a tool is listed in `README.md` but not in `docs/SETUP.md`, that's a bug. Fix the gap in both places. Same for `docs/LAYERS.md` skill table.
-5. **Skills are for repeated workflows, not one-off tasks.** If a skill only applies to one project, keep it in that project's `.claude/skills/`, not here.
-6. **One skill, one layer, one responsibility.** If you're tempted to make a skill that "routes AND plans" or "plans AND implements," stop — split it. Layer leaks are anti-pattern #1.
-7. **Handoffs stay formatted.** If you're tempted to add a new inter-layer handoff ("Architect pings Worker directly on Slack"), document the format in `docs/HANDOFF.md` first. Freestyle handoffs = context loss.
+> Each rule is flagged `[mechanical]` (a cheap automated gate can/does enforce it soundly) or `[judgment]` (relies on contributor discretion — stays guidance, no gate). Per `docs/WORKFLOW_V2.2.md` §0.1: *mechanical → gate; judgment → guidance.* These tags are a doc-convention (executable-contract clarity, like a type annotation); a `doc-lint` that machine-verifies the tags is deliberately NOT built (over-build — Q-D3/WORKFLOW_V2.3 retro).
+
+1. `[judgment]` **No runtime code in this repo.** Rust source belongs in their own repos (`ship`, `docs-gate`, `guard`, `vps`). This repo is documentation, templates, and skill markdown only. `phieu/phieu.sh` is an exception — a single shell function file users source — but it does no computation beyond git and file ops.
+2. `[judgment]` **Every new file must justify its existence.** No `TODO.md`, no placeholder directories, no "might use later" stubs.
+3. `[mechanical]` **No hardcoded personal paths.** Replace `/Users/<name>/...` with `~/` or a generic example before committing. _(Greppable: `/Users/` or `/home/<user>/` — candidate for a pre-commit grep gate.)_
+4. `[judgment]` **README is the single source of truth.** If a tool is listed in `README.md` but not in `docs/SETUP.md`, that's a bug. Fix the gap in both places. Same for `docs/LAYERS.md` skill table.
+5. `[judgment]` **Skills are for repeated workflows, not one-off tasks.** If a skill only applies to one project, keep it in that project's `.claude/skills/`, not here.
+6. `[judgment]` **One skill, one layer, one responsibility.** If you're tempted to make a skill that "routes AND plans" or "plans AND implements," stop — split it. Layer leaks are anti-pattern #1.
+7. `[judgment]` **Handoffs stay formatted.** If you're tempted to add a new inter-layer handoff ("Architect pings Worker directly on Slack"), document the format in `docs/HANDOFF.md` first. Freestyle handoffs = context loss.
+8. `[mechanical+judgment]` **DOCS GATE Tầng 1 — code change BẮT BUỘC update relevant doc.** Universal rule (added 2026-05-28 post doc-rotate pilot setup). Trigger: change function signature / constant / data flow / API / schema / surface boundary / prompt / security pattern → BẮT BUỘC update relevant doc TRƯỚC commit. Missing = phiếu CHƯA XONG. **Security boundary touch → AUTO Tầng 1** (KHÔNG mark Tầng 2). Tầng 2 (cosmetic, local var) tùy. See "DOCS GATE Tầng 1 mapping" section below for per-surface table. **Knowledge durability:** Durable doctrine → `CLAUDE.md` / `agents/*.md` / `docs/WORKFLOW_V2.X.md` (no rotate). Operational evidence → `docs/DISCOVERIES.md` (rotate ≥ 1000 lines via `doc-rotate` tool pilot vòng 2).
+
+## DOCS GATE Tầng 1 mapping (sos-kit specific)
+
+Per Rule #8 above — when contributor edits these, BẮT BUỘC update target doc(s).
+
+| Code/config change | Target doc(s) | Why |
+|---|---|---|
+| `agents/architect.md` envelope (tools/role) | `docs/LAYERS.md` access matrix + `docs/HANDOFF.md` Handoff 2 | Subagent contract surface |
+| `agents/worker.md` envelope | `docs/LAYERS.md` + `docs/HANDOFF.md` Handoff 2-3 | Same |
+| `agents/orchestrator.md` hard rule add | `docs/ORCHESTRATION.md` Hard rules + `scripts/session-start-banner.sh` if banner refs rule | Orchestrator spec mirror |
+| `agents/boundary-check.md` or `advisory-watch.md` | `docs/LAYERS.md` specialist subagents subsection + `README.md` row | Specialist agent inventory |
+| `phieu/TICKET_TEMPLATE.md` format | `phieu/README.md` + `docs/HANDOFF.md` Handoff 2 | Format contract Architect ↔ Worker |
+| `phieu/phieu.sh` function behavior | `phieu/README.md` + `docs/SETUP.md` install step | User-facing CLI |
+| `phieu/VISION_TEMPLATES/*.md` section change | `skills/insight/SKILL.md` "Target section" list + `docs/HANDOFF.md` Handoff 0 | Insight skill template binding |
+| `hooks/pre-commit` SECTION add/remove | `CLAUDE.md` "Hook chain" + `docs/SETUP.md` | Hook chain integrity |
+| `scripts/security-gate.sh` INV add/remove | `templates/INVARIANTS-template.md` + `docs/SETUP.md` Security pipeline | Security surface contract |
+| `scripts/check-*.py` pattern add/remove | `templates/INVARIANTS-template.md` + `docs/HANDOFF.md` Handoff 5 | Mechanical gate inventory |
+| `scripts/parsers/*.py` add (new lock format support) | `agents/advisory-watch.md` Bước 1 stack-parse list + `docs/SETUP.md` | Trinh sát stack coverage |
+| `recipes/<cat>/<name>.md` add/remove | `README.md` recipes table + `recipes/README.md` index | Recipe catalog |
+| `configs/<stack>.toml` add | `docs/SETUP.md` per-stack section + `README.md` "Example configs" | Stack support catalog |
+| `templates/*.md` add | `README.md` templates section | Template inventory |
+| `skills/<name>/SKILL.md` role/trigger change | `README.md` skill table + `docs/LAYERS.md` skill map | Skill ownership |
+| `.docs-gate.toml` rule change | `CLAUDE.md` rule references + `hooks/pre-commit` if section logic mirrors | Pre-commit chain mutation |
+| `.mcp.json` server add/remove | `docs/SETUP.md` MCP section (if exists) | MCP inventory |
+| `docs/WORKFLOW_V2.X.md` | ⛔ FORBIDDEN ad-hoc edit — must go through retro process (see "Edit Workflow doctrine" Common task above) | Doctrine versioning |
+
+**Enforcement:**
+- **Mechanical** (pre-commit hook): `docs-gate --all` enforces changelog freshness + architecture file exists + ticket dir + changelog staged.
+- **Judgment** (contributor discipline): Worker BẮT BUỘC ghi trong Discovery Report "Tầng 1 docs updated: <list>" hoặc "Tầng 1 N/A (cosmetic only)". Reviewer (Architect Turn 2 or Sếp) challenges if diff touches trigger row but Discovery claims Tầng 2.
+
+**Why this rule exists:** Without enforcement, Architect drafts next phiếu reading stale doc → wrong assumption → cascading failure. Same root cause as Sub-mech D (persistence lifecycle gap) — doctrine ship ≠ doctrine survive. Per `docs/WORKFLOW_V2.2.md §7`, durable knowledge must live in non-rotating location with hook enforcement where possible.
 
 ## Related repos (maintained separately)
 

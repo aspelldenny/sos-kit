@@ -24,6 +24,7 @@ sos_help() {
 sos — 0→1 bootstrap for SOS Kit
 
 Usage:
+  sos new <dir> --stack <python|rust|ts>   Bootstrap a NEW repo from golden (freeze + skeleton + validate)
   sos init                     Phase 0 — vision capture (Chủ nhà)
   sos init security            Bootstrap stack detection — write .sos-stack.toml (foundation for advisory-scan / security-review)
   sos blueprint                Phase 1 — pick stack + recipes (Chủ nhà → Kiến trúc sư)
@@ -38,6 +39,11 @@ Usage:
 State: .sos/state.toml
 Genesis phiếu: docs/ticket/P000-genesis.md
 Recipe library: $SOS_KIT_DIR/recipes/
+
+Env:
+  SOS_KIT_DIR    Path to sos-kit checkout (default: dir of this script's parent).
+  DOCTOR_BIN     Path to the `doctor` binary used by `sos new`'s verify-setup gate
+                 (default: `doctor` on PATH; set this to point at a local build).
 
 For deeper docs: cat $SOS_KIT_DIR/docs/GENESIS.md
 EOF
@@ -249,6 +255,181 @@ EOF
     echo "⚠ No stack detected. See .sos-stack.toml comments for next steps."
     return 2
   fi
+}
+
+sos_new() {
+  # sos new <target-dir> --stack <python|rust|ts> [--pilot]
+  # Bootstrap a NEW repo from sos-kit golden (the scale foundation).
+  # Doctrine: docs/BOOTSTRAP_AUTOMATION_DRAFT.md §7.
+  #   1. Category A — FREEZE: copy proven spine verbatim (freeze-filtered).
+  #   2. Category C — SKELETON: generate per-repo files with # TODO markers.
+  #   3. Category B — DEFAULTS: sensible config, tunable.
+  #   4. VALIDATOR: doctor verify-setup (wiring) + grep TODO (content to fill).
+  # Done-when (acceptance test): a fresh spawn → verify-setup CONNECTED zero-hand-fix.
+  local target="" stack="" pilot="false" force="false"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --stack) stack="${2:-}"; shift 2 ;;
+      --pilot) pilot="true"; shift ;;
+      --force) force="true"; shift ;;
+      --*) echo "✗ Unknown flag: $1"; return 1 ;;
+      *) [[ -z "$target" ]] && target="$1"; shift ;;
+    esac
+  done
+
+  if [[ -z "$target" ]]; then
+    echo "Usage: sos new <target-dir> --stack <python|rust|ts> [--pilot]"
+    return 1
+  fi
+  case "$stack" in
+    python|rust|ts) ;;
+    "") echo "✗ --stack required (python|rust|ts)"; return 1 ;;
+    *)  echo "✗ Unknown stack: $stack (expected python|rust|ts)"; return 1 ;;
+  esac
+
+  local K="$SOS_KIT_DIR"
+  if [[ ! -d "$K/.claude/agents" ]]; then
+    echo "✗ SOS_KIT_DIR ($K) is not sos-kit (no .claude/agents). Set SOS_KIT_DIR."
+    return 1
+  fi
+  # Guard: refuse a non-empty target unless --force (a command named `new` must not
+  # silently overwrite an existing repo — that's `sos adopt`, future). Empty/new dir OK.
+  if [[ -e "$target" && -n "$(ls -A "$target" 2>/dev/null)" && "$force" != "true" ]]; then
+    echo "✗ $target exists and is non-empty — refusing to bootstrap into it."
+    echo "  Pick an empty/new dir, or pass --force to overwrite into it."
+    echo "  (Adopting an existing repo = future 'sos adopt', not 'sos new'.)"
+    return 1
+  fi
+
+  echo "─────────────────────────────────────────"
+  echo "sos new — bootstrap '$target' (stack: $stack)"
+  echo "─────────────────────────────────────────"
+  local name; name="$(basename "$target")"
+
+  # ---- 1. Category A — FREEZE (copy proven spine verbatim) ----
+  echo "[1/4] Category A — freeze (copy from golden)"
+  mkdir -p "$target/.claude" "$target/docs/ticket/done" "$target/docs/security" \
+           "$target/src" "$target/tests" "$target/hooks"
+  cp -R "$K/.claude/agents"   "$target/.claude/agents"
+  cp -R "$K/.claude/commands" "$target/.claude/commands"
+  cp    "$K/.claude/settings.json" "$target/.claude/settings.json"
+  [[ -f "$K/agents/orchestrator.md" ]] && cp "$K/agents/orchestrator.md" "$target/.claude/agents/orchestrator.md"
+  [[ -f "$K/templates/claude-settings.local.json" ]] && cp "$K/templates/claude-settings.local.json" "$target/.claude/settings.local.json"
+  cp -R "$K/scripts"   "$target/scripts"
+  cp -R "$K/phieu"     "$target/phieu"
+  cp -R "$K/templates" "$target/templates"
+  cp    "$K/hooks/pre-commit" "$target/hooks/pre-commit"
+  chmod +x "$target/hooks/pre-commit" 2>/dev/null || true
+  echo "  ✓ agents + commands + settings.json + scripts + phieu + templates + hooks/pre-commit"
+
+  # ---- 2. Category C — SKELETON (+ # TODO markers) ----
+  echo "[2/4] Category C — generate skeletons (+ # TODO)"
+  # 2a. docs/security/INVARIANTS.md — generic 5 (universal) + empty INV-LOCAL TODO
+  cp "$K/templates/INVARIANTS-template.md" "$target/docs/security/INVARIANTS.md"
+  printf '\n## INV-LOCAL (project-specific — FILL THESE)\n\n# TODO: add at least one `## INV-LOCAL-NNN — <title>` for this product, or write `# No local INV` if none.\n' >> "$target/docs/security/INVARIANTS.md"
+  # 2b. docs/AGENT_MAP.yaml — skeleton from example, TODO to fill real surfaces
+  if [[ -f "$K/configs/AGENT_MAP.example.yaml" ]]; then
+    { printf '# AGENT_MAP — surfaces for this repo.\n# TODO: replace the example below with real surfaces (path + anchor).\n\n'
+      cat "$K/configs/AGENT_MAP.example.yaml"; } > "$target/docs/AGENT_MAP.yaml"
+  fi
+  # 2c. docs/BACKLOG.md from template
+  [[ -f "$K/templates/BACKLOG_template.md" ]] && cp "$K/templates/BACKLOG_template.md" "$target/docs/BACKLOG.md"
+  # 2d. CLAUDE.md project skeleton
+  cat > "$target/CLAUDE.md" <<EOF
+# CLAUDE.md — $name
+
+> Project context for Claude Code. Workflow doctrine: sos-kit (3 roles + Quản đốc orchestrator).
+
+## Project context
+
+# TODO: fill stack ($stack), role (product/tool/util), and core constraints.
+
+## Rules
+
+Inherit sos-kit role separation: Chủ nhà / Kiến trúc sư / Thợ + Quản đốc.
+EOF
+  # 2e. stack manifest skeleton (feeds sos init security in step 3)
+  case "$stack" in
+    python) [[ -f "$target/pyproject.toml" ]] || printf '[project]\nname = "%s"\nversion = "0.0.0"\n# TODO: fill dependencies\n' "$name" > "$target/pyproject.toml" ;;
+    rust)   [[ -f "$target/Cargo.toml" ]]     || printf '[package]\nname = "%s"\nversion = "0.0.0"\nedition = "2021"\n# TODO: fill dependencies\n' "$name" > "$target/Cargo.toml" ;;
+    ts)     [[ -f "$target/package.json" ]]   || printf '{\n  "name": "%s",\n  "version": "0.0.0"\n}\n' "$name" > "$target/package.json" ;;
+  esac
+  # 2f. docs/ARCHITECTURE.md skeleton (docs-gate [architecture] target) so the
+  #     bootstrapped repo passes its OWN docs-gate (gap fix: config enables it).
+  cat > "$target/docs/ARCHITECTURE.md" <<EOF
+# Architecture — $name
+
+> # TODO: fill. docs-gate [architecture] points here (.docs-gate.toml).
+
+## Overview
+
+# TODO: what this repo is, one paragraph.
+
+## Components
+
+# TODO: main modules / surfaces.
+
+## Data flow
+
+# TODO: how data moves through the system.
+EOF
+  # 2g. CHANGELOG.md skeleton (root; docs-gate checks freshness + a date in the latest entry)
+  [[ -f "$target/CHANGELOG.md" ]] || printf '# Changelog\n\nFormat loosely follows Keep a Changelog.\n\n## v0.0.0 — bootstrap via `sos new` — %s\n\n- Repo bootstrapped from sos-kit golden.\n' "$(date -u +%Y-%m-%d)" > "$target/CHANGELOG.md"
+  echo "  ✓ INVARIANTS.md + AGENT_MAP.yaml + BACKLOG.md + CLAUDE.md + ARCHITECTURE.md + CHANGELOG.md + stack manifest"
+
+  # ---- 3. Category B — DEFAULTS (tunable) ----
+  echo "[3/4] Category B — defaults"
+  if [[ ! -f "$target/.docs-gate.toml" ]]; then
+    cat > "$target/.docs-gate.toml" <<'EOF'
+# docs-gate config — bootstrap default (sos new). Mirrors sos-kit's working config.
+# Paths are relative to docs_dir; CHANGELOG.md lives at repo root via "../".
+docs_dir = "docs"
+changelog = "../CHANGELOG.md"
+changelog_max_age_days = 1
+changelog_staged = false   # docs-gate v0.1.0 "../" normalization bug — age check still enforces freshness
+
+rules = []
+staleness = []
+doc_structure = []
+count_check = []
+cross_doc = []
+
+[architecture]
+enabled = true
+file = "ARCHITECTURE.md"   # resolves to docs/ARCHITECTURE.md (relative to docs_dir)
+required_sections = 0      # flexible — skeleton ships; tighten when filled
+required_non_empty = []
+
+[ticket]
+ticket_dir = "docs/ticket"
+type_pattern = ""
+valid_types = []
+exclude_files = []
+EOF
+  fi
+  ( cd "$target" && sos_init_security >/dev/null 2>&1 ) || true   # writes .sos-stack.toml
+  echo "  ✓ .docs-gate.toml + .sos-stack.toml"
+
+  # ---- 4. VALIDATOR — composite (wiring + content-to-fill) ----
+  echo "[4/4] Validator"
+  local doctor_bin="${DOCTOR_BIN:-doctor}"
+  if command -v "$doctor_bin" >/dev/null 2>&1 || [[ -x "$doctor_bin" ]]; then
+    local vs_out vs_rc
+    set +e
+    vs_out="$("$doctor_bin" verify-setup --repo "$target" 2>&1)"; vs_rc=$?
+    set -e
+    echo "$vs_out" | sed 's/^/    /'
+    if [[ "$vs_rc" -eq 0 ]]; then echo "  ✓ verify-setup: CONNECTED"
+    else echo "  ⚠ verify-setup: rc=$vs_rc — wiring gap above"; fi
+  else
+    echo "  ⏭ doctor not found — skip verify-setup (install: cargo install --path ~/doctor, or set DOCTOR_BIN=/path/to/doctor)"
+  fi
+  echo "  Category C placeholders to fill (# TODO):"
+  grep -rl "# TODO" "$target/docs" "$target/CLAUDE.md" 2>/dev/null | sed "s|$target/|    - |" || echo "    (none found)"
+
+  echo ""
+  echo "✓ sos new done: $target"
+  echo "  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git init → commit."
 }
 
 sos_blueprint() {
@@ -472,6 +653,7 @@ sos() {
   local cmd="${1:-help}"
   shift || true
   case "$cmd" in
+    new)         sos_new "$@" ;;
     init)        sos_init "$@" ;;
     blueprint)   sos_blueprint "$@" ;;
     contract)    sos_contract "$@" ;;

@@ -82,6 +82,12 @@
 
 ---
 
+## 📌 Decision pending mai (2026-05-29)
+
+- [ ] **Bootstrap automation — `sos-init.sh` stopgap → cargo `sos-kit init` doctrine.** Full analysis: `docs/BOOTSTRAP_AUTOMATION_DRAFT.md`. **Diagnosis (Sếp 2026-05-28):** em manual setup doc-rotate 30+ tool call = bệnh "agent copy thiếu" — đang bắt LLM nhớ. Slogan "đừng bắt LLM nhớ, bắt cơ chế nói sự thật" → bootstrap PHẢI là tool. **Framework:** 3 category (BẤT BIẾN đổ cứng / TUNABLE default override / PHẢI KHÁC khung rỗng+validator). **Timing cảnh báo:** đừng cargo hóa NGAY — sos-kit chưa chín, pattern phải lặp ≥3 repo mới biết cái gì thật bất biến. **Stopgap:** bash `sos-init.sh` ~50 dòng, ~20 min viết, giải đau ngay. **Cargo proper:** post pilot vòng 2 + ≥1 repo thứ 3. **6 decision points** for Sếp mai: location / V0 scope / apply first repo / validator integration / --stack values / cargo timeline.
+
+---
+
 ## 💡 Open backlog (triaged, not yet sprinted)
 
 - [ ] **[P007]** *(Tầng 2 housekeeping leftover từ P004)* `bin/sos.sh:94` echo help text vẫn còn literal `docs/CHARACTER.md` — cosmetic, không ảnh hưởng agent envelope rule. 1-line edit thành `docs/CHARACTER*.md` cho consistency. Worker đã classify cosmetic exclusion ở P004 EXECUTE — promote khi rảnh hoặc gom với phiếu housekeeping khác.
@@ -105,6 +111,7 @@
 - [ ] **Slash command `/build <item>` that runs the full state machine** (DRAFT → CHALLENGE → RESPOND → approval → EXECUTE) end-to-end with one user input. Heavy abstraction; may hide useful debate state. Reconsider after P032/P033 ship.
 - [ ] **Telemetry** — opt-in usage stats (which skills, which modes, debate-turn distribution). Useful for evidence-based v2.2 optimization. Privacy + complexity trade-off.
 - [ ] **Bidirectional Telegram control** — Sếp gửi command từ phone (e.g. `/idea X`, `/status`, `/approve P005`) → bot trigger Claude Code action remote. Depends on P009 (one-way notification) shipping first + Anthropic `RemoteTrigger` deferred tool maturity. Big concept (auth, security, command parsing). Reconsider sau khi P009 + Sếp dùng Telegram one-way ≥1 tháng.
+- [ ] **Concept-confusion-in-prose (Q-D6 open half)** — single-source kills *value*-drift (ticket_dir, sentinel) but NOT *concept*-confusion in prose (someone writing "Tầng" where "Lane" is meant, in free text). No tool built (see Rejected: vocab-tool); tracked as unsolved. Don't close the root question with a pretty "self-dissolves" claim — value-half dissolved, concept-in-prose-half open. Reconsider only on a real grounded incident (n≥1, not hypothesized).
 
 ---
 
@@ -133,7 +140,7 @@
 
 ## ❌ Rejected (kept here so we don't reconsider in 6 months)
 
-*(empty)*
+- ❌ **Vocab-consistency tool (glossary + forbidden-variant grep pre-commit)** — (Q-D6, WORKFLOW_V2.3 retro 2026-05-29). Proposed to catch term-drift (INV_LOCAL underscore, Tầng-as-lane, sentinel casing skew, `phieu/active` refs). **REJECTED:** forge demolished the evidence — INV_LOCAL underscore n=0 (grep=0); `Tầng:` is the CANONICAL `TICKET_TEMPLATE` field (forbidding it blocks the golden + pre-empts the open Q-D2); sentinel casing is per-repo-internal (emit/grep never cross repos); `phieu/active` refs are intentional legacy. Net live disease ≈ 0 → a blocklist would false-flag → `--no-verify` death. **Correct mechanism = single-source-the-value** (hook reads canonical from 1 declaration, consumers derive — generalizes Q-D1) + fold within-repo sentinel-consistency into `doctor verify-setup` J1 (built Vòng 12). No standalone vocab grep.
 
 ---
 

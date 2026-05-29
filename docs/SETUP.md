@@ -132,6 +132,8 @@ sos init security
 
 After these steps, your project is ready. Chủ nhà fills `docs/PROJECT.md` and `docs/SOUL.md` as vision firms up, then Architect in Claude Web can start writing phiếu.
 
+**Env vars (bootstrap):** `sos new` runs `doctor verify-setup` as its post-bootstrap gate. It calls `doctor` on PATH by default; set **`DOCTOR_BIN=/path/to/doctor`** to point at a custom/local build (e.g. before `cargo install --path ~/doctor`). `SOS_KIT_DIR` (default: the sos-kit checkout) tells `sos new` where to copy the golden spine from.
+
 ### 5. Install pre-commit hook
 
 ```bash

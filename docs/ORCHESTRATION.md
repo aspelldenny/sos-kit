@@ -209,7 +209,7 @@ After Worker EXECUTE ships and PR merges into main, Sếp runs `phieu-done <P-sl
 4. Delete local branch: `git branch -d <branch>` (safe-mode only — refuses if unmerged).
 5. Cleanup snapshot: `rm -rf .backup/P<NNN>/` (created by Worker Task 0 first-step).
 
-**Why strip Debate Log post-ship:** archived phiếu (in `phieu/done/`) get Read-loaded by Architect when next phiếu references same component. Full Turn-N debate text = pure overhead at that point — decisions already merged, only the consensus + Tasks matter. Strip = ~30-50% file size reduction per multi-turn phiếu.
+**Why strip Debate Log post-ship:** archived phiếu (in `docs/ticket/done/`) get Read-loaded by Architect when next phiếu references same component. Full Turn-N debate text = pure overhead at that point — decisions already merged, only the consensus + Tasks matter. Strip = ~30-50% file size reduction per multi-turn phiếu.
 
 **Why `git branch -d` not `-D`:** safe-delete refuses unmerged branches → catches "merged via squash but local branch tracking lost" edge case. Worker may surface this as "branch unmerged" warn → Sếp investigates manually.
 
