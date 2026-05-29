@@ -138,6 +138,17 @@ The core principle: **Architect decides the house layout. Worker decides where t
 | Add migration column `user_id` vs `userId` | Tầng 1 | Schema = long-term, Prisma convention |
 | Break a function into 2 smaller helpers in same file | Tầng 2 | Internal refactor, no external impact |
 
+### What makes it Tầng 1 — by CONSEQUENCE, not size (SINGLE SOURCE)
+
+The deciding question is the **blast / reversibility of being wrong**, never the diff size:
+
+- **Tầng 1 (móng)** — a mistake here **LAN** (affects many consumers / shared contract / schema / API / data flow) **OR is NOT REVERSIBLE** (data, money, auth, privacy, migration, an email/charge already sent). Any **security / auth / schema / privacy / payment / `INV-LOCAL-*`** touch → **AUTO Tầng 1, even if the diff is 1 line.**
+- **Tầng 2** — a mistake is **LOCAL and FIXABLE in place** (one button, copy, CSS, a local helper): no external blast, reversible.
+- **LOC / file-count is NOT a Tầng signal.** A 3-line privacy check is Tầng 1; a 300-line internal refactor with no external impact is Tầng 2. Size only affects how long a Tầng-1 review is — never whether it's Tầng 1.
+- **Direction is asymmetric:** escalate to Tầng 1 on consequence; **never downgrade to Tầng 2 because "it looks small".** (Proving something is truly local is harder than spotting that it spreads.)
+
+> This subsection is the **single source** for the Tầng definition. `agents/orchestrator.md`, `agents/architect.md`, `phieu/TICKET_TEMPLATE.md`, `docs/ORCHESTRATION.md` reference it — they MUST NOT restate the criterion (restating it re-creates two-voice drift, the bug that collapsed the media pilot).
+
 ## Chủ nhà's 7 responsibilities
 
 This role is often misunderstood. Chủ nhà is NOT just the CEO router. Chủ nhà is the **source of truth provider** for everything domain-related:

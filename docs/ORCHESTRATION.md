@@ -58,7 +58,7 @@ Why a dedicated greeting turn: SessionStart hook stdout is injected into the mod
 
 Tier routing exists because not every phiếu deserves a multi-turn debate. Architect declares `Tầng: 1` or `Tầng: 2` in the phiếu header during DRAFT, and Quản đốc branches:
 
-- **Tầng 2 (lặt vặt)** — surgical fix, anchor clear, ≤3 files, ≤200 LOC, no schema/API/auth/new-dep change. Skip CHALLENGE_PHASE entirely. DRAFT → APPROVAL_GATE → EXECUTE. The CHALLENGE round-trip is pure overhead for changes Worker can self-verify at EXECUTE time. Cost saved: 1 subagent spawn + Architect RESPOND round-trip (~30-60s + 5-15k tokens per skip).
+- **Tầng 2 (lặt vặt)** — surgical fix, anchor clear, consequence is **local + reversible** (no schema/API/auth/privacy/security/`INV-LOCAL` touch; see `docs/LAYERS.md` §2-tier — **LOC is NOT a criterion**). Skip CHALLENGE_PHASE entirely. DRAFT → APPROVAL_GATE → EXECUTE. The CHALLENGE round-trip is pure overhead for changes Worker can self-verify at EXECUTE time. Cost saved: 1 subagent spawn + Architect RESPOND round-trip (~30-60s + 5-15k tokens per skip).
 - **Tầng 1 (móng nhà)** — touches kiến trúc, API contract, data flow, schema, auth boundary, or adds dependency. Worker MUST CHALLENGE before code. The cost of shipping an architecturally-wrong fix dwarfs the CHALLENGE round-trip cost.
 
 **Tier escalation is one-way** (Tầng 2 → Tầng 1 mid-EXECUTE allowed; Tầng 1 → Tầng 2 demotion forbidden). Audit trail integrity: once Architect declared Tầng 1, the debate runs even if it turns out trivial. Silent demotion = lost signal for retro / next-phiếu calibration.
@@ -150,7 +150,7 @@ Architect sets `Tầng: 1` or `Tầng: 2` in the phiếu header during DRAFT. Or
 
 | Tầng | Path | Reason |
 |---|---|---|
-| 2 (lặt vặt) | DRAFT → APPROVAL_GATE → EXECUTE | Surgical fix, anchor clear, ≤3 files, ≤200 LOC, no schema/API/auth/new-dep change. Worker self-verifies Task 0 in EXECUTE mode. CHALLENGE round-trip is pure overhead. |
+| 2 (lặt vặt) | DRAFT → APPROVAL_GATE → EXECUTE | Surgical fix, anchor clear, consequence local + reversible (no schema/API/auth/privacy/security/`INV-LOCAL`; `docs/LAYERS.md` §2-tier — **LOC NOT a criterion**). Worker self-verifies Task 0 in EXECUTE mode. CHALLENGE round-trip is pure overhead. |
 | 1 (móng nhà) | DRAFT → CHALLENGE → [RESPOND ⇄ CHALLENGE] → APPROVAL → EXECUTE | Touches kiến trúc, API contract, data flow, schema, auth boundary, or adds dependency. Worker MUST CHALLENGE before code. |
 
 **Tầng 2 → Tầng 1 escalation (mid-EXECUTE):** If Worker discovers during EXECUTE that the change actually touches móng nhà (schema/API/auth/new dep) — STOP. Append Debate Log Turn 1 with `file:line` evidence of the móng-nhà collision. Return to orchestrator. Orchestrator re-routes through CHALLENGE_PHASE as if phiếu had been Tầng 1 from the start. Update phiếu header `Tầng: 1` and note in Discovery Report ("escalated 2→1 mid-execute, reason: …").

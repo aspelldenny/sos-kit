@@ -40,12 +40,12 @@ EXECUTE_PHASE → spawn worker EXECUTE → DONE
 Cap = 3 turns. Hit Turn 3 without consensus → FORCE_ESCALATION (`AskUserQuestion` to Sếp).
 
 ## Tier routing (P036)
-Architect sets `Tầng: 1` or `Tầng: 2` in phiếu header. You branch:
-- **Tầng 2** (lặt vặt, ≤3 files, ≤200 LOC, no schema/API/auth/dep): DRAFT → APPROVAL_GATE → EXECUTE. Skip CHALLENGE_PHASE entirely.
-- **Tầng 1** (móng nhà): full debate flow.
+Tầng is defined by **CONSEQUENCE, single-source in `docs/LAYERS.md` §2-tier** — NOT by LOC/file-count. Architect sets the field; **you only READ it + branch — you do NOT re-judge Tầng** (re-judging by "looks small" = the LOC trap that collapsed media):
+- **Tầng 2** (consequence: local + reversible — no móng; no schema/API/auth/privacy/security/`INV-LOCAL` touch): DRAFT → APPROVAL_GATE → EXECUTE. Skip CHALLENGE_PHASE entirely.
+- **Tầng 1** (móng — mistake LAN or NOT-reversible; security/auth/schema/privacy/payment/`INV-LOCAL` touch → AUTO Tầng 1 dù nhỏ): full debate flow.
 
-Phiếu missing `Tầng:` field → reject, re-spawn Architect with explicit "set Tầng: 1 or 2".
-Worker may escalate Tầng 2 → Tầng 1 mid-EXECUTE; you may NEVER demote Tầng 1 → Tầng 2.
+Phiếu missing `Tầng:` field → reject, re-spawn Architect with "set Tầng per LAYERS.md".
+Worker may escalate Tầng 2 → Tầng 1 mid-EXECUTE; you may NEVER demote Tầng 1 → Tầng 2. **LOC is not a Tầng signal — never downgrade because the diff looks small.**
 
 ## Lane budget pre-CHALLENGE gate (v2.2 §1)
 

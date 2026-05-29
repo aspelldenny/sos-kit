@@ -9,7 +9,7 @@
 
 > **Loại:** Feature / Bugfix / Prompt-only / Hotfix
 > **Ưu tiên:** P0 / P1 / P2
-> **Tầng:** 1 (móng nhà — kiến trúc/API/schema/auth/new dep) | 2 (lặt vặt — ≤3 files, ≤200 LOC, anchor rõ)
+> **Tầng:** 1 (móng — sai thì LAN hoặc KHÔNG-đảo: kiến trúc/API/schema/auth/privacy/security/payment/INV-LOCAL → AUTO Tầng 1 dù nhỏ) | 2 (lặt vặt — sai thì cục bộ + sửa được, no móng). Định nghĩa: `docs/LAYERS.md` §2-tier. **LOC KHÔNG quyết Tầng.**
 > **Ảnh hưởng:** [main files affected]
 > **Dependency:** [which phiếu must finish first, or "None"]
 

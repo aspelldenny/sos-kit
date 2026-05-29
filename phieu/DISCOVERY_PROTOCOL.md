@@ -82,10 +82,9 @@ If a phiếu was marked `Tầng: 2` by Architect but Worker discovers during EXE
 
 **Why this matters:** A "small" billing fix that touches `auth.ts` is not Tầng 2, even if the diff is 20 LOC. The tier is about **blast radius of what could break**, not lines changed.
 
-**Heuristic Tầng 2 (sufficient conditions):**
-- ≤3 anchor files
-- ≤200 LOC change
-- No schema/API contract/auth modification
+**Tầng 2 conditions (consequence — per `docs/LAYERS.md` §2-tier; LOC/file-count is NOT a criterion):**
+- Consequence is LOCAL + REVERSIBLE (no external blast)
+- No schema / API contract / auth / privacy / security / `INV-LOCAL` modification
 - No new dependency
 - All Task 0 anchors `[verified]` or surgical-only `[needs Worker verify]`
 
