@@ -17,6 +17,10 @@ Forge rounds 1–4 of `docs/retro/WORKFLOW_V2.3_RETRO_doc-rotate.md` (doc-rotate
 
 Verified: gate canary fires on `docs/ticket/`; `bash -n` clean on edited scripts. Open production-risk tracked in retro: tarot's Giám sát (boundary-check v166) runs live but has never been quality-canaried.
 
+**Gap-audit tarot→sos-kit + spawn-discretion findings (2026-05-29):**
+- `docs/GAP_AUDIT_tarot_to_soskit.md` — the kit lagged its flagship (tarot). Read-only inventory of GENERIC-doctrine gaps. **Dominant disease:** kit ships the GATE but drops the DOCTRINE that fires it = Sub-mech A "trigger gap" re-created inside the kit (what made the media pilot collapse). **Top-3:** advisory auto-spawn (Rule 10 + banner staleness), pre-merge security-gate doctrine (Rule 9), Architect Layer-1 capability check. **Direction (Sếp):** tarot FROZEN — fix kit→media/new-projects as proving-ground; back-port to tarot later. sos-kit is AHEAD on v2.2 (lane/sensor/rubric/multi-stack/INV-4) — do NOT sync down.
+- `docs/retro/WORKFLOW_V2.3_RETRO_doc-rotate.md` Vòng 13/14: spawn-discretion bug (mechanical proof — doc-rotate 23 spawns vs media 0, same delegation prompt) + corrected fix-direction (sound/partial: Tầng = human judgment via INV-LOCAL/INVARIANTS membership; hooks enforce field-existence + role-ran state-check, NEVER hook-detect-security; closes Q-D2 seedling-disease).
+
 **Bootstrap Cat-A freeze completed — skills + doctor MCP wiring (2026-05-29):**
 - `bin/sos.sh` `sos new` + `sos adopt` now copy the **13 generic SOS skills** (`skills/` → `.claude/skills/`) and wire **OUR `doctor` MCP gate** in `.mcp.json` (PATH-rel `doctor`, no hardcoded path). Closes a real freeze gap found dogfooding media-rating: adopt copied the role agents but not the skills they invoke (`/plan` `/verify` …) nor the `.mcp.json` that wires Giám sát's `mcp__doctor__*` tools → both were dead in the adopted repo.
 - `adopt` is ADDITIVE/non-clobber: keeps a repo's own domain skills (Cat-C) + its own external MCP (`.mcp.json` flagged, never overwritten), adds only the generic spine.
