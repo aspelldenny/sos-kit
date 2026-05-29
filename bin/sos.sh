@@ -261,11 +261,12 @@ sos_new() {
   #   3. Category B — DEFAULTS: sensible config, tunable.
   #   4. VALIDATOR: doctor verify-setup (wiring) + grep TODO (content to fill).
   # Done-when (acceptance test): a fresh spawn → verify-setup CONNECTED zero-hand-fix.
-  local target="" stack="" pilot="false"
+  local target="" stack="" pilot="false" force="false"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --stack) stack="${2:-}"; shift 2 ;;
       --pilot) pilot="true"; shift ;;
+      --force) force="true"; shift ;;
       --*) echo "✗ Unknown flag: $1"; return 1 ;;
       *) [[ -z "$target" ]] && target="$1"; shift ;;
     esac
@@ -286,8 +287,12 @@ sos_new() {
     echo "✗ SOS_KIT_DIR ($K) is not sos-kit (no .claude/agents). Set SOS_KIT_DIR."
     return 1
   fi
-  if [[ -f "$target/.claude/settings.json" ]]; then
-    echo "⚠ $target already has .claude/settings.json — looks bootstrapped. Aborting."
+  # Guard: refuse a non-empty target unless --force (a command named `new` must not
+  # silently overwrite an existing repo — that's `sos adopt`, future). Empty/new dir OK.
+  if [[ -e "$target" && -n "$(ls -A "$target" 2>/dev/null)" && "$force" != "true" ]]; then
+    echo "✗ $target exists and is non-empty — refusing to bootstrap into it."
+    echo "  Pick an empty/new dir, or pass --force to overwrite into it."
+    echo "  (Adopting an existing repo = future 'sos adopt', not 'sos new'.)"
     return 1
   fi
 
@@ -344,21 +349,57 @@ EOF
     rust)   [[ -f "$target/Cargo.toml" ]]     || printf '[package]\nname = "%s"\nversion = "0.0.0"\nedition = "2021"\n# TODO: fill dependencies\n' "$name" > "$target/Cargo.toml" ;;
     ts)     [[ -f "$target/package.json" ]]   || printf '{\n  "name": "%s",\n  "version": "0.0.0"\n}\n' "$name" > "$target/package.json" ;;
   esac
-  echo "  ✓ INVARIANTS.md (generic 5 + INV-LOCAL TODO) + AGENT_MAP.yaml + BACKLOG.md + CLAUDE.md + stack manifest"
+  # 2f. docs/ARCHITECTURE.md skeleton (docs-gate [architecture] target) so the
+  #     bootstrapped repo passes its OWN docs-gate (gap fix: config enables it).
+  cat > "$target/docs/ARCHITECTURE.md" <<EOF
+# Architecture — $name
+
+> # TODO: fill. docs-gate [architecture] points here (.docs-gate.toml).
+
+## Overview
+
+# TODO: what this repo is, one paragraph.
+
+## Components
+
+# TODO: main modules / surfaces.
+
+## Data flow
+
+# TODO: how data moves through the system.
+EOF
+  # 2g. CHANGELOG.md skeleton (root; docs-gate checks freshness + a date in the latest entry)
+  [[ -f "$target/CHANGELOG.md" ]] || printf '# Changelog\n\nFormat loosely follows Keep a Changelog.\n\n## v0.0.0 — bootstrap via `sos new` — %s\n\n- Repo bootstrapped from sos-kit golden.\n' "$(date -u +%Y-%m-%d)" > "$target/CHANGELOG.md"
+  echo "  ✓ INVARIANTS.md + AGENT_MAP.yaml + BACKLOG.md + CLAUDE.md + ARCHITECTURE.md + CHANGELOG.md + stack manifest"
 
   # ---- 3. Category B — DEFAULTS (tunable) ----
   echo "[3/4] Category B — defaults"
   if [[ ! -f "$target/.docs-gate.toml" ]]; then
     cat > "$target/.docs-gate.toml" <<'EOF'
-# docs-gate config — bootstrap default (sos new). Tune per repo.
-enabled = true
+# docs-gate config — bootstrap default (sos new). Mirrors sos-kit's working config.
+# Paths are relative to docs_dir; CHANGELOG.md lives at repo root via "../".
+docs_dir = "docs"
+changelog = "../CHANGELOG.md"
+changelog_max_age_days = 1
+changelog_staged = false   # docs-gate v0.1.0 "../" normalization bug — age check still enforces freshness
+
+rules = []
+staleness = []
+doc_structure = []
+count_check = []
+cross_doc = []
 
 [architecture]
 enabled = true
-file = "docs/ARCHITECTURE.md"
+file = "ARCHITECTURE.md"   # resolves to docs/ARCHITECTURE.md (relative to docs_dir)
+required_sections = 0      # flexible — skeleton ships; tighten when filled
+required_non_empty = []
 
 [ticket]
 ticket_dir = "docs/ticket"
+type_pattern = ""
+valid_types = []
+exclude_files = []
 EOF
   fi
   ( cd "$target" && sos_init_security >/dev/null 2>&1 ) || true   # writes .sos-stack.toml
