@@ -1,8 +1,7 @@
 # Bootstrap Automation — Draft Doctrine (2026-05-28)
 
-> **Status:** DRAFT — captured from Sếp + Claude Web analysis during doc-rotate pilot setup (2026-05-28 chiều).
-> **Decision pending:** Sếp xử lý mai (2026-05-29). Pilot doc-rotate vẫn chạy bằng manual bootstrap hiện tại.
-> **Why draft (not full doctrine):** sos-kit chưa chín cho cargo hóa. Pattern phải lặp qua ≥2-3 repo mới biết cái gì thật bất biến. Doc-rotate là data source vòng 2.
+> **Status:** DRAFT (2026-05-28) → **ARC KICKOFF 2026-05-29** (see §7). Script-first build greenlit post Q-D5/canary; §5 decisions resolved in §7.5. **Cargo still deferred** (share-time, future — not a scale condition).
+> **Why draft (not full doctrine):** sos-kit chưa chín cho cargo hóa. Pattern phải lặp qua ≥2-3 repo mới biết cái gì thật bất biến. Doc-rotate là data source vòng 2. — *Update 2026-05-29: load-bearing pieces have now RUN (§7.1); the bash SCRIPT (§4) is greenlit, cargo stays deferred.*
 
 ---
 
@@ -165,3 +164,45 @@ Em chờ Sếp quyết:
 ---
 
 **Provenance:** Sếp 3 messages 2026-05-28 chiều + Claude Web analysis (forwarded by Sếp) + em (Quản đốc) 3 refinement add.
+
+---
+
+## §7. Reconciliation 2026-05-29 — ARC KICKOFF (post Q-D5 verify-setup + tarot canary)
+
+> Added after the v2.3 retro shipped 4 pain-cures. **Goal shifted:** from "relieve manual-setup pain" → **make spawning a new product cheap + safe = the scale foundation** (the 2-dead-weeks investment so future products don't re-pay infra cost). This section reconciles the 2026-05-28 draft with what matured, applies the freeze-filter discipline, resolves §5, and sets the done-when. **Bounded kickoff — spec only, no build yet.**
+
+### 7.1 What changed — the §3 timing warning, re-judged
+§3 warned "don't cargo — mold not mature, need 3 repos." Re-judged: the §4 **bash script was ALWAYS allowed** (§3 only warned against CARGO). The load-bearing pieces have now RUN across repos: spine A1 (5 repos / 3 gens), single-source `ticket_dir` (Q-D1 canary), sentinel (fixed + canary), `verify-setup` (discrimination-passed Vòng 12), boundary canary (tarot v166 real-gate). → **Build the SCRIPT now** (scale-unlock). **Cargo stays deferred** — §3's core holds; cargo is share-time (future), not a scale condition. The script is no longer a "stopgap" — it's the deliberate scale foundation.
+
+### 7.2 Freeze-filter — apply the verify-setup-saving discipline to Category A
+Category A "đổ cứng" must be filtered **joint-by-joint ("did THIS run")**, NOT frozen as a bundle — else new repos inherit dormant members, multiplied (the cargo-too-much trap):
+- ✅ **Freeze (proven-cắn):** agent `.md` files (spine A1), scripts (`block-env-edit`, `block-unsafe-merge` **with the FIXED sentinel**, `architect-guard`, `session-start-banner`), `phieu/` workflow, `templates/`, `.claude/commands/`, dir structure.
+- ⚠️ **`hooks/pre-commit` — freeze the FIRING sections only:** docs-gate + security-gate + ticket_dir single-source. `lane-check` / doctor-as-blocker were **DORMANT** (retro Cột B) → do NOT freeze them as "active"; keep graceful-skip or exclude until actually wired.
+- 🔌 **`verify-setup` is NOT in any hook yet** (CLI/MCP only — grep of `hooks/pre-commit` confirms). Wiring it as the post-spawn gate (§2 step 4) + optionally pre-commit IS new work, not "already have it."
+
+### 7.3 verify-setup ≠ the whole validator (scope clarity)
+The 2026-05-28 §2 step-4 imagined `doctor verify-setup` = "hooks wired + agents register + BACKLOG present." After Q-D5, verify-setup is specifically the **Giám sát (boundary-check) wiring chain** (J1 sentinel / J2 rubric / J4 invariants / J5 merge-gate / J6 verdict). **Keep it narrow.** The **bootstrap validator** is a COMPOSITE of separate checks:
+- `doctor verify-setup` — boundary-check role wired (if security enabled)
+- `doctor validate-map` — AGENT_MAP path/anchor exist
+- grep `# TODO` / placeholders in Category-C templates
+- BACKLOG Active-sprint present (existing sos-kit v2 hook check)
+
+### 7.4 DONE-WHEN — the acceptance test = discrimination test for the spawn mechanism
+NOT "the script runs without error." The proof:
+1. `sos new <test-repo> --stack <X>` on an empty dir →
+2. `doctor verify-setup` returns **CONNECTED zero-hand-fix for the WIRING joints (J1/J2/J5/J6)** — copied from golden, must be intact with no manual repair.
+3. **J4** (`docs/security/INVARIANTS.md`) is EXPECTED-empty on a fresh spawn → the validator must report it as a **Category-C "fill this" TODO**, NOT a hard wiring-DORMANT. → **this REQUIRES the J4-conditional hardening** (the deferred residual surfaces HERE as required work: distinguish "wiring broken" from "content-slot awaiting fill"). *(This is the tool-vs-product principle in action: do the completion when the pain it cures actually recurs — bootstrap is where J4-conditional recurs.)*
+4. **Negative oracle:** the spawned repo must NOT resemble doc-rotate (sentinel mismatch / missing wiring). If verify-setup flags a WIRING joint broken on a fresh spawn → bootstrap is incomplete, and that's the find.
+
+### 7.5 §5 decision points — RESOLVED (recommendations)
+1. **Location:** extend `bin/sos.sh` (already has `init`/`blueprint`/`contract`) — add/beef `sos new` (full A+B+C+validator). NOT a new dir.
+2. **Scope V0:** full 4-step (A đổ-cứng + C sinh-rỗng + B default + composite validator), as **BASH** (§4). Each step small.
+3. **Apply first:** a fresh THROWAWAY test repo (clean baseline = the §7.4 acceptance test). Do **NOT** re-bootstrap doc-rotate (live pilot — leave it; one-measurement discipline).
+4. **Validator:** invoke `doctor verify-setup` + `doctor validate-map` (both built now) + inline grep TODO. Hybrid.
+5. **--stack:** Python + Rust + TS (current 3 pilot stacks). Open list later.
+6. **Cargo:** deferred — script first; cargo when SHARING (future). §3 core holds for cargo.
+
+### 7.6 NOT in this arc (completion, not scale-blocker — tool-vs-product discipline)
+Q-D7 adversarial canary, advisory→block, Q-D2 doctrine mầm-bệnh, J7/J9 beyond bootstrap need — none block "spawn a repo that runs." **J4-conditional IS pulled in** (§7.4 needs it — completion surfacing at the real use-case). **Wave D** (lower doctrine to golden) = step-1 of bootstrap = *defining the freeze-filtered Category A* = happens AS the script is built (one stream, not a separate task).
+
+**Next concrete step (when build greenlit):** Architect drafts the `sos new` phiếu from §7.5 + §7.4 done-when → Worker builds bash → spawn throwaway test repo → run verify-setup → confirm CONNECTED-zero-fix. STOP-line unchanged: no `WORKFLOW_V2.3.md` golden ratification until Q-D2 mầm-bệnh + Sếp approve.
