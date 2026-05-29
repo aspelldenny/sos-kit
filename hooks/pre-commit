@@ -120,8 +120,12 @@ else
     fi
 fi
 
+# Resolve phiếu dir from single source (.docs-gate.toml ticket_dir) — Q-D1: gate READS, never hardcodes
+TICKET_DIR=$(grep -E '^[[:space:]]*ticket_dir[[:space:]]*=' .docs-gate.toml 2>/dev/null | sed -E 's/.*=[[:space:]]*"([^"]+)".*/\1/' | head -1)
+TICKET_DIR=${TICKET_DIR:-docs/ticket}
+
 # 3c. New phiếu file requires Discovery Report entry
-NEW_PHIEU=$(git diff --cached --name-only --diff-filter=A | grep -E '^docs/ticket/P[0-9]+-' || true)
+NEW_PHIEU=$(git diff --cached --name-only --diff-filter=A | grep -E "^${TICKET_DIR}/P[0-9]+-" || true)
 if [ -n "$NEW_PHIEU" ]; then
     echo "  → New phiếu detected: $NEW_PHIEU"
     DISCOVERIES_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^docs/DISCOVERIES\.md$' || true)
@@ -149,7 +153,7 @@ fi
 
 # 3e. Worker commit pattern: phiếu touched + code touched + Discovery touched = good signal
 CODE_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '\.(py|rs|ts|tsx|js|jsx|go|java)$' | head -1 || true)
-PHIEU_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^docs/ticket/P[0-9]+-' || true)
+PHIEU_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E "^${TICKET_DIR}/P[0-9]+-" || true)
 if [ -n "$CODE_STAGED" ] && [ -n "$PHIEU_STAGED" ]; then
     DISCOVERIES_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^docs/DISCOVERIES\.md$' || true)
     CHANGELOG_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^docs/CHANGELOG\.md$' || true)

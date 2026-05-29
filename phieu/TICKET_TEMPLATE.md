@@ -1,7 +1,7 @@
 # PHIẾU P<NNN>: <short title>
 
 > **ID format:** `P` + 3 digits (P001, P042, P123). ID is auto-assigned by the `phieu` shell function from `<project>/.phieu-counter` — do not set manually.
-> **Filename:** `phieu/active/P<NNN>-<slug>.md` (sos-kit dogfood layout) **OR** `docs/ticket/P<NNN>-<slug>.md` (downstream projects using `phieu-create` from `phieu/phieu.sh`). Both paths are recognized by `phieu-done` (P038 location detect — see Task 5).
+> **Filename:** `docs/ticket/P<NNN>-<slug>.md` (active) → moved to `docs/ticket/done/` on completion. Unified path for sos-kit + downstream (canonical value = `ticket_dir` in `.docs-gate.toml`). `phieu-done` handles the active → done/ move.
 > **Branch:** `<type>/P<NNN>-<slug>` where `<type>` ∈ {feat, fix, chore, docs, infra}.
 > **Usually created via `phieu <slug>`** (shell function auto-fills ID + creates branch + worktree + this file).
 

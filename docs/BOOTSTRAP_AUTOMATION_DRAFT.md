@@ -32,7 +32,7 @@ Mỗi repo GIỐNG NHAU. Cargo-hóa thắng lớn ở đây — hết quên, h�
 | `hooks/pre-commit` | sos-kit canonical | Hook chain integrity |
 | `scripts/block-env-edit.sh`, `block-unsafe-merge.sh`, `architect-guard.sh`, `session-start-banner.sh` | sos-kit canonical | Universal security/orchestration hooks |
 | `scripts/install-hooks.sh`, `pre-push-hook.sh` | sos-kit canonical | Bootstrap helpers |
-| Directory structure: `src/`, `tests/`, `docs/`, `.claude/agents`, `.claude/commands`, `phieu/active`, `phieu/done`, `templates/` | sos-kit pattern | Convention |
+| Directory structure: `src/`, `tests/`, `docs/`, `docs/ticket`, `docs/ticket/done`, `.claude/agents`, `.claude/commands`, `templates/` | sos-kit pattern | Convention (phiếu live in `docs/ticket/`, unified 2026-05-29) |
 | `phieu/TICKET_TEMPLATE.md`, `phieu.sh`, `AUDIT_PROTOCOL.md`, `DISCOVERY_PROTOCOL.md`, `GENESIS_TEMPLATE.md`, `LAUNCH_CHECKLIST.md`, `RELAY_PROTOCOL.md` | sos-kit canonical | Phiếu workflow contract |
 | `phieu/VISION_TEMPLATES/*` | sos-kit canonical | Vision skeleton |
 | `.claude/commands/advisory-scan.md`, `security-review.md` | sos-kit canonical | Slash command spec |
@@ -46,7 +46,7 @@ Sinh default value, project có thể tune. Validator KHÔNG block nếu giữ d
 |---|---|---|
 | `.docs-gate.toml` `changelog_max_age_days` | 1 | Long-running project tune 7 |
 | `.docs-gate.toml` `[architecture] file` | `LAYERS.md` (sos-kit), `ARCHITECTURE.md` (downstream) | Per repo |
-| `.docs-gate.toml` `[ticket] ticket_dir` | `phieu/active` | Per repo if different convention |
+| `.docs-gate.toml` `[ticket] ticket_dir` | `docs/ticket` | Per repo if different convention |
 | Hook chain SECTION list (which gate fires in pre-commit) | type-check + docs-gate + v2 sos-kit + security gate | Per stack disable/add |
 | `.mcp.json` server list | minimal core (doctor + docs-gate + ship + guard + advisory-cron) | Add github/sentry per project need |
 | Lane budget thresholds (v2.2 §1 — Normal 250 dòng / 5 anchors) | per v2.2 default | Per repo tune via override marker |

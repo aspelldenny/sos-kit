@@ -92,12 +92,12 @@ fi
 # Phiếu cleanup nudge (P038) — scan active phiếu for approved+merged
 # ─────────────────────────────────────────────────────────────────────
 NUDGES=""
-# Detect phiếu directory: prefer phieu/active/, fall back to docs/ticket/
+# Detect phiếu directory: prefer docs/ticket/ (unified), fall back to phieu/active/ (legacy repos)
 PHIEU_DIR=""
-if [ -d "phieu/active" ]; then
-    PHIEU_DIR="phieu/active"
-elif [ -d "docs/ticket" ]; then
+if [ -d "docs/ticket" ]; then
     PHIEU_DIR="docs/ticket"
+elif [ -d "phieu/active" ]; then
+    PHIEU_DIR="phieu/active"
 fi
 
 if [ -n "$PHIEU_DIR" ]; then

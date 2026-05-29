@@ -62,7 +62,7 @@ Worker is spawned in 1 of 2 modes (orchestrator specifies in the spawn prompt):
 
 You were spawned to challenge a phiếu draft against real code, BEFORE any implementation. The goal: surface architectural misassumptions early so Architect can refine the phiếu, not after Worker has half-coded it.
 
-1. **Read the phiếu file** — at the project's phiếu directory (sos-kit: `phieu/active/P<NNN>-<slug>.md`; downstream projects: `docs/ticket/P<NNN>-<slug>.md` per `phieu/README.md`). Note the Phiếu version (V1, V2, ...) in the Debate Log section.
+1. **Read the phiếu file** — at `docs/ticket/P<NNN>-<slug>.md` (the project's `ticket_dir` declared in `.docs-gate.toml`). Note the Phiếu version (V1, V2, ...) in the Debate Log section.
 2. **Read project `CLAUDE.md`** — conventions.
 3. **DISCOVERIES.md last 10 entries** — prior phiếu's code-reality findings.
 4. **Run Task 0 verification** — for every anchor in the phiếu's Verification Anchors table:
@@ -155,7 +155,7 @@ You were spawned to challenge a phiếu draft against real code, BEFORE any impl
 
 Spawned after Chủ nhà has approved the (possibly debated) phiếu. Code time.
 
-1. **Read the phiếu file** — at the project's phiếu directory (sos-kit: `phieu/active/P<NNN>-<slug>.md`; downstream projects: `docs/ticket/P<NNN>-<slug>.md` per `phieu/README.md`). This is your contract. Read the Debate Log so you know which decisions Architect already responded to.
+1. **Read the phiếu file** — at `docs/ticket/P<NNN>-<slug>.md` (the project's `ticket_dir` declared in `.docs-gate.toml`). This is your contract. Read the Debate Log so you know which decisions Architect already responded to.
 2. **Read project `CLAUDE.md`** — conventions you must follow (Tầng 2 things).
 3. **DISCOVERIES.md last 10 entries** — what previous phiếu found about code reality.
 4. **Run Task 0 verification** — even in EXECUTE mode. The Debate Log may have aged; re-check that anchors still hold.

@@ -69,7 +69,7 @@ sos-kit/
 │   ├── ORCHESTRATION.md    # Full orchestrator spec (state machine, failure modes)
 │   ├── PHILOSOPHY.md       # Stable — 6 operational principles + Principle 0, change carefully
 │   ├── SETUP.md            # Install guide — MUST match actual binary names + cargo paths
-│   └── ticket/             # Historical phiếu archive (done + active)
+│   └── ticket/             # Phiếu dir — active (root) + done/ archive. Canonical: .docs-gate.toml ticket_dir
 ├── hooks/
 │   └── pre-commit          # type-check + docs-gate + BACKLOG + Discovery enforcement
 ├── integrations/           # CI snippets + uptime monitoring
@@ -84,9 +84,7 @@ sos-kit/
 │   ├── LAUNCH_CHECKLIST.md # Pre-launch gate checklist
 │   ├── RELAY_PROTOCOL.md   # Chủ nhà's courier workflow (Thợ ↔ Kiến trúc sư cross-session)
 │   ├── VISION_TEMPLATES/   # Day-1 skeletons — Chủ nhà copies + fills (PROJECT, SOUL, CHARACTER, ...)
-│   ├── active/             # Phiếu currently in sprint
-│   ├── done/               # Completed phiếu archive
-│   └── phieu.sh            # Shell function: phieu / phieu-init / phieu-done / phieu-list
+│   └── phieu.sh            # Shell function: phieu / phieu-init / phieu-done / phieu-list  (phiếu files live in docs/ticket/)
 ├── recipes/                # DNA snippets — patterns /apply consumes
 │   ├── README.md
 │   ├── _TEMPLATE.md        # New recipe skeleton

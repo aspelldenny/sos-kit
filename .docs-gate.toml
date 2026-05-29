@@ -34,9 +34,9 @@ required_sections = 0
 required_non_empty = []
 
 [ticket]
-# Current phiếu pattern: phieu/active/ → phieu/done/ (P005+).
-# Legacy docs/ticket/ holds P001/P003/P004 historical only — KHÔNG check legacy.
-ticket_dir = "phieu/active"
+# Phiếu pattern: docs/ticket/ (active) → docs/ticket/done/ (archive). Unified 2026-05-29
+# (was phieu/active|done — migrated to single path, matches downstream default; no dogfood exception).
+ticket_dir = "docs/ticket"
 type_pattern = ""
 valid_types = []
 exclude_files = []
