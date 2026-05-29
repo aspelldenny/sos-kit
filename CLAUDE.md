@@ -180,14 +180,16 @@ sos-kit/
 
 ## Rules
 
-1. **No runtime code in this repo.** Rust source belongs in their own repos (`ship`, `docs-gate`, `guard`, `vps`). This repo is documentation, templates, and skill markdown only. `phieu/phieu.sh` is an exception — a single shell function file users source — but it does no computation beyond git and file ops.
-2. **Every new file must justify its existence.** No `TODO.md`, no placeholder directories, no "might use later" stubs.
-3. **No hardcoded personal paths.** Replace `/Users/<name>/...` with `~/` or a generic example before committing.
-4. **README is the single source of truth.** If a tool is listed in `README.md` but not in `docs/SETUP.md`, that's a bug. Fix the gap in both places. Same for `docs/LAYERS.md` skill table.
-5. **Skills are for repeated workflows, not one-off tasks.** If a skill only applies to one project, keep it in that project's `.claude/skills/`, not here.
-6. **One skill, one layer, one responsibility.** If you're tempted to make a skill that "routes AND plans" or "plans AND implements," stop — split it. Layer leaks are anti-pattern #1.
-7. **Handoffs stay formatted.** If you're tempted to add a new inter-layer handoff ("Architect pings Worker directly on Slack"), document the format in `docs/HANDOFF.md` first. Freestyle handoffs = context loss.
-8. **DOCS GATE Tầng 1 — code change BẮT BUỘC update relevant doc.** Universal rule (added 2026-05-28 post doc-rotate pilot setup). Trigger: change function signature / constant / data flow / API / schema / surface boundary / prompt / security pattern → BẮT BUỘC update relevant doc TRƯỚC commit. Missing = phiếu CHƯA XONG. **Security boundary touch → AUTO Tầng 1** (KHÔNG mark Tầng 2). Tầng 2 (cosmetic, local var) tùy. See "DOCS GATE Tầng 1 mapping" section below for per-surface table. **Knowledge durability:** Durable doctrine → `CLAUDE.md` / `agents/*.md` / `docs/WORKFLOW_V2.X.md` (no rotate). Operational evidence → `docs/DISCOVERIES.md` (rotate ≥ 1000 lines via `doc-rotate` tool pilot vòng 2).
+> Each rule is flagged `[mechanical]` (a cheap automated gate can/does enforce it soundly) or `[judgment]` (relies on contributor discretion — stays guidance, no gate). Per `docs/WORKFLOW_V2.2.md` §0.1: *mechanical → gate; judgment → guidance.* These tags are a doc-convention (executable-contract clarity, like a type annotation); a `doc-lint` that machine-verifies the tags is deliberately NOT built (over-build — Q-D3/WORKFLOW_V2.3 retro).
+
+1. `[judgment]` **No runtime code in this repo.** Rust source belongs in their own repos (`ship`, `docs-gate`, `guard`, `vps`). This repo is documentation, templates, and skill markdown only. `phieu/phieu.sh` is an exception — a single shell function file users source — but it does no computation beyond git and file ops.
+2. `[judgment]` **Every new file must justify its existence.** No `TODO.md`, no placeholder directories, no "might use later" stubs.
+3. `[mechanical]` **No hardcoded personal paths.** Replace `/Users/<name>/...` with `~/` or a generic example before committing. _(Greppable: `/Users/` or `/home/<user>/` — candidate for a pre-commit grep gate.)_
+4. `[judgment]` **README is the single source of truth.** If a tool is listed in `README.md` but not in `docs/SETUP.md`, that's a bug. Fix the gap in both places. Same for `docs/LAYERS.md` skill table.
+5. `[judgment]` **Skills are for repeated workflows, not one-off tasks.** If a skill only applies to one project, keep it in that project's `.claude/skills/`, not here.
+6. `[judgment]` **One skill, one layer, one responsibility.** If you're tempted to make a skill that "routes AND plans" or "plans AND implements," stop — split it. Layer leaks are anti-pattern #1.
+7. `[judgment]` **Handoffs stay formatted.** If you're tempted to add a new inter-layer handoff ("Architect pings Worker directly on Slack"), document the format in `docs/HANDOFF.md` first. Freestyle handoffs = context loss.
+8. `[mechanical+judgment]` **DOCS GATE Tầng 1 — code change BẮT BUỘC update relevant doc.** Universal rule (added 2026-05-28 post doc-rotate pilot setup). Trigger: change function signature / constant / data flow / API / schema / surface boundary / prompt / security pattern → BẮT BUỘC update relevant doc TRƯỚC commit. Missing = phiếu CHƯA XONG. **Security boundary touch → AUTO Tầng 1** (KHÔNG mark Tầng 2). Tầng 2 (cosmetic, local var) tùy. See "DOCS GATE Tầng 1 mapping" section below for per-surface table. **Knowledge durability:** Durable doctrine → `CLAUDE.md` / `agents/*.md` / `docs/WORKFLOW_V2.X.md` (no rotate). Operational evidence → `docs/DISCOVERIES.md` (rotate ≥ 1000 lines via `doc-rotate` tool pilot vòng 2).
 
 ## DOCS GATE Tầng 1 mapping (sos-kit specific)
 
