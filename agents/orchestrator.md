@@ -75,6 +75,14 @@ Before spawning `boundary-check` subagent (via `/security-review` slash or direc
 
 KHÔNG dựa boundary-check tự grep INVARIANTS.md (prose để nhớ). One hook, one bệnh.
 
+## Security boundary gate — pre-merge (Hard rule 10)
+
+BEFORE any `gh pr merge` (auto OR manual): run `gh pr diff --name-only`. Touches a **security surface** — auth/session/permission/privacy paths, `src/`|`app/`|`lib/`, schema/migrations, `.env*` (except `.env.example`), middleware, webhook, OR any file implementing/enforcing `INV-LOCAL-*` → **BLOCK until `/security-review <PR>` returns `Verdict: APPROVE`.** KHÔNG tự judge "scope nhỏ / docs-only / manual≠auto" — pattern match là pattern match (tarot P297: 3 security PR merged un-reviewed in 1 day). Hook `scripts/block-unsafe-merge.sh` enforces mechanically; this rule covers what the hook can't (branch-only merge). Skip marker: `[security-review-skip:<reason>]`. Full spec: `docs/ORCHESTRATION.md` Rule 10.
+
+## Advisory staleness auto-spawn (Hard rule 11)
+
+SessionStart banner reads `docs/security/.advisory-scan-state`. Banner `🚨 >= 7 ngày` OR `🚨 chưa scan lần nào` → orchestrator **BẮT BUỘC auto-spawn `advisory-watch`** (Trinh sát) early-session (after Sếp confirms direction if mid-task, max 1 turn). KHÔNG đợi Sếp gõ `/advisory-scan`, KHÔNG đợi cron. Banner `⚠️ 3-6 ngày` → narrate + offer, không mandate. Full spec: `docs/ORCHESTRATION.md` Rule 11.
+
 ## Sensor arm — log when fired (v2.2 §10 watchlist)
 
 Watch for these signals during state-machine cycles. Log to `.sos-state/sensor-log.jsonl` when fired (or report to Chủ nhà if log file doesn't exist):

@@ -17,6 +17,13 @@ Forge rounds 1–4 of `docs/retro/WORKFLOW_V2.3_RETRO_doc-rotate.md` (doc-rotate
 
 Verified: gate canary fires on `docs/ticket/`; `bash -n` clean on edited scripts. Open production-risk tracked in retro: tarot's Giám sát (boundary-check v166) runs live but has never been quality-canaried.
 
+**Top-3 trigger-doctrine sync (gap-audit → kit, 2026-05-30):**
+Closes the dominant gap-audit finding — the kit shipped GATES without the DOCTRINE/TRIGGER that fires them (Sub-mech A re-created inside the kit; what made the media pilot collapse).
+- `docs/ORCHESTRATION.md` **Rule 10** (pre-merge security gate — `gh pr diff --name-only` before any merge; security surface → `/security-review` `APPROVE` required; `block-unsafe-merge.sh` = mechanical backstop) + **Rule 11** (advisory staleness auto-spawn). Condensed mirror in `agents/orchestrator.md`.
+- `scripts/session-start-banner.sh` — advisory staleness check (reads `docs/security/.advisory-scan-state`; 🚨 ≥7d / ⚠️ 3–6d; cross-platform date GNU+BSD; gated on inbox presence so non-advisory repos stay silent) → Trinh sát now fires unprompted.
+- `agents/architect.md` **Bước 0** — Layer-1 tool-capability verify (WebFetch GET-only, etc.); pairs with the already-present Worker Task-0 Layer-2 = the "ship≠chạy" 2-layer defense.
+- NOT synced (deliberate): tarot product-specifics; sos-kit stays AHEAD on v2.2 (lane/sensor/rubric/multi-stack/INV-4). **Next:** the orchestrator/architect Tầng "≤200 LOC" contamination → single-source to `LAYERS.md` consequence-def (see `GAP_AUDIT_tarot_to_soskit.md` + retro Vòng 14).
+
 **Gap-audit tarot→sos-kit + spawn-discretion findings (2026-05-29):**
 - `docs/GAP_AUDIT_tarot_to_soskit.md` — the kit lagged its flagship (tarot). Read-only inventory of GENERIC-doctrine gaps. **Dominant disease:** kit ships the GATE but drops the DOCTRINE that fires it = Sub-mech A "trigger gap" re-created inside the kit (what made the media pilot collapse). **Top-3:** advisory auto-spawn (Rule 10 + banner staleness), pre-merge security-gate doctrine (Rule 9), Architect Layer-1 capability check. **Direction (Sếp):** tarot FROZEN — fix kit→media/new-projects as proving-ground; back-port to tarot later. sos-kit is AHEAD on v2.2 (lane/sensor/rubric/multi-stack/INV-4) — do NOT sync down.
 - `docs/retro/WORKFLOW_V2.3_RETRO_doc-rotate.md` Vòng 13/14: spawn-discretion bug (mechanical proof — doc-rotate 23 spawns vs media 0, same delegation prompt) + corrected fix-direction (sound/partial: Tầng = human judgment via INV-LOCAL/INVARIANTS membership; hooks enforce field-existence + role-ran state-check, NEVER hook-detect-security; closes Q-D2 seedling-disease).

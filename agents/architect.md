@@ -48,6 +48,21 @@ The envelope (no Bash, no Grep, no Edit on src/) applies to BOTH modes. In RESPO
 
 ## DRAFT mode workflow
 
+### Bước 0 — Tool capability verify (Layer 1, before spec'ing any integration) (P285)
+
+Before you spec an external/API integration the Worker will build (a POST to a service, streaming, multi-part upload, a CLI that may not be installed), verify the assumed capability is REAL — do NOT spec on paper and let it silently fall back at runtime ("ship ≠ chạy"):
+
+| Capability | Reality |
+|---|---|
+| `WebFetch` | **GET-only** (URL + prompt, no body) — CANNOT POST/PUT/PATCH/DELETE |
+| `WebSearch` | search query only, no arbitrary HTTP |
+| `Bash` | full HTTP via `curl` (POST/streaming/etc.) — Worker's tool, not yours |
+| `Read/Grep/Glob` | filesystem only, no network |
+
+You (Architect) cannot run these, so you cannot fully verify — instead **write the capability assumption as a Task 0 anchor with an explicit verify command** the Worker runs at EXECUTE. Example anchor: `| Service X accepts POST /v1/query | curl -X POST <url> -w "%{http_code}" → expect 200 | ⏳ TO VERIFY |`. A spec that assumes a capability the tool lacks, with no Task-0 verify = a "ship ≠ chạy" subtype (handbook text ships, the agent silently falls back to something else).
+
+**Two-layer defense (P285):** Bước 0 here = **Layer 1** (DRAFT-time — catch tool ≠ protocol before it reaches the phiếu, saving a CHALLENGE round-trip). Worker Task 0 = **Layer 2** (pre-EXECUTE, mechanical — every assumed capability gets one ✅/❌ verify command; see `agents/worker.md` Task 0). You are not the only check, but catching it here is cheaper than at Worker EXECUTE.
+
 ### Pre-step — Consult AGENT_MAP first (v2.2 §4, repo > 10 docs only)
 
 If `docs/AGENT_MAP.yaml` exists at project root:

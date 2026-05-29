@@ -134,6 +134,39 @@ if [ -n "$NUDGES" ]; then
     printf "    %b" "$NUDGES"
 fi
 
+# ─────────────────────────────────────────────────────────────────────
+# Advisory-watch staleness (gap-audit sync 2026-05-29; from tarot P281/P301)
+# Reads docs/security/.advisory-scan-state (JSON {"last_scan_at":"<ISO-8601 UTC>"} or legacy raw ISO).
+#   >=7 days OR missing → 🚨 orchestrator MUST auto-spawn advisory-watch (ORCHESTRATION Rule 11)
+#   3-6 days → ⚠️ narrate + offer · 0-2 days → silent. Cross-platform date (GNU + BSD).
+# Only nags if the advisory pipeline is installed (inbox present) — else silent.
+# ─────────────────────────────────────────────────────────────────────
+ADV_STATE="docs/security/.advisory-scan-state"
+if [ -f "docs/security/advisory-inbox.md" ]; then
+    if [ ! -f "$ADV_STATE" ]; then
+        echo ""
+        echo "🚨 Advisory-watch: chưa scan lần nào — gõ /advisory-scan (first scan)"
+    else
+        ADV_LAST=$(grep -oE '"last_scan_at"[[:space:]]*:[[:space:]]*"[^"]+"' "$ADV_STATE" 2>/dev/null \
+                   | sed -E 's/.*"last_scan_at"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' | head -1)
+        [ -z "$ADV_LAST" ] && ADV_LAST=$(tr -d '[:space:]' < "$ADV_STATE" 2>/dev/null)
+        # cross-platform ISO→epoch: GNU `date -d` first, BSD `date -j -f` fallback, else 0
+        ADV_EPOCH=$(date -d "$ADV_LAST" +%s 2>/dev/null \
+                    || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$ADV_LAST" +%s 2>/dev/null \
+                    || echo 0)
+        if [ "$ADV_EPOCH" -gt 0 ]; then
+            ADV_DAYS=$(( ( $(date +%s) - ADV_EPOCH ) / 86400 ))
+            if [ "$ADV_DAYS" -ge 7 ]; then
+                echo ""
+                echo "🚨 Advisory-watch: scan cuối $ADV_DAYS ngày trước (>= 7) — orchestrator BẮT BUỘC auto-spawn advisory-watch (ORCHESTRATION Rule 11)"
+            elif [ "$ADV_DAYS" -ge 3 ]; then
+                echo ""
+                echo "⚠️  Advisory-watch: scan cuối $ADV_DAYS ngày trước — cân nhắc /advisory-scan"
+            fi
+        fi
+    fi
+fi
+
 echo ""
 echo "🤖 Orchestrator contract (main session — đọc kỹ, ép tuân thủ):"
 echo "    State machine: DRAFT → CHALLENGE → [RESPOND ⇄ CHALLENGE] → APPROVAL_GATE → EXECUTE"
