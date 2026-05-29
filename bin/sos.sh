@@ -40,6 +40,11 @@ State: .sos/state.toml
 Genesis phiếu: docs/ticket/P000-genesis.md
 Recipe library: $SOS_KIT_DIR/recipes/
 
+Env:
+  SOS_KIT_DIR    Path to sos-kit checkout (default: dir of this script's parent).
+  DOCTOR_BIN     Path to the `doctor` binary used by `sos new`'s verify-setup gate
+                 (default: `doctor` on PATH; set this to point at a local build).
+
 For deeper docs: cat $SOS_KIT_DIR/docs/GENESIS.md
 EOF
 }
@@ -417,7 +422,7 @@ EOF
     if [[ "$vs_rc" -eq 0 ]]; then echo "  ✓ verify-setup: CONNECTED"
     else echo "  ⚠ verify-setup: rc=$vs_rc — wiring gap above"; fi
   else
-    echo "  ⏭ doctor not found — skip verify-setup (install: cargo install --path ~/doctor)"
+    echo "  ⏭ doctor not found — skip verify-setup (install: cargo install --path ~/doctor, or set DOCTOR_BIN=/path/to/doctor)"
   fi
   echo "  Category C placeholders to fill (# TODO):"
   grep -rl "# TODO" "$target/docs" "$target/CLAUDE.md" 2>/dev/null | sed "s|$target/|    - |" || echo "    (none found)"
