@@ -205,4 +205,12 @@ NOT "the script runs without error." The proof:
 ### 7.6 NOT in this arc (completion, not scale-blocker — tool-vs-product discipline)
 Q-D7 adversarial canary, advisory→block, Q-D2 doctrine mầm-bệnh, J7/J9 beyond bootstrap need — none block "spawn a repo that runs." **J4-conditional IS pulled in** (§7.4 needs it — completion surfacing at the real use-case). **Wave D** (lower doctrine to golden) = step-1 of bootstrap = *defining the freeze-filtered Category A* = happens AS the script is built (one stream, not a separate task).
 
-**Next concrete step (when build greenlit):** Architect drafts the `sos new` phiếu from §7.5 + §7.4 done-when → Worker builds bash → spawn throwaway test repo → run verify-setup → confirm CONNECTED-zero-fix. STOP-line unchanged: no `WORKFLOW_V2.3.md` golden ratification until Q-D2 mầm-bệnh + Sếp approve.
+### 7.7 RESULT — built + ran (2026-05-29, same session)
+`sos new` built in `bin/sos.sh` (a do-er like `sos init security`, not a printer). **Acceptance test PASSED:**
+- `sos new <repo> --stack python` AND `--stack rust` on empty dirs → `doctor verify-setup` = **CONNECTED, 5/5 joints WIRED, exit 0, ZERO hand-fix.**
+- TODO-grep surfaces the Category-C fill list (INV-LOCAL, AGENT_MAP, CLAUDE.md) — separately from the wiring verdict.
+- **Teeth test (negative oracle):** corrupt the spawned repo's sentinel (mimic doc-rotate's death) → verify-setup flips to **DORMANT (J1 BROKEN, exit 1).** The gate discriminates correct-spawn (CONNECTED) from tampered-spawn (DORMANT) — NOT rubber-stamping its own output.
+- **Build revealed a cleaner design than §7.4 predicted:** bootstrap **LAYS DOWN** `docs/security/INVARIANTS.md` (generic-5 universal + empty INV-LOCAL + TODO) → J4 PASSES (file exists) with **no verify-setup change**. "Fill INV-LOCAL" is caught by the separate TODO-grep. So **J4-conditional hardening is NOT required for the bootstrap MVP** (it stays optional polish — distinguishing template-only from filled — for when that pain actually recurs). This is RUN-beats-forge: building found the cleaner split (wiring=verify-setup, content=TODO-grep).
+- **Caveat:** test used `DOCTOR_BIN` → the freshly-built release binary (PATH still has doctor 0.1.0). Real use needs `cargo install --path ~/doctor` to land `verify-setup` on PATH. Cargo-packaging of sos-kit still deferred (the script is proven sufficient for scale).
+
+**Next (when greenlit):** `cargo install` the new doctor; consider wiring verify-setup into `hooks/pre-commit` (so drift after spawn is caught, not just at spawn); README/SETUP doc for `sos new` (Tầng-1). STOP-line unchanged: no `WORKFLOW_V2.3.md` golden ratification until Q-D2 mầm-bệnh + Sếp approve.
