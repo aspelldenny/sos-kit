@@ -17,6 +17,12 @@ Forge rounds 1–4 of `docs/retro/WORKFLOW_V2.3_RETRO_doc-rotate.md` (doc-rotate
 
 Verified: gate canary fires on `docs/ticket/`; `bash -n` clean on edited scripts. Open production-risk tracked in retro: tarot's Giám sát (boundary-check v166) runs live but has never been quality-canaried.
 
+**Bootstrap Cat-A freeze completed — skills + doctor MCP wiring (2026-05-29):**
+- `bin/sos.sh` `sos new` + `sos adopt` now copy the **13 generic SOS skills** (`skills/` → `.claude/skills/`) and wire **OUR `doctor` MCP gate** in `.mcp.json` (PATH-rel `doctor`, no hardcoded path). Closes a real freeze gap found dogfooding media-rating: adopt copied the role agents but not the skills they invoke (`/plan` `/verify` …) nor the `.mcp.json` that wires Giám sát's `mcp__doctor__*` tools → both were dead in the adopted repo.
+- `adopt` is ADDITIVE/non-clobber: keeps a repo's own domain skills (Cat-C) + its own external MCP (`.mcp.json` flagged, never overwritten), adds only the generic spine.
+- Doctrine (`docs/BOOTSTRAP_AUTOMATION_DRAFT.md` §7.2): freeze-tier is an **attribute filter** (same-across-repo + in-control = freeze; per-repo = survey/declare; external-dep = drop), not an item-type list. Skills split generic-freeze / domain-Cat-C; MCP split by ownership (our tools wired, external dropped — *LLM reasons, our tools are the hands*). The deeper per-repo survey step (same root as the map-lie gap) is tracked in BACKLOG, not built.
+- Tested green: greenfield `sos new` (skills=13, `.mcp.json` valid PATH-rel, verify-setup CONNECTED) + 2 brownfield `sos adopt` (own skill/MCP kept, generic added, non-clobber confirmed).
+
 ## v2.2 Backport Group A — Security hooks + agents + commands — 2026-05-28
 
 Phase 2 of `WORKFLOW_V2.2.md` §13 backport from tarot evolution (P230/P273/P297/P305/P306/#581). Genericized for sos-kit template.

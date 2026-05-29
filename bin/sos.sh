@@ -409,16 +409,31 @@ sos_new() {
   cp    "$K/.claude/settings.json" "$target/.claude/settings.json"
   [[ -f "$K/agents/orchestrator.md" ]] && cp "$K/agents/orchestrator.md" "$target/.claude/agents/orchestrator.md"
   [[ -f "$K/templates/claude-settings.local.json" ]] && cp "$K/templates/claude-settings.local.json" "$target/.claude/settings.local.json"
+  cp -R "$K/skills"    "$target/.claude/skills"   # Cat-A: 13 generic SOS role-workflows (/plan /verify /review /qa /ship /retro /init /idea /insight /route /decide /forge /apply)
   cp -R "$K/scripts"   "$target/scripts"
   cp -R "$K/phieu"     "$target/phieu"
   cp -R "$K/templates" "$target/templates"
   cp    "$K/hooks/pre-commit" "$target/hooks/pre-commit"
   chmod +x "$target/hooks/pre-commit" 2>/dev/null || true
+  # .mcp.json — wire OUR doctor gate (Cat-A: our own Rust tool, in-control, no credential = the
+  # kit's deterministic "hands"). PATH-rel command, NOT a hardcoded ~/.cargo path. External MCP
+  # (context7/supabase/...) are Cat-C — the repo declares its own; the kit does NOT ship them.
+  cat > "$target/.mcp.json" <<'JSON'
+{
+  "mcpServers": {
+    "doctor": {
+      "_comment": "sos-kit mechanical gate (lane-check, validate-map, rotate-check, runtime-scan). Our own Rust tool — wire via PATH. Install: cargo install --path ~/doctor.",
+      "command": "doctor",
+      "args": ["serve"]
+    }
+  }
+}
+JSON
   # strip copy cruft (macOS .DS_Store, Python bytecode) so spawned repos stay clean
   find "$target" -name '.DS_Store' -delete 2>/dev/null || true
   find "$target" -name '*.pyc' -delete 2>/dev/null || true
   find "$target" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
-  echo "  ✓ agents + commands + settings.json + scripts + phieu + templates + hooks/pre-commit"
+  echo "  ✓ agents + commands + settings.json + skills(13) + scripts + phieu + templates + hooks/pre-commit + .mcp.json(doctor)"
 
   # ---- 2. Category C — SKELETON (+ # TODO markers) ----
   echo "[2/4] Category C — generate skeletons (+ # TODO)"
@@ -606,6 +621,40 @@ sos_adopt() {
   adopt_item "phieu"
   adopt_item "templates"
   adopt_item "hooks/pre-commit"
+  # skills → .claude/skills/ (Cat-A: 13 generic SOS role-workflows). ADDITIVE per-file — keep the
+  # repo's own domain skills (Cat-C, e.g. its phase-gate/status); add the generic ones; stage true
+  # name-collisions to .sos-adopt-incoming/. (adopt_item can't remap skills/→.claude/skills/.)
+  if [[ -d "$K/skills" ]]; then
+    local sfile srel sdest
+    while IFS= read -r sfile; do
+      srel=".claude/skills/${sfile#"$K"/skills/}"; sdest="$target/$srel"
+      if [[ -e "$sdest" ]]; then
+        mkdir -p "$(dirname "$incoming/$srel")"; cp "$sfile" "$incoming/$srel"
+        conflicts="${conflicts}    ~ ${srel}\n"
+      else
+        mkdir -p "$(dirname "$sdest")"; cp "$sfile" "$sdest"
+        added="${added}    + ${srel}\n"
+      fi
+    done < <(find "$K/skills" -type f -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store')
+  fi
+  # .mcp.json — wire OUR doctor gate (Cat-A, our tool). Create-if-absent; if the repo already has
+  # one (its own external MCP = Cat-C), flag it — add the 'doctor' entry by hand, never clobber.
+  if [[ ! -f "$target/.mcp.json" ]]; then
+    cat > "$target/.mcp.json" <<'JSON'
+{
+  "mcpServers": {
+    "doctor": {
+      "_comment": "sos-kit mechanical gate. Our own Rust tool — wire via PATH. Install: cargo install --path ~/doctor.",
+      "command": "doctor",
+      "args": ["serve"]
+    }
+  }
+}
+JSON
+    added="${added}    + .mcp.json (doctor gate wired — our tool, PATH-rel)\n"
+  else
+    conflicts="${conflicts}    ~ .mcp.json (exists — add the \"doctor\" server entry by hand; repo's own MCP kept)\n"
+  fi
   echo "  done"
 
   echo "[2/3] Category C — generate ONLY if missing (never overwrite existing docs)"
