@@ -108,7 +108,7 @@
   - **(iii) Giới hạn partial của chính canary:** planted-flaw do cùng cái đầu có lỗ nghĩ ra → canary PASS = "không pass-through trên lỗi ĐÃ BIẾT", KHÔNG phải "bắt vi phạm MỚI". Cấm overclaim canary-PASS = "quality proven". (Recursion-limit Claude chỉ cho verify-setup, áp luôn cho canary.)
   - **Nhánh production-safe:** canary trên sandbox (doc-rotate/advisory-inbox) vô hại; trên **tarot (production)** planted-flaw PR lỡ merge = chạm prod → cần nhánh riêng (no-merge, auto-dọn, isolated).
   - **(iv) Precondition (reviewer "con mắt soi lại" R3):** hai-tool **sống sót cú phá** (phẳng-vì-đúng, không cùng-mù) NHƯNG lòi mối nối thứ tự: canary có **tiền đề verify-setup PASS** — không spawn được vai để test nếu sentinel còn lệch. **canary-FAIL khi wiring chưa xanh phải đọc "CHƯA NỐI" (Q-D5), KHÔNG "GÁC DỞ" (Q-D7)** — chặn lỗi đọc-nhầm-tín-hiệu.
-  - 🔴 **PRODUCTION RISK CHƯA ĐO (track riêng, KHÔNG xuống BACKLOG chung):** tarot đang gác production THẬT bằng boundary-check **v166 unique, chưa từng canary quality**. Nếu v166 gác dở (pass-through) → tarot merge code qua gác ngủ mà không ai biết. Đây là rủi-ro-đang-mở, không phải nice-to-have.
+  - 🟡 **PRODUCTION RISK ĐO RỒI (R10 canary):** tarot v166 = **REAL-GATE** — bắt 4/4 lỗi cấy (INV-104 IDOR / INV-105 non-atomic credit / INV-106 unsigned payment-webhook / INV-101 env-map-drift) + approve control sạch (0 false-positive), áp hard-verdict đúng. **KHÔNG pass-through.** Hạ cấp 🔴→🟡. **Residual:** (a) gate **ADVISORY** (detect không block) → phụ thuộc Sếp hành động comment NEEDS_REVIEW; (b) canary textbook single-INV known-class — 4/4 KHÔNG chứng minh bắt subtle/adversarial; (c) proxy agent-follow-prompt, chưa end-to-end /security-review harness. Method Q-D7 validated một phần.
 
 ---
 
@@ -172,6 +172,17 @@
   - **Dọn stale (Sếp):** header "đang ĐO"→"đo xong"; §1 "(chưa quyết gì)"→"(verdict ở §3)"; Q-D2 R5-merge bullets → gói ~~REFUTED by R8~~.
   - **Wave plan §6:** A (file-edit) → B (build verify-setup + chạy) → C (canary) → D (viết doctrine CHỈ sau B/C có evidence + Q-D2 mầm bệnh xử). KHÔNG hạ B/C như A.
   - **→ Commit checkpoint doc-only** (message ghi đúng trạng thái: forged+measured, PENDING-ratification, Q-D2 mầm bệnh auto-Guarded CHƯA xử). KHÔNG ratify gì.
+- **Vòng 10 (2026-05-29):** ✅ **canary v166 tarot — BƯỚC SANG VÙNG LÀM** (Claude đúng: làm cái khó-chưa-biết-kết-quả trước; Codex Wave-A-first hoãn).
+  - **Kết quả: REAL-GATE.** 4/4 lỗi cấy caught (INV-104/105/106/101) + control approve sạch, 0 false-positive, hard-verdict đúng, silent-when-clean. **tarot KHÔNG gác ngủ** → production-risk 🔴→🟡.
+  - **Residual honest:** (a) gate ADVISORY không block → human-follow-through; (b) textbook-không-adversarial (4/4 known-class ≠ bắt subtle/novel); (c) proxy chưa end-to-end harness.
+  - **Ý nghĩa:** câu khẩn nhất (production gác ngủ?) ĐÓNG bằng RUN thật, rẻ (~95s, 0 mutation). Q-D7 method validated một phần. **Thứ chạy-thật #3 của phiên** (sau Q-D1 + sentinel) — ra khỏi forge.
+  - **Next options:** build verify-setup Q-D5 chạy doc-rotate (test design còn lại — có bắt dormant 0/7 không?) / Wave A (giờ an toàn vì khẩn đã đóng) / cân nhắc advisory→block cho class nguy (design Q mới, không gấp).
+- **Vòng 11 (2026-05-29) — CLOSE phiên (Sếp clear context, resume tươi sau):**
+  - **Cross-check canary (Codex+Claude):** report KHÔNG overclaim (REAL-GATE known-class, ghi rõ chưa adversarial/end-to-end) — đúng mức.
+  - **⚠️ REWEIGHT residual (a) — Claude push, em nhận sai trọng lượng:** advisory-không-block KHÔNG "không gấp" ngang Wave A. Mắt xích cuối lá chắn = **người nhớ đọc comment NEEDS_REVIEW mỗi lần** = ĐÚNG bệnh gốc cả phiên (con-người-nhớ-làm: DISCOVERIES phình, giám sát dormant, "tao cũng quên"). 2 class chí tử (payment-webhook spoof + cross-user leak = tiền + dữ liệu phụ nữ yếu lòng) → 1-lần-lọt quá đắt → **advisory→block cho 2 class đó = residual THẬT NHẤT sau canary** (detect=advisory mềm; hậu-quả-không-đảo-ngược phải gate cứng). Design Q riêng, KHÔNG đêm nay, KHÔNG xếp ngang Wave A.
+  - **Quyết: commit Vòng 10-11 checkpoint → NGHỈ/CLEAR.** verify-setup (Q-D5) là việc THẬT (không 95s) xứng đầu-óc-tươi — làm cuối phiên marathon dễ đẻ verify-setup dormant (đúng bệnh retro chẩn).
+  - **RESUME (session sau): §6 wave plan** — (B) build doctor verify-setup MVP hẹp → chạy doc-rotate (bắt dormant 0/7?) → ghi result → Wave A. Q-D2 ĐƠN THUỐC còn mầm-bệnh auto-Guarded phải xử (Tầng=judgment người). advisory→block 2-class = Q design mở. Forge arc TRỌN; còn build+chạy + hạ ĐƠN THUỐC.
+  - **TAKEAWAY phiên (giữ):** 95s RUN đóng nỗi lo mà 9 vòng forge không đóng. Phần khó KHÔNG phải nghĩ-đúng, là **dừng-nghĩ-cho-chạy**. Lần sau forge tới vòng 5 trên thứ-chưa-chạy → nhớ 95 giây này.
 
 ---
 
