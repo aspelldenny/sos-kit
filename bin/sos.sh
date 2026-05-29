@@ -24,7 +24,8 @@ sos_help() {
 sos — 0→1 bootstrap for SOS Kit
 
 Usage:
-  sos new <dir> --stack <python|rust|ts>   Bootstrap a NEW repo from golden (freeze + skeleton + validate)
+  sos new <dir> --stack <python|rust|ts>   Bootstrap a NEW (empty) repo from golden (freeze + skeleton + validate)
+  sos adopt <dir> [--stack ...]            Retrofit spine into an EXISTING repo (additive + non-clobber + report)
   sos init                     Phase 0 — vision capture (Chủ nhà)
   sos init security            Bootstrap stack detection — write .sos-stack.toml (foundation for advisory-scan / security-review)
   sos blueprint                Phase 1 — pick stack + recipes (Chủ nhà → Kiến trúc sư)
@@ -320,6 +321,10 @@ sos_new() {
   cp -R "$K/templates" "$target/templates"
   cp    "$K/hooks/pre-commit" "$target/hooks/pre-commit"
   chmod +x "$target/hooks/pre-commit" 2>/dev/null || true
+  # strip copy cruft (macOS .DS_Store, Python bytecode) so spawned repos stay clean
+  find "$target" -name '.DS_Store' -delete 2>/dev/null || true
+  find "$target" -name '*.pyc' -delete 2>/dev/null || true
+  find "$target" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
   echo "  ✓ agents + commands + settings.json + scripts + phieu + templates + hooks/pre-commit"
 
   # ---- 2. Category C — SKELETON (+ # TODO markers) ----
@@ -430,6 +435,158 @@ EOF
   echo ""
   echo "✓ sos new done: $target"
   echo "  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git init → commit."
+}
+
+sos_adopt() {
+  # sos adopt <existing-repo-dir> [--stack <python|rust|ts>]
+  # Retrofit the sos-kit spine into an EXISTING repo (brownfield half of the platform).
+  # Opposite discipline to `sos new`: RESPECTS what's already there.
+  #   ADDITIVE     — copy spine items only where the destination is ABSENT.
+  #   NON-CLOBBER  — destination exists → stage sos-kit's version to .sos-adopt-incoming/<path>
+  #                  + report for manual merge. NEVER overwrite the repo's own files.
+  #   REPORT       — verify-setup verdict + DORMANT joints for 3-way triage (you decide).
+  # Doctrine: docs/BOOTSTRAP_AUTOMATION_DRAFT.md (brownfield/retrofit half).
+  local target="" stack=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --stack) stack="${2:-}"; shift 2 ;;
+      --*) echo "✗ Unknown flag: $1"; return 1 ;;
+      *) [[ -z "$target" ]] && target="$1"; shift ;;
+    esac
+  done
+  if [[ -z "$target" ]]; then
+    echo "Usage: sos adopt <existing-repo-dir> [--stack <python|rust|ts>]"; return 1
+  fi
+  if [[ ! -d "$target" ]]; then
+    echo "✗ $target does not exist — for a NEW repo use: sos new $target --stack <X>"; return 1
+  fi
+  if [[ -z "$(ls -A "$target" 2>/dev/null)" ]]; then
+    echo "✗ $target is empty (greenfield) — use: sos new $target --stack <X>"; return 1
+  fi
+  local K="$SOS_KIT_DIR"
+  if [[ ! -d "$K/.claude/agents" ]]; then
+    echo "✗ SOS_KIT_DIR ($K) is not sos-kit (no .claude/agents). Set SOS_KIT_DIR."; return 1
+  fi
+
+  echo "─────────────────────────────────────────"
+  echo "sos adopt — retrofit spine into existing '$target' (ADDITIVE + NON-CLOBBER)"
+  echo "─────────────────────────────────────────"
+  local incoming="$target/.sos-adopt-incoming"
+  local added="" conflicts=""
+
+  # adopt_item <src-rel> [dest-rel] — additive + non-clobber.
+  #   plain file: copy if dest ABSENT; else stage to .sos-adopt-incoming/ + flag conflict.
+  #   directory: PER-FILE — copy each absent file into the existing dir; stage only the
+  #              files that genuinely collide (so a repo's own scripts/ keeps its files AND
+  #              receives sos-kit's new ones; only true conflicts need manual merge).
+  adopt_item() {
+    local src="$K/$1"; local rel="${2:-$1}"
+    [[ -e "$src" ]] || return 0
+    if [[ -d "$src" ]]; then
+      local fpath frel fdest
+      while IFS= read -r fpath; do
+        frel="${fpath#"$K"/}"; fdest="$target/$frel"
+        if [[ -e "$fdest" ]]; then
+          mkdir -p "$(dirname "$incoming/$frel")"; cp "$fpath" "$incoming/$frel"
+          conflicts="${conflicts}    ~ ${frel}\n"
+        else
+          mkdir -p "$(dirname "$fdest")"; cp "$fpath" "$fdest"
+          added="${added}    + ${frel}\n"
+        fi
+      done < <(find "$src" -type f -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store')
+    else
+      local dest="$target/$rel"
+      if [[ -e "$dest" ]]; then
+        mkdir -p "$(dirname "$incoming/$rel")"; cp "$src" "$incoming/$rel"
+        conflicts="${conflicts}    ~ ${rel}\n"
+      else
+        mkdir -p "$(dirname "$dest")"; cp "$src" "$dest"
+        added="${added}    + ${rel}\n"
+      fi
+    fi
+  }
+
+  echo "[1/3] Spine (copy-if-absent; existing → staged to .sos-adopt-incoming/)"
+  adopt_item ".claude/agents"
+  adopt_item ".claude/commands"
+  adopt_item ".claude/settings.json"
+  [[ -f "$K/agents/orchestrator.md" ]] && adopt_item "agents/orchestrator.md" ".claude/agents/orchestrator.md"
+  adopt_item "scripts"
+  adopt_item "phieu"
+  adopt_item "templates"
+  adopt_item "hooks/pre-commit"
+  echo "  done"
+
+  echo "[2/3] Category C — generate ONLY if missing (never overwrite existing docs)"
+  mkdir -p "$target/docs/security" "$target/docs/ticket/done"
+  if [[ ! -f "$target/docs/security/INVARIANTS.md" ]]; then
+    cp "$K/templates/INVARIANTS-template.md" "$target/docs/security/INVARIANTS.md"
+    printf '\n## INV-LOCAL (project-specific — FILL THESE)\n\n# TODO: add `## INV-LOCAL-NNN — <title>`, or `# No local INV`.\n' >> "$target/docs/security/INVARIANTS.md"
+    added="${added}    + docs/security/INVARIANTS.md\n"
+  else conflicts="${conflicts}    ~ docs/security/INVARIANTS.md (exists — kept)\n"; fi
+  if [[ ! -f "$target/docs/AGENT_MAP.yaml" && -f "$K/configs/AGENT_MAP.example.yaml" ]]; then
+    { printf '# AGENT_MAP — surfaces for this repo.\n# TODO: replace example with real surfaces.\n\n'; cat "$K/configs/AGENT_MAP.example.yaml"; } > "$target/docs/AGENT_MAP.yaml"
+    added="${added}    + docs/AGENT_MAP.yaml\n"
+  fi
+  if [[ ! -f "$target/.docs-gate.toml" ]]; then
+    cat > "$target/.docs-gate.toml" <<'TOML'
+docs_dir = "docs"
+changelog = "../CHANGELOG.md"
+changelog_max_age_days = 1
+changelog_staged = false
+rules = []
+staleness = []
+doc_structure = []
+count_check = []
+cross_doc = []
+
+[architecture]
+enabled = true
+file = "ARCHITECTURE.md"
+required_sections = 0
+required_non_empty = []
+
+[ticket]
+ticket_dir = "docs/ticket"
+type_pattern = ""
+valid_types = []
+exclude_files = []
+TOML
+    added="${added}    + .docs-gate.toml\n"
+  else conflicts="${conflicts}    ~ .docs-gate.toml (exists — kept; verify ticket_dir + architecture)\n"; fi
+  # Never scaffold CLAUDE.md/BACKLOG/ARCHITECTURE/CHANGELOG into an existing repo — clobber-or-guess
+  # would destroy the repo's own docs. Report if missing; the human adds/merges by hand.
+  local f
+  for f in CLAUDE.md docs/BACKLOG.md docs/ARCHITECTURE.md CHANGELOG.md; do
+    [[ -e "$target/$f" ]] || conflicts="${conflicts}    ! ${f} (MISSING — add by hand; adopt won't clobber-or-guess)\n"
+  done
+
+  echo "[3/3] Validator"
+  local doctor_bin="${DOCTOR_BIN:-doctor}"
+  if command -v "$doctor_bin" >/dev/null 2>&1 || [[ -x "$doctor_bin" ]]; then
+    set +e
+    "$doctor_bin" verify-setup --repo "$target" 2>&1 | sed 's/^/    /'
+    local vs=${PIPESTATUS[0]}
+    set -e
+    if [[ "$vs" -eq 0 ]]; then
+      echo "  ✓ verify-setup: CONNECTED"
+    else
+      echo "  ⚠ verify-setup DORMANT (rc=$vs) — triage EACH joint:"
+      echo "      (A) wire genuinely not connected → fix the repo"
+      echo "      (B) verify-setup doesn't know THIS repo's pattern → teach it / label brittle (NOT a repo bug)"
+      echo "      (C) product gap → you decide the content"
+    fi
+  else
+    echo "  ⏭ doctor not found (set DOCTOR_BIN=/path or cargo install --path ~/doctor)"
+  fi
+
+  echo ""
+  echo "═══ sos adopt report ═══"
+  printf "ADDED (copied — were absent):\n%b" "${added:-    (none)\n}"
+  printf "REVIEW / merge by hand (existing-or-missing — adopt did NOT touch):\n%b" "${conflicts:-    (none)\n}"
+  echo ""
+  echo "Next: diff staged wiring  (git diff --no-index <existing> $incoming/<path>)  → merge by hand;"
+  echo "      add MISSING docs; fill # TODO; then: doctor verify-setup --repo $target"
 }
 
 sos_blueprint() {
@@ -654,6 +811,7 @@ sos() {
   shift || true
   case "$cmd" in
     new)         sos_new "$@" ;;
+    adopt)       sos_adopt "$@" ;;
     init)        sos_init "$@" ;;
     blueprint)   sos_blueprint "$@" ;;
     contract)    sos_contract "$@" ;;

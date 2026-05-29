@@ -233,3 +233,18 @@ Sếp chose B (defer). Codex then caught that the shared premise of BOTH A and B
 - **Correction 2 (mirror-config = copy, and that's CORRECT):** Gap-2's child `.docs-gate.toml` is a GENERATED COPY (bash heredoc), not a single-source reference. For Category B (tunable per-repo, §1.B) that's the INTENDED design — children evolve config independently. The only real coupling is generator↔docs-gate-schema, caught by the acceptance test (spawn → docs-gate pass). NOT a hidden single-source-drift.
 - **Convergence (3 eyes, each one piece):** B = right TIMING (defer to pilot — don't polish platform in a vacuum, per tool-vs-product); Codex = right PLACEMENT (child via sos new, not sos-kit); orchestrator = right MECHANISM (fresh child CONNECTED → clean wire, no J4-conditional). **Lesson: before arguing A-vs-B, check the premise A and B SHARE.** Here the shared premise ("gate the template") was the bug.
 - **RESOLUTION:** DEFER (B) — get evidence from the real pilot first. WHEN the pilot surfaces real drift, wire verify-setup into the CHILD's pre-commit via `sos new` (WARN default), NOT into sos-kit, NO J4-conditional. Recorded so we wire it RIGHT when the time comes.
+
+---
+
+## §8. `sos adopt` — the brownfield half (BUILT + RAN 2026-05-29)
+
+`sos new` spawns GREENFIELD (empty dir). `sos adopt <existing-repo>` retrofits the spine into an EXISTING repo — the missing half (Sếp's call: "sos-kit cũng nên làm cho dự án cũ, quét codebase, đưa docs vào, 1 lượt"). It IS the mechanism for the **3rd trouble-type** (workflow-meets-existing-structure): it reports, the human triages, it never force-clobbers.
+
+**Discipline (opposite of `sos new` which OWNS an empty dir — adopt RESPECTS an existing one):**
+- **ADDITIVE** — copy spine items only where the destination is ABSENT. For directories, **per-file**: a repo's own `scripts/` keeps its files AND receives sos-kit's new ones (e.g. `block-unsafe-merge.sh`); only true collisions stage.
+- **NON-CLOBBER** — an existing file (CLAUDE.md, settings.json, a colliding script) → staged to `.sos-adopt-incoming/<path>` + reported for manual merge. NEVER overwrite the repo's own files. Never scaffold CLAUDE.md/BACKLOG/ARCHITECTURE/CHANGELOG over an existing repo (report if missing).
+- **REPORT + 3-way triage** — run `doctor verify-setup` → for each DORMANT joint: **(A)** wire genuinely not connected → fix; **(B)** verify-setup doesn't know THIS repo's pattern → teach it / label brittle (NOT a repo bug); **(C)** product gap → human decides.
+
+**Acceptance test PASSED** (synthetic existing repo with custom CLAUDE.md + settings.json + scripts/): CLAUDE.md + settings.json **non-clobbered** (sos-kit's versions staged to `.sos-adopt-incoming/`), repo's own `scripts/myscript.sh` kept + sos-kit's `block-unsafe-merge.sh` copied in (per-file merge), INVARIANTS/AGENT_MAP/.docs-gate generated, **verify-setup DORMANT on J5** because the existing settings.json doesn't register the hook → exactly the triage-A signal ("merge the PreToolUse registration from incoming"). Cruft (`.DS_Store`/`*.pyc`/`__pycache__`) excluded from copy in BOTH `sos new` and `sos adopt` (RUN-found, fixed).
+
+**First real target: media-rating-app** (Python/TS, brownfield) — Sếp drives the port (his codebase context + the 3-way triage), orchestrator runs mechanical commands. The retrofit is no longer hand-slog: `sos adopt` does the additive copy + staging, the human merges conflicts + triages DORMANT.
