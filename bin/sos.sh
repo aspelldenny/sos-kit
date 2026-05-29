@@ -26,6 +26,7 @@ sos — 0→1 bootstrap for SOS Kit
 Usage:
   sos new <dir> --stack <python|rust|ts>   Bootstrap a NEW (empty) repo from golden (freeze + skeleton + validate)
   sos adopt <dir> [--stack ...]            Retrofit spine into an EXISTING repo (additive + non-clobber + report)
+  sos map [dir]                            Scan repo → draft AGENT_MAP with REAL surfaces (sound) + load_bearing/blast TODO (you)
   sos init                     Phase 0 — vision capture (Chủ nhà)
   sos init security            Bootstrap stack detection — write .sos-stack.toml (foundation for advisory-scan / security-review)
   sos blueprint                Phase 1 — pick stack + recipes (Chủ nhà → Kiến trúc sư)
@@ -258,6 +259,98 @@ EOF
   fi
 }
 
+sos_emit_map_stub() {
+  # <out-path> — write an UNMAPPED draft AGENT_MAP (NO tarot content). For greenfield (nothing
+  # to scan) or when scan finds no surfaces. Tells the reader to scan/fill, never lies.
+  local out="$1"; mkdir -p "$(dirname "$out")"
+  cat > "$out" <<'STUB'
+# AGENT_MAP — UNMAPPED DRAFT. status: draft_unmapped.
+# This repo has no mapped surfaces yet. Do NOT route phiếu by this file until filled.
+#   Brownfield (existing code): run `sos map .` to scan-generate real surfaces.
+#   Greenfield: add surfaces as you build them. configs/AGENT_MAP.example.yaml is a SHAPE
+#     reference (schema), NOT content to copy — copying its tarot surfaces = "map nói dối".
+version: 1
+status: draft_unmapped
+surfaces: {}
+STUB
+}
+
+sos_map() {
+  # sos map [target-dir] — scan an EXISTING repo → draft AGENT_MAP with REAL surfaces.
+  # SOUND half (auto): real dirs/files of THIS repo, coarse-grouped by directory pattern.
+  # PARTIAL half (human): load_bearing + blast left NEEDS_JUDGMENT. Does NOT copy the tarot
+  # example (the bug that prompted this — sos adopt was dropping tarot CONTENT as a fake map).
+  # Doctrine: docs/BOOTSTRAP_AUTOMATION_DRAFT.md §8 (scan-grounded; sound/partial, like docs-gate init).
+  local target="${1:-.}"
+  if [[ ! -d "$target" ]]; then echo "✗ $target is not a directory"; return 1; fi
+  mkdir -p "$target/docs"
+  local out="$target/docs/AGENT_MAP.yaml"
+  local _t="$target"
+
+  scan_files() {  # find-args... → newline list of relpaths (noise excluded, capped)
+    { find "$_t" "$@" \
+        -not -path '*/.git/*' -not -path '*/node_modules/*' -not -path '*/__pycache__/*' \
+        -not -path '*/.sos-adopt-incoming/*' -not -path '*/migrations/versions/*' \
+        -not -path '*/.venv/*' -not -path '*/venv/*' -not -path '*/dist/*' -not -path '*/build/*' \
+        2>/dev/null | sed "s|^${_t}/||" | sort | head -25; } || true
+  }
+
+  local surfaces=""
+  add_surface() {  # <name> <relpath-list>
+    local name="$1" list="$2"
+    [[ -z "$list" ]] && return 0
+    surfaces="${surfaces}  ${name}:
+    load_bearing: true                # NEEDS_JUDGMENT — confirm: true=architect reads deep, false=leaf. Default true = safe (over-read beats miss-blast).
+    edit:
+$(printf '%s\n' "$list" | sed 's|^|      - |')
+    blast: \"TODO: what breaks if this changes — describe blast radius (you).\"
+"
+  }
+
+  add_surface "routes_handlers" "$(scan_files -type f \( -path '*/routes/*' -o -path '*/handlers/*' -o -path '*/views/*' -o -path '*/controllers/*' -o -path '*/api/*' \) \( -name '*.py' -o -name '*.ts' -o -name '*.js' -o -name '*.rs' \))"
+  add_surface "models_schema"   "$(scan_files -type f \( -path '*/models/*' -o -path '*/entities/*' -o -name 'schema.*' \) \( -name '*.py' -o -name '*.ts' -o -name '*.rs' \))"
+  add_surface "services_logic"  "$(scan_files -type f \( -path '*/services/*' -o -path '*/lib/*' \) \( -name '*.py' -o -name '*.ts' -o -name '*.rs' \))"
+  add_surface "migrations"      "$(scan_files -type d -name migrations)"
+  add_surface "frontend"        "$(scan_files -type d \( -name templates -o -name components -o -name static \))"
+  add_surface "config_runtime"  "$(scan_files -maxdepth 2 -type f \( -name 'config.py' -o -name 'settings.py' -o -name 'docker-compose*.yml' -o -name 'Dockerfile' -o -name '.flaskenv' \))"
+
+  if [[ -z "$surfaces" ]]; then
+    sos_emit_map_stub "$out"
+    echo "  ⚠ sos map: no code surfaces detected → wrote draft_unmapped stub ($out). Fill by hand."
+    return 0
+  fi
+
+  {
+    cat <<'HEAD'
+# AGENT_MAP — scan-generated DRAFT (sos map). status: draft_needs_review.
+#
+# SOUND half (auto): the surfaces + edit-paths below are REAL dirs/files in THIS repo, coarse-
+#   grouped by directory pattern. This is NOT the tarot example (no "map nói dối").
+# PARTIAL half (YOU): set load_bearing (true|false) + write blast for each — the scan can't
+#   judge importance (product knowledge). Split coarse regions into semantic surfaces as you
+#   refine (e.g. routes_handlers → auth / ratings / privacy).
+#
+# Validator: doctor validate-map --map docs/AGENT_MAP.yaml (every path must exist).
+version: 1
+status: draft_needs_review
+generated_by: "sos map (scan)"
+
+surfaces:
+HEAD
+    printf '%s' "$surfaces"
+    cat <<'TAIL'
+
+never_default_read:
+  - docs/CHANGELOG.md
+  - docs/DISCOVERIES.md
+  - docs/BACKLOG.md
+  - docs/ticket/archive/**
+TAIL
+  } > "$out"
+
+  echo "  ✓ sos map: scanned $target → $out (draft_needs_review — set load_bearing + blast by hand)"
+}
+
 sos_new() {
   # sos new <target-dir> --stack <python|rust|ts> [--pilot]
   # Bootstrap a NEW repo from sos-kit golden (the scale foundation).
@@ -332,11 +425,9 @@ sos_new() {
   # 2a. docs/security/INVARIANTS.md — generic 5 (universal) + empty INV-LOCAL TODO
   cp "$K/templates/INVARIANTS-template.md" "$target/docs/security/INVARIANTS.md"
   printf '\n## INV-LOCAL (project-specific — FILL THESE)\n\n# TODO: add at least one `## INV-LOCAL-NNN — <title>` for this product, or write `# No local INV` if none.\n' >> "$target/docs/security/INVARIANTS.md"
-  # 2b. docs/AGENT_MAP.yaml — skeleton from example, TODO to fill real surfaces
-  if [[ -f "$K/configs/AGENT_MAP.example.yaml" ]]; then
-    { printf '# AGENT_MAP — surfaces for this repo.\n# TODO: replace the example below with real surfaces (path + anchor).\n\n'
-      cat "$K/configs/AGENT_MAP.example.yaml"; } > "$target/docs/AGENT_MAP.yaml"
-  fi
+  # 2b. docs/AGENT_MAP.yaml — greenfield has no code to scan yet → UNMAPPED stub.
+  #     (Do NOT copy the tarot example = "map nói dối". Run `sos map .` once code exists.)
+  sos_emit_map_stub "$target/docs/AGENT_MAP.yaml"
   # 2c. docs/BACKLOG.md from template
   [[ -f "$K/templates/BACKLOG_template.md" ]] && cp "$K/templates/BACKLOG_template.md" "$target/docs/BACKLOG.md"
   # 2d. CLAUDE.md project skeleton
@@ -524,10 +615,10 @@ sos_adopt() {
     printf '\n## INV-LOCAL (project-specific — FILL THESE)\n\n# TODO: add `## INV-LOCAL-NNN — <title>`, or `# No local INV`.\n' >> "$target/docs/security/INVARIANTS.md"
     added="${added}    + docs/security/INVARIANTS.md\n"
   else conflicts="${conflicts}    ~ docs/security/INVARIANTS.md (exists — kept)\n"; fi
-  if [[ ! -f "$target/docs/AGENT_MAP.yaml" && -f "$K/configs/AGENT_MAP.example.yaml" ]]; then
-    { printf '# AGENT_MAP — surfaces for this repo.\n# TODO: replace example with real surfaces.\n\n'; cat "$K/configs/AGENT_MAP.example.yaml"; } > "$target/docs/AGENT_MAP.yaml"
-    added="${added}    + docs/AGENT_MAP.yaml\n"
-  fi
+  if [[ ! -f "$target/docs/AGENT_MAP.yaml" ]]; then
+    sos_map "$target" >/dev/null    # SCAN real surfaces (NOT copy tarot content); draft_needs_review
+    added="${added}    + docs/AGENT_MAP.yaml (scanned real surfaces — set load_bearing + blast by hand)\n"
+  else conflicts="${conflicts}    ~ docs/AGENT_MAP.yaml (exists — kept)\n"; fi
   if [[ ! -f "$target/.docs-gate.toml" ]]; then
     cat > "$target/.docs-gate.toml" <<'TOML'
 docs_dir = "docs"
@@ -812,6 +903,7 @@ sos() {
   case "$cmd" in
     new)         sos_new "$@" ;;
     adopt)       sos_adopt "$@" ;;
+    map)         sos_map "$@" ;;
     init)        sos_init "$@" ;;
     blueprint)   sos_blueprint "$@" ;;
     contract)    sos_contract "$@" ;;
