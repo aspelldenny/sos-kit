@@ -1,6 +1,6 @@
 # WORKFLOW v2.3 RETRO — pilot vòng 2 (doc-rotate)
 
-> **STATUS: OPEN — forge in progress.** Khung này SẮP XẾP bằng chứng + LIỆT KÊ câu doctrine phải quyết. **KHÔNG ratify gì.** Nothing here is doctrine cho tới khi forge qua nhiều vòng (v2.2 mất 7 vòng — không pin trước số vòng, chạy tới khi hội tụ). Per CLAUDE.md "Edit Workflow doctrine": đây là kênh hợp lệ DUY NHẤT để đổi doctrine; cấm sửa `WORKFLOW_V2.x.md` ad-hoc ngoài file này.
+> **STATUS: ALL Q-D FORGED (Q-D1–Q-D7) — chờ Sếp CROSS-CHECK trước khi hạ ĐƠN THUỐC v2.3.** Q-D1 ✅ RESOLVED+SHIPPED (committed `03f0579`). Q-D2–Q-D7 = recommendation forged, **CHƯA ratify/hạ**. **KHÔNG ratify gì** cho tới khi cross-check xong → rồi mới consolidate ĐƠN THUỐC → hạ vào `WORKFLOW_V2.3.md` + golden. Per CLAUDE.md "Edit Workflow doctrine": đây là kênh hợp lệ DUY NHẤT; cấm sửa `WORKFLOW_V2.x.md` ad-hoc ngoài file này. ⚠️ Forge nội bộ bịa evidence 2/3 lần (R6) — external cross-check là lớp bắt cuối BẮT BUỘC. → **R7-R9: Sếp LOCK 3-rổ (§6); Q-D2 ĐO XONG = keep-two-axes (⚠️ ĐƠN THUỐC còn mầm bệnh auto-Guarded-keyword CHƯA xử); hạ theo WAVE, chỉ cái chạy-thật/đo-xong.**
 >
 > Opened: 2026-05-29. Pilot: doc-rotate (Python, oracle PARTIAL — test giả thuyết PARTIAL-oracle, non-Rust đầu tiên).
 > Seed: 3 Claude Code workflow (spec-review v2.2 + gap-analysis doc-rotate + invariant/variant map) + 7 Discovery Report P001–P007 + maintainer review 2026-05-29.
@@ -19,7 +19,7 @@
 
 ---
 
-## §1. Ba cột — bảng SẮP XẾP (chưa quyết gì)
+## §1. Ba cột — bảng SẮP XẾP (chẩn đoán gốc; verdict đã chốt ở §3 + §6)
 
 ### Cột A — CHỨNG MINH THẬT (proven)
 > Tách đôi theo test "có CHẠY không" (không gộp present với running):
@@ -42,7 +42,7 @@
 |---|---|---|
 | **Giám sát dormant** | 0/7 phiếu doc-rotate; chết vì 4 đứt gãy đồng thời (xem dưới) | dormant |
 | **Sentinel mismatch** | golden `block-unsafe-merge.sh:100,102` grep `SECURITY_REVIEW_START` (HOA+`_`) vs emit `security-review-start` (thường+`-`) ở boundary-check.md:39/174/246 + security-review.md:48/55/86 → verdict KHÔNG BAO GIỜ match → chuỗi merge-gate chết ở gốc | **mold bug — pure** |
-| **ticket↔phiếu hai giọng** | `ticket_dir = "phieu/active"`; golden mâu thuẫn 5 mặt; Discovery gate grep `^docs/ticket/` trong khi phiếu sống ở `phieu/` → gate DEAD | **mold bug — doctrine** |
+| ~~**ticket↔phiếu hai giọng**~~ ✅ **FIXED R4** (Q-D1) | (was: ticket_dir=phieu/active, golden mâu thuẫn 5 mặt, gate DEAD) → hook đọc ticket_dir + sos-kit migrate hết về docs/ticket | mold bug — doctrine, ĐÃ ĐÓNG |
 | **doctor BLOCKING NOWHERE** | serve-mode MCP ở cả 3 repo v2.2, không hook nào invoke | dormant |
 | **lane-check chết** | no `**Lane:**` field (chỉ `**Tầng:**`) + sai path + vocab 3-lane (doctor) vs 4-lane (doctrine `Locked`) | dormant + doctrine |
 | **AGENT_MAP không validate** | chỉ doc-rotate có map; validate-map serve-only | dormant |
@@ -72,15 +72,36 @@
 
 ---
 
-## §3. CÂU DOCTRINE PHẢI QUYẾT (UNRESOLVED — forge, KHÔNG sửa lén)
+## §3. CÂU DOCTRINE — ĐÃ FORGE (recommendation, CHƯA hạ — chờ cross-check, KHÔNG sửa lén)
 > Đây là các nút làm khuôn cãi nhau. Mỗi câu chốt 1 giọng thì một "bug-thuần-trá-hình" mới được sửa.
 
-- **Q-D1 — Một path hay hai path phiếu?** ✅ **[RESOLVED R3]:** KHÔNG phải "chọn phieu hay ticket" — path là **per-repo VARIANT** (sos-kit=`phieu/active|done`, downstream=`docs/ticket/`; dual cố ý qua phieu.sh location-detect). Bug thật hẹp: hook **hardcode** `^docs/ticket/` trong khi `.docs-gate.toml ticket_dir="phieu/active"` → Discovery gate CHẾT cho sos-kit. **Fix theo single-source (hạt giống Q-D6):** hook **ĐỌC** `ticket_dir`, không hardcode → ✅ **DONE + canary** (phieu/active FIRE; portable downstream; `bash -n` OK). **Ca thử Q-D6 quy mô 1-từ-vựng = PASS** → có bằng chứng để sau build Q-D6 đầy đủ. **Prose half CHƯA làm:** README/INSTALL/phieu-README/architect.md reference ticket_dir thay vì restate `docs/ticket/`. **Fleet default ✅ [Sếp]: repo MỚI = `docs/ticket/`. sos-kit MIGRATED HẾT về docs/ticket (R4) — KHÔNG còn dogfood-exception, một giọng tuyệt đối.** DONE: 14 phiếu → `docs/ticket/done/`; `ticket_dir`→docs/ticket; 8 functional surface swept (hook đọc ticket_dir / banner / phieu.sh detect / TICKET_TEMPLATE / worker.md×2 / CLAUDE.md×2 / .docs-gate); + 2 forward-looking (BOOTSTRAP default, ORCHESTRATION:212). **GIỮ NGUYÊN:** historical phiếu content + CHANGELOG (no rewrite history), phieu/ backbone (workflow component), legacy-fallback trong phieu.sh/banner (robust repo cũ). **Verified:** gate canary docs/ticket FIRE + bash -n OK.
-- **Q-D2 — Lane hay Tầng? 3 lane hay 4?** Reconcile doctrine §1 + doctor binary (`Normal|Guarded|Fast`) + template (`Tầng`) + advisory-inbox (`Locked`). Hoặc thêm `**Lane:**`, hoặc bỏ lane-check khỏi orchestrator/§1.
-- **Q-D3 — Đánh cờ `[mechanical]/[judgment]` mọi hard rule, hay nới luật?** (0/5 instantiate hôm nay, kể cả golden.)
-- **Q-D4 — Bước inject INVARIANTS sống ở /security-review command hay orchestrator handbook?** (gap path-chạy vs handbook.)
+- **Q-D1 — Một path hay hai path phiếu?** ✅ **[RESOLVED + DONE — committed `03f0579`]** *(R3 đề xuất per-repo-variant; R4 Sếp chốt MẠNH hơn: một giọng tuyệt đối — bản R3 superseded)*:
+  - **Bug gốc:** hook hardcode `^docs/ticket/` trong khi sos-kit thật ở `phieu/` → Discovery gate CHẾT cho sos-kit.
+  - **Fix cơ chế (single-source = hạt giống Q-D6):** hook **ĐỌC `ticket_dir`** từ `.docs-gate.toml`, không hardcode → DONE + canary (portable mọi repo). **Q-D6 small-scale test = PASS.**
+  - **Quyết định cuối (Sếp R4):** fleet default = `docs/ticket/`; **sos-kit MIGRATED HẾT về docs/ticket — KHÔNG dogfood-exception, một giọng tuyệt đối.** 14 phiếu → `docs/ticket/done/`; ticket_dir→docs/ticket; swept 8 functional + 2 forward-looking (BOOTSTRAP default, ORCHESTRATION:212).
+  - **GIỮ NGUYÊN:** historical phiếu + CHANGELOG (no rewrite history); phieu/ backbone (workflow component); legacy-fallback phieu.sh/banner. README/INSTALL dạy docs/ticket = ĐÚNG cho default → không cần sweep prose.
+  - **Verified:** gate canary docs/ticket FIRE; bash -n OK; hook chạy thật lúc commit → pass 4/4.
+- **Q-D2 — gộp Tầng+Lane 1 field, hay giữ 2 trục?** ✅ **[MEASURED R8 → KEEP-TWO-AXES; R9 cross-check sửa ĐƠN THUỐC]**
+  - **Trụ verdict (CỨNG — KHÔNG dựa con số mềm):** (1) loại **high-risk-small TỒN TẠI có tên cụ thể** — P298 crisis-hotline (1 file, life-safety), P296 crisis-bypass-auth (0 code), P291 auth-scheme — đủ bác merge **bất kể tỷ lệ**; (2) **đường-mòn-trên-cỏ:** doc-rotate P005 + advisory P006/P007 tác giả ĐÃ tự override size bằng risk → **người đã đi đường 2-trục dù khuôn chỉ cho 1.** Keep-two-axes = chính thức hóa đường mòn.
+  - **Số đo (phụ, MỀM):** 26/49 (53%) high-risk-small / 5 low-risk-large / 18 on-diagonal. ⚠️ panel tự thú 53% soft (corpus tool-CLI 20/49 over-sample); **direction (≠0) robust nhưng magnitude KHÔNG phải trụ** — đừng dựa verdict vào 53%, dựa vào ca-có-tên + đường-mòn.
+  - ~~**R5 HYPOTHESIS: merge → 1 field `Lane:` Fast/Normal/Guarded, kill Locked, budget observe**~~ — **REFUTED by R8.** Codex merge-safe bị bác bằng chính tiêu chí Codex (high-risk-small là ô đa số ≠ ~0). auto-Guarded-patch = risk-axis nhét cửa sau = relabeled-two-axis → keep-two-axes thật hơn.
+  - **→ ĐƠN THUỐC (corrected R9 — keep-two-axes):** giữ **Tầng (risk)** field hiện có; size-budget → §10-N5 observe (không gate).
+    - ⚠️ **MẦM BỆNH đã biết — PHẢI xử trước khi hạ:** "security/schema/auth/dep/migration → auto-Guarded" là **keyword-list cứng = grep một thứ PARTIAL** → TRƯỢT ca khó (P298 life-safety không thuộc 5 keyword). Phép đo tìm ra P298 rồi đơn thuốc keyword lại thả P298 = mỉa mai chết người.
+    - **Sửa:** risk là **judgment NGƯỜI gán (partial), KHÔNG suy từ keyword**; doctor chỉ ENFORCE **Tầng-field tồn tại + có lý do** (sound/mechanical); auto-Guarded-keyword chỉ là **LƯỚI AN TOÀN phụ** (đụng auth rõ → chắc Guarded), KHÔNG phải cơ chế chính. Đúng oracle SOUND/PARTIAL: cơ chế chính cho phán đoán partial PHẢI là người.
+- **Q-D3 — Đánh cờ markers mọi hard rule?** ⚠️ **[FORGED R6 — verdict: DEFER, KHÔNG instantiate now]:**
+  - Forge đề xuất "tag 8 rule now + reject doc-lint". **Stress WOUNDED:** evidence "P006 = Rule #4 không teeth" là **BỊA** (P006 thực ra = docs-gate bootstrap friction, không dính Rule #4) → strip xong disease drop n=1→**n=0**. "Tag rules now" = chính cú over-build session bắt **lần 4** (sau cargo/skeleton/verify-setup). Thêm: Rule #8 đã có Mechanical/Judgment split + Tầng-1 mapping table đã bind surface→enforcer → redundant.
+  - **Refined: KHÔNG sửa CLAUDE.md Rules giờ. ARM 1 §10 sensor** (N: rule ships no-enforcer → grep numbered-rule thiếu enforcement-ref; [guidance]→[hook] chỉ sau lần nổ đầu). Precedent thật = DISCOVERIES tarot 265KB (rotate rule unenforced) → argues sensor, không mandate. **Giữ:** reject-doc-lint. **Cắt:** tag-8-rules-now.
+  - ĐƠN THUỐC-level (chạm §10) → STOP.
+  - **⚠️ CROSS-CHECK R7 (Codex):** defer-tất có thể defer-vì-ngại. Marker tốt **tự thân** (như type annotation — làm rõ rule enforce kiểu gì, hợp executable-contract), KHÔNG cần bệnh biện minh. → **TÁCH: làm annotation 8 rule (rẻ, doc-convention) + defer doc-lint (over-build).** Verdict sửa: KHÔNG defer-tất.
+- **Q-D4 — Inject sống ở command hay handbook?** ⚠️ **[FORGED R6 — WOUNDED→refined]:**
+  - Forge: "move inject vào command, [hook]". **Stress WOUNDED:** sos-kit /security-review là **Task-tool-driven (LLM prompt), KHÔNG Bash** như tarot → "Step 1.5 grep fires deterministic" SAI cho sos-kit (chỉ relocate prose-to-remember); [hook] label sai → thực ra **[guidance]**. Demote orchestrator.md → bỏ trống path direct-spawn.
+  - **Refined (cheapest, L2): thêm SLOT `INV-LOCAL` có nhãn vào Step-2 spawn-prompt TEMPLATE** (đổi "nhớ inject" → "điền chỗ này"), **GIỮ** orchestrator.md:65-76 làm procedure cho direct-spawn (KHÔNG demote — path đó không coverage khác). **[guidance]**. Dynamic-read INVARIANTS (KHÔNG hardcode như tarot — sos-kit command là template N-repo). Disease thật (canary n=2). **DEFER §8 reword → retro.** ĐƠN THUỐC chỉ nếu chạm §8; slot-edit thì không.
 - **Q-D5 — verify-WIRING cơ chế nào?** ✅ **[RESOLVED R2 framing — 3 nguồn hội tụ]:** `doctor verify-setup` = subcmd thứ 5, **TĨNH/SOUND** (đọc file/grep/check tồn tại — KHÔNG spawn; file-checked: 4 subcmd doctor hiện tại đều static 0-spawn → canary KHÔNG nhét vào đây kẻo bẩn binary sound). Kiểm chuỗi nối (sentinel khớp / command tồn tại / INVARIANTS tồn tại nếu enabled / auto-spawn / merge-hook / inject-path). Reference = **tarot-WIRING** (wiring tĩnh kiểm được, tarot là mẫu đã-chạy). Nhãn cứng: **kiểm NỐI, KHÔNG kiểm TỐT.** Chạy bootstrap + pre-commit. Un-defer từ spec. → quality KHÔNG ở đây, xem **Q-D7**.
-- **Q-D6 (forge R1, câu GỐC) — cơ chế nào ép khuôn nói MỘT giọng xuyên các file?** Ba cú lật đều quy về một bệnh: khuôn nói hai giọng (ticket/phieu, sentinel HOA/thường, lane/Tầng). Q-D1…Q-D5 chốt từng chỗ = nhổ từng cây cỏ; Q-D6 diệt gốc. `ticket_dir=phieu/active` qua được docs-gate vì docs-gate kiểm ĐỘ-MỚI, không kiểm NGHĨA. Cần **"vocabulary-consistency = docs-gate cho NGHĨA"**. ⚠️ **MVP phải RẺ (Luật 2), KHÔNG phải AI semantic synonym-detector:** đề xuất = một glossary khai báo từ-vựng-chuẩn (term + sentinel canonical) + grep cấm biến thể xuyên file. Bằng chứng đây là gốc: sentinel vừa fix (sos-kit→thường) lệch với tarot (HOA) — **cross-repo vocab drift VẪN sống**, đúng cái Q-D6 phải bắt. *(Q-D5 verify-setup = wiring 1 vai; Q-D6 = vocab xuyên file — cùng họ static-consistency, có thể cùng tool `doctor`, đừng vội gộp.)*
+- **Q-D6 (câu GỐC) — vocab-consistency cơ chế nào?** ⚠️ **[FORGED R6 — verdict: KHÔNG build vocab-grep; single-source thay thế]:**
+  - Forge: "build glossary + forbidden-variant grep pre-commit, n≥4 bites". **Stress NEAR-FATAL — demolish evidence:** INV_LOCAL underscore = **bịa (n=0**, grep=0); **Tầng-as-lane = MISDIAGNOSIS** (TICKET_TEMPLATE:12 dùng `Tầng:` là CANONICAL — forbid nó = block golden template + **pre-empt Q-D2 đang MỞ**); sentinel cross-repo = **cosmetic** (mỗi repo internally consistent; emit/grep KHÔNG cross repo → casing skew không break gì); phieu/active refs = **legacy CỐ Ý GIỮ** (grep false-flag → --no-verify death). Net live disease cho blocklist ≈ **0**.
+  - **Refined: KHÔNG build vocab-blocklist.** Cơ chế đúng = **single-source-the-value** (generalize Q-D1: hook ĐỌC canonical từ 1 declaration, mọi consumer derive — một giọng ở GỐC, 0 grep, 0 false-positive). Drift không single-source được → **fold vào doctor verify-setup STATIC check** (assert emit==grep sentinel WITHIN 1 repo = rủi ro thật doc-rotate, thuộc **Q-D5**), KHÔNG standalone grep. Flags: (1) [gate] reuse single-source; (2) [hook] fold Q-D5.
+  - **→ câu GỐC tự hòa tan:** "ép một giọng" KHÔNG cần tool vocab mới — = single-source mỗi value + verify-setup wiring-check. ĐƠN THUỐC-level + tương tác Q-D2/Q-D5 → STOP.
+  - **⚠️ CROSS-CHECK R7 (Codex): "tự hòa tan" = OVERCLAIM.** Single-source diệt **value-drift** (ticket_dir, sentinel), KHÔNG diệt **concept-confusion-trong-prose** (ai viết "Tầng" chỗ đáng "Lane" trong văn xuôi). Mới giải **NỬA** — value-half hòa tan; concept-in-prose-half CHƯA giải → **track tiếp** (không build tool, nhưng đừng đóng câu gốc bằng tuyên bố đẹp).
 - **Q-D7 (forge R2, TÁCH khỏi Q-D5) — verify-QUALITY bằng canary.** Vai giám sát phải qua planted-flaw canary (đút vi phạm INV-LOCAL giả → BẮT BUỘC FLAG; đút bản sạch → APPROVE), chứng minh GÁC chứ không pass-through. **RUNTIME/PARTIAL** — spawn boundary-check thật, tạo side-effect (PR/branch phải dọn). **KHÔNG phải subcmd doctor** (giữ doctor sound). N1 (advisory-inbox PR#14) đã chứng minh phương pháp. **3 chỗ file-grounded cả 2 reviewer chưa thấy:**
   - **(i) Cadence = mỗi PHIÊN BẢN prompt giám sát, KHÔNG "1 lần/repo".** File-checked: **3 version boundary-check.md live** — 255 dòng (advisory-cron/inbox, md5 giống) · 278 (doc-rotate/sos-kit) · **166 (tarot)**. Behavior đổi theo prompt → canary v255 không nói gì về v278/v166. **tarot chạy v166 = version DUY NHẤT production, không khớp golden v278, chưa canary.** (Sub-mech A tầng behavior: "test 1 lần" thành prose-không-răng nếu prompt đổi mà không re-test.)
   - **(ii) Canary phải đi ĐÚNG production injection-path, KHÔNG force-inject riêng.** File-grounded failure-mode #3: boundary-check.md:245 (cron/inbox) ghi *"project-local INV not Giám sát's responsibility unless user updates this agent file"* → normal op vai BỎ QUA local INV. Force-inject để test = certify cấu hình KHÁC production (đúng gap §8). → nối Q-D7 vào **Q-D4** (inject sống ở đâu thì canary test đúng chỗ đó).
@@ -93,11 +114,11 @@
 
 ## §4. THỨ TỰ (maintainer-corrected 2026-05-29)
 
-1. **Step 1 (NGAY, không cần retro):** chỉ 2 bug THẬT SỰ thuần — một cách sửa, không quyết gì:
-   - **sentinel case+separator:** sửa `block-unsafe-merge.sh` grep `security-review-start`/`-end` (thường+`-`, khớp emit). 1 file outlier, 2 file emit đã đồng thuận.
-   - **bootstrap rename:** copy procedure `sed` tên repo vào header (advisory-inbox còn ghi "advisory-cron").
-   - ⛔ KHÔNG đụng phieu-path, inject-step ở bước này (= Q-D1, Q-D4).
-2. **Step 2 (forge này):** quyết Q-D1…Q-D5. Dùng tarot làm reference cho A2/Giám sát.
+1. **Step 1 (NGAY, không cần retro):** bug thật-sự-thuần — một cách sửa, không quyết gì:
+   - ✅ **sentinel case+separator (DONE, canary 3/3):** `block-unsafe-merge.sh` grep `security-review-start` khớp emit.
+   - ❌→📋 **bootstrap rename (R4 SOI):** KHÔNG phải bug code sos-kit — advisory-inbox header sai do tạo bằng copy sibling, không từ golden. → **procedure note cho bootstrap doctrine** ("bootstrap repo mới TỪ golden, không copy sibling"), KHÔNG one-script-sed. Bỏ khỏi Step-1.
+   - ⛔ KHÔNG đụng phieu-path, inject-step ở bước này (= Q-D1, Q-D4) — *(historical: lệnh xếp thứ tự R1; Q-D1 sau đó đã đóng ở R3-R4)*.
+2. **Step 2 (forge này):** quyết Q-D1…Q-D7. Dùng tarot làm reference cho A2/Giám sát.
 3. **Step 3 (SAU forge):** sửa bug dính-doctrine theo quyết định + build verify-setup → RỒI mới skeleton (skeleton = A1-spine đóng băng + checklist per-project; **KHÔNG** đóng băng A2/dormant).
 
 ---
@@ -126,3 +147,52 @@
   - **Giữ:** historical phiếu + CHANGELOG (no rewrite history), phieu/ backbone, legacy-fallback (phieu.sh/banner).
   - **bootstrap-rename SOI:** KHÔNG phải bug code sos-kit (advisory-inbox header sai vì tạo bằng copy sibling advisory-cron, không từ golden) → **procedure note cho bootstrap doctrine** ("bootstrap repo mới TỪ golden, không copy sibling"), không sửa lén. Reviewer đoán đúng: dính naming-doctrine → forge, không one-script-sed.
   - **ĐÓNG:** Q-D1 + Step-1 (sentinel + path). **CÒN MỞ:** Q-D2 (Lane/Tầng), Q-D3 (markers), Q-D4 (inject), Q-D6 (vocab tool), Q-D5/Q-D7 (build verify-setup + canary), 🔴 tarot production-risk (track riêng).
+- **Vòng 5 (2026-05-29):** Q-D2 forge panel (3 vị trí merge/coexist/kill → adversarial stress → synth). Verdict: KILL survives, MERGE+COEXIST wounded → **recommendation HYBRID** (merge field `**Lane:** Fast/Normal/Guarded`, kill Locked; budget→§10-N5 observe, missing-field→exit-2 gate). Panel tự soi bias (closure/sunk-cost/under-weight-COEXIST) + 5 seam cho reviewer. **Migration = ĐƠN THUỐC, KHÔNG hạ giờ.** Q-D2 ✅ forged. → forge tiếp Q-D3/Q-D4/Q-D6.
+- **Vòng 6 (2026-05-29):** forge Q-D3/Q-D4/Q-D6 (grounded forge + adversarial stress mỗi câu).
+  - **Stress WOUNDED cả 3, bắt 2 FABRICATION** (Q-D3 "P006=Rule#4-no-teeth" bịa → P006 thực ra docs-gate-bootstrap; Q-D6 "INV_LOCAL n=0" + Tầng-as-lane misdiagnosis). Mọi refined đẩy về **ÍT build hơn** (defer / single-source) — đúng anti-over-build.
+  - **Q-D3:** DEFER — arm §10 sensor, KHÔNG tag rules now (disease n=0 sau strip fabrication). Giữ reject-doc-lint.
+  - **Q-D4:** thêm `INV-LOCAL` slot vào command spawn-template **[guidance]** (không phải [hook] — sos-kit command là LLM-prompt không Bash), GIỮ handbook cho direct-spawn, defer §8 reword.
+  - **Q-D6:** KHÔNG build vocab-grep (evidence demolished, sẽ false-flag + pre-empt Q-D2 mở); answer = **single-source-the-value** (generalize Q-D1) + fold within-repo sentinel-consistency vào **Q-D5 verify-setup**. Câu GỐC tự hòa tan — không cần tool vocab mới.
+  - 🔴 **CẢNH BÁO BIAS QUAN TRỌNG:** forge agents (panel NỘI BỘ) **bịa evidence 2/3 lần**; stress nội bộ bắt được — nhưng nghĩa là **internal panel KHÔNG đủ tin**. **External cross-check (Sếp + ChatGPT/Claude) là lớp bắt cuối BẮT BUỘC** trước ĐƠN THUỐC. Đừng tin refined-verdict tuyệt đối tới khi cross-check.
+  - **TẤT CẢ Q-D1–Q-D7 ĐÃ FORGED.** Retro COMPLETE. **STOP — chờ cross-check, KHÔNG hạ ĐƠN THUỐC.**
+- **Vòng 7 (2026-05-29):** external cross-check (Codex đọc-file + Claude soi-lý-luận) + Sếp LOCK.
+  - **Hội tụ 2 reviewer:** Q-D2 là chỗ nguy nhất ("gọn trên giấy, mất răng vận hành") — 2 bias khác (file vs logic) cùng chỉ một chỗ.
+  - **4 chỗ bắt trong orchestration của em (nhận hết):** (1) 🔴 META — fabrication R6 phải làm NGHI LẠI mọi verdict pre-R6 (Q-D2@R5, Q-D5/Q-D7@R2 chưa bị stress-bắt-bịa), em chỉ sửa 2 cái lộ; (2) Q-D2 lý-luận-vòng ('doctor đọc 3' = sự-thật-file, '3 đủ' = kết-luận-kill-Locked, đừng trộn); (3) Q-D3 defer-có-thể-vì-ngại (marker tốt tự thân, không cần bệnh); (4) Q-D6 'tự hòa tan' overclaim (single-source diệt value-drift KHÔNG diệt concept-in-prose).
+  - **Codex⟷Claude VÊNH ở Q-D2:** Codex 'thêm mapping+auto-Guarded rồi hạ'; Claude 'auto-Guarded = risk-trục nhét cửa sau = dấu hiệu đừng merge → ĐO tương quan trước'. Cú lật chung: **Tầng=risk-axis, Lane=process-axis — tương quan nhưng có thể KHÔNG đồng nhất** (việc nhỏ-đụng-móng).
+  - **Sếp LOCK (theo em recommend):** disposition 3-rổ (xem §6); **Q-D2 = ĐO-trước** (Claude), phép đo phân xử Codex-vs-Claude empirically. Measurement launched (~32 phiếu).
+  - **Nguyên tắc lock:** chỉ hạ cái proven-running/don't-do; build+chạy cái framing; đo cái Q-D2. Đừng hạ 6 paper một lượt = lặp dormant v2.2 mà retro vừa chẩn.
+- **Vòng 8 (2026-05-29):** ✅ phép đo tương quan Tầng/Lane (49 phiếu unique, 3 repo) — **Q-D2 RESOLVED bằng DATA.**
+  - **26/49 (53%) high-risk-small** + 5 low-risk-large → 18/49 (37%) on-diagonal. Axes **ANTI-CORRELATED ở ô nguy hiểm**: móng/security tới trong gói NHỎ một cách hệ thống.
+  - **Smoking gun:** doc-rotate P005 + advisory P006/P007 — tác giả ĐÃ tự override size bằng risk (1 field không đủ, đã vá tay trong corpus).
+  - **Phán xử Codex⟷Claude: CLAUDE đúng.** plain-merge BÁC (Codex merge-safe refuted: 53% ≠ 0). auto-Guarded-patch = risk-axis cửa sau = relabeled-two-axis → keep-two-axes thật hơn.
+  - **Caveat panel tự soi:** 53% soft (sample tool-CLI skew) nhưng DIRECTION robust → decision vững.
+  - **Q-D2 disposition: 'đo→quyết' → KEEP-TWO-AXES** (giữ Tầng risk gate-driver + doctor đọc Tầng + security floor auto-Guarded; size→observe). Chi tiết = ĐƠN THUỐC. **TẤT CẢ Q-D giờ forged HOẶC measured. STOP — chờ Sếp final-approve hạ ĐƠN THUỐC.**
+- **Vòng 9 (2026-05-29):** cross-check phép đo R8 (Codex+Claude) + Sếp dọn-stale + wave-plan.
+  - **3 chỉnh trước khi verdict thành trụ ĐƠN THUỐC:** (1) đừng dựa **53%** (mềm, corpus thiên lệch — panel tự thú) → dựa **ca-có-tên** (P298/P296/P291); (2) trụ MẠNH nhất = **đường-mòn-trên-cỏ** (người đã tự vá P005/P006/P007), không phải số; (3) 🔴 **MẦM BỆNH ĐƠN THUỐC Q-D2:** "auto-Guarded keyword-list" = grep một thứ PARTIAL → trượt P298 life-safety (phép đo tìm ra P298 rồi đơn thuốc thả P298 = mỉa mai). **Sửa:** Tầng = judgment người (partial), doctor enforce field-có-lý-do (sound), keyword = lưới phụ. → folded vào Q-D2.
+  - **Dọn stale (Sếp):** header "đang ĐO"→"đo xong"; §1 "(chưa quyết gì)"→"(verdict ở §3)"; Q-D2 R5-merge bullets → gói ~~REFUTED by R8~~.
+  - **Wave plan §6:** A (file-edit) → B (build verify-setup + chạy) → C (canary) → D (viết doctrine CHỈ sau B/C có evidence + Q-D2 mầm bệnh xử). KHÔNG hạ B/C như A.
+  - **→ Commit checkpoint doc-only** (message ghi đúng trạng thái: forged+measured, PENDING-ratification, Q-D2 mầm bệnh auto-Guarded CHƯA xử). KHÔNG ratify gì.
+
+---
+
+## §6. DISPOSITION HẠ ĐƠN THUỐC (locked R7 — Sếp; thước proven-running vs paper)
+
+> 7 verdict, chỉ Q-D1 chạy thật, 6 cái paper. **Hạ cả 6 = lặp đúng bệnh dormant v2.2.** Phân 3 rổ:
+
+- ✅ **HẠ được** (chạy thật / don't-do / generalize Q-D1):
+  - **Q-D1** — đã ship (committed 03f0579).
+  - **Q-D4** — ĐƠN THUỐC = sửa **CỤ THỂ** slot INV-LOCAL trong `.claude/commands/security-review.md` Step-2 prompt (không chỉ doctrine prose). [guidance].
+  - **Q-D6** — don't-build vocab-tool (+ track concept-confusion-in-prose half — CHƯA giải).
+  - **Q-D3** — *làm* phần annotation (đánh cờ 8 rule [mechanical]/[judgment] — doc-convention rẻ, tốt tự thân); *defer* doc-lint (over-build).
+- 🔨 **BUILD → CHẠY → rồi mới hạ** (framing chốt, paper-chưa-chạy):
+  - **Q-D5** verify-setup (static wiring check) · **Q-D7** canary (quality, runtime). Build + chạy thật → rồi mới ghi doctrine.
+- 📏→✅ **ĐO XONG → KEEP-TWO-AXES** (Q-D2):
+  - **Q-D2** — đo 49 phiếu: **26 (53%) high-risk-small** → plain-merge BÁC, **keep-two-axes**. ĐƠN THUỐC: doctor đọc **Tầng (risk)** thay Lane (sửa dead-lane-check) + **security/schema/auth/dep floor → auto-Guarded** + size → §10-N5 observe. KHÔNG merge 1 field.
+- **META (Codex):** fabrication R6 → re-doubt mọi verdict pre-R6. Q-D2 re-doubt = phép đo này; Q-D5/Q-D7 re-doubt = build-then-run (chạy thật là cách chứng).
+- **WAVE PLAN hạ (Sếp R9 — chia sóng, KHÔNG hạ một lượt):**
+  - **Wave A** (hạ được ngay, file-edit không doctrine): Q-D4 slot INV-LOCAL trong command + Q-D3 annotation + Q-D6 don't-build note.
+  - **Wave B:** BUILD `doctor verify-setup` (Q-D5) → **chạy thật.**
+  - **Wave C:** chạy quality canary (Q-D7).
+  - **Wave D:** chỉ SAU khi Q-D5/Q-D7 có evidence thật **+ Q-D2 mầm-bệnh-auto-Guarded đã xử** → mới viết `WORKFLOW_V2.3.md`/golden.
+  - ⚠️ **KHÔNG hạ Wave B/C như Wave A** — verify-setup/canary phải build+chạy TRƯỚC khi vào doctrine, kẻo lặp dormant v2.2 (cơ chế trên giấy, răng chưa cắm) mà retro này sinh ra để chẩn.
+- **⛔ Vẫn DỪNG trước ĐƠN THUỐC** — disposition này là KẾ HOẠCH hạ, chưa hạ. Hạ khi: Q-D2 mầm-bệnh xử xong + Q-D5/Q-D7 build+chạy + Sếp final-approve.
