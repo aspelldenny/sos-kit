@@ -37,7 +37,7 @@ IDLE → DRAFT_PHASE (spawn architect DRAFT)
 APPROVAL_GATE → AskUserQuestion → approve / amend / abandon
 EXECUTE_PHASE → spawn worker EXECUTE → DONE
 ```
-Cap = 3 turns. Hit Turn 3 without consensus → FORCE_ESCALATION (`AskUserQuestion` to Sếp).
+Cap = 3 turns. Hit Turn 3 without consensus → FORCE_ESCALATION (`AskUserQuestion` to Chủ nhà).
 
 ## Tier routing (P036)
 Tầng is defined by **CONSEQUENCE, single-source in `docs/LAYERS.md` §2-tier** — NOT by LOC/file-count. Architect sets the field; **you only READ it + branch — you do NOT re-judge Tầng** (re-judging by "looks small" = the LOC trap that collapsed media):
@@ -81,7 +81,7 @@ BEFORE any `gh pr merge` (auto OR manual): run `gh pr diff --name-only`. Touches
 
 ## Advisory staleness auto-spawn (Hard rule 11)
 
-SessionStart banner reads `docs/security/.advisory-scan-state`. Banner `🚨 >= 7 ngày` OR `🚨 chưa scan lần nào` → orchestrator **BẮT BUỘC auto-spawn `advisory-watch`** (Trinh sát) early-session (after Sếp confirms direction if mid-task, max 1 turn). KHÔNG đợi Sếp gõ `/advisory-scan`, KHÔNG đợi cron. Banner `⚠️ 3-6 ngày` → narrate + offer, không mandate. Full spec: `docs/ORCHESTRATION.md` Rule 11.
+SessionStart banner reads `docs/security/.advisory-scan-state`. Banner `🚨 >= 7 ngày` OR `🚨 chưa scan lần nào` → orchestrator **BẮT BUỘC auto-spawn `advisory-watch`** (Trinh sát) early-session (after Chủ nhà confirms direction if mid-task, max 1 turn). KHÔNG đợi Chủ nhà gõ `/advisory-scan`, KHÔNG đợi cron. Banner `⚠️ 3-6 ngày` → narrate + offer, không mandate. Full spec: `docs/ORCHESTRATION.md` Rule 11.
 
 ## Sensor arm — log when fired (v2.2 §10 watchlist)
 
@@ -95,7 +95,7 @@ Watch for these signals during state-machine cycles. Log to `.sos-state/sensor-l
 | **M1** legacy data format | Migration phiếu without `fixtures/` snapshot from real export | Block phiếu pre-EXECUTE (hook) |
 | **M2** branch stale | `git merge-base --is-ancestor origin/main HEAD` exit != 0 | Block pre-EXECUTE (hook) |
 | **M3** NEEDS_REVIEW verdict | Boundary-check returns NEEDS_REVIEW | AskUserQuestion, KHÔNG auto-skip dù autonomous mode |
-| **M4** hotfix interrupt | Sếp signals prod-down / security / user-blocking | Hotfix lane (scope cứng), security-review POST-merge |
+| **M4** hotfix interrupt | Chủ nhà signals prod-down / security / user-blocking | Hotfix lane (scope cứng), security-review POST-merge |
 | **M5** CI flake | Test failed → retry; if >2 retry pass, suspicious | Return Worker, max 2 retry + 1-line flake reason |
 | **M6** counter race | 2 phiếu push parallel with same counter number | Currently arm-only (em solo, chưa nổ). When fires → promote `doctor phieu-next` |
 
@@ -115,7 +115,7 @@ Sensors are **arm-not-fix** (v2.2 §10). When ≥1 fires in real pilot → bring
 - Spawn worker (any mode): `rm -f .sos-state/architect-active`
 Never leave a stale marker. Marker lives outside `.claude/` so YOLO mode does not prompt.
 ## Phiếu cleanup nudge (P038)
-Banner shows `🧹 Phiếu P<NNN> approved + merged. Run: phieu-done P<NNN>` per matching phiếu — surface to Sếp, MUST NOT auto-run. Spec: `docs/ORCHESTRATION.md` "Phiếu lifecycle".
+Banner shows `🧹 Phiếu P<NNN> approved + merged. Run: phieu-done P<NNN>` per matching phiếu — surface to Chủ nhà, MUST NOT auto-run. Spec: `docs/ORCHESTRATION.md` "Phiếu lifecycle".
 ## Invoking skills (Skill tool) (P005)
 Skills (`/frontend-design`, `/security-review`, etc.) are **Orchestrator-only**. When a phiếu needs skill output (design tokens, threat model, external pattern):
 1. Run the skill in the main session BEFORE spawning Architect (or before APPROVAL_GATE if mid-flow).
@@ -142,7 +142,7 @@ Tools `AskUserQuestion`, `TaskCreate`, `TaskUpdate`, `TaskList` are **deferred**
 ```
 ToolSearch query="select:AskUserQuestion,TaskCreate,TaskUpdate,TaskList"
 ```
-If `ToolSearch` unavailable → degraded mode — narrate to Sếp, proceed without deferred tools (approval gate + sprint tracking unavailable).
+If `ToolSearch` unavailable → degraded mode — narrate to Chủ nhà, proceed without deferred tools (approval gate + sprint tracking unavailable).
 - `AskUserQuestion` = mandatory for APPROVAL_GATE + FORCE_ESCALATION.
 - `TaskCreate` / `TaskUpdate` = sprint tracking visibility.
 - Architect subagent declares them at `agents/architect.md:4` — subagent spawn re-loads per allowlist, Quản đốc-specific concern.

@@ -239,6 +239,8 @@ Public-facing docs (`README.md`, `docs/SETUP.md`, `docs/PHILOSOPHY.md`, `SKILL.m
 
 Internal conversations with the maintainer (Denny / Nguyen) are in Vietnamese; see the maintainer's personal tarot/CLAUDE.md for that convention. This `CLAUDE.md` stays in English so external contributors can read it.
 
+**Role names (tên vai) vs address (xưng hô) — keep separate, never conflate.** Role names — `Chủ nhà`, `Quản đốc`, `Kiến trúc sư`, `Thợ`, `Trinh sát`, `Giám sát` — are fixed doctrine constants and appear **identically in every handbook** (`agents/*.md`), public and personal. They are third-person role references ("escalate to Chủ nhà", "Chủ nhà approves the phiếu") — never forms of address. The maintainer's address register — agents call the human **"Sếp"/"anh"** and refer to themselves as **"em"** — is a *separate conversational layer* that lives in live chat and UI (e.g. the SessionStart banner's "Sếp's project"), NOT in handbook role-references. Do **not** rename a role to an address term: the old `sed 's/Chủ nhà/Sếp/g'` swap (with a per-repo `.claude/agents/` copy + `sync-personal-agents.sh`) conflated the two layers, rotted into drift, and was removed in favor of symlinking `.claude/agents/ → agents/` (see `agents/README.md`).
+
 ## Deferred-tool loading (Claude Code session start)
 
 Claude Code's `AskUserQuestion`, `TaskCreate`, `TaskUpdate`, `TaskList` are **deferred** tools — they don't auto-load in fresh sessions. Direct invocation fails with `InputValidationError: tool not loaded`.

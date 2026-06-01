@@ -2,7 +2,7 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## v2.3 forge (in progress) — Phiếu path unified + sentinel fix — 2026-05-29
+## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure — 2026-06-01
 
 Forge rounds 1–4 of `docs/retro/WORKFLOW_V2.3_RETRO_doc-rotate.md` (doc-rotate pilot vòng 2 retro). Doctrine still in forge — only mechanical/path fixes shipped here; doctrine questions Q-D2…Q-D7 (Lane/Tầng, markers, inject location, vocab-consistency, verify-setup + quality-canary split) remain OPEN.
 
@@ -23,6 +23,13 @@ Verified: gate canary fires on `docs/ticket/`; `bash -n` clean on edited scripts
 **Tầng = consequence (LOC removed) + un-staled `.claude/agents/` (2026-05-30):**
 - **Removed the "≤3 files / ≤200 LOC" Tầng criterion from ALL live doctrine** — a small-LOC security fix is still Tầng-1; LOC mis-classifies (the exact bug that collapsed the media pilot). Tầng is now **single-sourced in `docs/LAYERS.md` §2-tier** by CONSEQUENCE (mistake **LAN** or **NOT-reversible** → Tầng-1; security/auth/schema/privacy/payment/`INV-LOCAL` → AUTO Tầng-1 even if 1 line; size is not a signal). `agents/orchestrator.md` (now **reads** the field, does NOT re-judge), `agents/architect.md`, `docs/ORCHESTRATION.md`, `phieu/TICKET_TEMPLATE.md`, `phieu/DISCOVERY_PROTOCOL.md` reference LAYERS.md instead of restating (closes the two-voice drift).
 - **Un-staled `.claude/agents/`:** the generated copy (architect/worker) was last synced **2026-04-26 — ~1 month stale**, missing all v2.2 evolution (Oracle/AGENT_MAP/Humility/Bước-0). sos-kit **dogfooded + adopt propagated the stale April agents** — a major cause of the media collapse (media got month-old architect/worker). Re-ran `scripts/sync-personal-agents.sh` → `.claude/agents/` now == canonical (architect 191→276, worker 183→293). Same Sub-mech A: the regen mechanism existed but was never fired. **Flag (not built):** sync script covers only architect+worker; a pre-commit drift-check (`.claude/agents/` == `agents/` name-swapped) would prevent re-staleness.
+
+**In-repo `.claude/agents/` drift CURED — eliminate via symlink + tên-vai/xưng-hô split (closes the deferred item above) — 2026-06-01:**
+The 2026-05-30 deferred TOP task is resolved. Root finding: the `sed 's/Chủ nhà/Sếp/g'` swap was a **category error** — `Chủ nhà` is a **role name** (tên vai), `Sếp` an **address term** (xưng hô); grep confirmed 100% of handbook `Chủ nhà` usage is 3rd-person role-reference, zero vocative. The two-copy split personalized nothing the conversation layer doesn't already handle, so it was pure drift surface.
+- **Cure = eliminate (not automate):** `.claude/agents/{architect,worker,advisory-watch,boundary-check}.md` are now **symlinks** → `../../agents/*.md`. One real file per agent → drift is structurally impossible (no second copy to diverge). Removed `scripts/sync-personal-agents.sh` + its SessionStart hook. Stronger than the "automate via hook" option first considered: a symlink has no sync step to fire at all.
+- Cleaned stray `Sếp` referents → `Chủ nhà` in `agents/orchestrator.md` (×5) + `agents/worker.md` (×5); canonical handbooks are now pure role-name voice.
+- Documented the **tên-vai vs xưng-hô** two-layer rule in `CLAUDE.md` (Language) + `agents/README.md`. The `Sếp`/`anh`/`em` register now lives only in live chat + UI (e.g. the SessionStart banner), never in handbook role-references.
+- External adopters copy real files from `agents/` (per `INSTALL.md`), so the symlinks are sos-kit-internal and don't affect downstream copies.
 
 **Top-3 trigger-doctrine sync (gap-audit → kit, 2026-05-30):**
 Closes the dominant gap-audit finding — the kit shipped GATES without the DOCTRINE/TRIGGER that fires them (Sub-mech A re-created inside the kit; what made the media pilot collapse).
