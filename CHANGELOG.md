@@ -2,7 +2,7 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure — 2026-06-01
+## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-02
 
 Forge rounds 1–4 of `docs/retro/WORKFLOW_V2.3_RETRO_doc-rotate.md` (doc-rotate pilot vòng 2 retro). Doctrine still in forge — only mechanical/path fixes shipped here; doctrine questions Q-D2…Q-D7 (Lane/Tầng, markers, inject location, vocab-consistency, verify-setup + quality-canary split) remain OPEN.
 
@@ -30,6 +30,11 @@ The 2026-05-30 deferred TOP task is resolved. Root finding: the `sed 's/Chủ nh
 - Cleaned stray `Sếp` referents → `Chủ nhà` in `agents/orchestrator.md` (×5) + `agents/worker.md` (×5); canonical handbooks are now pure role-name voice.
 - Documented the **tên-vai vs xưng-hô** two-layer rule in `CLAUDE.md` (Language) + `agents/README.md`. The `Sếp`/`anh`/`em` register now lives only in live chat + UI (e.g. the SessionStart banner), never in handbook role-references.
 - External adopters copy real files from `agents/` (per `INSTALL.md`), so the symlinks are sos-kit-internal and don't affect downstream copies.
+
+**Install completeness — root-cause fix for the media-class gap (2026-06-02):**
+The drift cure surfaced that `INSTALL.md` told adopters to copy only `architect.md` + `worker.md` — **not** `advisory-watch.md` + `boundary-check.md`. That is the concrete root cause media-rating had **no Giám sát / Trinh sát agent** (a major collapse factor): every adopter inherited the gap. Compounding it: copying the (now-cured) `settings.json` pulls in `block-env-edit`/`block-unsafe-merge` PreToolUse wiring whose scripts the install never copied → hooks pointing at missing scripts.
+- `INSTALL.md` now copies **all 4 spawnable agents** + the `/security-review` + `/advisory-scan` commands + the `block-*` guard scripts; the merge-example shows all 3 PreToolUse matchers (with a note that `block-unsafe-merge` is the no-merge-without-Giám-sát backstop).
+- Stale `sync-personal-agents.sh` reference removed from `CLAUDE.md` structure listing (script was deleted by the symlink cure). Closes BACKLOG "🔝 IN-REPO drift".
 
 **Top-3 trigger-doctrine sync (gap-audit → kit, 2026-05-30):**
 Closes the dominant gap-audit finding — the kit shipped GATES without the DOCTRINE/TRIGGER that fires them (Sub-mech A re-created inside the kit; what made the media pilot collapse).

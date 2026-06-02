@@ -92,10 +92,13 @@ sos-kit/
 │   │   └── multi-model-fallback.md
 │   └── payment/
 │       └── payos-vn.md
-├── scripts/                # SessionStart + PreToolUse hooks
+├── scripts/                # SessionStart + PreToolUse hooks + security gate
 │   ├── architect-guard.sh  # PreToolUse hook — block code reads when architect active
-│   ├── session-start-banner.sh  # SessionStart hook — show BACKLOG on session open
-│   └── sync-personal-agents.sh  # Sync agents to ~/.claude/agents/
+│   ├── block-env-edit.sh   # PreToolUse hook — block .env edits
+│   ├── block-unsafe-merge.sh  # PreToolUse hook — block force-push / unsafe merge (Giám sát backstop)
+│   ├── security-gate.sh, check-*.py, parsers/  # commit-time security gate + advisory lockfile parsers
+│   └── session-start-banner.sh  # SessionStart hook — show BACKLOG on session open
+│   # (.claude/agents/ is symlinked to agents/ — no sync script; see agents/README.md)
 ├── skills/                 # One skill per layer+responsibility, never spans layers (13 total)
 │   ├── init/SKILL.md       # Chủ nhà — 0→1 vision capture (empty folder → PROJECT/SOUL/CHARACTER)
 │   ├── idea/SKILL.md       # Chủ nhà — intake new ideas, route into BACKLOG

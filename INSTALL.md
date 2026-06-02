@@ -19,14 +19,21 @@
 ├── .claude/
 │   ├── agents/
 │   │   ├── architect.md          ← Kiến trúc sư subagent (Read/Write/Glob only)
-│   │   └── worker.md              ← Thợ subagent (full code tools, no vision)
+│   │   ├── worker.md              ← Thợ subagent (full code tools, no vision)
+│   │   ├── advisory-watch.md      ← Trinh sát specialist (GHSA/CVE scan)
+│   │   └── boundary-check.md      ← Giám sát specialist (5-INV boundary review)
+│   ├── commands/
+│   │   ├── security-review.md     ← /security-review (spawns Giám sát)
+│   │   └── advisory-scan.md       ← /advisory-scan (spawns Trinh sát)
 │   ├── skills/
 │   │   └── idea/SKILL.md          ← /idea intake skill
-│   └── settings.json              ← Hooks: SessionStart banner + PreToolUse architect-guard
+│   └── settings.json              ← Hooks: SessionStart banner + PreToolUse (architect-guard + block-env-edit + block-unsafe-merge)
 ├── hooks/
 │   └── pre-commit                 ← Git pre-commit hook (NEW in v2: docs-gate + Discovery enforcement)
 ├── scripts/
 │   ├── architect-guard.sh         ← PreToolUse hook (block code reads when architect mode)
+│   ├── block-env-edit.sh          ← PreToolUse hook (block .env edits)
+│   ├── block-unsafe-merge.sh      ← PreToolUse hook (block force-push / unsafe merge — Giám sát backstop)
 │   └── session-start-banner.sh    ← SessionStart hook (show backlog at session start)
 └── docs/
     ├── BACKLOG.md                 ← Live work-in-progress list (NEW in v2)
@@ -46,23 +53,42 @@ Giả sử sos-kit v2 đã clone tại `~/sos-kit` (clone từ aspelldenny/sos-k
 ```bash
 cd ~/your-project
 
-# Agents (canonical, English-neutral, "Chủ nhà" voice)
+# Agents — ALL 4 spawnable (canonical, English, "Chủ nhà" role-name voice)
+# (architect + worker = core workflow; advisory-watch + boundary-check = security
+#  specialists. Copy all 4 — skipping the security pair is what left media-rating
+#  with no Giám sát = a root cause of its collapse.)
 mkdir -p .claude/agents
-cp ~/sos-kit/agents/architect.md .claude/agents/
-cp ~/sos-kit/agents/worker.md .claude/agents/
+cp ~/sos-kit/agents/architect.md      .claude/agents/
+cp ~/sos-kit/agents/worker.md         .claude/agents/
+cp ~/sos-kit/agents/advisory-watch.md .claude/agents/
+cp ~/sos-kit/agents/boundary-check.md .claude/agents/
+
+# Commands (so Quản đốc can invoke the con-mắt agents)
+mkdir -p .claude/commands
+cp ~/sos-kit/.claude/commands/security-review.md .claude/commands/
+cp ~/sos-kit/.claude/commands/advisory-scan.md   .claude/commands/
 
 # Skills
 mkdir -p .claude/skills/idea
 cp ~/sos-kit/.claude/skills/idea/SKILL.md .claude/skills/idea/
 
-# Hooks
+# Hooks — ALL PreToolUse guard scripts referenced by settings.json below.
+# (block-unsafe-merge = the mechanical backstop for "no merge without Giám sát";
+#  block-env-edit = .env protection. Copying settings.json without these = broken
+#  hooks pointing at missing scripts.)
 mkdir -p scripts
-cp ~/sos-kit/scripts/architect-guard.sh scripts/
+cp ~/sos-kit/scripts/architect-guard.sh     scripts/
+cp ~/sos-kit/scripts/block-env-edit.sh      scripts/
+cp ~/sos-kit/scripts/block-unsafe-merge.sh  scripts/
 cp ~/sos-kit/scripts/session-start-banner.sh scripts/
-chmod +x scripts/architect-guard.sh scripts/session-start-banner.sh
+chmod +x scripts/*.sh
 
 # Settings (MERGE if .claude/settings.json already exists — see Step 2)
 cp ~/sos-kit/.claude/settings.json .claude/settings.json
+
+# NOTE: commit-time security gate (security-gate.sh + check-*.py + parsers/) and the
+# CVE advisory pipeline need `sos init security` (stack detection → .sos-stack.toml).
+# See docs/SETUP.md → Security pipeline. The above = the session-level guards + agents.
 ```
 
 ### 2. Merge settings.json (nếu project đã có)
@@ -85,13 +111,25 @@ Nếu `.claude/settings.json` đã có, **merge** thay vì overwrite. Add hai ho
         "hooks": [
           { "type": "command", "command": "bash scripts/architect-guard.sh" }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "bash scripts/block-env-edit.sh" }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash scripts/block-unsafe-merge.sh" }
+        ]
       }
     ]
   }
 }
 ```
 
-Nếu đã có `PreToolUse` hooks khác → merge cùng matcher hoặc thêm entry mới.
+Nếu đã có `PreToolUse` hooks khác → merge cùng matcher hoặc thêm entry mới. **All three matchers must be present** — `block-unsafe-merge` (Bash) is the mechanical backstop for the no-merge-without-Giám-sát invariant; omitting it is how a repo ends up able to merge security changes unreviewed.
 
 ### 2.5. Pre-approve marker file Bash ops (skip per-spawn permission prompts)
 
