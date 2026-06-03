@@ -110,10 +110,16 @@ Sensors are **arm-not-fix** (v2.2 §10). When ≥1 fires in real pilot → bring
 | Worker EXECUTE | "Worker execute phiếu P<NNN>" |
 
 ## Marker file hygiene
-`.sos-state/architect-active` gates the architect-guard hook. Before EVERY spawn:
-- Spawn architect (any mode): `mkdir -p .sos-state && touch .sos-state/architect-active`
-- Spawn worker (any mode): `rm -f .sos-state/architect-active`
-Never leave a stale marker. Marker lives outside `.claude/` so YOLO mode does not prompt.
+Two markers gate two PreToolUse guards (mutually exclusive — one phase, one marker):
+- **`.sos-state/architect-active`** → `architect-guard.sh` blocks Architect READING source.
+- **`.sos-state/worker-active`** → `orchestrator-guard.sh` allows product-source Edit/Write (`*.swift`/`*.pbxproj`/`src/**`) ONLY while set. No marker → Quản đốc/Architect hand-coding product = blocked (exit 2).
+
+Before EVERY spawn:
+- Spawn architect (any mode): `mkdir -p .sos-state && touch .sos-state/architect-active && rm -f .sos-state/worker-active`
+- Spawn worker (any mode): `mkdir -p .sos-state && touch .sos-state/worker-active && rm -f .sos-state/architect-active`
+- **After worker returns:** `rm -f .sos-state/worker-active` — close the window so Quản đốc can't hand-code product post-EXECUTE.
+
+Never leave a stale marker. Markers live outside `.claude/` so YOLO mode does not prompt.
 ## Phiếu cleanup nudge (P038)
 Banner shows `🧹 Phiếu P<NNN> approved + merged. Run: phieu-done P<NNN>` per matching phiếu — surface to Chủ nhà, MUST NOT auto-run. Spec: `docs/ORCHESTRATION.md` "Phiếu lifecycle".
 ## Invoking skills (Skill tool) (P005)
@@ -137,6 +143,7 @@ d. Run `AskUserQuestion` ONCE with the wave plan — options: approve / reorder 
 6. **One APPROVAL_GATE per phiếu.** Don't add fake-gates between DRAFT/CHALLENGE/RESPOND.
 7. **Tier set in DRAFT, escalated up only.** Worker 2→1 escalation = OK; orchestrator 1→2 demotion = forbidden.
 8. **Bulk input → auto-triage + 1 gate.** See "Bulk input handling" above.
+9. **Quản đốc never hand-codes product.** Product-source (`*.swift`/`*.pbxproj`/`src/**`) Edit/Write goes through a spawned Worker — never the main session. Enforced mechanically by `orchestrator-guard.sh` (blocks unless `.sos-state/worker-active` set). Doctrine in `docs/ORCHESTRATION.md` Hard rules. (Kit-maintenance files — `bin/`, `scripts/`, `docs/`, `*.md` — are NOT product-source, so Quản đốc's Tầng-2 surgical edits on the kit itself are unaffected.)
 ## Deferred-tool loading (mandatory session-start step)
 Tools `AskUserQuestion`, `TaskCreate`, `TaskUpdate`, `TaskList` are **deferred** — not auto-loaded. Direct invocation fails with `InputValidationError: tool not loaded`. Load on session start BEFORE any state-machine transition:
 ```
@@ -152,5 +159,5 @@ If `ToolSearch` unavailable → degraded mode — narrate to Chủ nhà, proceed
 2. Asking user "is this OK?" mid-state-machine.
 3. Asking user to pick order/priority when "tùy em" was given.
 4. Spawning Worker EXECUTE before APPROVAL_GATE.
-5. Forgetting to flip the architect-active marker between spawns.
+5. Forgetting to flip the architect-active / worker-active markers between spawns (stale marker = wrong guard state).
 6. Treating bulk input as N separate decisions instead of 1 wave plan.

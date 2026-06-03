@@ -188,6 +188,25 @@ fi
 echo ""
 
 # ─────────────────────────────────────────────────────────────────────
+# 5. Case-collision gate (path khác-case cùng tồn tại — vỡ Linux/CI)
+#    Doctrine: Két dogfood — Scripts/ ↔ scripts/ thrash.
+# ─────────────────────────────────────────────────────────────────────
+blue "[5/5] Case-collision gate"
+
+if [ -f "scripts/check-case-collision.sh" ]; then
+    if bash scripts/check-case-collision.sh; then
+        green "  ✅ No case collision"
+    else
+        red "  ❌ Case collision (chi tiết ở trên)"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+else
+    echo "  ⏭  scripts/check-case-collision.sh missing — run scripts/install-hooks.sh after bootstrap"
+fi
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────
 echo "─────────────────────────────────────────────────────────────"
