@@ -134,14 +134,18 @@ After these steps, your project is ready. Chủ nhà fills `docs/PROJECT.md` and
 
 **Env vars (bootstrap):** `sos new` runs `doctor verify-setup` as its post-bootstrap gate. It calls `doctor` on PATH by default; set **`DOCTOR_BIN=/path/to/doctor`** to point at a custom/local build (e.g. before `cargo install --path ~/doctor`). `SOS_KIT_DIR` (default: the sos-kit checkout) tells `sos new` where to copy the golden spine from.
 
-### 5. Install pre-commit hook
+### 5. Install git hooks
+
+The tracked `hooks/` dir holds `pre-commit` + `pre-push`. Activate by pointing git
+at that dir — no copy into `.git/hooks/`, so the tracked hook IS the running hook
+(edits are live immediately, no stale untracked copy):
 
 ```bash
-mkdir -p .githooks
-cp ~/path/to/sos-kit/hooks/pre-commit .githooks/pre-commit
-chmod +x .githooks/pre-commit
-git config core.hooksPath .githooks
+bash scripts/install-hooks.sh      # sets: git config core.hooksPath hooks
 ```
+
+`core.hooksPath` is local git state (not committed) → re-run after a fresh clone.
+`sos new` runs this automatically on spawn.
 
 ### 5a. Bootstrap `docs-gate` config
 

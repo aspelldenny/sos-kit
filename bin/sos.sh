@@ -417,7 +417,8 @@ sos_new() {
   cp -R "$K/phieu"     "$target/phieu"
   cp -R "$K/templates" "$target/templates"
   cp    "$K/hooks/pre-commit" "$target/hooks/pre-commit"
-  chmod +x "$target/hooks/pre-commit" 2>/dev/null || true
+  cp    "$K/hooks/pre-push"   "$target/hooks/pre-push"
+  chmod +x "$target/hooks/pre-commit" "$target/hooks/pre-push" 2>/dev/null || true
   # .gitignore — golden ships one (.DS_Store, .sos/, .sos-state/, build artifacts). Without it,
   # a spawned repo commits cruft on its first commit (dogfood finding: 4 .DS_Store leaked into ket).
   [[ -f "$K/.gitignore" ]] && cp "$K/.gitignore" "$target/.gitignore"
@@ -673,6 +674,7 @@ sos_adopt() {
   adopt_item "phieu"
   adopt_item "templates"
   adopt_item "hooks/pre-commit"
+  adopt_item "hooks/pre-push"
   # skills → .claude/skills/ (Cat-A: 13 generic SOS role-workflows). ADDITIVE per-file — keep the
   # repo's own domain skills (Cat-C, e.g. its phase-gate/status); add the generic ones; stage true
   # name-collisions to .sos-adopt-incoming/. (adopt_item can't remap skills/→.claude/skills/.)

@@ -30,7 +30,7 @@ Mỗi repo GIỐNG NHAU. Cargo-hóa thắng lớn ở đây — hết quên, h�
 | `agents/architect.md`, `worker.md`, `orchestrator.md`, `advisory-watch.md`, `boundary-check.md` | sos-kit canonical | Subagent contract — workflow v2.X-bound, không repo-tune |
 | `hooks/pre-commit` | sos-kit canonical | Hook chain integrity |
 | `scripts/block-env-edit.sh`, `block-unsafe-merge.sh`, `architect-guard.sh`, `session-start-banner.sh` | sos-kit canonical | Universal security/orchestration hooks |
-| `scripts/install-hooks.sh`, `pre-push-hook.sh` | sos-kit canonical | Bootstrap helpers |
+| `scripts/install-hooks.sh`, `hooks/pre-push` | sos-kit canonical | Bootstrap helpers |
 | Directory structure: `src/`, `tests/`, `docs/`, `docs/ticket`, `docs/ticket/done`, `.claude/agents`, `.claude/commands`, `templates/` | sos-kit pattern | Convention (phiếu live in `docs/ticket/`, unified 2026-05-29) |
 | `phieu/TICKET_TEMPLATE.md`, `phieu.sh`, `AUDIT_PROTOCOL.md`, `DISCOVERY_PROTOCOL.md`, `GENESIS_TEMPLATE.md`, `LAUNCH_CHECKLIST.md`, `RELAY_PROTOCOL.md` | sos-kit canonical | Phiếu workflow contract |
 | `phieu/VISION_TEMPLATES/*` | sos-kit canonical | Vision skeleton |
