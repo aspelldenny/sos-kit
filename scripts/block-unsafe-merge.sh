@@ -17,6 +17,9 @@
 
 set -euo pipefail
 
+# cwd-independent (see architect-guard.sh): bind to repo root so git ops resolve the project.
+cd "${CLAUDE_PROJECT_DIR:-$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}" || exit 0
+
 # Đọc input
 if [ ! -t 0 ]; then
   INPUT=$(cat || echo "")
