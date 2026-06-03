@@ -25,7 +25,7 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 # 1. Stack-specific type check (auto-detect)
 # ─────────────────────────────────────────────────────────────────────
-blue "[1/3] Type check"
+blue "[1/5] Type check"
 
 if [ -f "Cargo.toml" ]; then
     echo "  → cargo check"
@@ -68,7 +68,7 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 # 2. docs-gate (v1 checks)
 # ─────────────────────────────────────────────────────────────────────
-blue "[2/3] docs-gate (v1: CHANGELOG + ARCHITECTURE 9 sections)"
+blue "[2/5] docs-gate (v1: CHANGELOG + ARCHITECTURE 9 sections)"
 
 # --- docs-gate (P006: graceful skip on fresh install) ---
 if [ ! -f .docs-gate.toml ]; then
@@ -94,7 +94,7 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 # 3. sos-kit v2 specific checks
 # ─────────────────────────────────────────────────────────────────────
-blue "[3/3] sos-kit v2 checks"
+blue "[3/5] sos-kit v2 checks"
 
 # 3a. BACKLOG.md must exist
 if [ ! -f "docs/BACKLOG.md" ]; then
@@ -170,7 +170,7 @@ echo ""
 # 4. Security gate (INV-009 source + INV-010 runtime — Sub-mech F)
 #    Doctrine: WORKFLOW_V2.2.md §7 Sub-mech F. Wired via P306 backport.
 # ─────────────────────────────────────────────────────────────────────
-blue "[4/4] Security gate (INV-009 + INV-010)"
+blue "[4/5] Security gate (INV-009 + INV-010)"
 
 if [ -f "scripts/security-gate.sh" ]; then
     if bash scripts/security-gate.sh --mechanical-only > /tmp/sos-secgate.log 2>&1; then

@@ -17,8 +17,13 @@ set -uo pipefail
 # Chạy ở repo root (pre-commit đã ở đó, nhưng chắc cú).
 cd "$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 
+# core.quotepath=false → non-ASCII paths come through as raw UTF-8, not C-escaped
+# (`"caf\303\251.md"`) — else `dirname` mangles them + output is not git-mv-able.
+# Residual known-hole: awk tolower() is ASCII-only, so a Unicode-ONLY case diff (Á vs á)
+# still slips. quotepath=false + a casefold step (perl -CSDA/python) would close it — follow-up.
 COLLISIONS=$(
-  { git ls-files; git diff --cached --name-only --diff-filter=ACMR; } 2>/dev/null \
+  { git -c core.quotepath=false ls-files
+    git -c core.quotepath=false diff --cached --name-only --diff-filter=ACMR; } 2>/dev/null \
   | while IFS= read -r p; do
       [ -z "$p" ] && continue
       printf '%s\n' "$p"                       # full path
@@ -29,7 +34,14 @@ COLLISIONS=$(
       done
     done \
   | sort -u \
-  | awk '{ k=tolower($0); if (k in seen && seen[k] != $0) print "  " seen[k] "  <->  " $0; else seen[k]=$0 }'
+  | awk '
+      { k = tolower($0); variants[k] = (k in variants ? variants[k] SUBSEP $0 : $0) }
+      END {
+        for (k in variants) {
+          n = split(variants[k], a, SUBSEP)
+          if (n > 1) { line = " "; for (i = 1; i <= n; i++) line = line (i > 1 ? "  <->  " : "  ") a[i]; print line }
+        }
+      }'
 )
 
 if [ -n "$COLLISIONS" ]; then

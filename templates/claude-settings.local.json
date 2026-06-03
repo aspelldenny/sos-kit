@@ -4,7 +4,9 @@
     "allow": [
       "Bash(mkdir -p .sos-state)",
       "Bash(touch .sos-state/architect-active)",
-      "Bash(rm -f .sos-state/architect-active)"
+      "Bash(rm -f .sos-state/architect-active)",
+      "Bash(touch .sos-state/worker-active)",
+      "Bash(rm -f .sos-state/worker-active)"
     ]
   }
 }

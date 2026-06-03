@@ -15,9 +15,10 @@
 # subagent) → marker là cách DUY NHẤT phân biệt Thợ-được-phép vs main-session-việt-vị.
 #
 # Scope HẸP có chủ đích: chỉ product source (`*.swift`/`*.pbxproj`/`src/**`). KHÔNG gồm
-# `*.py`/`*.sh`/docs — để kit-maintenance (Quản đốc sửa thẳng bin/sos.sh, scripts/*.sh,
-# docs ở Tầng-2 surgical) KHÔNG bị chặn. Trong sos-kit chính nó: không có *.swift/pbxproj,
-# src/ chỉ chứa skeleton → guard gần như no-op nhưng vẫn dogfood + nhất quán.
+# `*.py`/`*.sh`/`*.md`/docs — để kit-maintenance (Quản đốc sửa thẳng bin/sos.sh, scripts/*.sh,
+# docs ở Tầng-2 surgical) KHÔNG bị chặn. Trong sos-kit chính nó: không *.swift/pbxproj, không
+# top-level src/, và `bootstrap/` (CLI sos-rs, 12 file .rs thật) được allow-list riêng bên dưới
+# → guard near-no-op trên kit nhưng vẫn dogfood + nhất quán.
 #
 # Setup: referenced từ .claude/settings.json hooks.PreToolUse (matcher Edit|Write).
 # Quản đốc PHẢI `touch .sos-state/worker-active` TRƯỚC spawn Thợ, `rm -f` sau khi Thợ về
@@ -41,7 +42,22 @@ PATH_ARG=$(echo "$INPUT_JSON" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*
 
 NORMALIZED_PATH="${PATH_ARG#./}"
 
+# Docs are NEVER product source — *.md editable anywhere (mirror architect-guard.sh:50-52),
+# even under a `src/` dir (mdBook docs/src/SUMMARY.md, crates/*/src/README.md, …).
+case "$NORMALIZED_PATH" in
+    *.md) exit 0 ;;
+esac
+
+# The kit's OWN bundled tooling (bootstrap/sos-rs/src/*.rs = the sos-rs CLI, 10 real files)
+# is kit-maintenance, NOT the product the kit ships → allow. Without this, editing the kit's
+# own Rust CLI from the main session would be blocked (and "near-no-op on sos-kit" is false).
+case "$NORMALIZED_PATH" in
+    bootstrap/*) exit 0 ;;
+esac
+
 # Is this PRODUCT source? (narrow — see header). Anything else (docs/*.py/*.sh/config) → allow.
+# NOTE: shell `case` glob `*/src/*` matches ANY interior `src/` (the `*` spans `/`) — intended:
+# product source lives under src/ at any depth. *.md + bootstrap/ are already excluded above.
 case "$NORMALIZED_PATH" in
     *.swift|*.pbxproj|src/*|*/src/*) ;;   # product source → gated below
     *) exit 0 ;;                          # not product source → always allow
