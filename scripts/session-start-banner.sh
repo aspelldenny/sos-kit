@@ -13,6 +13,9 @@
 set -uo pipefail
 # Note: NOT using `set -e` because grep -c with 0 matches exits 1, which we treat as normal.
 
+# cwd-independent (see architect-guard.sh): bind to repo root so docs/ refs resolve at session start.
+cd "${CLAUDE_PROJECT_DIR:-$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}" || exit 0
+
 BACKLOG="docs/BACKLOG.md"
 
 # Silent if no BACKLOG.md (project not sos-kit-equipped, OK)

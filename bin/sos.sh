@@ -404,8 +404,11 @@ sos_new() {
   echo "[1/4] Category A — freeze (copy from golden)"
   mkdir -p "$target/.claude" "$target/docs/ticket/done" "$target/docs/security" \
            "$target/src" "$target/tests" "$target/hooks"
-  cp -R "$K/.claude/agents"   "$target/.claude/agents"
-  cp -R "$K/.claude/commands" "$target/.claude/commands"
+  # -L: dereference the drift-fix symlinks (.claude/agents/*.md → ../../agents/*.md) into
+  # REAL files. A spawned repo has no top-level agents/ target, so a plain `cp -R` would
+  # copy DANGLING symlinks → subagents unreadable → verify-setup J6 BROKEN (regression of 3334a3a).
+  cp -RL "$K/.claude/agents"   "$target/.claude/agents"
+  cp -RL "$K/.claude/commands" "$target/.claude/commands"
   cp    "$K/.claude/settings.json" "$target/.claude/settings.json"
   [[ -f "$K/agents/orchestrator.md" ]] && cp "$K/agents/orchestrator.md" "$target/.claude/agents/orchestrator.md"
   [[ -f "$K/templates/claude-settings.local.json" ]] && cp "$K/templates/claude-settings.local.json" "$target/.claude/settings.local.json"
@@ -415,15 +418,42 @@ sos_new() {
   cp -R "$K/templates" "$target/templates"
   cp    "$K/hooks/pre-commit" "$target/hooks/pre-commit"
   chmod +x "$target/hooks/pre-commit" 2>/dev/null || true
-  # .mcp.json — wire OUR doctor gate (Cat-A: our own Rust tool, in-control, no credential = the
-  # kit's deterministic "hands"). PATH-rel command, NOT a hardcoded ~/.cargo path. External MCP
-  # (context7/supabase/...) are Cat-C — the repo declares its own; the kit does NOT ship them.
+  # .gitignore — golden ships one (.DS_Store, .sos/, .sos-state/, build artifacts). Without it,
+  # a spawned repo commits cruft on its first commit (dogfood finding: 4 .DS_Store leaked into ket).
+  [[ -f "$K/.gitignore" ]] && cp "$K/.gitignore" "$target/.gitignore"
+  # .mcp.json — wire ALL of OUR OWN Rust tools (Cat-A: in-control, no credential = the kit's
+  # deterministic "hands"). Each exposes `serve` (stdio MCP). PATH-rel command, NOT a hardcoded
+  # ~/.cargo path (Rule #3). External MCP (context7/supabase/canva/gdrive...) are Cat-C — the
+  # repo declares its own; the kit does NOT ship them.
+  # NOTE: guard/vps are deploy/server-scoped — inert on a local-only app (nothing to act on) but
+  # harmless (serve idles until called). The repo enables them by adding config (.ship.toml,
+  # ~/.vps.toml, guard config) when it gains a deploy/VPS target.
   cat > "$target/.mcp.json" <<'JSON'
 {
   "mcpServers": {
     "doctor": {
-      "_comment": "sos-kit mechanical gate (lane-check, validate-map, rotate-check, runtime-scan). Our own Rust tool — wire via PATH. Install: cargo install --path ~/doctor.",
+      "_comment": "Mechanical gate — lane-check, validate-map, rotate-check, runtime-scan. Universal (zero-config). Install: cargo install --path ~/doctor.",
       "command": "doctor",
+      "args": ["serve"]
+    },
+    "docs-gate": {
+      "_comment": "Docs compliance — CHANGELOG/ARCHITECTURE/Discovery checks (same engine the pre-commit hook runs as CLI). Install: cargo install --path ~/docs-gate.",
+      "command": "docs-gate",
+      "args": ["serve"]
+    },
+    "ship": {
+      "_comment": "Release workflow — test, commit, push, PR, canary, deploy. The commit/push/PR/check layer is universal (any repo); canary/deploy need a target. Install: cargo install --path ~/ship.",
+      "command": "ship",
+      "args": ["serve"]
+    },
+    "guard": {
+      "_comment": "Pre-deploy infra gate — schema drift + env sync over SSH. Inert until the repo has a deploy/SSH target + config. Install: cargo install --path ~/guard.",
+      "command": "guard",
+      "args": ["serve"]
+    },
+    "vps": {
+      "_comment": "VPS ops — docker status/logs/restart/stats. Inert until ~/.vps.toml names a host. Install: cargo install --path ~/vps.",
+      "command": "vps",
       "args": ["serve"]
     }
   }
@@ -433,7 +463,7 @@ JSON
   find "$target" -name '.DS_Store' -delete 2>/dev/null || true
   find "$target" -name '*.pyc' -delete 2>/dev/null || true
   find "$target" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
-  echo "  ✓ agents + commands + settings.json + skills(13) + scripts + phieu + templates + hooks/pre-commit + .mcp.json(doctor)"
+  echo "  ✓ agents(deref) + commands + settings.json + skills(13) + scripts + phieu + templates + hooks/pre-commit + .gitignore + .mcp.json(doctor)"
 
   # ---- 2. Category C — SKELETON (+ # TODO markers) ----
   echo "[2/4] Category C — generate skeletons (+ # TODO)"
@@ -450,10 +480,13 @@ JSON
 # CLAUDE.md — $name
 
 > Project context for Claude Code. Workflow doctrine: sos-kit (3 roles + Quản đốc orchestrator).
+> **PRD / single source of truth: docs/PROJECT.md** — read it before writing phiếu or code.
+>   (Create it via the /init skill, or drop your own PRD there. CLAUDE.md is a summary; PROJECT.md is canonical.)
 
 ## Project context
 
-# TODO: fill stack ($stack), role (product/tool/util), and core constraints.
+# TODO: fill stack, role (product/tool/util), and core constraints.
+#       Bootstrap --stack was: $stack (a placeholder if your real stack isn't python/rust/ts — fix this line).
 
 ## Rules
 
@@ -462,7 +495,10 @@ EOF
   # 2e. stack manifest skeleton (feeds sos init security in step 3)
   case "$stack" in
     python) [[ -f "$target/pyproject.toml" ]] || printf '[project]\nname = "%s"\nversion = "0.0.0"\n# TODO: fill dependencies\n' "$name" > "$target/pyproject.toml" ;;
-    rust)   [[ -f "$target/Cargo.toml" ]]     || printf '[package]\nname = "%s"\nversion = "0.0.0"\nedition = "2021"\n# TODO: fill dependencies\n' "$name" > "$target/Cargo.toml" ;;
+    rust)   [[ -f "$target/Cargo.toml" ]]     || printf '[package]\nname = "%s"\nversion = "0.0.0"\nedition = "2021"\n# TODO: fill dependencies\n' "$name" > "$target/Cargo.toml"
+            # Ship a buildable target: an empty src/ makes `cargo check` (armed pre-commit) fail
+            # "no targets in manifest" → blocks the bootstrap commit. A stub main.rs = valid crate.
+            [[ -f "$target/src/main.rs" ]] || printf 'fn main() {}\n' > "$target/src/main.rs" ;;
     ts)     [[ -f "$target/package.json" ]]   || printf '{\n  "name": "%s",\n  "version": "0.0.0"\n}\n' "$name" > "$target/package.json" ;;
   esac
   # 2f. docs/ARCHITECTURE.md skeleton (docs-gate [architecture] target) so the
@@ -538,9 +574,25 @@ EOF
   echo "  Category C placeholders to fill (# TODO):"
   grep -rl "# TODO" "$target/docs" "$target/CLAUDE.md" 2>/dev/null | sed "s|$target/|    - |" || echo "    (none found)"
 
+  # ---- 5. Git + arm hooks (born-wired: gate LIVE for every future commit, not memory-dependent) ----
+  echo "[+] Git init + arm hooks"
+  if [[ ! -d "$target/.git" ]]; then
+    # init + install-hooks BUT do NOT auto-commit: the bootstrap commit is the user's, and it
+    # passes THROUGH the freshly-armed gate (proof the spawned repo gates its own work day 1).
+    # NOTE: `git init -b main` needs git ≥ 2.28 — use `init` + `symbolic-ref` instead so the
+    # branch is `main` on every git ever shipped (fleet hosts run older git: Ubuntu 20.04 = 2.25).
+    ( cd "$target" && git init -q && git symbolic-ref HEAD refs/heads/main && bash scripts/install-hooks.sh 2>&1 | sed 's/^/    /' )
+    echo "  ✓ git repo (branch main) + pre-commit/pre-push hooks armed"
+  else
+    # --force into a pre-existing .git/ — still arm hooks (mechanism, not a memory-dependent hint).
+    # install-hooks.sh is idempotent (overwrite-on-purpose, scripts/install-hooks.sh:3).
+    ( cd "$target" && bash scripts/install-hooks.sh 2>&1 | sed 's/^/    /' )
+    echo "  ✓ pre-existing git repo — pre-commit/pre-push hooks armed"
+  fi
+
   echo ""
   echo "✓ sos new done: $target"
-  echo "  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git init → commit."
+  echo "  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git add -A && git commit."
 }
 
 sos_adopt() {

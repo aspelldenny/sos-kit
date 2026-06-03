@@ -17,6 +17,11 @@
 
 set -euo pipefail
 
+# cwd-independent: Claude Code may fire this hook from any cwd (subdir/home). Resolve repo
+# root via $CLAUDE_PROJECT_DIR (Claude Code-provided), else from this script's own location,
+# so internal relative refs (.sos-state/, docs/) bind to the project — not the caller's cwd.
+cd "${CLAUDE_PROJECT_DIR:-$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}" || exit 0
+
 MARKER_FILE=".sos-state/architect-active"
 
 # If no marker → not running as Architect → allow everything
