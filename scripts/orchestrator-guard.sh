@@ -39,13 +39,24 @@ cd "${CLAUDE_PROJECT_DIR:-$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 # Read tool input JSON from stdin
 INPUT_JSON=$(cat)
 
-# Extract file_path (Edit + Write both use tool_input.file_path)
+# Extract path. Edit/Write/MultiEdit use tool_input.file_path; NotebookEdit uses
+# notebook_path (matcher includes NotebookEdit — without this fallback its payload has
+# no file_path → extract-blind → always allowed, silently un-guarded).
 PATH_ARG=$(echo "$INPUT_JSON" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+[ -z "$PATH_ARG" ] && PATH_ARG=$(echo "$INPUT_JSON" | sed -n 's/.*"notebook_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
 # Unparseable path → allow (don't block on weird input)
 [ -z "$PATH_ARG" ] && exit 0
 
 NORMALIZED_PATH="${PATH_ARG#./}"
+# Claude Code delivers an ABSOLUTE file_path. The anchored globs below (bootstrap/*,
+# src/*) can never match an absolute path → the bootstrap allow-list + top-level src/
+# rule misfire silently (PR #21 fixed the relative case; runtime is absolute → the kit's
+# own bootstrap/ Rust CLI was being BLOCKED, "near-no-op" was false). Strip the repo-root
+# prefix ($PWD, set by the cd above) so anchored globs match the in-repo path.
+# Residual: if CLAUDE_PROJECT_DIR and the path differ by symlink resolution, the strip
+# no-ops → matching falls back to absolute (extension + */src/* still catch product code).
+NORMALIZED_PATH="${NORMALIZED_PATH#"$PWD"/}"
 
 # Docs are NEVER product source — *.md editable anywhere (mirror architect-guard.sh:50-52),
 # even under a `src/` dir (mdBook docs/src/SUMMARY.md, crates/*/src/README.md, …).
