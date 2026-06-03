@@ -471,7 +471,10 @@ EOF
   # 2e. stack manifest skeleton (feeds sos init security in step 3)
   case "$stack" in
     python) [[ -f "$target/pyproject.toml" ]] || printf '[project]\nname = "%s"\nversion = "0.0.0"\n# TODO: fill dependencies\n' "$name" > "$target/pyproject.toml" ;;
-    rust)   [[ -f "$target/Cargo.toml" ]]     || printf '[package]\nname = "%s"\nversion = "0.0.0"\nedition = "2021"\n# TODO: fill dependencies\n' "$name" > "$target/Cargo.toml" ;;
+    rust)   [[ -f "$target/Cargo.toml" ]]     || printf '[package]\nname = "%s"\nversion = "0.0.0"\nedition = "2021"\n# TODO: fill dependencies\n' "$name" > "$target/Cargo.toml"
+            # Ship a buildable target: an empty src/ makes `cargo check` (armed pre-commit) fail
+            # "no targets in manifest" → blocks the bootstrap commit. A stub main.rs = valid crate.
+            [[ -f "$target/src/main.rs" ]] || printf 'fn main() {}\n' > "$target/src/main.rs" ;;
     ts)     [[ -f "$target/package.json" ]]   || printf '{\n  "name": "%s",\n  "version": "0.0.0"\n}\n' "$name" > "$target/package.json" ;;
   esac
   # 2f. docs/ARCHITECTURE.md skeleton (docs-gate [architecture] target) so the
@@ -552,10 +555,15 @@ EOF
   if [[ ! -d "$target/.git" ]]; then
     # init + install-hooks BUT do NOT auto-commit: the bootstrap commit is the user's, and it
     # passes THROUGH the freshly-armed gate (proof the spawned repo gates its own work day 1).
-    ( cd "$target" && git init -q -b main && bash scripts/install-hooks.sh 2>&1 | sed 's/^/    /' )
+    # NOTE: `git init -b main` needs git ≥ 2.28 — use `init` + `symbolic-ref` instead so the
+    # branch is `main` on every git ever shipped (fleet hosts run older git: Ubuntu 20.04 = 2.25).
+    ( cd "$target" && git init -q && git symbolic-ref HEAD refs/heads/main && bash scripts/install-hooks.sh 2>&1 | sed 's/^/    /' )
     echo "  ✓ git repo (branch main) + pre-commit/pre-push hooks armed"
   else
-    echo "  ⏭ already a git repo — run 'bash scripts/install-hooks.sh' to arm hooks"
+    # --force into a pre-existing .git/ — still arm hooks (mechanism, not a memory-dependent hint).
+    # install-hooks.sh is idempotent (overwrite-on-purpose, scripts/install-hooks.sh:3).
+    ( cd "$target" && bash scripts/install-hooks.sh 2>&1 | sed 's/^/    /' )
+    echo "  ✓ pre-existing git repo — pre-commit/pre-push hooks armed"
   fi
 
   echo ""
