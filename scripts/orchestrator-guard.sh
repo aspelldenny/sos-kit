@@ -24,6 +24,11 @@
 # Quản đốc PHẢI `touch .sos-state/worker-active` TRƯỚC spawn Thợ, `rm -f` sau khi Thợ về
 # (agents/orchestrator.md "Marker file hygiene").
 #
+# Known residual (PR #21 review): fires on Edit/Write/MultiEdit/NotebookEdit, NOT Bash —
+# a deliberate `Bash("echo > src/x.swift")` redirect bypasses this. Out of scope by design
+# (closes the Edit/Write incident vector; parsing arbitrary Bash redirects is fragile). This
+# is a discipline guard, not a sandbox.
+#
 # No external deps (no jq) — pure shell + sed for cross-platform (Windows msys2 bash).
 
 set -euo pipefail
