@@ -456,10 +456,13 @@ JSON
 # CLAUDE.md — $name
 
 > Project context for Claude Code. Workflow doctrine: sos-kit (3 roles + Quản đốc orchestrator).
+> **PRD / single source of truth: docs/PROJECT.md** — read it before writing phiếu or code.
+>   (Create it via the /init skill, or drop your own PRD there. CLAUDE.md is a summary; PROJECT.md is canonical.)
 
 ## Project context
 
-# TODO: fill stack ($stack), role (product/tool/util), and core constraints.
+# TODO: fill stack, role (product/tool/util), and core constraints.
+#       Bootstrap --stack was: $stack (a placeholder if your real stack isn't python/rust/ts — fix this line).
 
 ## Rules
 
