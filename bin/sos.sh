@@ -421,15 +421,39 @@ sos_new() {
   # .gitignore — golden ships one (.DS_Store, .sos/, .sos-state/, build artifacts). Without it,
   # a spawned repo commits cruft on its first commit (dogfood finding: 4 .DS_Store leaked into ket).
   [[ -f "$K/.gitignore" ]] && cp "$K/.gitignore" "$target/.gitignore"
-  # .mcp.json — wire OUR doctor gate (Cat-A: our own Rust tool, in-control, no credential = the
-  # kit's deterministic "hands"). PATH-rel command, NOT a hardcoded ~/.cargo path. External MCP
-  # (context7/supabase/...) are Cat-C — the repo declares its own; the kit does NOT ship them.
+  # .mcp.json — wire ALL of OUR OWN Rust tools (Cat-A: in-control, no credential = the kit's
+  # deterministic "hands"). Each exposes `serve` (stdio MCP). PATH-rel command, NOT a hardcoded
+  # ~/.cargo path (Rule #3). External MCP (context7/supabase/canva/gdrive...) are Cat-C — the
+  # repo declares its own; the kit does NOT ship them.
+  # NOTE: guard/vps are deploy/server-scoped — inert on a local-only app (nothing to act on) but
+  # harmless (serve idles until called). The repo enables them by adding config (.ship.toml,
+  # ~/.vps.toml, guard config) when it gains a deploy/VPS target.
   cat > "$target/.mcp.json" <<'JSON'
 {
   "mcpServers": {
     "doctor": {
-      "_comment": "sos-kit mechanical gate (lane-check, validate-map, rotate-check, runtime-scan). Our own Rust tool — wire via PATH. Install: cargo install --path ~/doctor.",
+      "_comment": "Mechanical gate — lane-check, validate-map, rotate-check, runtime-scan. Universal (zero-config). Install: cargo install --path ~/doctor.",
       "command": "doctor",
+      "args": ["serve"]
+    },
+    "docs-gate": {
+      "_comment": "Docs compliance — CHANGELOG/ARCHITECTURE/Discovery checks (same engine the pre-commit hook runs as CLI). Install: cargo install --path ~/docs-gate.",
+      "command": "docs-gate",
+      "args": ["serve"]
+    },
+    "ship": {
+      "_comment": "Release workflow — test, commit, push, PR, canary, deploy. The commit/push/PR/check layer is universal (any repo); canary/deploy need a target. Install: cargo install --path ~/ship.",
+      "command": "ship",
+      "args": ["serve"]
+    },
+    "guard": {
+      "_comment": "Pre-deploy infra gate — schema drift + env sync over SSH. Inert until the repo has a deploy/SSH target + config. Install: cargo install --path ~/guard.",
+      "command": "guard",
+      "args": ["serve"]
+    },
+    "vps": {
+      "_comment": "VPS ops — docker status/logs/restart/stats. Inert until ~/.vps.toml names a host. Install: cargo install --path ~/vps.",
+      "command": "vps",
       "args": ["serve"]
     }
   }
