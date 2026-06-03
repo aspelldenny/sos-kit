@@ -60,7 +60,14 @@ elif [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
         echo "  ⏭  No .py files staged"
     fi
 else
-    echo "  ⏭  Stack not detected, skipping type check"
+    # Loud, not silent: an un-detected stack (Swift/Go/Java/C/Ruby…) means pre-commit
+    # catches NO compile errors — the most expensive gate silently no-op'd before
+    # (Két Swift dogfood: [1/5] printed a grey skip, looked armed, caught nothing).
+    # Proportionate dose: warn + bump WARN_COUNT (don't build per-commit — too heavy
+    # for a 1-user tool); real build/test belongs to `ship check` / DoD before PR.
+    yellow "  ⚠️  No type-check for this stack (not cargo/npm/python)"
+    echo "     Compile errors are NOT caught at commit — run build/test before PR (ship check / DoD)."
+    WARN_COUNT=$((WARN_COUNT + 1))
 fi
 
 echo ""
@@ -138,7 +145,13 @@ if [ -n "$NEW_PHIEU" ]; then
         # Verify the phiếu ID appears in DISCOVERIES.md
         for phieu in $NEW_PHIEU; do
             PHIEU_ID=$(basename "$phieu" .md | grep -oE 'P[0-9]+')
-            if ! grep -q "## .*$PHIEU_ID" docs/DISCOVERIES.md 2>/dev/null; then
+            # Match the ID whether DISCOVERIES.md uses a `## P<NNN>` heading OR a
+            # `| P<NNN> | … |` index-table row. The old grep matched ONLY headings —
+            # but sos-kit's OWN DISCOVERIES.md (and every spawn) ships a TABLE index,
+            # so the check never matched its own format; it only surfaced when a spawn
+            # creates phiếu rapidly (Két dogfood: P004 table entry wrongly blocked).
+            # `([^0-9]|$)` guards against P004 matching P0040.
+            if ! grep -qE "^(## .*|\|[[:space:]]*)${PHIEU_ID}([^0-9]|\$)" docs/DISCOVERIES.md 2>/dev/null; then
                 red "  ❌ Phiếu $PHIEU_ID has no Discovery entry in DISCOVERIES.md"
                 FAIL_COUNT=$((FAIL_COUNT + 1))
             else
