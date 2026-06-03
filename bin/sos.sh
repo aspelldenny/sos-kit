@@ -404,8 +404,11 @@ sos_new() {
   echo "[1/4] Category A — freeze (copy from golden)"
   mkdir -p "$target/.claude" "$target/docs/ticket/done" "$target/docs/security" \
            "$target/src" "$target/tests" "$target/hooks"
-  cp -R "$K/.claude/agents"   "$target/.claude/agents"
-  cp -R "$K/.claude/commands" "$target/.claude/commands"
+  # -L: dereference the drift-fix symlinks (.claude/agents/*.md → ../../agents/*.md) into
+  # REAL files. A spawned repo has no top-level agents/ target, so a plain `cp -R` would
+  # copy DANGLING symlinks → subagents unreadable → verify-setup J6 BROKEN (regression of 3334a3a).
+  cp -RL "$K/.claude/agents"   "$target/.claude/agents"
+  cp -RL "$K/.claude/commands" "$target/.claude/commands"
   cp    "$K/.claude/settings.json" "$target/.claude/settings.json"
   [[ -f "$K/agents/orchestrator.md" ]] && cp "$K/agents/orchestrator.md" "$target/.claude/agents/orchestrator.md"
   [[ -f "$K/templates/claude-settings.local.json" ]] && cp "$K/templates/claude-settings.local.json" "$target/.claude/settings.local.json"
@@ -415,6 +418,9 @@ sos_new() {
   cp -R "$K/templates" "$target/templates"
   cp    "$K/hooks/pre-commit" "$target/hooks/pre-commit"
   chmod +x "$target/hooks/pre-commit" 2>/dev/null || true
+  # .gitignore — golden ships one (.DS_Store, .sos/, .sos-state/, build artifacts). Without it,
+  # a spawned repo commits cruft on its first commit (dogfood finding: 4 .DS_Store leaked into ket).
+  [[ -f "$K/.gitignore" ]] && cp "$K/.gitignore" "$target/.gitignore"
   # .mcp.json — wire OUR doctor gate (Cat-A: our own Rust tool, in-control, no credential = the
   # kit's deterministic "hands"). PATH-rel command, NOT a hardcoded ~/.cargo path. External MCP
   # (context7/supabase/...) are Cat-C — the repo declares its own; the kit does NOT ship them.
@@ -433,7 +439,7 @@ JSON
   find "$target" -name '.DS_Store' -delete 2>/dev/null || true
   find "$target" -name '*.pyc' -delete 2>/dev/null || true
   find "$target" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
-  echo "  ✓ agents + commands + settings.json + skills(13) + scripts + phieu + templates + hooks/pre-commit + .mcp.json(doctor)"
+  echo "  ✓ agents(deref) + commands + settings.json + skills(13) + scripts + phieu + templates + hooks/pre-commit + .gitignore + .mcp.json(doctor)"
 
   # ---- 2. Category C — SKELETON (+ # TODO markers) ----
   echo "[2/4] Category C — generate skeletons (+ # TODO)"
@@ -538,9 +544,20 @@ EOF
   echo "  Category C placeholders to fill (# TODO):"
   grep -rl "# TODO" "$target/docs" "$target/CLAUDE.md" 2>/dev/null | sed "s|$target/|    - |" || echo "    (none found)"
 
+  # ---- 5. Git + arm hooks (born-wired: gate LIVE for every future commit, not memory-dependent) ----
+  echo "[+] Git init + arm hooks"
+  if [[ ! -d "$target/.git" ]]; then
+    # init + install-hooks BUT do NOT auto-commit: the bootstrap commit is the user's, and it
+    # passes THROUGH the freshly-armed gate (proof the spawned repo gates its own work day 1).
+    ( cd "$target" && git init -q -b main && bash scripts/install-hooks.sh 2>&1 | sed 's/^/    /' )
+    echo "  ✓ git repo (branch main) + pre-commit/pre-push hooks armed"
+  else
+    echo "  ⏭ already a git repo — run 'bash scripts/install-hooks.sh' to arm hooks"
+  fi
+
   echo ""
   echo "✓ sos new done: $target"
-  echo "  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git init → commit."
+  echo "  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git add -A && git commit."
 }
 
 sos_adopt() {

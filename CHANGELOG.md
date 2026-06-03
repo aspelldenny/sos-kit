@@ -2,9 +2,16 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-02
+## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-03
 
 Forge rounds 1–4 of `docs/retro/WORKFLOW_V2.3_RETRO_doc-rotate.md` (doc-rotate pilot vòng 2 retro). Doctrine still in forge — only mechanical/path fixes shipped here; doctrine questions Q-D2…Q-D7 (Lane/Tầng, markers, inject location, vocab-consistency, verify-setup + quality-canary split) remain OPEN.
+
+**`sos new` spawn regression fixed (Két greenfield dogfood, 2026-06-03):**
+- **Dangling agent symlinks (blocker).** The agents-drift cure (`3334a3a`) made `.claude/agents/*.md` symlinks → `../../agents/*.md`. `sos new` copied them with `cp -R` (preserves symlinks) but a spawned repo has no top-level `agents/` target → 4 of 5 subagents (architect/worker/advisory-watch/boundary-check) shipped as **dangling symlinks**, unreadable. `verify-setup` flagged it as `[BROKEN] J6 verdict-contract` → boundary-check DORMANT → `sos new`'s own acceptance test (fresh spawn → CONNECTED) failed. Fix: `cp -R` → `cp -RL` (dereference to real files) for `.claude/agents` + `.claude/commands`.
+- **No `.gitignore` in spawn.** Golden ships one; `sos new` never copied it → spawned repo committed `.DS_Store` cruft on first commit. Fix: copy `.gitignore` in Category A.
+- **Hooks never armed.** `git init` (user step) left `.git/hooks/` empty; nothing ran `install-hooks.sh` → the bootstrap commit (with the dangling symlinks + cruft) sailed through with the gate **silent** (enforce-via-mechanism violation). Fix: `sos new` now `git init -b main` + `install-hooks.sh` at the end (born-wired); the user's bootstrap commit then passes *through* the freshly-armed gate.
+- Validated end-to-end on a throwaway `/tmp` spawn: `verify-setup: CONNECTED`, agents readable, `.DS_Store` tracked count = 0, gated bootstrap commit passes 4/4 clean.
+- **Still OPEN (no `--stack swift`):** `sos new` only knows `python|rust|ts`; a Swift/macOS app (Két) must pick a placeholder stack + delete the bogus manifest, and `.sos-stack.toml` then lies (`rust` with no `Cargo.toml`). Feeds next retro — adopt-mode / stack-coverage harvest.
 
 **Phiếu path unified to `docs/ticket/` (Q-D1 resolved):**
 - Migrated sos-kit's own phiếu `phieu/active|done/` → `docs/ticket/` (active root) + `docs/ticket/done/` (14 phiếu archive). No more dogfood-exception — single path matches the fleet default (downstream repos already use `docs/ticket/`).
