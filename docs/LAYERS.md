@@ -29,6 +29,8 @@ The fix is **role separation, even when the same human is in every chair**. Diff
 
 **Skills note:** `Skill` tool is **Quản đốc-only** (the main Claude Code session, Layer 0 orchestrator per `docs/ORCHESTRATION.md`). Subagents (Architect / Worker) cannot invoke skills — outputs come pre-frozen in phiếu Context per `phieu/TICKET_TEMPLATE.md` `### Skills consulted` (P005, option B).
 
+**Mechanical enforcement of the matrix (not just convention):** two PreToolUse guards make the ❌-cells real, not honor-system. `scripts/architect-guard.sh` enforces "Kiến trúc sư ❌ Code" (blocks the Architect subagent from READING `src/`/source while `.sos-state/architect-active` is set). `scripts/orchestrator-guard.sh` enforces "Quản đốc ❌ Code (spawn-only)" (blocks the main session from WRITING product source — `*.swift`/`*.pbxproj`/`src/**` — unless `.sos-state/worker-active` is set, i.e. a Worker is mid-EXECUTE). Scope is product-source only, so Quản đốc's kit-maintenance edits (`docs/`, `bin/`, `scripts/`, `*.md`) stay free. Doctrine: `docs/ORCHESTRATION.md` Hard rules 6 + 12.
+
 ### Specialist subagents (P041+)
 
 Specialist subagents sit **beside** the 3 main roles — not replacing them. They are read-only-output verifiers for narrow security audits, spawned by Quản đốc on demand. Specialist subagents (Trinh sát, Giám sát) are read-only-output verifiers that sit beside the 3 main roles; they don't replace them. Spawned by Quản đốc for narrow security audits.
