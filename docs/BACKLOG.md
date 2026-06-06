@@ -12,8 +12,8 @@
 > **Promoted + SHIPPED 2026-06-06** (Sếp explicit pick). Harvest batch P049–P054 born from ket teardown 2026-06-03; ket dogfood CLOSED → proving-ground satisfied. This sprint took the 2 most-grounded items; both shipped on branch `harvest-git-gates` (full state machine each: DRAFT→CHALLENGE→RESPOND→APPROVAL_GATE→EXECUTE). Remaining P049/P052/P054 reviewed after.
 > **Doctrine:** dogfood → retro-harvest (the loop that won Két). Locked in the gains before forging the brownfield-adopt blocker (deferred — mold not ripe, brief §E). CHALLENGE earned its keep: caught O1.1 merge-commit hole (P050) + stale-sentinel hole (P053→[P055]).
 
-- [x] ~~**[P050]**~~ SHIPPED 2026-06-06 — no-code-on-default-branch pre-commit gate (`scripts/no-code-on-default.sh`). 17/17 test PASS. Commit `25f2a1a`. O1.1 fix: `MERGE_HEAD` guard (PR merge not blocked). O1.2 (Chủ nhà): absent `.sos-stack.toml` → ext-union BLOCK. Discovery: `docs/discoveries/P050.md`.
-- [x] ~~**[P053]**~~ SHIPPED 2026-06-06 — sentinel-vs-silent merge deadlock fix (Option A, emit-side; `block-unsafe-merge.sh` untouched). Sentinel-string match proof PASS. Commit `b10601e`. Stale-sentinel limitation documented → deferred to [P055]. Discovery: `docs/discoveries/P053.md`.
+- [x] ~~**[P050]**~~ SHIPPED + MERGED 2026-06-06 — no-code-on-default-branch pre-commit gate (`scripts/no-code-on-default.sh`). 17/17 test PASS. PR #22 / squash `ae03e5b`. O1.1 fix: `MERGE_HEAD` guard (PR merge not blocked). O1.2 (Chủ nhà): absent `.sos-stack.toml` → ext-union BLOCK. Discovery: `docs/discoveries/P050.md`.
+- [x] ~~**[P053]**~~ SHIPPED + MERGED 2026-06-06 — sentinel-vs-silent merge deadlock fix (Option A, emit-side; `block-unsafe-merge.sh` untouched). PR #22 / squash `ae03e5b`. **Self-validated end-to-end:** `/security-review 22` posted clean APPROVE sentinel → `block-unsafe-merge` allowed merge → no deadlock (closes runtime anchor #8). Stale-sentinel limitation documented → deferred to [P055]. Discovery: `docs/discoveries/P053.md`.
 
 ---
 
@@ -207,6 +207,7 @@ Sếp đang dogfood sos-kit trên `~/ket` + tự dogfood trong chính `~/sos-kit
 
 > Quick reference. Full detail in `CHANGELOG.md`.
 
+- ✅ **P050 + P053 / Két-harvest sprint** — (2026-06-06) — git-level gates from ket dogfood. P050 no-code-on-default pre-commit gate (17/17 test) + P053 sentinel-vs-silent merge deadlock fix (self-validated end-to-end). PR #22 / squash `ae03e5b`. CHALLENGE caught a real hole in each (merge-commit + stale-sentinel→[P055]).
 - ✅ **P041 / v2.2.2** — (2026-05-25) — Trinh sát (advisory-watch) specialist subagent + pnpm/npm parsers + slash command `/advisory-scan`. PR #13 / `b253eff`. CHALLENGE round caught 3 V1→V2 issues.
 - ✅ **P043 / v2.2.1** — (2026-05-25) — Doc drift consolidate: Quản đốc persona codify, alignment engineering expansion, deferred-tool loading, cap raise ≤90→≤105. PR #12 / `569e02f`.
 - ✅ **P040 / v2.2.0** — (2026-05-25) — Bootstrap stack detection (`sos init security` + `.sos-stack.toml` schema + 6 parser stubs underscores). PR #11 / `8047525`. First Tarot port wave 1 phiếu shipped.
