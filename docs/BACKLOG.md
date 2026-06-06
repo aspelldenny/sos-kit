@@ -7,6 +7,67 @@
 
 ---
 
+## ✅ COMPLETE sprint: Két dogfood harvest — git-level gates (2 phiếu)
+
+> **Promoted + SHIPPED 2026-06-06** (Sếp explicit pick). Harvest batch P049–P054 born from ket teardown 2026-06-03; ket dogfood CLOSED → proving-ground satisfied. This sprint took the 2 most-grounded items; both shipped on branch `harvest-git-gates` (full state machine each: DRAFT→CHALLENGE→RESPOND→APPROVAL_GATE→EXECUTE). Remaining P049/P052/P054 reviewed after.
+> **Doctrine:** dogfood → retro-harvest (the loop that won Két). Locked in the gains before forging the brownfield-adopt blocker (deferred — mold not ripe, brief §E). CHALLENGE earned its keep: caught O1.1 merge-commit hole (P050) + stale-sentinel hole (P053→[P055]).
+
+- [x] ~~**[P050]**~~ SHIPPED 2026-06-06 — no-code-on-default-branch pre-commit gate (`scripts/no-code-on-default.sh`). 17/17 test PASS. Commit `25f2a1a`. O1.1 fix: `MERGE_HEAD` guard (PR merge not blocked). O1.2 (Chủ nhà): absent `.sos-stack.toml` → ext-union BLOCK. Discovery: `docs/discoveries/P050.md`.
+- [x] ~~**[P053]**~~ SHIPPED 2026-06-06 — sentinel-vs-silent merge deadlock fix (Option A, emit-side; `block-unsafe-merge.sh` untouched). Sentinel-string match proof PASS. Commit `b10601e`. Stale-sentinel limitation documented → deferred to [P055]. Discovery: `docs/discoveries/P053.md`.
+
+---
+
+## 🧭 Inbound brief from tarot orchestrator (2026-06-05) — "quy về 1 mối" + blocker đóng kit
+
+> Capture từ session dogfood tarot (Sếp + Quản đốc). KHÔNG phải Active sprint — đây là **bản đồ + blocker** để Sếp quyết khi quay về sos-kit. Mục tiêu cuối: **1 bộ kit Rust hoàn chỉnh, 1 lệnh cargo cài + tự wire vào repo mới/cũ** (npm-cho-Claude-Code).
+
+### A. Trạng thái toolchain (11 tool, 9 shipped)
+
+- **Shipped Rust + wired:** ship, docs-gate, guard, vps (4 đời đầu) · advisory-inbox, advisory-cron, doctor, doc-rotate (4 mới)
+- **Skeleton:** claude-hooks (thay 4 Bash hook), inv-gate (thay ~794 dòng Python security-gate)
+- **Lệch chuẩn:** quality-gate (Rust, chưa wire tarot, no CI) · **doc-rotate (Python — port Rust, brief ở repo đó)** · vps + guard (**no README/CLAUDE/docs** — chưa phải template chuẩn, debt nếu thành golden source)
+
+### B. Vision còn thiếu mảnh gì (không phải "thêm tool")
+
+Migration sang Rust ~XONG (9/11). Cái thiếu cho "1 lệnh cài cả bộ + tự chạy":
+1. **Installer hợp nhất chưa code.** Hiện chỉ `INSTALL.md` (copy tay 30+ file) + Bash MVP `bin/sos.sh` + skeleton `bootstrap/sos-rs/`. `BOOTSTRAP_AUTOMATION_DRAFT.md §4` đã draft "bash ~50 dòng" (Category A đổ cứng / B default / C khung rỗng + validator) **nhưng chưa implement**. Doctrine §7: bash trước, cargo sau khi mold chín 3 repo.
+2. **Trigger wiring** — tool ship mà không nổ (advisory-cron chưa register, doctor không auto-fire). `doctor verify-setup` (validator check wiring) có khung, chưa nhét vào bootstrap.
+3. **2 skeleton** chưa code (claude-hooks, inv-gate).
+
+### C. ⛔ BLOCKER THẬT để đóng kit — Adopt "repo nhiễm độc" (Sếp nêu 2026-06-05)
+
+> Genesis (0→1 empty repo) sos-kit giải rồi (`/init`, GENESIS_TEMPLATE). Nhưng **ADOPT brownfield chưa giải** — và kit phải cài được vào repo cũ thật mới gọi hoàn chỉnh.
+
+3 loại repo cũ, độ khó tăng dần:
+- **Loại 1 — code-only, no docs:** adopt phải reverse-engineer docs skeleton từ code. "code có độc, docs không có" → còn phải **detect độc trong code** (anti-pattern, AI-bloat ship sẵn, security debt) trước khi tin.
+- **Loại 2 — code-lớn + docs-có, CẢ HAI nhiễm độc:** khó nhất. docs **drift khỏi code** (precedent tarot 2026-06-05: SURFACE_MAP/BACKLOG ghi "flask-cors fixed in 5.x" SAI; ARCHITECTURE §3 ghi "8 cột" lệch code 10 cột). Adopt KHÔNG được tin docs mù quáng — phải **reconcile docs↔code** trước khi layer kit lên.
+
+**Đây đúng bài học retro v2.3 phóng to:** "single-source-the-truth — dormant vì 2 nơi khai báo lệch nhau (sentinel mismatch)". Repo nhiễm độc = drift ở quy mô codebase.
+
+**Cần (chưa có recipe/flow):** một **adopt-flow cho brownfield-poisoned**:
+1. Scan độc: code anti-pattern + docs↔code drift detect (tận dụng được advisory-watch? doctor validate-map?)
+2. Quarantine/flag — không tin docs cho tới khi verify với code
+3. Reconcile single-source — chọn code làm oracle, sửa docs theo (hoặc ngược lại có chủ đích)
+4. Mới layer sos-kit (agents/hooks/phieu) lên nền đã làm sạch
+
+→ **Không giải được adopt-poisoned thì kit chỉ chạy greenfield, chưa đóng được.**
+
+### D. Roadmap đề xuất (ROI + dependency)
+
+| Tier | Việc | Ghi chú |
+|---|---|---|
+| 0 | Cho tool đã ship CHẠY (advisory-cron register, advisory-inbox 8-cột, doctor trigger) | Cao nhất, low effort |
+| 1 | Bash bootstrap ~50 dòng (BOOTSTRAP_AUTOMATION_DRAFT §4) — "1 lệnh" v0 | Trái tim vision, bash trước |
+| 1.5 | **Adopt-poisoned flow** (blocker C) | Bắt buộc trước khi "đóng kit" |
+| 2 | Nốt 2 skeleton: inv-gate (ROI cao, thay 794 dòng) > claude-hooks · port doc-rotate Rust | Chuẩn hoá |
+| 3 | Cargo unified installer + docs vps/guard | Defer tới khi mold chín 3 repo (doctrine) |
+
+### E. Lưu ý dogfood
+
+Sếp đang dogfood sos-kit trên `~/ket` + tự dogfood trong chính `~/sos-kit` (agent-viết-agent, kiểu Anthropic). Repo mới chưa ổn định → mold còn đang chín. KHÔNG cứng hoá cargo installer trước khi pattern lặp đủ.
+
+---
+
 ## ✅ COMPLETE sprint: Tarot port wave 1 — security pipeline + persona codify
 
 > **SPRINT COMPLETE 2026-05-25** — all 4 phiếu shipped. "Done when" criteria verified: `sos init security` detect stack đúng → `/advisory-scan` chạy zero-workaround → `/security-review <PR>` post advisory comment. Sprint closed.
@@ -119,6 +180,7 @@
   - [ ] **[P052]** Git-level `.env` block — **complement to [P046]**. [P046] ports tarot's `block-env-edit.sh` as a Claude PreToolUse Edit/Write guard (dies under Codex). Add a pre-commit hook blocking staging of `.env*` (allow `.env.example`) so the secret-leak guard survives any agent. **Why now real:** media audit SEC-SECRET-01 = `.env.docker` committed to git history — the exact failure a git-level `.env` block prevents at commit-time (PreToolUse only catches Claude's edit-time). Both layers complement.
   - [ ] **[P053]** Sentinel-vs-silent merge **deadlock** (kit interaction bug, ket-surfaced 2026-06-03). `block-unsafe-merge.sh` requires an `APPROVE` sentinel comment to merge a security-surface PR; `boundary-check` (Giám sát) is **silent-when-clean** (P042 design — only posts if it finds something). → security-surface PR + clean review = **no sentinel → merge deadlocks** (only escape = override marker). ket worked around it (WORKFLOW §21: "PR-gated → ALWAYS post sentinel, even clean APPROVE"). **Fix to bake into sos-kit:** either `boundary-check`/`/security-review` always posts a sentinel when the PR is `block-unsafe-merge`-governed (clean APPROVE included), OR `block-unsafe-merge` accepts a "clean-review" signal. The two P042-era gates are in tension — pick one.
   - [ ] **[P054]** **[FINDING — not a build item]** Spawn guards DRIFT from canonical (ket-surfaced 2026-06-03). ket's `orchestrator-guard.sh` had **lost the `*.md) exit 0` exemption** — hand-adapted for Swift (added `Ket/*`) but dropped the `.md` arm → same over-block hole as the branch-guard. **sos-kit's `orchestrator-guard.sh` is NOT affected — it exempts `.md` (line 64, RUN-confirmed). DO NOT "fix" sos-kit's orchestrator-guard; it is already correct.** Corrects the ket harvest-note framing "orchestrator-guard cùng lỗ" — true for ket's *drifted copy*, false for sos-kit's *canonical*. **Real lesson = spawn-drift class** (the root that collapsed media): a spawn hand-adapting a canonical guard silently drops a property. **Direction:** ket re-syncs guards from sos-kit canonical (don't hand-patch); or guards carry a version/hash so drift is detectable. Feeds the existing "KIT LAG / re-sync" theme above.
+  - [ ] **[P055]** **[DEBT — surfaced by P053 CHALLENGE 2026-06-06]** SHA-scope the `block-unsafe-merge` APPROVE sentinel. Gate currently greps ANY historical `Verdict: APPROVE` comment on the PR (`block-unsafe-merge.sh:102-106`, no head-SHA binding) → a stale clean APPROVE on commit A can green-light later unreviewed commits B+C on a multi-commit PR. **Pre-existing hole** (gate always grepped any APPROVE), made easier to hit by P053's clean-APPROVE auto-post. **Why separate from P053 (one-disease):** SHA-scoping patches accept-side (`block-unsafe-merge.sh` — out of P053's emit-only scope), needs a new jq filter binding comment→`headRefOid` + slash command posting a `Head SHA:` line. **Direction:** capture `gh pr view <N> --json headRefOid --jq .headRefOid`, require APPROVE sentinel body contain matching `Head SHA: <sha>`, gate rejects sentinel whose SHA ≠ current head. P053 documents the limitation + mitigations (Chủ nhà reads timestamped comment; squash-merge collapses history). Needs grounding before promote (n≥1 multi-commit security PR that actually slipped).
 - [x] ~~**CLAUDE.md tree refresh** — current tree in `CLAUDE.md` does not list `CHANGELOG.md`, `DISCOVERIES.md`, `BACKLOG.md`, `docs/ORCHESTRATION.md`.~~ **Shipped via [P039] 2026-05-05** (originally promoted as P038, renumbered after upstream collision).
 - [ ] **External (out of sos-kit scope)** — `~/docs-gate` repo: default `valid_types` should include `chore`. Currently every project that uses `chore`-typed phiếu must add it manually to local `.docs-gate.toml` (Tarot fixed in tarot PR #253).
 

@@ -191,7 +191,7 @@ Verdict: APPROVE | NEEDS_REVIEW (>=1 FLAG)
 
 **Verdict rule:** `APPROVE` chỉ khi TẤT CẢ generic 5 + injected INV-LOCAL-* PASS. `NEEDS_REVIEW` khi ≥1 FLAG — KHÔNG tự bóp về APPROVE.
 
-**Silent-when-clean rule (generic anti-approve-fatigue principle):** Verdict `APPROVE` + 0 FLAG → exit silently, KHÔNG post comment. Verdict `NEEDS_REVIEW` HOẶC ≥1 FLAG → emit sentinel block như spec. Em vẫn return sentinel block in final report luôn (caller decides post-or-skip based on verdict); but caller's slash command applies silent-when-clean rule before `gh pr comment`.
+**Silent-when-clean rule (generic anti-approve-fatigue principle):** Verdict `APPROVE` + 0 FLAG → caller MAY exit silently (KHÔNG post comment) — NHƯNG chỉ cho **advisory / non-PR-gated runs** (branch/range mode). **Cho PR mode mà `scripts/block-unsafe-merge.sh` cai quản, caller LUÔN post sentinel comment kể cả clean APPROVE** (P053): hook đòi `Verdict: APPROVE` comment để cho merge; silent ở đây = merge deadlock. Em (Giám sát) hành vi KHÔNG đổi — em **vẫn luôn return sentinel block in final report** cho mọi verdict; quyết post-or-skip là của caller's slash command (PR mode → luôn post; branch/range mode → silent-when-clean).
 
 **N/A handling:** INV không apply cho PR này (vd PR không touch webhook → INV-4 N/A) → ghi `PASS (N/A — PR không touch webhook handler)`. Em count N/A như PASS for verdict purposes.
 

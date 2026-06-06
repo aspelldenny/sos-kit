@@ -147,6 +147,21 @@ bash scripts/install-hooks.sh      # sets: git config core.hooksPath hooks
 `core.hooksPath` is local git state (not committed) → re-run after a fresh clone.
 `sos new` runs this automatically on spawn.
 
+**Pre-commit chain ([1/6]…[6/6]):**
+The chain includes a **no-code-on-default gate** (`[6/6]`, `scripts/no-code-on-default.sh`).
+This gate blocks product code (`.ts`/`.rs`/`.py`/`.go`/`.swift`/etc.) committed directly
+on the default branch — forcing a feature branch for code changes. Docs-only (`*.md`)
+commits on the default branch remain allowed (kit maintenance, README fixes, doctrine edits).
+
+- **Downstream repos** get this gate live after `sos new` copies `scripts/` + `hooks/`.
+- **sos-kit itself** self-opts-out via the committed `.sos-state/sos-kit-self` marker
+  (this repo commits maintenance scripts/docs directly to `main`).
+- **Override** (intentional code-on-default, one-off): `touch .sos-state/allow-code-on-default`
+  before commit, `rm` after. Do NOT use `--no-verify`.
+- **Pattern derivation**: the gate reads `.sos-stack.toml` `type` to derive file-extension
+  patterns. If absent, falls back to the full extension-union and **blocks** (greenfield
+  commits on main are the primary failure target — ket P020 live failure).
+
 ### 5a. Bootstrap `docs-gate` config
 
 The pre-commit hook invokes `docs-gate` to verify documentation hygiene. On a fresh repo, generate the config:

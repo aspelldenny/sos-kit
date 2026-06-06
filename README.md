@@ -71,7 +71,7 @@ Each stage belongs to exactly one layer. Crossing layers without a handoff is th
 
 After `sos init security` writes `.sos-stack.toml`, run `/advisory-scan` in Claude Code to invoke the Trinh sát (advisory-watch specialist subagent — P041). It surfaces GHSA + vendor advisories that match your stack's resolved dep versions into `docs/security/advisory-inbox.md`. Chủ nhà reviews each row and marks `dismissed` or creates a follow-on phiếu to patch. See [`docs/SETUP.md`](./docs/SETUP.md) "Security pipeline" section.
 
-For pre-merge security boundary checks, run `/security-review <PR>` (or branch / range) to invoke Giám sát (boundary-check specialist subagent — P042). It checks the PR diff against 5 generic INV (env var template / external service timeout / cross-user binding / webhook signature / dep major bump audit) and posts an ADVISORY comment to the PR (silent when clean — KHÔNG block merge). Extend with project-specific INV via `templates/INVARIANTS-template.md`.
+For pre-merge security boundary checks, run `/security-review <PR>` (or branch / range) to invoke Giám sát (boundary-check specialist subagent — P042). It checks the PR diff against 5 generic INV (env var template / external service timeout / cross-user binding / webhook signature / dep major bump audit) and posts a sentinel comment to the PR. In **PR mode** (block-unsafe-merge-governed) the sentinel is ALWAYS posted incl. clean APPROVE (P053 — needed for the merge gate); silent-when-clean now applies to ADVISORY / branch / range mode only. KHÔNG block merge. Extend with project-specific INV via `templates/INVARIANTS-template.md`.
 
 ### ship subcommands
 

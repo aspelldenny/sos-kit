@@ -94,6 +94,18 @@ Handoffs between layers are **formalized** (see [`HANDOFF.md`](./HANDOFF.md)): i
 
 See [`LAYERS.md`](./LAYERS.md) for role boundaries and anti-patterns.
 
+## The garbage-in blind spot — gate the input, not just the output
+
+Every gate in this kit watches what the LLM **produces**: docs-gate on docs, giám sát (boundary-check) on PR diffs, doctor on runtime state, the prompt-reviewer on character drift. None watches what the LLM **consumes**.
+
+That asymmetry is a blind spot. When output quality is bad, the institutional reflex points where the tools point — at the prompt, the character, the model. Nobody reflexively asks *"is the input clean?"* So a dirty-input bug masquerades as a prompt bug, and you burn cycles tuning the prompt while the real fault is upstream.
+
+**Origin (Soul Signature, 2026-06-05).** A monthly "letter" feature produced flat, generic output. Three reviewers — the founder plus two external LLMs — independently proposed prompt fixes: loosen the closing, soften the synthesis, restructure the voice. Half a day of prompt archaeology. The root cause was two layers of dirty input: (1) the local test harness fed *ciphertext* — it never applied the decryption extension, so the model received encrypted gibberish; and (2) the letter was assembled from a tiny memory-digest (a lossy one-line summary built for a *different* job — in-chat recall) instead of the user's real conversation. The prompt was never the problem. Production, which decrypted correctly, had always been fine. Garbage in, garbage out — regardless of how smart the model or how good the prompt.
+
+**The doctrine:** before debugging output quality, verify input integrity — is it decrypted, from the right source, complete, the shape you assume it is? A clever model fed garbage produces *clever* garbage, which is worse than obvious garbage because it reads plausible. *Code dọn bàn sạch trước; LLM ngồi viết sau* — code clears a clean table first; the LLM writes after. Don't make the LLM do the janitorial work of filtering messy input; do that deterministically in code, then hand it clean material.
+
+**The gap this names:** the kit guards everything the LLM emits and nothing it ingests. A future *data sentinel* — a reflex or gate that verifies input integrity (decryption, source correctness, completeness, expected shape) before output is judged — would close it. Until then the reflex stays manual but mandatory: **when output is bad and the prompt looks fine, suspect the input first.**
+
 ## What This Is Not
 
 - **Not a project scaffolder.** Use your own templates.

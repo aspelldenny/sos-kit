@@ -59,14 +59,17 @@ Wait for subagent return. Subagent handles 5-INV (+ any injected INV-LOCAL-*) sc
 
 Use `Grep` or string parsing to locate the block between `<!-- security-review-start -->` and `<!-- security-review-end -->` in the subagent's return.
 
-- If verdict line inside block = `APPROVE` AND 0 FLAG → **silent-when-clean rule fires.** Do NOT post comment. Tell user: "Security review complete. APPROVE (0 flags). No comment posted."
-- If verdict = `NEEDS_REVIEW` OR ≥1 FLAG → continue to Step 4.
+- **PR mode (block-unsafe-merge-governed) — ALWAYS post, including clean APPROVE.** Vì `scripts/block-unsafe-merge.sh` ĐÒI sentinel `Verdict: APPROVE` comment trên PR để cho merge security-surface PR. Nếu silent-when-clean nuốt comment ở PR mode → merge deadlock (chỉ thoát bằng override marker = `--no-verify`-death). Trong PR mode, BỎ QUA silent-when-clean → luôn continue to Step 4 và post block (cả APPROVE lẫn NEEDS_REVIEW). Đây là Option A (ket WORKFLOW §21 precedent), scoped chặt CHỈ PR mode.
+- **Branch / range mode (advisory, no PR to gate) — silent-when-clean GIỮ NGUYÊN.** Nếu verdict = `APPROVE` AND 0 FLAG → Do NOT post/write. Tell user: "Security review complete. APPROVE (0 flags). No comment posted." Nếu `NEEDS_REVIEW` OR ≥1 FLAG → continue to Step 4 (write to local file per Step 4 branch/range path).
 
 ## Step 4 — Post advisory comment (or fallback to local file)
 
-**PR mode (preferred):**
-- `gh pr comment <N> --body "<sentinel-block-content>"` — post the full sentinel-wrapped block as a PR comment.
-- Verify post: `gh pr view <N> --json comments` should show the new comment.
+**PR mode (preferred) — post for BOTH clean APPROVE and NEEDS_REVIEW:**
+- `gh pr comment <N> --body "<sentinel-block-content>"` — post the full sentinel-wrapped block (chứa `<!-- security-review-start -->` … `Verdict: APPROVE|NEEDS_REVIEW` … `<!-- security-review-end -->`) as a PR comment.
+- **Lý do post cả clean APPROVE:** `scripts/block-unsafe-merge.sh:103-109` grep comment cho `<!-- security-review-start -->` + `^Verdict:` chứa `APPROVE` để cho merge. Không có comment APPROVE = hook chặn merge (deadlock). PR mode KHÔNG áp silent-when-clean (xem Step 3).
+- Verify post: `gh pr view <N> --json comments` should show the new comment with the sentinel block.
+
+> **Known limitation — APPROVE sentinel is NOT SHA-scoped.** `scripts/block-unsafe-merge.sh:102-106` greps for ANY historical `Verdict: APPROVE` sentinel comment on the PR, with no binding to the reviewed commit's head SHA. Hệ quả: trên một multi-commit PR, một clean APPROVE trên commit A có thể satisfy gate cho commit B+C chưa review. **Mitigations:** (1) Chủ nhà đọc comment APPROVE có timestamp trước khi merge; (2) squash-merge collapse history. SHA-scoping tracked separately = **[P055]** (docs/BACKLOG.md Open backlog). Mirror pattern: documented bypass at block-unsafe-merge.sh:15-16.
 
 **Branch/range mode (no PR context):**
 - Write sentinel block to `docs/security/last-review.md` (or filename user prefers).
@@ -90,6 +93,6 @@ Tell user:
 - ADVISORY mode is structural: this slash command does NOT call `gh pr merge --block` or set any blocking status. KHÔNG bao giờ.
 - Sentinel markers `<!-- security-review-start -->` / `<!-- security-review-end -->` are LOAD-BEARING. Do not rename, do not duplicate, do not move.
 - The INV-LOCAL slot (Step 2a/2b) is part of the spawn template, NOT optional. Fill it every spawn — paste the `INV-LOCAL-*` block from `docs/security/INVARIANTS.md`, or the literal `N/A — no project-local invariants defined`. Silently dropping it = the doc-rotate dormancy (project-local invariants never checked because the inject step lived only in a handbook, not here). Dynamic-read per-repo; never hardcode the INV list into this template.
-- Silent-when-clean rule (generic anti-approve-fatigue principle): `APPROVE + 0 FLAG → no comment`. Apply this rule HERE in slash command, NOT in Giám sát (Giám sát always returns sentinel block; silent decision is caller's).
+- Silent-when-clean rule (generic anti-approve-fatigue principle): `APPROVE + 0 FLAG → no comment` — applies to **branch/range (advisory) mode only**. **PR mode (block-unsafe-merge-governed) ALWAYS posts sentinel comment including clean APPROVE** (P053 — needed so block-unsafe-merge.sh can allow merge; silence = deadlock). Apply this rule HERE in slash command, NOT in Giám sát (Giám sát always returns sentinel block; silent decision is caller's).
 - 5 INV are the contract from P042. Adding INV-6+ requires updating BOTH `agents/boundary-check.md` rubric + `templates/INVARIANTS-template.md` user-added section in a new phiếu.
 - If Giám sát reports "diff capture failed / no diff content" → relay verbatim, NOT a silent success.
