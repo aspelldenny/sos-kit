@@ -7,6 +7,67 @@
 
 ---
 
+## ⚡ Active sprint: Két dogfood harvest — git-level gates (2 phiếu)
+
+> **Promoted 2026-06-06** (Sếp explicit pick). Harvest batch P049–P054 born from ket teardown 2026-06-03; ket dogfood now CLOSED → proving-ground satisfied → these are RIPE. This sprint takes the 2 most-grounded items. Remaining P049/P052/P054 reviewed after.
+> **Doctrine:** dogfood → retro-harvest (the loop that won Két). Lock in the gains before forging the brownfield-adopt blocker (defer — mold not ripe, brief §E).
+
+- [ ] **[P050]** No-code-on-default-branch git gate (pre-commit). **PROVEN in ket** (4 live cases, edge-hole found+fixed by independent RUN). Blocks commits touching CODE on default branch, allows docs-only. Harvest constraints (from ket dogfood): (a) exempt `.md` — mirror `orchestrator-guard.sh:64 *.md) exit 0`; (b) **generalize product-code pattern from `.sos-stack.toml`**, do NOT hardcode per-repo dir like `^Ket/`; (c) robustness ket lacks: detached-HEAD (`git branch --show-current` empty → must not silently pass) + unset `origin/HEAD`; (d) override marker (`.sos-state/allow-code-on-default`); (e) sos-kit self opts-out/near-no-op (kit commits maintenance to main). Full detail: Open-backlog P050 entry below.
+- [ ] **[P053]** Sentinel-vs-silent merge **deadlock** (live kit interaction bug). `block-unsafe-merge.sh` requires `APPROVE` sentinel to merge security-surface PR; `boundary-check` (Giám sát) is silent-when-clean (P042) → clean review = no sentinel → deadlock. Fix: either `/security-review` always posts a sentinel when PR is `block-unsafe-merge`-governed (clean APPROVE included), OR `block-unsafe-merge` accepts a clean-review signal. Pick one. Full detail: Open-backlog P053 entry below.
+
+---
+
+## 🧭 Inbound brief from tarot orchestrator (2026-06-05) — "quy về 1 mối" + blocker đóng kit
+
+> Capture từ session dogfood tarot (Sếp + Quản đốc). KHÔNG phải Active sprint — đây là **bản đồ + blocker** để Sếp quyết khi quay về sos-kit. Mục tiêu cuối: **1 bộ kit Rust hoàn chỉnh, 1 lệnh cargo cài + tự wire vào repo mới/cũ** (npm-cho-Claude-Code).
+
+### A. Trạng thái toolchain (11 tool, 9 shipped)
+
+- **Shipped Rust + wired:** ship, docs-gate, guard, vps (4 đời đầu) · advisory-inbox, advisory-cron, doctor, doc-rotate (4 mới)
+- **Skeleton:** claude-hooks (thay 4 Bash hook), inv-gate (thay ~794 dòng Python security-gate)
+- **Lệch chuẩn:** quality-gate (Rust, chưa wire tarot, no CI) · **doc-rotate (Python — port Rust, brief ở repo đó)** · vps + guard (**no README/CLAUDE/docs** — chưa phải template chuẩn, debt nếu thành golden source)
+
+### B. Vision còn thiếu mảnh gì (không phải "thêm tool")
+
+Migration sang Rust ~XONG (9/11). Cái thiếu cho "1 lệnh cài cả bộ + tự chạy":
+1. **Installer hợp nhất chưa code.** Hiện chỉ `INSTALL.md` (copy tay 30+ file) + Bash MVP `bin/sos.sh` + skeleton `bootstrap/sos-rs/`. `BOOTSTRAP_AUTOMATION_DRAFT.md §4` đã draft "bash ~50 dòng" (Category A đổ cứng / B default / C khung rỗng + validator) **nhưng chưa implement**. Doctrine §7: bash trước, cargo sau khi mold chín 3 repo.
+2. **Trigger wiring** — tool ship mà không nổ (advisory-cron chưa register, doctor không auto-fire). `doctor verify-setup` (validator check wiring) có khung, chưa nhét vào bootstrap.
+3. **2 skeleton** chưa code (claude-hooks, inv-gate).
+
+### C. ⛔ BLOCKER THẬT để đóng kit — Adopt "repo nhiễm độc" (Sếp nêu 2026-06-05)
+
+> Genesis (0→1 empty repo) sos-kit giải rồi (`/init`, GENESIS_TEMPLATE). Nhưng **ADOPT brownfield chưa giải** — và kit phải cài được vào repo cũ thật mới gọi hoàn chỉnh.
+
+3 loại repo cũ, độ khó tăng dần:
+- **Loại 1 — code-only, no docs:** adopt phải reverse-engineer docs skeleton từ code. "code có độc, docs không có" → còn phải **detect độc trong code** (anti-pattern, AI-bloat ship sẵn, security debt) trước khi tin.
+- **Loại 2 — code-lớn + docs-có, CẢ HAI nhiễm độc:** khó nhất. docs **drift khỏi code** (precedent tarot 2026-06-05: SURFACE_MAP/BACKLOG ghi "flask-cors fixed in 5.x" SAI; ARCHITECTURE §3 ghi "8 cột" lệch code 10 cột). Adopt KHÔNG được tin docs mù quáng — phải **reconcile docs↔code** trước khi layer kit lên.
+
+**Đây đúng bài học retro v2.3 phóng to:** "single-source-the-truth — dormant vì 2 nơi khai báo lệch nhau (sentinel mismatch)". Repo nhiễm độc = drift ở quy mô codebase.
+
+**Cần (chưa có recipe/flow):** một **adopt-flow cho brownfield-poisoned**:
+1. Scan độc: code anti-pattern + docs↔code drift detect (tận dụng được advisory-watch? doctor validate-map?)
+2. Quarantine/flag — không tin docs cho tới khi verify với code
+3. Reconcile single-source — chọn code làm oracle, sửa docs theo (hoặc ngược lại có chủ đích)
+4. Mới layer sos-kit (agents/hooks/phieu) lên nền đã làm sạch
+
+→ **Không giải được adopt-poisoned thì kit chỉ chạy greenfield, chưa đóng được.**
+
+### D. Roadmap đề xuất (ROI + dependency)
+
+| Tier | Việc | Ghi chú |
+|---|---|---|
+| 0 | Cho tool đã ship CHẠY (advisory-cron register, advisory-inbox 8-cột, doctor trigger) | Cao nhất, low effort |
+| 1 | Bash bootstrap ~50 dòng (BOOTSTRAP_AUTOMATION_DRAFT §4) — "1 lệnh" v0 | Trái tim vision, bash trước |
+| 1.5 | **Adopt-poisoned flow** (blocker C) | Bắt buộc trước khi "đóng kit" |
+| 2 | Nốt 2 skeleton: inv-gate (ROI cao, thay 794 dòng) > claude-hooks · port doc-rotate Rust | Chuẩn hoá |
+| 3 | Cargo unified installer + docs vps/guard | Defer tới khi mold chín 3 repo (doctrine) |
+
+### E. Lưu ý dogfood
+
+Sếp đang dogfood sos-kit trên `~/ket` + tự dogfood trong chính `~/sos-kit` (agent-viết-agent, kiểu Anthropic). Repo mới chưa ổn định → mold còn đang chín. KHÔNG cứng hoá cargo installer trước khi pattern lặp đủ.
+
+---
+
 ## ✅ COMPLETE sprint: Tarot port wave 1 — security pipeline + persona codify
 
 > **SPRINT COMPLETE 2026-05-25** — all 4 phiếu shipped. "Done when" criteria verified: `sos init security` detect stack đúng → `/advisory-scan` chạy zero-workaround → `/security-review <PR>` post advisory comment. Sprint closed.

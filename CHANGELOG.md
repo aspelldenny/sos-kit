@@ -2,7 +2,18 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-03
+## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-06
+
+**P050 — no-code-on-default-branch pre-commit gate (2026-06-06):**
+- Added `scripts/no-code-on-default.sh` — agent-agnostic pre-commit gate that blocks product code
+  (`.ts`/`.rs`/`.py`/`.go`/`.swift`/etc.) committed directly on the default branch, forcing a feature
+  branch for code. Docs-only (`*.md`) commits on default remain allowed. Harvest from ket P020 live failure.
+- Pattern derived from `.sos-stack.toml` `type`; absent stack falls back to full extension-union + BLOCK
+  (greenfield is the primary harvest target). MERGE_HEAD escape allows PR-merges of feature branches.
+- Wired into `hooks/pre-commit` as `[6/6]` (existing sections relabeled `[N/5]` → `[N/6]`).
+- sos-kit self-opts-out via committed `.sos-state/sos-kit-self` marker + `.gitignore` negation.
+- Override: `touch .sos-state/allow-code-on-default` (NOT `--no-verify`).
+- Docs updated: `CLAUDE.md` scripts list + DOCS GATE table; `docs/SETUP.md` hook section.
 
 Forge rounds 1–4 of `docs/retro/WORKFLOW_V2.3_RETRO_doc-rotate.md` (doc-rotate pilot vòng 2 retro). Doctrine still in forge — only mechanical/path fixes shipped here; doctrine questions Q-D2…Q-D7 (Lane/Tầng, markers, inject location, vocab-consistency, verify-setup + quality-canary split) remain OPEN.
 
