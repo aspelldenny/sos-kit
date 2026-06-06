@@ -4,6 +4,14 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-06
 
+**P053 — Sentinel-vs-silent merge deadlock fix (2026-06-06):**
+- **Bug fixed:** security-surface PR with clean APPROVE review was permanently deadlocked — `/security-review` silent-when-clean suppressed the comment, so `block-unsafe-merge.sh` never saw the required `Verdict: APPROVE` sentinel → merge blocked with no legitimate exit except override marker (`--no-verify`-death pattern).
+- **Option A shipped (emit-side only):** `.claude/commands/security-review.md` Step 3 now partitions by mode: PR mode (block-unsafe-merge-governed) ALWAYS posts sentinel comment including clean APPROVE; branch/range (advisory) mode retains silent-when-clean (P042 anti-approve-fatigue intact). Step 4 PR-mode path explicitly covers both APPROVE and NEEDS_REVIEW with comment explaining why. Hard rules updated to reflect scoping.
+- **`scripts/block-unsafe-merge.sh` UNTOUCHED** (one-disease-one-mechanism: only emit-side patched).
+- **Known limitation documented (not fixed):** `block-unsafe-merge.sh:102-106` greps ANY historical `Verdict: APPROVE` comment on the PR with no head-SHA binding → stale APPROVE on commit A can green-light later unreviewed commits B+C on multi-commit PR. Documented in `security-review.md` Step 4 (mirror of block-unsafe-merge.sh:15-16 bypass pattern). SHA-scoping tracked separately = **[P055]** (docs/BACKLOG.md Open backlog).
+- **Docs updated (Tầng 1 — security-surface):** `agents/boundary-check.md` silent-when-clean rule clarified (PR mode always-post vs advisory-only silent); `README.md:74` boundary-check contract line updated (PR mode sentinel always-post; silent-when-clean = ADVISORY/branch/range only).
+- Sentinel string match proof: `<!-- security-review-start -->` / `Verdict: APPROVE` identical in all 3 files (boundary-check.md, security-review.md, block-unsafe-merge.sh); dry-run grep simulation confirms hook EXIT 0 on clean APPROVE comment.
+
 **P050 — no-code-on-default-branch pre-commit gate (2026-06-06):**
 - Added `scripts/no-code-on-default.sh` — agent-agnostic pre-commit gate that blocks product code
   (`.ts`/`.rs`/`.py`/`.go`/`.swift`/etc.) committed directly on the default branch, forcing a feature
