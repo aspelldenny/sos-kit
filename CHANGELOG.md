@@ -9,6 +9,17 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 
 
+**P052 — Git-level `.env*` commit block pre-commit gate (2026-06-08):**
+- Added `scripts/block-env-commit.sh` — agent-agnostic pre-commit gate that blocks staging
+  any `.env*` secret file, allowing only `.env.example` (the template). Matches on **basename**
+  across the full staged path so `config/.env.docker` is caught (the SEC-SECRET-01 incident shape).
+- Backstop to the Claude-only PreToolUse `block-env-edit.sh` (P046) — this gate survives any
+  agent (Codex, opencode, human `git add`). Both layers share the same regex `^\.env($|\.)` so
+  they cannot drift. `.envrc` deliberately excluded (direnv config committed on purpose; blocking = false-positive).
+- Wired into `hooks/pre-commit` as `[7/7]` (existing `[N/6]` labels relabeled `[N/7]`).
+- Override (rare, intentional): `touch .sos-state/allow-env-commit`. No self-opt-out (sos-kit also must never commit a `.env*`).
+- Docs updated: `CLAUDE.md` scripts list + DOCS GATE table; `docs/SETUP.md` hook section.
+
 **P053 — Sentinel-vs-silent merge deadlock fix (2026-06-06):**
 - **Bug fixed:** security-surface PR with clean APPROVE review was permanently deadlocked — `/security-review` silent-when-clean suppressed the comment, so `block-unsafe-merge.sh` never saw the required `Verdict: APPROVE` sentinel → merge blocked with no legitimate exit except override marker (`--no-verify`-death pattern).
 - **Option A shipped (emit-side only):** `.claude/commands/security-review.md` Step 3 now partitions by mode: PR mode (block-unsafe-merge-governed) ALWAYS posts sentinel comment including clean APPROVE; branch/range (advisory) mode retains silent-when-clean (P042 anti-approve-fatigue intact). Step 4 PR-mode path explicitly covers both APPROVE and NEEDS_REVIEW with comment explaining why. Hard rules updated to reflect scoping.

@@ -94,9 +94,10 @@ sos-kit/
 │       └── payos-vn.md
 ├── scripts/                # SessionStart + PreToolUse hooks + security gate
 │   ├── architect-guard.sh  # PreToolUse hook — block code reads when architect active
+│   ├── block-env-commit.sh    # pre-commit [7/7] — block .env* secret-file commits (allow .env.example); git-level backstop to P046 PreToolUse guard
 │   ├── block-env-edit.sh   # PreToolUse hook — block .env edits
 │   ├── block-unsafe-merge.sh  # PreToolUse hook — block force-push / unsafe merge (Giám sát backstop)
-│   ├── no-code-on-default.sh  # pre-commit [6/6] — block product code committed on default branch (force feature branch; agent-agnostic)
+│   ├── no-code-on-default.sh  # pre-commit [6/7] — block product code committed on default branch (force feature branch; agent-agnostic)
 │   ├── security-gate.sh, check-*.py, parsers/  # commit-time security gate + advisory lockfile parsers
 │   └── session-start-banner.sh  # SessionStart hook — show BACKLOG on session open
 │   # (.claude/agents/ is symlinked to agents/ — no sync script; see agents/README.md)
@@ -210,6 +211,7 @@ Per Rule #8 above — when contributor edits these, BẮT BUỘC update target d
 | `phieu/VISION_TEMPLATES/*.md` section change | `skills/insight/SKILL.md` "Target section" list + `docs/HANDOFF.md` Handoff 0 | Insight skill template binding |
 | `hooks/pre-commit` SECTION add/remove | `CLAUDE.md` "Hook chain" + `docs/SETUP.md` | Hook chain integrity |
 | `scripts/no-code-on-default.sh` add/remove | `CLAUDE.md` scripts list + `docs/SETUP.md` hook section | Gate inventory (P050) |
+| `scripts/block-env-commit.sh` add/remove | `CLAUDE.md` scripts list + `docs/SETUP.md` hook section | Gate inventory (P052) |
 | `scripts/security-gate.sh` INV add/remove | `templates/INVARIANTS-template.md` + `docs/SETUP.md` Security pipeline | Security surface contract |
 | `scripts/check-*.py` pattern add/remove | `templates/INVARIANTS-template.md` + `docs/HANDOFF.md` Handoff 5 | Mechanical gate inventory |
 | `scripts/parsers/*.py` add (new lock format support) | `agents/advisory-watch.md` Bước 1 stack-parse list + `docs/SETUP.md` | Trinh sát stack coverage |
