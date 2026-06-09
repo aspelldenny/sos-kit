@@ -4,6 +4,9 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-09
 
+**Capture — tarot tool-adoption KIT items [P064-P066] (2026-06-09):**
+- **tarot tool-dogfood PASSED** — doc-rotate (P343/PR#627) + claude-hooks (P344/PR#628, Giám sát APPROVE) run OK in tarot prod. Tool-findings routed to the tool repos. KIT-level items captured (capture-only; Sếp's timing = kit work comes AFTER tools prove out on more projects). P064 (K-1, 🔴): the "1 lệnh" installer vision corrected — `cargo install` assumes Rust is present (like npm assumes Node), so distributing to non-coders needs **prebuilt binaries (GitHub Releases, 3 targets) + `curl|sh`**, with cargo/crates.io as the dev path; this is Tier-3 "đóng kit", after trigger-wiring + adopt-poisoned. P065 (K-2): tarot's `setup-dev.sh` per-machine bootstrap → make it a sos-kit golden template. P066 (K-3, minor): standardize the dogfood-feedback filename/format (the feedback channel is load-bearing to the loop). Source: `docs/TAROT_ADOPTION_HANDOFF.md`.
+
 **Harvest P060-P062 shipped (2026-06-09):**
 - **P060** (F01): `sos adopt` now copies `docs/ORCHESTRATION.md` into adopted repos — the banner + `agents/orchestrator.md` reference the full spec, but adopt never installed it, so downstream orchestrators ran "blind handbook." Verified via temp-adopt (298-line spec lands).
 - **P061** (F-002/F03, Sếp-decided **option b = track**): phiếu are a git-tracked audit trail (NOT gitignored). `sos adopt` seeds `.phieu-counter` (0) so `phieu <slug>` works; `agents/worker.md` gains a "You MUST track the phiếu file (`git add`, not rewrite)" rule. Fixes the dogfood gap where a built phiếu was never staged → `git mv active→done` failed + debate trail invisible to history.
