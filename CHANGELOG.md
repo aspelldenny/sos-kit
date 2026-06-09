@@ -4,6 +4,9 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-09
 
+**F09 FIXED + doc-rotate friction harvest [P070] (2026-06-09):**
+- doc-rotate Rust-port friction log (13 findings) reconciled: F01-F08 already actioned this session. F09-F13 are new. **F09 🔴 FIXED:** `install-hooks.sh` silently hijacked an adopter's `core.hooksPath` + renamed their `.git/hooks/*` → could disable an existing security gate (1-installer-2-audiences bug; tarot P275 hit it). Added a guard: detect prior `core.hooksPath` (≠ hooks) or a real `.git/hooks/pre-commit` → confirm (TTY) / ABORT exit 1 (non-TTY) before overriding. Fire-tested 3/3 (clean proceeds; adopter-hooksPath non-TTY aborts without clobbering; idempotent). F13 (Cargo version 0.0.0 drift) + F10 (AGENT_MAP stale on language-port) captured as DOCS-GATE-trigger-completeness siblings of P062; F11/F12 (heuristic-tool content-bending) captured as a recipe-level escape-hatch lesson. Source: docs/retro/FRICTION_doc-rotate_rust-port_2026-06-09.md.
+
 **P069 SHIPPED — Architect Write-envelope now hook-enforced (2026-06-09):**
 - `architect-guard.sh` now dispatches by `tool_name`: Read/Glob keep the read-block; **Write/Edit/MultiEdit → allowlist ONLY phiếu files** (`basename` matches `P[0-9]*-*.md`) — code/scripts/other-docs are blocked (exit 2). Closes the gap where architect.md said "only Write phiếu" but no hook enforced it (any .md / kit-maintenance write slipped through). `.claude/settings.json` architect-guard matcher `Read|Glob` → `Read|Glob|Write|Edit`. Symmetric to orchestrator-guard (allowlist vs that denylist). Fire-tested 9/9 (Write phiếu→allow; Write scripts/docs-random/Edit src→block; Read .md→allow; Read src→block; no-marker→allow-all). Downstream gets it via sos sync (doc-rotate later — hot; claude-hooks keeps its own combined port-reference version).
 
