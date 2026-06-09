@@ -4,6 +4,9 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-09
 
+**Rule 9 — contract-surface edits → CHALLENGE pass (2026-06-09):**
+- Added `[judgment]` Rule 9 to `CLAUDE.md`: editing a contract surface (`agents/*.md`, `docs/ORCHESTRATION.md`/`LAYERS.md`/`HANDOFF.md`, `phieu/TICKET_TEMPLATE.md`) should get one Worker CHALLENGE / second-eye even on a tiny diff — the orchestrator's default is to self-edit doctrine solo because no gate forces a phiếu for docs (only code-on-default is gated), the `model-self-invoke = coin-flip` gap at the process layer. **Guidance not gate** (§0.1; a contract-surface diff-detector would over-block legit small edits). Curation (BACKLOG/CHANGELOG/findings) stays correctly single-role. Born from Sếp's observation this session that sos-kit work ran "toàn 1 vai." Self-consistent caveat: this CLAUDE.md edit IS a contract-surface change — committed solo because Chủ nhà's direct request was the approval (the escape the rule itself names).
+
 **Orchestrator — background subagent spawns doctrine (2026-06-09):**
 - Added "Background subagent spawns (`run_in_background`)" section to `agents/orchestrator.md` + Hard rule 13 in `docs/ORCHESTRATION.md`. Documents the native Claude Code async-spawn capability + the discipline the kit governs: marker exclusivity (≤1 guarded agent in flight — two Workers clash on `worker-active`), keep `worker-active` set until the completion notification (not right after spawn), APPROVAL_GATE still precedes EXECUTE when backgrounded, never poll. 3 anti-patterns + 2 failure-mode rows added. Propagated `orchestrator.md` → `~/claude-hooks` + `~/doc-rotate` (capability is native everywhere; only the doctrine needed copying).
 
