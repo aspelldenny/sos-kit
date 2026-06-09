@@ -48,7 +48,8 @@ Migration sang Rust ~XONG (9/11). Cái thiếu cho "1 lệnh cài cả bộ + t�
 
 3 loại repo cũ, độ khó tăng dần:
 - **Loại 1 — code-only, no docs:** adopt phải reverse-engineer docs skeleton từ code. "code có độc, docs không có" → còn phải **detect độc trong code** (anti-pattern, AI-bloat ship sẵn, security debt) trước khi tin.
-- **Loại 2 — code-lớn + docs-có, CẢ HAI nhiễm độc:** khó nhất. docs **drift khỏi code** (precedent tarot 2026-06-05: SURFACE_MAP/BACKLOG ghi "flask-cors fixed in 5.x" SAI; ARCHITECTURE §3 ghi "8 cột" lệch code 10 cột). Adopt KHÔNG được tin docs mù quáng — phải **reconcile docs↔code** trước khi layer kit lên.
+- **Loại 2 — code-lớn + docs-có, CẢ HAI nhiễm độc:** khó nhất theo chiều drift. docs **drift khỏi code** (precedent tarot 2026-06-05: SURFACE_MAP/BACKLOG ghi "flask-cors fixed in 5.x" SAI; ARCHITECTURE §3 ghi "8 cột" lệch code 10 cột). Adopt KHÔNG được tin docs mù quáng — phải **reconcile docs↔code** trước khi layer kit lên.
+- **Loại 3 — CONSTELLATION / fleet, lệch-stack, lệch-độ-chín, một-mục-đích** (POD-agent pilot 2026-06-09). KHÔNG phải 1 khối (media/tarot shape) mà **N tool rời** dưới một mái phục vụ một business. Vỡ đúng tiền-đề ngầm lớn nhất của kit: **1 repo = 1 product** (1 PROJECT/SOUL/CHARACTER · 1 BACKLOG/Active-sprint · 1 phiếu-stream · 1 `.sos-stack.toml` `type`). Xem finding bên dưới.
 
 **Đây đúng bài học retro v2.3 phóng to:** "single-source-the-truth — dormant vì 2 nơi khai báo lệch nhau (sentinel mismatch)". Repo nhiễm độc = drift ở quy mô codebase.
 
@@ -59,6 +60,23 @@ Migration sang Rust ~XONG (9/11). Cái thiếu cho "1 lệnh cài cả bộ + t�
 4. Mới layer sos-kit (agents/hooks/phieu) lên nền đã làm sạch
 
 → **Không giải được adopt-poisoned thì kit chỉ chạy greenfield, chưa đóng được.**
+
+#### FINDING — POD-agent = pilot Loại 3 (constellation/fleet) — 2026-06-09 (capture-only, KHÔNG build, mold chưa chín §E)
+
+> Sếp đưa `github.com/aspelldenny/POD-agent` làm dogfood. Repo = chòm sao ~6 tool POD trên Creative Fabrica: `Auto-bundle` (Python batch) · `cf-image-replacer`/`cf-product-deleter`/`cf-trademark-checker` (3 extension) · `Creative-brain-api` (Flask+Telegram-bot+ext = "não" hiện tại) · `siêu-CF-rút-xiền` (ext rút tiền) · `run/` (Puppeteer 5-account). Một business, nhiều tool, lệch stack + độ chín. Vision cuối của Sếp: **tool ngon + một bộ-não-agent điều phối** = chính mô hình **Quản đốc** ở quy mô fleet.
+
+**Bất ngờ:** repo ĐÃ có sos-kit nguyên thuỷ — root `CLAUDE.md` có DoD + DOCS GATE + vai thợ-xây/kiến-trúc-sư + "docs = bộ nhớ giữa session". → Adopt = **nâng-cấp bản mini**, không phải genesis 0→1.
+
+**Độc đã thấy (grounded):** data-dump commit thẳng (5× `*_ids_to_delete.txt`, `tm_blacklist_FINAL.csv`; `.gitignore` mới tạo 2026-06-09 → rác lọt trước) · báo-cáo-session-vứt-tại-chỗ giả-docs (`ANALYSIS_REPORT`+`FINAL_REFACTOR_SUMMARY`+`REFACTOR_SUMMARY` chồng nhau 1 folder + `spell-check-report`) · docs tản mác (docs/ 9 + stencil/ 5 + siêu-CF/ 4 + per-tool) · **DOCS GATE mù** (chỉ route `docs/*_GUIDE.md`, KHÔNG phủ 3 cf-* extension → cả mảng tool ngoài doctrine) · doc-drift (`PROJECT_OVERVIEW.md` cập nhật cuối 2026-03-25, lệch CHANGELOG đang chạy).
+
+**3 thứ Loại 3 ĐÒI mà kit hiện chưa có (đây là cái doctrine cần, không phải tool):**
+1. **Multi-stack `.sos-stack.toml`** — 1 `type` không đủ cho Python-batch + extension-JS + Flask + Puppeteer-node trộn. Cần per-tool stack (hoặc fleet-manifest liệt kê N tool × stack).
+2. **Per-tool phiếu-stream / BACKLOG có tool-tag** — 1 Active-sprint cho 6 tool vô nghĩa ("tool nào active?"). Fleet cần luồng song song, phiếu model muốn 1 luồng tụ → tension thật.
+3. **Mixed-maturity tiered-adoption** — đừng áp full doctrine đồng đều (đánh thuế script throwaway = completeness-bias). Tier: (a) hygiene repo-level trước → (b) layer kit thật ở 1 tool xương sống (`Creative-brain-api`+`Auto-bundle`) làm dogfood → (c) cf-*/rút-xiền = vệ tinh light-touch tới khi earn full kit → (d) bộ-não-điều-phối = đích Quản đốc, sau khi ≥2 tool ổn định.
+
+**Security note:** cf-*/rút-xiền đụng credential + tiền thật → `block-env-commit` + security-gate có giá trị thật ở repo này (không phải ceremony).
+
+**Trạng thái:** capture-only. POD-agent là **pilot ứng viên** cho adopt-flow Loại 3 KHI Sếp quay lại đóng kit (Tier 1.5 roadmap §D). Có thể chạy thử pass #1 (hygiene) để lấy máu Loại-3 thật — nhưng đó là việc Ở repo POD-agent, ngoài scope sos-kit, cần Sếp gật riêng.
 
 ### D. Roadmap đề xuất (ROI + dependency)
 
