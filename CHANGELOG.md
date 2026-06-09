@@ -4,6 +4,9 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-09
 
+**Ratified: fail-closed binary-hook deploy = B+3 (shim + prebuilt) [P064] (2026-06-09):**
+- Sếp ratified the canonical deploy pattern for a fail-CLOSED hook binary (block-unsafe-merge) when the binary may be absent from PATH: **fail-closed shim** (`command -v claude-hooks || exit 2` then exec) + **prebuilt binary distribution** (curl|sh, = P064). NOT the bash-fallback wrapper (Option A) — it reintroduces the bash fragility the port exists to kill (P059 showed the bash gate silently failed open on Windows = the F-005 rot risk) and demands perpetual bash-parity maintenance. The 3 fail-open hooks wire the binary directly (absent = allow = their default). Applies the kit's own fail-closed security doctrine. Feeds P064 distribution build + a claude-hooks README update (adopter-choice → sos-kit canonical).
+
 **Architect Write-envelope gap captured [P069] + claude-hooks sync loose-ends closed (2026-06-09):**
 - Closed the claude-hooks sos-sync flags: merged P061 track-rule into worker.md (kept background:true); kept claude-hooks's deliberately-customized architect-guard.sh (its Rust-port reference). The architect-guard divergence surfaced a real KIT finding [P069]: `architect.md` says Architect may "only Write phiếu files" but NO hook enforces it — architect-guard fires on Read|Glob only, orchestrator-guard denylists product-source but allow-lists kit-maintenance (scripts/docs/*.sh/*.md), so an Architect could Write non-product non-phiếu files unguarded. The old combined architect-guard (tarot/claude-hooks) had a Write-allowlist branch the canonical split dropped. Latent (n=0), captured for a decision (re-add allowlist branch vs accept prompt-only).
 
