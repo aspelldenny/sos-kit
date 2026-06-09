@@ -26,6 +26,7 @@ sos — 0→1 bootstrap for SOS Kit
 Usage:
   sos new <dir> --stack <python|rust|ts>   Bootstrap a NEW (empty) repo from golden (freeze + skeleton + validate)
   sos adopt <dir> [--stack ...]            Retrofit spine into an EXISTING repo (additive + non-clobber + report)
+  sos sync <dir>                           Re-sync spine into an ADOPTED repo (KIT-LAG cure: take-newer unmodified, flag customized)
   sos map [dir]                            Scan repo → draft AGENT_MAP with REAL surfaces (sound) + load_bearing/blast TODO (you)
   sos init                     Phase 0 — vision capture (Chủ nhà)
   sos init security            Bootstrap stack detection — write .sos-stack.toml (foundation for advisory-scan / security-review)
@@ -838,6 +839,80 @@ EOF
   echo "      add MISSING docs; fill # TODO; then: doctor verify-setup --repo $target"
 }
 
+sos_sync() {
+  # sos sync <adopted-repo-dir>
+  # KIT-LAG cure (P067): re-sync sos-kit spine into a repo adopted from an OLDER kit version.
+  #   take-newer the spine files the repo HASN'T customized · flag genuinely-customized ones.
+  # Provenance oracle = sos-kit's OWN git history (no manifest needed → works retroactively):
+  #   downstream file's blob matches SOME historical blob of its canonical path → unmodified
+  #     stale-canonical → safe overwrite (take-newer). Matches NONE → customized → stage for merge.
+  # Repo-IDENTITY files (CLAUDE.md / BACKLOG / .docs-gate.toml / INVARIANTS / AGENT_MAP) NEVER touched.
+  local target=""
+  while [[ $# -gt 0 ]]; do case "$1" in --*) shift;; *) [[ -z "$target" ]] && target="$1"; shift;; esac; done
+  [[ -z "$target" ]] && { echo "Usage: sos sync <adopted-repo-dir>"; return 1; }
+  [[ -d "$target" ]] || { echo "✗ $target not found"; return 1; }
+  local K="$SOS_KIT_DIR"
+  [[ -d "$K/.git" ]] || { echo "✗ SOS_KIT_DIR ($K) has no .git — sync needs kit history as provenance oracle"; return 1; }
+  [[ -d "$K/.claude/agents" ]] || { echo "✗ SOS_KIT_DIR ($K) is not sos-kit"; return 1; }
+
+  local incoming="$target/.sos-sync-incoming"
+  local added="" updated="" flagged="" current=0 added_n=0 updated_n=0 flagged_n=0
+
+  _blob_in_history() {  # <canon_relpath> <blob_sha> -> 0 if dest matches any historical version
+    local rel="$1" want="$2" c h
+    while IFS= read -r c; do
+      h=$(git -C "$K" rev-parse "$c:$rel" 2>/dev/null) || continue
+      [[ "$h" == "$want" ]] && return 0
+    done < <(git -C "$K" rev-list --all -- "$rel" 2>/dev/null)
+    return 1
+  }
+  _sync_one() {  # <canon_relpath_in_kit> <dest_relpath_in_target>
+    local canon="$1" destrel="$2" src="$K/$1" dest="$target/$2"
+    [[ -f "$src" ]] || return 0
+    if [[ ! -e "$dest" ]]; then
+      mkdir -p "$(dirname "$dest")"; cp "$src" "$dest"; added="${added}    + ${destrel}"$'\n'; added_n=$((added_n+1)); return 0
+    fi
+    cmp -s "$src" "$dest" && { current=$((current+1)); return 0; }
+    local blob; blob=$(git hash-object "$dest" 2>/dev/null)
+    if _blob_in_history "$canon" "$blob"; then
+      cp "$src" "$dest"; updated="${updated}    ^ ${destrel}"$'\n'; updated_n=$((updated_n+1))
+    else
+      mkdir -p "$(dirname "$incoming/$destrel")"; cp "$src" "$incoming/$destrel"
+      flagged="${flagged}    ~ ${destrel}"$'\n'; flagged_n=$((flagged_n+1))
+    fi
+  }
+
+  echo "sos sync — re-sync spine into '$target'  (take-newer unmodified, flag customized)"
+  echo "  provenance oracle: $K git history"
+
+  local f rel base root
+  for root in scripts phieu templates; do
+    [[ -d "$K/$root" ]] || continue
+    while IFS= read -r f; do rel="${f#"$K"/}"; _sync_one "$rel" "$rel"; done \
+      < <(find "$K/$root" -type f -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store')
+  done
+  for rel in hooks/pre-commit hooks/pre-push docs/ORCHESTRATION.md .claude/settings.json; do
+    [[ -f "$K/$rel" ]] && _sync_one "$rel" "$rel"
+  done
+  for f in "$K"/agents/*.md; do
+    [[ -f "$f" ]] || continue; base=$(basename "$f"); [[ "$base" == "README.md" ]] && continue
+    _sync_one "agents/$base" ".claude/agents/$base"
+  done
+  for f in "$K"/.claude/commands/*; do
+    [[ -f "$f" ]] || continue; base=$(basename "$f"); _sync_one ".claude/commands/$base" ".claude/commands/$base"
+  done
+  while IFS= read -r f; do rel="${f#"$K"/skills/}"; _sync_one "skills/$rel" ".claude/skills/$rel"; done \
+    < <(find "$K/skills" -type f -name 'SKILL.md' 2>/dev/null)
+
+  echo ""
+  echo "=== sos sync report ==="
+  echo "ADDED (absent -> copied): $added_n";        printf "%b" "${added:-    (none)\n}"
+  echo "UPDATED (take-newer, unmodified stale): $updated_n"; printf "%b" "${updated:-    (none)\n}"
+  echo "FLAGGED (repo-customized -> .sos-sync-incoming, merge by hand): $flagged_n"; printf "%b" "${flagged:-    (none)\n}"
+  echo "ALREADY-CURRENT: $current"
+  echo "Identity files (CLAUDE.md/BACKLOG/.docs-gate.toml/INVARIANTS/AGENT_MAP) untouched by design."
+}
+
 sos_blueprint() {
   if [[ ! -f docs/PROJECT.md ]]; then
     echo "✗ docs/PROJECT.md missing. Run 'sos init' first."
@@ -1061,6 +1136,7 @@ sos() {
   case "$cmd" in
     new)         sos_new "$@" ;;
     adopt)       sos_adopt "$@" ;;
+    sync)        sos_sync "$@" ;;
     map)         sos_map "$@" ;;
     init)        sos_init "$@" ;;
     blueprint)   sos_blueprint "$@" ;;
