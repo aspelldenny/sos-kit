@@ -147,11 +147,13 @@ bash scripts/install-hooks.sh      # sets: git config core.hooksPath hooks
 `core.hooksPath` is local git state (not committed) → re-run after a fresh clone.
 `sos new` runs this automatically on spawn.
 
-**Pre-commit chain ([1/6]…[6/6]):**
-The chain includes a **no-code-on-default gate** (`[6/6]`, `scripts/no-code-on-default.sh`).
-This gate blocks product code (`.ts`/`.rs`/`.py`/`.go`/`.swift`/etc.) committed directly
-on the default branch — forcing a feature branch for code changes. Docs-only (`*.md`)
-commits on the default branch remain allowed (kit maintenance, README fixes, doctrine edits).
+**Pre-commit chain ([1/7]…[7/7]):**
+The chain includes two agent-agnostic git-level gates (P049–P052 harvest):
+
+**`[6/7]` no-code-on-default** (`scripts/no-code-on-default.sh`):
+Blocks product code (`.ts`/`.rs`/`.py`/`.go`/`.swift`/etc.) committed directly on the
+default branch — forcing a feature branch for code changes. Docs-only (`*.md`) commits
+on the default branch remain allowed (kit maintenance, README fixes, doctrine edits).
 
 - **Downstream repos** get this gate live after `sos new` copies `scripts/` + `hooks/`.
 - **sos-kit itself** self-opts-out via the committed `.sos-state/sos-kit-self` marker
@@ -161,6 +163,20 @@ commits on the default branch remain allowed (kit maintenance, README fixes, doc
 - **Pattern derivation**: the gate reads `.sos-stack.toml` `type` to derive file-extension
   patterns. If absent, falls back to the full extension-union and **blocks** (greenfield
   commits on main are the primary failure target — ket P020 live failure).
+
+**`[7/7]` block-env-commit** (`scripts/block-env-commit.sh`) — P052:
+Blocks staging any `.env*` file so a secret-bearing env file cannot enter git history
+(irreversible). Matches on **basename** across the full staged path — so `config/.env.docker`
+is caught, not just root-level `.env`. `.env.example` (the template) is the only allowlisted
+exception. Agent-agnostic git-level backstop to the Claude-only PreToolUse `block-env-edit.sh`
+(P046); both layers share the same regex `^\.env($|\.)` so they cannot drift.
+
+- **`.envrc` (direnv) is deliberately NOT covered** — it is usually committed on purpose
+  (it points at `.env` to load secrets); blocking it = false-positive. See P052 Debate Log [O1.1].
+- **sos-kit does NOT self-opt-out** — unlike the no-code gate, sos-kit also must never commit
+  a `.env*`; the gate runs live in the kit (near-no-op by absence of any tracked `.env*`).
+- **Override** (rare, intentional, you accept the irreversible leak): `touch .sos-state/allow-env-commit`
+  before commit, `rm` after. Do NOT use `--no-verify`.
 
 ### 5a. Bootstrap `docs-gate` config
 

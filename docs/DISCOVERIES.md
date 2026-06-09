@@ -10,6 +10,7 @@
 
 | Phiếu | Date | 1-line summary |
 |---|---|---|
+| [P052](discoveries/P052.md) | 2026-06-08 | git-level .env* block gate — `scripts/block-env-commit.sh` + pre-commit [7/7]; 9/9 fire-test cases PASS; .envrc deliberately excluded (O1.1 locked as test); regex verbatim with block-env-edit.sh; Tầng 1 docs updated |
 | [P053](discoveries/P053.md) | 2026-06-06 | sentinel deadlock fix — PR mode always-post sentinel incl. clean APPROVE; dry-run grep simulation PASS; stale-sentinel documented + [P055] filed; Tầng 1 docs updated (boundary-check.md, README.md) |
 | [P050](discoveries/P050.md) | 2026-06-06 | no-code-on-default gate — `scripts/no-code-on-default.sh` + pre-commit [6/6]; 17/17 test cases PASS; .gitignore dir-pattern vs glob-form self-adapted (Tầng 2); all 6 ket-harvest constraints present; Tầng 1 docs updated |
 | [P042](discoveries/P042.md) | 2026-05-25 | Giám sát (boundary-check) — 5 generic INV port from tarot (drops nginx+credits), sentinel rename, ADVISORY-only; Anchor #18 Bash allowlist confirmed non-blocking; 0 tarot refs; Wave 1 sprint COMPLETE |

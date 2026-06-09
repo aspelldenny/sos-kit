@@ -9,6 +9,7 @@
 #   4. Security gate (INV-009 source + INV-010 runtime)
 #   5. Case-collision gate (path khác-case)
 #   6. No-code-on-default gate (P050 — force feature branch for product code)
+#   7. Block .env* secret-file commits (P052 — agent-agnostic backstop to P046 PreToolUse guard)
 #
 # Exit non-zero blocks commit. Use `git commit --no-verify` to bypass (not recommended).
 
@@ -28,7 +29,7 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 # 1. Stack-specific type check (auto-detect)
 # ─────────────────────────────────────────────────────────────────────
-blue "[1/6] Type check"
+blue "[1/7] Type check"
 
 if [ -f "Cargo.toml" ]; then
     echo "  → cargo check"
@@ -78,7 +79,7 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 # 2. docs-gate (v1 checks)
 # ─────────────────────────────────────────────────────────────────────
-blue "[2/6] docs-gate (v1: CHANGELOG + ARCHITECTURE 9 sections)"
+blue "[2/7] docs-gate (v1: CHANGELOG + ARCHITECTURE 9 sections)"
 
 # --- docs-gate (P006: graceful skip on fresh install) ---
 if [ ! -f .docs-gate.toml ]; then
@@ -104,7 +105,7 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 # 3. sos-kit v2 specific checks
 # ─────────────────────────────────────────────────────────────────────
-blue "[3/6] sos-kit v2 checks"
+blue "[3/7] sos-kit v2 checks"
 
 # 3a. BACKLOG.md must exist
 if [ ! -f "docs/BACKLOG.md" ]; then
@@ -185,7 +186,7 @@ echo ""
 # 4. Security gate (INV-009 source + INV-010 runtime — Sub-mech F)
 #    Doctrine: WORKFLOW_V2.2.md §7 Sub-mech F. Wired via P306 backport.
 # ─────────────────────────────────────────────────────────────────────
-blue "[4/6] Security gate (INV-009 + INV-010)"
+blue "[4/7] Security gate (INV-009 + INV-010)"
 
 if [ -f "scripts/security-gate.sh" ]; then
     if bash scripts/security-gate.sh --mechanical-only > /tmp/sos-secgate.log 2>&1; then
@@ -206,7 +207,7 @@ echo ""
 # 5. Case-collision gate (path khác-case cùng tồn tại — vỡ Linux/CI)
 #    Doctrine: Két dogfood — Scripts/ ↔ scripts/ thrash.
 # ─────────────────────────────────────────────────────────────────────
-blue "[5/6] Case-collision gate"
+blue "[5/7] Case-collision gate"
 
 if [ -f "scripts/check-case-collision.sh" ]; then
     if bash scripts/check-case-collision.sh; then
@@ -226,7 +227,7 @@ echo ""
 #    Doctrine: gate INVARIANT (no code on default) not PROCEDURE (when to branch).
 #    ket P020 live failure. Agent-agnostic git-level (P049–P052 harvest).
 # ─────────────────────────────────────────────────────────────────────
-blue "[6/6] No-code-on-default gate"
+blue "[6/7] No-code-on-default gate"
 
 if [ -f "scripts/no-code-on-default.sh" ]; then
     if bash scripts/no-code-on-default.sh; then
@@ -237,6 +238,26 @@ if [ -f "scripts/no-code-on-default.sh" ]; then
     fi
 else
     echo "  ⏭  scripts/no-code-on-default.sh missing — run scripts/install-hooks.sh after bootstrap"
+fi
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────
+# 7. Block .env* secret-file commits (allow .env.example).
+#    Agent-agnostic git-level backstop to the Claude-only PreToolUse block-env-edit.sh (P046).
+#    Grounding: media audit SEC-SECRET-01 (.env.docker committed → irreversible leak).
+# ─────────────────────────────────────────────────────────────────────
+blue "[7/7] Block .env* commit"
+
+if [ -f "scripts/block-env-commit.sh" ]; then
+    if bash scripts/block-env-commit.sh; then
+        green "  ✅ No .env* secret file staged"
+    else
+        red "  ❌ .env* secret file staged (detail above)"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+else
+    echo "  ⏭  scripts/block-env-commit.sh missing — run scripts/install-hooks.sh after bootstrap"
 fi
 
 echo ""
