@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
-# architect-guard.sh — PreToolUse hook để chặn cứng Architect đọc source code
+# architect-guard.sh — PreToolUse hook: enforce the Architect envelope (read + write)
 #
 # How it works:
-#   - Hook fires on every Read / Glob tool call
-#   - Reads JSON from stdin (Claude Code hook payload)
-#   - Detects if the call is from the Architect agent (via marker file)
-#   - If Architect is trying to read src/, exits 2 with an error
+#   - Hook fires on Read / Glob / Write / Edit tool calls (matcher in settings.json)
+#   - Reads JSON from stdin (Claude Code hook payload), dispatches by tool_name:
+#     · Read/Glob  → block Architect READING source code (src/, code extensions)
+#     · Write/Edit → ALLOWLIST: Architect may ONLY Write phiếu files (P<NNN>-*.md)
+#   - Detects Architect via marker file .sos-state/architect-active
+#   - Out-of-envelope → exits 2 with an error
+#
+# P069: the Write-allowlist branch closes a doc-vs-hook gap — agents/architect.md says
+# Architect "only Write phiếu files" but the read-only guard let any .md/non-product
+# write through (orchestrator-guard only denylists product-source). Symmetric to
+# orchestrator-guard (Quản đốc can't write product); allowlist, not denylist.
 #
 # Setup: this script is referenced from .claude/settings.json under hooks.PreToolUse.
 # Architect agent must create marker file `.sos-state/architect-active` on spawn.
@@ -30,11 +37,12 @@ MARKER_FILE=".sos-state/architect-active"
 # Read tool input JSON from stdin
 INPUT_JSON=$(cat)
 
-# Extract path argument from JSON (works for Read.file_path and Glob.pattern)
-# Strategy: greedy regex on flat JSON. Works for both:
-#   {"tool_input":{"file_path":"src/main.rs"}}
-#   {"tool_input":{"pattern":"src/**/*.rs"}}
-# This is fragile for nested quotes but Claude Code paths don't contain them.
+# Extract tool name (PreToolUse payload has top-level "tool_name")
+TOOL_NAME=$(echo "$INPUT_JSON" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+
+# Extract path argument from JSON (file_path for Read/Write/Edit, pattern for Glob).
+# Strategy: greedy regex on flat JSON — fragile for nested quotes, but Claude Code paths
+# don't contain them. NO external deps (no jq) for cross-platform (Windows msys2) safety.
 PATH_ARG=$(echo "$INPUT_JSON" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 if [ -z "$PATH_ARG" ]; then
     PATH_ARG=$(echo "$INPUT_JSON" | sed -n 's/.*"pattern"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
@@ -46,41 +54,55 @@ fi
 # Strip leading ./ for matching
 NORMALIZED_PATH="${PATH_ARG#./}"
 
-# Allow .md files anywhere — docs are Architect's domain even if they live alongside code
-case "$NORMALIZED_PATH" in
-    *.md) exit 0 ;;
-esac
+case "$TOOL_NAME" in
+    Write|Edit|MultiEdit|NotebookEdit)
+        # ── P069: Architect WRITE-allowlist — ONLY phiếu files (P<NNN>-<slug>.md) ──
+        # agents/architect.md: "you only Write new phiếu files". The Read/Glob branch
+        # allows any .md (docs domain) — too loose for Write. On Write, allowlist the
+        # phiếu-file signature; everything else (code, scripts, other docs) is blocked.
+        case "$(basename "$NORMALIZED_PATH")" in
+            P[0-9]*-*.md) exit 0 ;;   # phiếu file → allow
+        esac
+        cat >&2 <<EOF
+🚫 Architect envelope violation (Write)
 
-# Forbidden path patterns (source code regions / build artifacts)
-# Use shell glob-style case patterns (POSIX, no regex engine needed)
-case "$NORMALIZED_PATH" in
-    src/*|*/src/*|lib/*|*/lib/*|app/*|*/app/*|crates/*/src/*|pkg/*|*/pkg/*)
-        BLOCKED=1 ;;
-    tests/*|*/tests/*|test/*|*/test/*|__tests__/*)
-        BLOCKED=1 ;;
-    node_modules/*|target/*|dist/*|build/*|.next/*|.nuxt/*|.svelte-kit/*)
-        BLOCKED=1 ;;
-    *.rs|*.ts|*.tsx|*.js|*.jsx|*.py|*.go|*.java|*.cpp|*.c|*.h|*.hpp)
-        BLOCKED=1 ;;
+Architect may ONLY Write phiếu files (P<NNN>-<slug>.md): $PATH_ARG is outside the envelope.
+
+The Architect writes the phiếu (plan + Task 0 anchors); code, scripts, and other docs
+belong to a spawned Worker or the orchestrator. If you need to write this, it's a sign
+the work should be a phiếu TASK — not an Architect-direct write.
+EOF
+        exit 2
+        ;;
     *)
-        BLOCKED=0 ;;
-esac
-
-if [ "${BLOCKED:-0}" = "1" ]; then
-    cat >&2 <<EOF
-🚫 Architect envelope violation
+        # ── Read / Glob: block Architect READING source code (original logic) ──
+        # Allow .md anywhere — docs are Architect's domain even alongside code.
+        case "$NORMALIZED_PATH" in
+            *.md) exit 0 ;;
+        esac
+        case "$NORMALIZED_PATH" in
+            src/*|*/src/*|lib/*|*/lib/*|app/*|*/app/*|crates/*/src/*|pkg/*|*/pkg/*)
+                BLOCKED=1 ;;
+            tests/*|*/tests/*|test/*|*/test/*|__tests__/*)
+                BLOCKED=1 ;;
+            node_modules/*|target/*|dist/*|build/*|.next/*|.nuxt/*|.svelte-kit/*)
+                BLOCKED=1 ;;
+            *.rs|*.ts|*.tsx|*.js|*.jsx|*.py|*.go|*.java|*.cpp|*.c|*.h|*.hpp)
+                BLOCKED=1 ;;
+            *)
+                BLOCKED=0 ;;
+        esac
+        if [ "${BLOCKED:-0}" = "1" ]; then
+            cat >&2 <<EOF
+🚫 Architect envelope violation (Read)
 
 Architect cannot read source code: $PATH_ARG
 
-What to do instead: write a Task 0 anchor in the phiếu.
-Example:
-  | # | Assumption | Verify by | Result |
-  | 1 | <claim about $PATH_ARG> | grep ... $PATH_ARG | ⏳ TO VERIFY |
-
-Worker (separate subagent) will grep-verify it for you. The constraint IS the feature.
+What to do instead: write a Task 0 anchor in the phiếu — Worker (separate subagent)
+grep-verifies it for you. The constraint IS the feature.
 EOF
-    exit 2
-fi
-
-# Path is allowed
-exit 0
+            exit 2
+        fi
+        exit 0
+        ;;
+esac

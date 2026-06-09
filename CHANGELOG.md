@@ -4,6 +4,9 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-09
 
+**P069 SHIPPED — Architect Write-envelope now hook-enforced (2026-06-09):**
+- `architect-guard.sh` now dispatches by `tool_name`: Read/Glob keep the read-block; **Write/Edit/MultiEdit → allowlist ONLY phiếu files** (`basename` matches `P[0-9]*-*.md`) — code/scripts/other-docs are blocked (exit 2). Closes the gap where architect.md said "only Write phiếu" but no hook enforced it (any .md / kit-maintenance write slipped through). `.claude/settings.json` architect-guard matcher `Read|Glob` → `Read|Glob|Write|Edit`. Symmetric to orchestrator-guard (allowlist vs that denylist). Fire-tested 9/9 (Write phiếu→allow; Write scripts/docs-random/Edit src→block; Read .md→allow; Read src→block; no-marker→allow-all). Downstream gets it via sos sync (doc-rotate later — hot; claude-hooks keeps its own combined port-reference version).
+
 **Ratified: fail-closed binary-hook deploy = B+3 (shim + prebuilt) [P064] (2026-06-09):**
 - Sếp ratified the canonical deploy pattern for a fail-CLOSED hook binary (block-unsafe-merge) when the binary may be absent from PATH: **fail-closed shim** (`command -v claude-hooks || exit 2` then exec) + **prebuilt binary distribution** (curl|sh, = P064). NOT the bash-fallback wrapper (Option A) — it reintroduces the bash fragility the port exists to kill (P059 showed the bash gate silently failed open on Windows = the F-005 rot risk) and demands perpetual bash-parity maintenance. The 3 fail-open hooks wire the binary directly (absent = allow = their default). Applies the kit's own fail-closed security doctrine. Feeds P064 distribution build + a claude-hooks README update (adopter-choice → sos-kit canonical).
 
