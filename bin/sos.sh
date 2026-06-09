@@ -675,6 +675,7 @@ sos_adopt() {
   adopt_item "templates"
   adopt_item "hooks/pre-commit"
   adopt_item "hooks/pre-push"
+  adopt_item "docs/ORCHESTRATION.md"   # full orchestrator spec (P060: banner/handbook reference it; absent downstream = orchestrator runs "blind handbook")
   # skills → .claude/skills/ (Cat-A: 13 generic SOS role-workflows). ADDITIVE per-file — keep the
   # repo's own domain skills (Cat-C, e.g. its phase-gate/status); add the generic ones; stage true
   # name-collisions to .sos-adopt-incoming/. (adopt_item can't remap skills/→.claude/skills/.)
@@ -794,6 +795,14 @@ EOF
     grep -qxF "$pat" "$gi" 2>/dev/null || { printf '%s\n' "$pat" >> "$gi"; gi_added=$((gi_added+1)); }
   done
   [[ "$gi_added" -gt 0 ]] && added="${added}    + .gitignore ($gi_added build/runtime ignore lines)\n"
+
+  # .phieu-counter — seed so `phieu <slug>` works out of the box (P061: phiếu lifecycle tooling
+  # didn't bootstrap → phiếu made by hand + left untracked). Phiếu ARE tracked (audit trail, Sếp
+  # 2026-06-09 = option b) — phieu/ is NOT gitignored above; Worker stages the phiếu file (worker.md).
+  if [[ ! -f "$target/.phieu-counter" ]]; then
+    echo "0" > "$target/.phieu-counter"
+    added="${added}    + .phieu-counter (seed 0 — source phieu/phieu.sh to use \`phieu <slug>\`)\n"
+  fi
 
   echo "[3/3] Validator"
   local doctor_bin="${DOCTOR_BIN:-doctor}"

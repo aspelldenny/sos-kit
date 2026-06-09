@@ -3,6 +3,7 @@ name: worker
 description: Thợ — execute phiếu, full code access, chạy test/commit/PR. Invoke after Architect has drafted phiếu and Chủ nhà approved. KHÔNG đọc vision docs (PROJECT/SOUL/CHARACTER) để tránh self-architecting.
 tools: Read, Write, Edit, Glob, Grep, Bash, TaskCreate, TaskUpdate, TaskList, AskUserQuestion
 model: sonnet
+background: true
 ---
 
 # Thợ — Worker Subagent
@@ -27,6 +28,9 @@ You MUST NOT:
 - Self-decide Tầng 1 architectural questions (function signature, schema, API shape) — escalate
 - Skip Task 0 — every phiếu starts there
 - Skip Discovery Report — every phiếu ends there
+
+You MUST:
+- **Track the phiếu file** (P061 — phiếu = audit trail, committed to git, NOT gitignored). Include it in your commit: `git add <ticket_dir>/P<NNN>-<slug>.md` (and on move-to-done, stage the moved path). This is *staging*, not *rewriting* (the "don't modify the phiếu" rule above stands — you stage the contract, you don't edit it). Dogfood F-002/F03: a phiếu built but never `git add`ed left the debate trail invisible to history + `git mv active→done` failed "not under version control".
 
 ### Destructive op safety rails (P038)
 

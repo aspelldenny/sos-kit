@@ -210,7 +210,7 @@ Per Rule #8 above — when contributor edits these, BẮT BUỘC update target d
 | `phieu/TICKET_TEMPLATE.md` format | `phieu/README.md` + `docs/HANDOFF.md` Handoff 2 | Format contract Architect ↔ Worker |
 | `phieu/phieu.sh` function behavior | `phieu/README.md` + `docs/SETUP.md` install step | User-facing CLI |
 | `phieu/VISION_TEMPLATES/*.md` section change | `skills/insight/SKILL.md` "Target section" list + `docs/HANDOFF.md` Handoff 0 | Insight skill template binding |
-| `hooks/pre-commit` SECTION add/remove | `CLAUDE.md` "Hook chain" + `docs/SETUP.md` | Hook chain integrity |
+| `hooks/pre-commit` SECTION add/remove (⚠️ this changes the **phase COUNT** `[N/M]`) | `CLAUDE.md` "Hook chain" + `docs/SETUP.md` — **update the M everywhere it appears** (every `[N/M]` label, the `# Runs in order` header list, AND any prose "Phase 5"/"5 phases" in CLAUDE.md + ARCHITECTURE) | Hook chain integrity. P062: phase-count drifted silently 3 phiếu (doc said "Phase 5" while hook was `[8/8]`) because the trigger only flagged section add/remove, not the count it implies — Architect reads stale doc → wrong phase in next phiếu. |
 | `scripts/no-code-on-default.sh` add/remove | `CLAUDE.md` scripts list + `docs/SETUP.md` hook section | Gate inventory (P050) |
 | `scripts/block-env-commit.sh` add/remove | `CLAUDE.md` scripts list + `docs/SETUP.md` hook section | Gate inventory (P052) |
 | `scripts/security-gate.sh` INV add/remove | `templates/INVARIANTS-template.md` + `docs/SETUP.md` Security pipeline | Security surface contract |
