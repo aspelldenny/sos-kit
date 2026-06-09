@@ -496,8 +496,8 @@ Inherit sos-kit role separation: Chủ nhà / Kiến trúc sư / Thợ + Quản 
 EOF
   # 2e. stack manifest skeleton (feeds sos init security in step 3)
   case "$stack" in
-    python) [[ -f "$target/pyproject.toml" ]] || printf '[project]\nname = "%s"\nversion = "0.0.0"\n# TODO: fill dependencies\n' "$name" > "$target/pyproject.toml" ;;
-    rust)   [[ -f "$target/Cargo.toml" ]]     || printf '[package]\nname = "%s"\nversion = "0.0.0"\nedition = "2021"\n# TODO: fill dependencies\n' "$name" > "$target/Cargo.toml"
+    python) [[ -f "$target/pyproject.toml" ]] || printf '[project]\nname = "%s"\nversion = "0.1.0"\n# TODO: fill dependencies\n' "$name" > "$target/pyproject.toml" ;;
+    rust)   [[ -f "$target/Cargo.toml" ]]     || printf '[package]\nname = "%s"\nversion = "0.1.0"\nedition = "2021"\n# TODO: fill dependencies\n' "$name" > "$target/Cargo.toml"
             # Ship a buildable target: an empty src/ makes `cargo check` (armed pre-commit) fail
             # "no targets in manifest" → blocks the bootstrap commit. A stub main.rs = valid crate.
             [[ -f "$target/src/main.rs" ]] || printf 'fn main() {}\n' > "$target/src/main.rs" ;;

@@ -222,6 +222,8 @@ Per Rule #8 above — when contributor edits these, BẮT BUỘC update target d
 | `skills/<name>/SKILL.md` role/trigger change | `README.md` skill table + `docs/LAYERS.md` skill map | Skill ownership |
 | `.docs-gate.toml` rule change | `CLAUDE.md` rule references + `hooks/pre-commit` if section logic mirrors | Pre-commit chain mutation |
 | `.mcp.json` server add/remove | `docs/SETUP.md` MCP section (if exists) | MCP inventory |
+| CHANGELOG version bump (e.g. `## [0.21.0]`) | `Cargo.toml`/`pyproject.toml` `[package] version` **must sync** (else `--version` prints the stale scaffold value) | F13 (doc-rotate dogfood): `Cargo.toml` sat at `0.0.0` while CHANGELOG reached `[0.20.0]` — ~20 versions of silent drift, invisible until something reads `CARGO_PKG_VERSION`. Mechanizable: `grep '^version' Cargo.toml` vs first `## [` in CHANGELOG. |
+| **Language port / module rename / file move** (e.g. `.py` → `.rs`) | `docs/AGENT_MAP.yaml` `edit:`/surface paths **must update** → re-run `doctor validate-map` (it path-checks AGENT_MAP) | F10 (doc-rotate dogfood): RP07b retired Python but AGENT_MAP kept stale `.py` paths → Architect (docs-only) would spec non-existent files. AGENT_MAP is a separate doc category not caught by the other rows; `validate-map` is the mechanical net but must be RUN. |
 | `docs/WORKFLOW_V2.X.md` | ⛔ FORBIDDEN ad-hoc edit — must go through retro process (see "Edit Workflow doctrine" Common task above) | Doctrine versioning |
 
 **Enforcement:**
