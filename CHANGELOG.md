@@ -6,6 +6,7 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 **Backlog capture — P056-P058 doctrine-harvest batch (2026-06-08):**
 - Captured 3 net-new doctrine lessons from the ket dogfood WORKFLOW retro ("câu-hỏi-vàng soi vào chính nghi thức"): P056 pre-merge dogfood-gate for UI-surface phiếu (Sếp-decided), P057 verify-cò DoD rule (gate/hook phiếu must ship a fire-test), P058 scope-question as Tầng-1 phiếu field. Capture-only — all 3 are doctrine changes that must fold through retro v2.3, not ad-hoc edits (`CLAUDE.md` "Edit Workflow doctrine"). 3/5 ket lessons already covered by v2.2; net-new 3 are all surface-gated (anti completeness-bias at the process layer).
+- **Folded tarot P336 evidence (2026-06-08) into P056 + P057** — cross-project n=2 for the "agent-blind-to-rendered-output" disease: 906 tests green, copy-reviewer caught an off-by-one in displayed free-session count (render layer outside test coverage; logic duplicated across 2 files → drift). P056 gains a subclass split (a) text/number → agent-reviewer-readable / (b) visual → human dogfood; P057 gains a sibling "kéo cò applies to displayed derived values → harden with one shared source + boundary-sweep test {3,2,1,0,≥quota}, not patch-both-sites". Still capture-only (retro v2.3 fold pending).
 
 
 
