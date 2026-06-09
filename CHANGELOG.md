@@ -4,6 +4,10 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-09
 
+**Tier-0 closed + kit-adopt stress finding [P067] (2026-06-09):**
+- Tier-0 fully done: advisory-cron register ✓ (tarot) · doctor trigger ✓ · advisory-inbox 8-column schema ✓ (verified template + tool row).
+- **First foreign-repo KIT stress test** — cloned media-rating-app (v2.0 kit: 4 agents, `[1/3]` pre-commit) to /tmp (real repo had 28 uncommitted → untouched) and ran current `sos adopt` (v2.3). Result: 35 clean adds + **27 conflicts to `.sos-adopt-incoming`**. Classification finding: **~all 27 conflicts are stale-canonical (take-newer), NOT repo customizations** (proof: `skills/qa/SKILL.md` 0-diff identical; `[1/3]` pre-commit just missing the newer sections). adopt is correct for fresh-adopt (additive) but **has no upgrade path** — it can't distinguish stale-canonical from customized, so it dumps 27 manual merges where ~26 are mechanical take-newer → stale-kit repos stay stuck (hard evidence for KIT-LAG, n=1). Direction: a `sos sync` with a **provenance manifest** (record each spine file's origin canonical-hash at adopt; at sync, unmodified-since-copy → safe take-newer) collapses 27 → ~1. Captured [P067]. Closes the KIT-LAG half of Blocker C; the code-poison half remains unprobed (adopt only touches kit files).
+
 **Status correction — trigger-wiring largely DONE (2026-06-09):**
 - Investigated "A" (trigger-wiring, Tier-0) before building → found the 2026-06-05 BACKLOG snapshot stale. `doctor` is wired at every point (binary installed, `.mcp.json` serve, handbook calls — orchestrator lane-check / worker runtime-scan / boundary-check validate-map, adopt's `verify-setup` which DOES exist). `advisory-cron` is registered for tarot (launchd daily). The "doctor không auto-fire / chưa nhét vào bootstrap" claim was outdated. Updated §B.2 + Tier-0 to reality; only residual = advisory-cron not auto-offered in adopt (arguably correct — opt-in per deps-heavy repo, not noise on thin repos). No wiring work manufactured; honest "it already runs."
 
