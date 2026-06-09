@@ -4,6 +4,9 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-09
 
+**Orchestrator — background subagent spawns doctrine (2026-06-09):**
+- Added "Background subagent spawns (`run_in_background`)" section to `agents/orchestrator.md` + Hard rule 13 in `docs/ORCHESTRATION.md`. Documents the native Claude Code async-spawn capability + the discipline the kit governs: marker exclusivity (≤1 guarded agent in flight — two Workers clash on `worker-active`), keep `worker-active` set until the completion notification (not right after spawn), APPROVAL_GATE still precedes EXECUTE when backgrounded, never poll. 3 anti-patterns + 2 failure-mode rows added. Propagated `orchestrator.md` → `~/claude-hooks` + `~/doc-rotate` (capability is native everywhere; only the doctrine needed copying).
+
 **Housekeeping — CHANGELOG trim (2026-06-09):**
 - Archived older changelog entries (v2.1.10 → v1) to `docs/archive/CHANGELOG_pre-v2.2.md`; live `CHANGELOG.md` back under the 40k doc-size threshold (53k → ~36k). Banner had flagged the overflow every session. Keeps v2.3 forge + the full v2.2 wave live; pointer left at the tail. Mirrors the `docs/archive/DISCOVERIES_pre-2026-05.md` precedent.
 
