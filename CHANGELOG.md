@@ -4,6 +4,9 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-09
 
+**Agents — `background: true` rollout (2026-06-09):**
+- All 4 spawnable subagents (architect, worker, advisory-watch, boundary-check) now carry `background: true` in frontmatter → run in the background by default when spawned, so the main session isn't blocked (incident 2026-06-09: a foreground subagent queued Chủ nhà's messages until it finished). `orchestrator.md` excluded (main session, never spawned). `agents/README.md` documents the convention + 3 enable mechanisms + hard rule "new spawnable subagent → add `background: true`". Consistent with the corrected background-spawn doctrine (Rule 13). Effective only in NEW sessions.
+
 **F09/F13/F10 fixed — doc-rotate friction harvest [P070] (2026-06-09):**
 - doc-rotate Rust-port friction log (13 findings) reconciled: F01-F08 already actioned this session. F09-F13 are new. **F09 🔴 FIXED:** `install-hooks.sh` silently hijacked an adopter's `core.hooksPath` + renamed their `.git/hooks/*` → could disable an existing security gate (1-installer-2-audiences bug; tarot P275 hit it). Added a guard: detect prior `core.hooksPath` (≠ hooks) or a real `.git/hooks/pre-commit` → confirm (TTY) / ABORT exit 1 (non-TTY) before overriding. Fire-tested 3/3 (clean proceeds; adopter-hooksPath non-TTY aborts without clobbering; idempotent). **F13 fixed:** scaffold `version` 0.0.0→0.1.0 (`bin/sos.sh`) + DOCS-GATE row "CHANGELOG bump → manifest version sync". **F10 fixed:** DOCS-GATE row "language port/module rename → AGENT_MAP paths + re-run validate-map". F11/F12 (heuristic-tool content-bending) captured as a recipe-level escape-hatch lesson. Source: docs/retro/FRICTION_doc-rotate_rust-port_2026-06-09.md.
 

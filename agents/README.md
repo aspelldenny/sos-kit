@@ -42,6 +42,21 @@ One real file per agent, pointed at twice — drift is **impossible** (there is 
 
 External users / Tarot / other projects copy real files from `agents/` into their own `.claude/agents/` (per `../INSTALL.md`) and re-copy on kit update.
 
+## Background execution — `background: true` (frontmatter, mọi spawnable subagent)
+
+Cả 4 spawnable subagent có `background: true` trong frontmatter (cạnh `model:`). Nghĩa là khi orchestrator spawn, subagent chạy **ngầm NGAY** — main session vẫn tương tác được, Chủ nhà chen ý / đổi hướng bất cứ lúc nào, không bị block chờ.
+
+**Tại sao cần (incident 2026-06-09):** thiếu dòng này → subagent chạy **foreground** → main session khoá, tin nhắn Chủ nhà bị queue ("alo" gõ mà không xử được tới khi agent xong). Chủ nhà vận hành kiểu đối thoại liên tục với Quản đốc → block = hỏng nhịp.
+
+**3 cách bật (chọn cách 1 — đây là cách kit dùng):**
+1. ✅ **`background: true` frontmatter per-agent** (đang dùng) — ngầm ngay, không đổi behavior khác, theo từng agent. Lan theo bootstrap copy ở trên.
+2. `CLAUDE_CODE_FORK_SUBAGENT=1` env — MỌI subagent ngầm nhưng là **fork mode** (kế thừa full context, đổi behavior nhiều hơn → rủi ro hơn).
+3. `CLAUDE_AUTO_BACKGROUND_TASKS=1` env — tự đẩy ngầm **sau ~2 phút** (có độ trễ).
+
+**Hard rule:** thêm spawnable subagent mới → frontmatter PHẢI có `background: true`. `orchestrator.md` KHÔNG cần (vai main session, không bao giờ bị spawn). Đổi frontmatter chỉ có hiệu lực ở **session mới** (agent definitions load lúc khởi session).
+
+> Nguồn: official docs `code.claude.com/docs/en/env-vars` + `/sub-agents`. Verified 2026-06-09 — tarot dùng cách 1, chạy thật.
+
 ## Invocation modes
 
 Both subagents support 2 modes triggered by phrases in the orchestrator's spawn prompt — see body of each file for the table. Summary:
