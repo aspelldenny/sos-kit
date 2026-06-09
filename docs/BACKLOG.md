@@ -39,7 +39,7 @@
 
 Migration sang Rust ~XONG (9/11). Cái thiếu cho "1 lệnh cài cả bộ + tự chạy":
 1. **Installer hợp nhất chưa code.** Hiện chỉ `INSTALL.md` (copy tay 30+ file) + Bash MVP `bin/sos.sh` + skeleton `bootstrap/sos-rs/`. `BOOTSTRAP_AUTOMATION_DRAFT.md §4` đã draft "bash ~50 dòng" (Category A đổ cứng / B default / C khung rỗng + validator) **nhưng chưa implement**. Doctrine §7: bash trước, cargo sau khi mold chín 3 repo.
-2. **Trigger wiring** — tool ship mà không nổ (advisory-cron chưa register, doctor không auto-fire). `doctor verify-setup` (validator check wiring) có khung, chưa nhét vào bootstrap.
+2. **Trigger wiring** — ~~tool ship mà không nổ~~ **✅ LARGELY DONE (status verified 2026-06-09 — snapshot trên đã stale):** `doctor` wired đủ — binary cài + MCP (`.mcp.json` serve) + handbook GỌI thật (`orchestrator.md` lane-check pre-CHALLENGE · `worker.md` runtime-scan Task 0 · `boundary-check.md` validate-map/runtime-scan) + `adopt` gọi `verify-setup` (`bin/sos.sh:567,811`; lệnh CÓ thật, Q-D5 wiring-check). `advisory-cron` registered cho **tarot** (launchd `com.advisorycron.advisory-scan-tarot` daily 09:00), per-project opt-in. **Residual (optional, low-prio):** `advisory-cron register` chưa nằm trong `sos adopt`/setup-dev → repo deps-nặng mới phải register tay; **arguably đúng** (repo mỏng không cần quét CVE hằng ngày → auto-register mọi adopt = noise). Nếu wire thì gộp vào [P065] setup-dev golden template, GATED opt-in.
 3. **2 skeleton** chưa code (claude-hooks, inv-gate).
 
 ### C. ⛔ BLOCKER THẬT để đóng kit — Adopt "repo nhiễm độc" (Sếp nêu 2026-06-05)
@@ -82,7 +82,7 @@ Migration sang Rust ~XONG (9/11). Cái thiếu cho "1 lệnh cài cả bộ + t�
 
 | Tier | Việc | Ghi chú |
 |---|---|---|
-| 0 | Cho tool đã ship CHẠY (advisory-cron register, advisory-inbox 8-cột, doctor trigger) | Cao nhất, low effort |
+| 0 | Cho tool đã ship CHẠY: ~~advisory-cron register~~ ✅(tarot) · ~~doctor trigger~~ ✅(MCP+handbook+adopt, verified 06-09) · **advisory-inbox 8-cột = CÒN** (chưa verify, item riêng) | Cao nhất, low effort — **trigger-wiring 2/3 done** |
 | 1 | Bash bootstrap ~50 dòng (BOOTSTRAP_AUTOMATION_DRAFT §4) — "1 lệnh" v0 | Trái tim vision, bash trước |
 | 1.5 | **Adopt-poisoned flow** (blocker C) | Bắt buộc trước khi "đóng kit" |
 | 2 | Nốt 2 skeleton: inv-gate (ROI cao, thay 794 dòng) > claude-hooks · port doc-rotate Rust | Chuẩn hoá |

@@ -4,6 +4,9 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-09
 
+**Status correction — trigger-wiring largely DONE (2026-06-09):**
+- Investigated "A" (trigger-wiring, Tier-0) before building → found the 2026-06-05 BACKLOG snapshot stale. `doctor` is wired at every point (binary installed, `.mcp.json` serve, handbook calls — orchestrator lane-check / worker runtime-scan / boundary-check validate-map, adopt's `verify-setup` which DOES exist). `advisory-cron` is registered for tarot (launchd daily). The "doctor không auto-fire / chưa nhét vào bootstrap" claim was outdated. Updated §B.2 + Tier-0 to reality; only residual = advisory-cron not auto-offered in adopt (arguably correct — opt-in per deps-heavy repo, not noise on thin repos). No wiring work manufactured; honest "it already runs."
+
 **Capture — tarot tool-adoption KIT items [P064-P066] (2026-06-09):**
 - **tarot tool-dogfood PASSED** — doc-rotate (P343/PR#627) + claude-hooks (P344/PR#628, Giám sát APPROVE) run OK in tarot prod. Tool-findings routed to the tool repos. KIT-level items captured (capture-only; Sếp's timing = kit work comes AFTER tools prove out on more projects). P064 (K-1, 🔴): the "1 lệnh" installer vision corrected — `cargo install` assumes Rust is present (like npm assumes Node), so distributing to non-coders needs **prebuilt binaries (GitHub Releases, 3 targets) + `curl|sh`**, with cargo/crates.io as the dev path; this is Tier-3 "đóng kit", after trigger-wiring + adopt-poisoned. P065 (K-2): tarot's `setup-dev.sh` per-machine bootstrap → make it a sos-kit golden template. P066 (K-3, minor): standardize the dogfood-feedback filename/format (the feedback channel is load-bearing to the loop). Source: `docs/TAROT_ADOPTION_HANDOFF.md`.
 
