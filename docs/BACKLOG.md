@@ -7,11 +7,11 @@
 
 ---
 
-## 🔨 Active sprint: Két dogfood harvest — git-level `.env` block (1 phiếu)
+## ✅ COMPLETE sprint: Két dogfood harvest — git-level `.env` block (1 phiếu)
 
-> **Promoted 2026-06-08** (Sếp explicit pick). Continuation of the git-gates harvest thread (P049–P052). Most-grounded remaining mechanical item — **n≥1 real incident** (media audit SEC-SECRET-01: `.env.docker` committed to git history). Complement to [P046] PreToolUse `block-env-edit.sh` (edit-time, Claude-only) — this is the commit-time, agent-agnostic layer. Branch: `harvest-env-gate`.
+> **Promoted 2026-06-08 → SHIPPED + MERGED 2026-06-09** (Sếp explicit pick). Continuation of the git-gates harvest thread (P049–P052). Most-grounded remaining mechanical item — **n≥1 real incident** (media audit SEC-SECRET-01: `.env.docker` committed to git history). Complement to [P046] PreToolUse `block-env-edit.sh` (edit-time, Claude-only) — this is the commit-time, agent-agnostic layer. Full state machine: DRAFT→CHALLENGE([O1.1] `.envrc`)→RESPOND→APPROVAL_GATE→EXECUTE.
 
-- [ ] **[P052]** Git-level `.env` block — **complement to [P046]**. [P046] ports tarot's `block-env-edit.sh` as a Claude PreToolUse Edit/Write guard (dies under Codex). Add a pre-commit hook blocking staging of `.env*` (allow `.env.example`) so the secret-leak guard survives any agent. **Why now real:** media audit SEC-SECRET-01 = `.env.docker` committed to git history — the exact failure a git-level `.env` block prevents at commit-time (PreToolUse only catches Claude's edit-time). Both layers complement.
+- [x] ~~**[P052]**~~ SHIPPED + MERGED 2026-06-09 — git-level `.env*` commit block (`scripts/block-env-commit.sh`, pre-commit `[7/7]`). PR #23 (merge-commit `542df0f`). Fire-test 9/9 PASS (orchestrator re-ran independently incl. false-positive guard `.environment.ts`). `/security-review 23` → clean APPROVE sentinel → `block-unsafe-merge` allowed merge (**P053 self-validated #2** — merge-commit path). `.envrc` deliberately excluded ([O1.1]). Discovery: `docs/discoveries/P052.md`.
 
 ---
 
