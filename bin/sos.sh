@@ -786,6 +786,15 @@ EOF
   [[ -f "$target/CLAUDE.md" ]] && conflicts="${conflicts}    ~ CLAUDE.md (exists — kept)\n" \
     || conflicts="${conflicts}    ! CLAUDE.md (MISSING — add a project CLAUDE.md by hand; adopt won't guess product identity)\n"
 
+  # .gitignore — seed runtime markers + build-artifact dirs (F02 dogfood: RP01 left 167MB
+  # target/ untracked → next `git add -A` would swallow it; the kit's own .sos-state markers
+  # also had to be hand-ignored downstream). Append-if-missing per line (idempotent, non-clobber).
+  local gi="$target/.gitignore"; touch "$gi"; local gi_added=0
+  for pat in '.sos-state/' '.backup/' '.sos-adopt-incoming/' 'target/' '__pycache__/' '*.pyc' '*.egg-info/' 'node_modules/' 'dist/'; do
+    grep -qxF "$pat" "$gi" 2>/dev/null || { printf '%s\n' "$pat" >> "$gi"; gi_added=$((gi_added+1)); }
+  done
+  [[ "$gi_added" -gt 0 ]] && added="${added}    + .gitignore ($gi_added build/runtime ignore lines)\n"
+
   echo "[3/3] Validator"
   local doctor_bin="${DOCTOR_BIN:-doctor}"
   if command -v "$doctor_bin" >/dev/null 2>&1 || [[ -x "$doctor_bin" ]]; then
