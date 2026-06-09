@@ -7,6 +7,24 @@
 
 ---
 
+## ▶ NEXT SESSION — agreed plan (2026-06-09, Sếp + Quản đốc) [RESET POINT]
+
+> **Session 2026-06-09 was huge** — built `sos sync` (KIT-LAG cure, n=2 proven) + P069 (Architect Write-envelope enforce) + F09 (install-hooks security-hijack guard); closed Tier-0; de-risked Blocker C trọn; ratified B+3 (fail-closed binary deploy); harvested 3 friction logs (~20 findings, claude-hooks + doc-rotate ×2 + tarot). Details: CHANGELOG v2.3 forge + items below.
+>
+> **🔒 LOCKED PRINCIPLE — dogfood BEFORE infra:** adopt the kit into a FOREIGN repo *before* building the "1 lệnh" installer — the foreign-adopt reveals what the installer actually needs. (The rule that won this whole session: `sos sync` + F09 both came from dogfood-first; "build installer first = đoán mò.")
+
+**Order (Sếp-ratified — note the end was self-corrected from "build infra → adopt" to "adopt → build infra"):**
+1. **inv-gate** (optional) — last Rust tool, replaces `security-gate.sh` Python (~794 LOC). Clean golden-oracle port like doc-rotate → **family dogfood = small harvest** (family-friction largely mined over claude-hooks + doc-rotate). Do for "đủ bộ Rust" or defer; don't expect big learning.
+2. **Adopt into JARVIS first** (foreign, HIGH-signal) — `~/jarvis` = fresh-foreign Python bot, near-no-kit (only CLAUDE.md + .docs-gate.toml, no agents/hooks/phieu) = **the portrait of a real new-user repo** → reveals TRUE installer requirements. (`~/media-rating-app` = brownfield-poison + v2.0-kit-stale stress — already de-risked via sos sync + P068; do it LATER, paired with code-poison build.)
+3. **Tổng kết** the jarvis foreign-adopt friction → **this is where installer requirements surface** (like media-stress surfaced sos sync).
+4. **Build "1 lệnh"** (Tier-3 distribution) WITH the real requirements: prebuilt binary (GitHub Releases 3-target mac/win/linux) + `curl|sh` bootstrap + **B+3 fail-closed shim** (ratified [P064]) + golden `setup-dev.sh` ([P065]). **Build-heavy + cross-platform — Windows WILL bite** (P059 was the warm-up).
+
+**⚠️ Mode shift for next session:** this session = doctrine/harvest (reflect-heavy). Next = **BUILD/INFRA** (port inv-gate · release-CI · curl|sh installer · cross-platform test). Different muscle — more code, less reflection.
+
+**Still open (mapped, non-urgent):** doc-rotate re-sync when DR05 done (`sos sync` brings it) · code-poison orchestration build (HOLD, n=1, P068) · F11/F12 recipe-lesson (when forging AI-tool recipes) · install-hooks/banner/architect-guard re-sync to downstream via `sos sync` when those repos cool.
+
+---
+
 ## ✅ COMPLETE sprint: Két dogfood harvest — git-level `.env` block (1 phiếu)
 
 > **Promoted 2026-06-08 → SHIPPED + MERGED 2026-06-09** (Sếp explicit pick). Continuation of the git-gates harvest thread (P049–P052). Most-grounded remaining mechanical item — **n≥1 real incident** (media audit SEC-SECRET-01: `.env.docker` committed to git history). Complement to [P046] PreToolUse `block-env-edit.sh` (edit-time, Claude-only) — this is the commit-time, agent-agnostic layer. Full state machine: DRAFT→CHALLENGE([O1.1] `.envrc`)→RESPOND→APPROVAL_GATE→EXECUTE.
