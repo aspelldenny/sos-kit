@@ -13,7 +13,7 @@
 curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh
 ```
 
-Downloads prebuilt binaries (`doctor`, `claude-hooks` — mac-arm64/linux-x64/win-x64 from GitHub Releases) into `~/.local/bin`, clones the kit to `~/sos-kit`, and puts `sos` on PATH. Fail-closed: a failed download aborts. (Developers hacking the Rust tools: `templates/setup-dev.sh` is the cargo path.)
+Downloads the FULL kit toolset as prebuilt binaries (`doctor`, `claude-hooks`, `docs-gate`, `ship`, `guard`, `vps`, `doc-rotate`, `advisory-inbox`, `advisory-cron` — mac-arm64/linux-x64/win-x64 from each repo's GitHub Releases) into `~/.local/bin`, clones the kit to `~/sos-kit`, and puts `sos` on PATH. Fail-closed: a failed download aborts. (Developers hacking the Rust tools: `templates/setup-dev.sh` is the cargo path.)
 
 **Then pick by repo state** — one command does the whole install below (copy + born-wire + validate):
 

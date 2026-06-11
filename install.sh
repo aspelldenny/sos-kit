@@ -25,10 +25,15 @@ KIT_DIR="${SOS_KIT_DIR:-$HOME/sos-kit}"
 BIN_DIR="${SOS_BIN_DIR:-$HOME/.local/bin}"
 # Binary manifest — each name is a repo under $GH_OWNER with release assets
 # named <bin>-<target-triple>[.exe] (contract: that repo's .github/workflows/release.yml).
+# Full kit toolset (Sếp 2026-06-11: "chạy 1 phát là ok hết"): doctor (validator) +
+# claude-hooks (session hooks, B+3 gate) + docs-gate (pre-commit [2/7] — absent = gate
+# silently skips, P006) + ship/guard/vps (release/deploy/ops, wired in .mcp.json) +
+# doc-rotate (docs cap/rotate) + advisory-inbox (CVE inbox CLI, /advisory-scan dep) +
+# advisory-cron (daily scan scheduler — register is per-repo OPT-IN, binary just lands).
 # KNOWN GAP (explicit, Giám sát 2026-06-11 → BACKLOG [P071]): downloads are HTTPS-enforced
 # but carry NO checksum/signature verification yet, and `releases/latest` is unpinned —
 # trust anchor today = the GitHub account. .sha256 publishing + verify is the planned cure.
-BINARIES="doctor claude-hooks"
+BINARIES="doctor claude-hooks docs-gate ship guard vps doc-rotate advisory-inbox advisory-cron"
 
 # ── 1. Platform → target triple ─────────────────────────────────────────────
 OS="$(uname -s)" ARCH="$(uname -m)" EXT=""
