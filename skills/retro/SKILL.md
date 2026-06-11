@@ -1,5 +1,6 @@
 ---
 name: retro
+caller: "weekly cron — advisory-cron register fires `claude -p \"/retro\"` (per-repo opt-in). PENDING: register blocked on advisory-cron fire_task no-timeout DEBT (its own BACKLOG warns claude -p may hang) — see sos-kit BACKLOG"
 version: 0.1.0
 description: |
   Weekly engineering retrospective — shipping velocity, code quality, patterns.

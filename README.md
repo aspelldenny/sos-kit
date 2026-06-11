@@ -124,35 +124,22 @@ Quản đốc is NOT a spawnable subagent — it's the main Claude Code session 
 
 Enforcement is structural: a `PreToolUse` hook (`scripts/architect-guard.sh`) hard-blocks Read/Glob on `src/` paths when the architect marker is active, so even a misbehaving model cannot bypass the envelope.
 
-### Claude Code Skills (grouped by layer)
+### Claude Code Skills (5 living — each with a declared mechanical caller)
 
-**Chủ nhà layer** — vision, intake, routing, decisions:
+> **Caller law (2026-06-11):** a skill ships only with a mechanical `caller:` declared in its
+> frontmatter (hook / cron / CLI / gate). Months of evidence showed registered-but-uncalled
+> skills are dead weight — 8 were parked to `skills/attic/` (reasons + revive conditions in
+> `skills/attic/README.md`; full dogfood report: `docs/retro/SKILLS_DOGFOOD_2026-06-11.md`).
 
-| Skill | Location | Purpose |
-|---|---|---|
-| `/idea` | `.claude/skills/idea/` | Intake new ideas, route into the right BACKLOG.md section (Active / Next / Open / Park). |
-| `/init` | `skills/init/` | **0→1 only.** Vision capture for new project (empty folder → docs/PROJECT.md, SOUL.md, CHARACTER.md skeleton). |
-| `/insight` | `skills/insight/` | Distill raw research / user interviews / competitor observations into structured bullets for PROJECT.md / SOUL.md / CHARACTER.md. |
-| `/route` | `skills/route/` | Classify inbound request: code / marketing / design / strategy / skip. Produces 5-bullet brief for Architect. |
-| `/decide` | `skills/decide/` | Trade-off triage. Present 2-3 concrete options with user-visible impact, recommend one. |
+| Skill | Layer | Caller | Purpose |
+|---|---|---|---|
+| `/idea` | Chủ nhà | UserPromptSubmit hook (`scripts/idea-smell.sh`) | Intake new ideas → BACKLOG: dedup search + owner-clicked section/tag + date stamp. |
+| `/retro` | Thợ | weekly cron (`advisory-cron register`, per-repo opt-in) | Velocity + hotspot + learnings review from git history. |
+| `/init` | Chủ nhà | `sos init` CLI — **0→1 only** | Vision capture (empty folder → PROJECT/SOUL/CHARACTER skeleton). |
+| `/apply` | Thợ | `sos apply` CLI — **0→1 only** | Apply 1 recipe from `recipes/`: sub-phiếu P000.N → Task 0 → execute → commit. |
+| `/forge` | Kiến trúc sư | `sos recipe new` CLI | Research + write a new recipe into `recipes/<category>/<name>.md`. |
 
-**Kiến trúc sư layer** — spec what gets built (docs-only access, no code):
-
-| Skill | Location | Purpose |
-|---|---|---|
-| `/plan` | `skills/plan/` | Read vision + guide docs → write phiếu (ticket) in `phieu/TICKET_TEMPLATE.md` format with Task 0 verification anchors for Thợ to grep-verify. |
-| `/forge` | `skills/forge/` | **Recipe library extension.** Research official docs + write new recipe to `recipes/<category>/<name>.md` when blueprint demands a recipe library doesn't have yet. |
-
-**Thợ layer** — execute + ship (full code access):
-
-| Skill | Location | Purpose |
-|---|---|---|
-| `/verify` | `skills/verify/` | Task 0 grep-first: verify every file/function/constant anchor in the phiếu against real code BEFORE coding. |
-| `/apply` | `skills/apply/` | **0→1 only.** Apply 1 recipe from `recipes/` library — auto-generate sub-phiếu P000.N, run Task 0, execute steps, verify, commit. |
-| `/review` | `skills/review/` | Staff-engineer review before merge — SQL injection, N+1 queries, auth bypass, logic bugs. |
-| `/qa` | `skills/qa/` | QA lead — run tests, find bugs, fix with regression tests, verify. |
-| `/ship` | `skills/ship/` | Release engineer — full ship pipeline (test → commit → PR → deploy → canary). |
-| `/retro` | `skills/retro/` | Weekly retrospective — shipping velocity, hotspots, patterns, action items. |
+Parked (attic): `plan` `verify` — content lives inlined in `agents/architect.md` / `agents/worker.md`; `decide` `route` `insight` `qa` `review` `ship` — no caller, roles absorbed by orchestrator/Giám sát/`ship` binary.
 
 One skill = one layer + one responsibility. Skills never span layers. See [`docs/LAYERS.md`](./docs/LAYERS.md) for boundaries and the 2-tier authority split (architectural vs detail).
 

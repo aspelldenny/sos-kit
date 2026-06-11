@@ -1,5 +1,6 @@
 ---
 name: idea
+caller: "UserPromptSubmit hook scripts/idea-smell.sh (regex idea-smell in Sếp message → inject /idea reminder); banner + orchestrator.md prose"
 description: |
   Chủ nhà skill — capture a new idea/request, classify it, append to docs/BACKLOG.md in the right section.
   Invoke when: Chủ nhà says "I just thought of...", "add this to backlog", "log this idea", or types /idea directly.

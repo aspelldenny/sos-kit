@@ -19,7 +19,7 @@ What's inside:
   - `DISCOVERY_PROTOCOL.md` — Thợ → Kiến trúc sư feedback + mismatch classification
   - `RELAY_PROTOCOL.md` — Chủ nhà's courier workflow (Thợ cannot ping Kiến trúc sư directly)
   - `VISION_TEMPLATES/` — day-1 skeletons for `PROJECT.md`, `SOUL.md`, `CHARACTER.md`
-- `skills/` — Claude Code skills grouped by layer (13 total: 5 Chủ nhà + 2 Kiến trúc sư + 6 Thợ — see `docs/LAYERS.md` skills map for canonical assignment)
+- `skills/` — Claude Code skills (5 LIVING — each declares a mechanical `caller:` in frontmatter; `skills/attic/` = 8 parked after the 2026-06-11 full dogfood, see `docs/retro/SKILLS_DOGFOOD_2026-06-11.md` + `docs/LAYERS.md` skills map)
 - `configs/` — `.ship.toml` templates per stack (nextjs, flask, rust, python)
 - `hooks/pre-commit` — git hook script (type-check + docs-gate)
 - `integrations/` — CI snippets (GitHub Actions canary) + Telegram uptime monitor
@@ -96,25 +96,19 @@ sos-kit/
 │   ├── architect-guard.sh  # PreToolUse hook — block code reads when architect active
 │   ├── block-env-commit.sh    # pre-commit [7/7] — block .env* secret-file commits (allow .env.example); git-level backstop to P046 PreToolUse guard
 │   ├── block-env-edit.sh   # PreToolUse hook — block .env edits
+│   ├── idea-smell.sh       # UserPromptSubmit hook — regex idea-smell in Sếp message → inject /idea reminder (skills dogfood 2026-06-11)
 │   ├── block-unsafe-merge.sh  # PreToolUse hook — B+3 fail-closed shim → `claude-hooks block-unsafe-merge` binary (gates `gh pr merge <N>` without security APPROVE; binary absent = BLOCK LOUD) [P064]
 │   ├── no-code-on-default.sh  # pre-commit [6/7] — block product code committed on default branch (force feature branch; agent-agnostic)
 │   ├── security-gate.sh, check-*.py, parsers/  # commit-time security gate + advisory lockfile parsers
 │   └── session-start-banner.sh  # SessionStart hook — show BACKLOG on session open
 │   # (.claude/agents/ is symlinked to agents/ — no sync script; see agents/README.md)
-├── skills/                 # One skill per layer+responsibility, never spans layers (13 total)
-│   ├── init/SKILL.md       # Chủ nhà — 0→1 vision capture (empty folder → PROJECT/SOUL/CHARACTER)
-│   ├── idea/SKILL.md       # Chủ nhà — intake new ideas, route into BACKLOG
-│   ├── insight/SKILL.md    # Chủ nhà — distill raw research → vision docs
-│   ├── route/SKILL.md      # Chủ nhà — classify inbound
-│   ├── decide/SKILL.md     # Chủ nhà — trade-off triage
-│   ├── plan/SKILL.md       # Kiến trúc sư — write phiếu (docs-only, no code access)
-│   ├── forge/SKILL.md      # Kiến trúc sư — research + write new recipe to recipes/ library
-│   ├── verify/SKILL.md     # Thợ — Task 0 grep-first (gate before coding)
-│   ├── apply/SKILL.md      # Thợ — apply 1 recipe from recipes/ (0→1 sub-phiếu)
-│   ├── review/SKILL.md     # Thợ — code review
-│   ├── qa/SKILL.md         # Thợ — QA verification
-│   ├── ship/SKILL.md       # Thợ — release pipeline
-│   └── retro/SKILL.md      # Thợ — retrospective
+├── skills/                 # 5 LIVING skills — each declares mechanical `caller:` (no caller = attic)
+│   ├── idea/SKILL.md       # Chủ nhà — intake → BACKLOG. Caller: UserPromptSubmit idea-smell hook
+│   ├── retro/SKILL.md      # Thợ — weekly velocity/hotspot. Caller: weekly cron (advisory-cron, opt-in)
+│   ├── init/SKILL.md       # Chủ nhà — 0→1 vision capture. Caller: sos init CLI (⚠ name-collides built-in /init)
+│   ├── apply/SKILL.md      # Thợ — apply 1 recipe. Caller: sos apply CLI
+│   ├── forge/SKILL.md      # Kiến trúc sư — write new recipe. Caller: sos recipe new CLI
+│   └── attic/              # 8 PARKED (plan verify decide route insight qa review ship) — see attic/README.md
 └── templates/              # Chủ nhà-ready starters
     ├── BACKLOG_template.md  # BACKLOG.md skeleton (Active / Next / Open / Park)
     ├── advisory-inbox.md    # Empty queue template for security advisories (P041)
@@ -192,6 +186,7 @@ sos-kit/
 3. `[mechanical]` **No hardcoded personal paths.** Replace `/Users/<name>/...` with `~/` or a generic example before committing. _(Greppable: `/Users/` or `/home/<user>/` — candidate for a pre-commit grep gate.)_
 4. `[judgment]` **README is the single source of truth.** If a tool is listed in `README.md` but not in `docs/SETUP.md`, that's a bug. Fix the gap in both places. Same for `docs/LAYERS.md` skill table.
 5. `[judgment]` **Skills are for repeated workflows, not one-off tasks.** If a skill only applies to one project, keep it in that project's `.claude/skills/`, not here.
+   **+ Caller law (Sếp-ratified 2026-06-11):** a skill enters `skills/` ONLY with a declared mechanical `caller:` in frontmatter (hook / cron / CLI / gate / handbook-contract). No caller = `skills/attic/`. Evidence: tarot carried all 13 registered for months — 0 invocations ("skill đẹp mà không dùng = không tác dụng").
 6. `[judgment]` **One skill, one layer, one responsibility.** If you're tempted to make a skill that "routes AND plans" or "plans AND implements," stop — split it. Layer leaks are anti-pattern #1.
 7. `[judgment]` **Handoffs stay formatted.** If you're tempted to add a new inter-layer handoff ("Architect pings Worker directly on Slack"), document the format in `docs/HANDOFF.md` first. Freestyle handoffs = context loss.
 8. `[mechanical+judgment]` **DOCS GATE Tầng 1 — code change BẮT BUỘC update relevant doc.** Universal rule (added 2026-05-28 post doc-rotate pilot setup). Trigger: change function signature / constant / data flow / API / schema / surface boundary / prompt / security pattern → BẮT BUỘC update relevant doc TRƯỚC commit. Missing = phiếu CHƯA XONG. **Security boundary touch → AUTO Tầng 1** (KHÔNG mark Tầng 2). Tầng 2 (cosmetic, local var) tùy. See "DOCS GATE Tầng 1 mapping" section below for per-surface table. **Knowledge durability:** Durable doctrine → `CLAUDE.md` / `agents/*.md` / `docs/WORKFLOW_V2.X.md` (no rotate). Operational evidence → `docs/DISCOVERIES.md` (rotate ≥ 1000 lines via `doc-rotate` tool pilot vòng 2).

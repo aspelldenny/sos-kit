@@ -209,23 +209,19 @@ Fix: If Architect notices a vision gap, escalates to Chủ nhà with recommendat
 Symptom: One skill that does "route + plan + implement."
 Fix: One skill = one layer + one responsibility. Split.
 
-## Skills map (13 total)
+## Skills map (5 living + attic)
 
-| Skill | Layer | Purpose |
-|---|---|---|
-| `/init` | Chủ nhà | **0→1 only.** Vision capture — empty folder → PROJECT.md / SOUL.md / CHARACTER.md skeleton |
-| `/idea` | Chủ nhà | Intake new ideas, route into BACKLOG.md (Active / Next / Open / Park). Project-local skill. |
-| `/insight` | Chủ nhà | Distill raw research / feedback into structured vision-doc-ready bullets |
-| `/route` | Chủ nhà | Classify inbound (code / marketing / design / strategy / skip) |
-| `/decide` | Chủ nhà | Trade-off triage, present options + recommend |
-| `/plan` | Kiến trúc sư | Write phiếu in `phieu/TICKET_TEMPLATE.md` format with Task 0 |
-| `/forge` | Kiến trúc sư | Recipe library extension — research + write new recipe to `recipes/<category>/<name>.md` |
-| `/verify` | Thợ (architect-assigned) | Task 0 grep-first anchor check before coding |
-| `/apply` | Thợ | **0→1 only.** Apply 1 recipe from `recipes/` — sub-phiếu P000.N → Task 0 → execute → commit |
-| `/review` | Thợ | Code review before merge |
-| `/qa` | Thợ | Test execution, bug fix, regression |
-| `/ship` | Thợ | Full release pipeline (test → PR → deploy → canary) |
-| `/retro` | Thợ | Weekly retrospective, velocity, hotspots |
+| Skill | Layer | Caller (mechanical) | Purpose |
+|---|---|---|---|
+| `/idea` | Chủ nhà | UserPromptSubmit hook `scripts/idea-smell.sh` | Intake new ideas → BACKLOG (dedup + click section + date) |
+| `/retro` | Thợ | weekly cron via `advisory-cron register` (per-repo opt-in) | Velocity + hotspot + learnings review |
+| `/init` | Chủ nhà | `sos init` CLI — **0→1 only** (⚠ name-collides with Claude Code built-in `/init`) | Vision capture — PROJECT/SOUL/CHARACTER |
+| `/apply` | Thợ | `sos apply` CLI — **0→1 only** | Apply 1 recipe — sub-phiếu P000.N → Task 0 → execute → commit |
+| `/forge` | Kiến trúc sư | `sos recipe new` CLI | Research + write new recipe to `recipes/` |
+
+**Caller law (Sếp-ratified 2026-06-11):** skill vào kit PHẢI khai `caller:` cơ học trong frontmatter — hook / cron / CLI / gate / handbook-contract. Không caller → `skills/attic/`. Bằng chứng: tarot register đủ 13 skill nhiều tháng, 0 invocation — thứ duy nhất sống là thứ được hook/cron/gate gọi hộ (report: `docs/retro/SKILLS_DOGFOOD_2026-06-11.md`).
+
+**Attic (parked 2026-06-11):** `plan` `verify` (ruột sống inline trong `agents/architect.md`/`worker.md` — định danh mạnh nhất là handbook), `decide` `route` `insight` `qa` `review` `ship` — lý do + điều kiện hồi sinh: `skills/attic/README.md`.
 
 One skill = one layer (or cross-layer gate as with `/verify *`). No skill does work for two layers at once.
 

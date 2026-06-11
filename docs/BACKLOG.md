@@ -20,6 +20,7 @@
 > **🔥 Active — cụm skills-audit (Sếp ratified 2026-06-11):** 3-giữ-10-park + định danh caller. Kèm:
 > - [ ] **[NEW]** UserPromptSubmit hook bắt idea-smell → nhắc invoke /idea — trigger "idea mới" mờ, model lúc nhớ lúc quên (ghi BACKLOG thẳng không qua skill); regex các cụm "ghi vào backlog/anh nghĩ ra/ý tưởng/thêm vào backlog" → inject reminder. Coin-flip → deterministic, đúng enforce-via-mechanism. (11/06/2026)
 >
+> - [ ] **[NEW]** Register weekly `/retro` cron cho sos-kit — caller đã khai trong SKILL.md, register BLOCKED on advisory-cron `fire_task` no-timeout DEBT (repo nó tự cảnh báo `claude -p` hang). Fix debt đó trước → register `0 18 * * 0`-form. (11/06/2026)
 > **NEXT (Sếp chọn):**
 > 1. **inv-gate Sprint 1** — mở Claude Code ở `~/inv-gate`, banner hiện P001 → brief 1 câu là chạy
 > 2. **[P071]** checksum/signing khi mở public rộng (release.yml +1 step ×9 repo + install.sh verify)

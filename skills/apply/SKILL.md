@@ -1,5 +1,6 @@
 ---
 name: apply
+caller: "sos apply <recipe> CLI (bin/sos.sh)"
 version: 0.1.0
 description: |
   Thợ mode — apply 1 recipe từ recipes/ library vào project hiện tại. Generate sub-phiếu P000.N, run Task 0, execute steps, verify, commit.
