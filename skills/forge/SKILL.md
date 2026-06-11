@@ -1,5 +1,6 @@
 ---
 name: forge
+caller: "sos recipe new <category>/<name> CLI (bin/sos.sh)"
 version: 0.1.0
 description: |
   Kiến trúc sư mode — tạo recipe mới khi library thiếu, hoặc cập nhật recipe outdated. Research official docs, write Steps + Verification anchors + Discovery hooks, save vào recipes/<category>/<name>.md.

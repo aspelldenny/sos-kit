@@ -413,7 +413,13 @@ sos_new() {
   cp    "$K/.claude/settings.json" "$target/.claude/settings.json"
   [[ -f "$K/agents/orchestrator.md" ]] && cp "$K/agents/orchestrator.md" "$target/.claude/agents/orchestrator.md"
   [[ -f "$K/templates/claude-settings.local.json" ]] && cp "$K/templates/claude-settings.local.json" "$target/.claude/settings.local.json"
-  cp -R "$K/skills"    "$target/.claude/skills"   # Cat-A: 13 generic SOS role-workflows (/plan /verify /review /qa /ship /retro /init /idea /insight /route /decide /forge /apply)
+  # Cat-A: LIVING skills only (5: /idea /retro /init /apply /forge — each declares a
+  # mechanical caller: hook/cron/CLI; skills/attic/ = parked, NOT shipped. Dogfood 2026-06-11.)
+  mkdir -p "$target/.claude/skills"
+  for _sk in "$K"/skills/*/; do
+    [[ "$(basename "$_sk")" == "attic" ]] && continue
+    cp -RL "$_sk" "$target/.claude/skills/$(basename "$_sk")"
+  done
   cp -R "$K/scripts"   "$target/scripts"
   cp -R "$K/phieu"     "$target/phieu"
   cp -R "$K/templates" "$target/templates"
@@ -465,7 +471,7 @@ JSON
   find "$target" -name '.DS_Store' -delete 2>/dev/null || true
   find "$target" -name '*.pyc' -delete 2>/dev/null || true
   find "$target" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
-  echo "  ✓ agents(deref) + commands + settings.json + skills(13) + scripts + phieu + templates + hooks/pre-commit + .gitignore + .mcp.json(doctor)"
+  echo "  ✓ agents(deref) + commands + settings.json + skills(5 living) + scripts + phieu + templates + hooks/pre-commit + .gitignore + .mcp.json(doctor)"
 
   # ---- 2. Category C — SKELETON (+ # TODO markers) ----
   echo "[2/4] Category C — generate skeletons (+ # TODO)"
@@ -708,7 +714,7 @@ sos_adopt() {
         mkdir -p "$(dirname "$sdest")"; cp "$sfile" "$sdest"
         added="${added}    + ${srel}\n"
       fi
-    done < <(find "$K/skills" -type f -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store')
+    done < <(find "$K/skills" -type f -not -path '*/attic/*' -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store')
   fi
   # .mcp.json — wire OUR doctor gate (Cat-A, our tool). Create-if-absent; if the repo already has
   # one (its own external MCP = Cat-C), flag it — add the 'doctor' entry by hand, never clobber.
@@ -1027,7 +1033,7 @@ sos_sync() {
     [[ -f "$f" ]] || continue; base=$(basename "$f"); _sync_one ".claude/commands/$base" ".claude/commands/$base"
   done
   while IFS= read -r f; do rel="${f#"$K"/skills/}"; _sync_one "skills/$rel" ".claude/skills/$rel"; done \
-    < <(find "$K/skills" -type f -name 'SKILL.md' 2>/dev/null)
+    < <(find "$K/skills" -type f -name 'SKILL.md' -not -path '*/attic/*' 2>/dev/null)
 
   echo ""
   echo "=== sos sync report ==="

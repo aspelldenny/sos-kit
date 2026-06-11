@@ -1,5 +1,6 @@
 ---
 name: init
+caller: "sos init CLI (bin/sos.sh prints: run skill /init)"
 version: 0.1.0
 description: |
   Chủ nhà mode — guide vision capture cho project mới (empty folder → docs/PROJECT.md + SOUL.md + CHARACTER.md skeleton).
