@@ -33,11 +33,15 @@ BIN_DIR="${SOS_BIN_DIR:-$HOME/.local/bin}"
 # KNOWN GAP (explicit, Giám sát 2026-06-11 → BACKLOG [P071]): downloads are HTTPS-enforced
 # but carry NO checksum/signature verification yet, and `releases/latest` is unpinned —
 # trust anchor today = the GitHub account. .sha256 publishing + verify is the planned cure.
-BINARIES="doctor claude-hooks docs-gate ship guard vps doc-rotate advisory-inbox"
-# OPTIONAL — absent on some platforms by design; download failure = WARN + continue,
-# NOT abort (fail-closed stays reserved for the gate binaries above).
-#   advisory-cron: Phase 3 = macOS+Linux only (launchd/cron; Windows Task Scheduler unbuilt).
-OPTIONAL_BINARIES="advisory-cron"
+BINARIES="doctor claude-hooks docs-gate ship advisory-inbox"
+# OPTIONAL — download failure = WARN + continue, NOT abort (fail-closed stays reserved
+# for the gate binaries above). Two reasons a tool sits here:
+#   guard / vps / doc-rotate / advisory-cron: their repos are PRIVATE (2026-06-11) →
+#     anonymous release download 404s. They are also functionally optional (guard/vps
+#     inert without a deploy/SSH target; doc-rotate = docs hygiene; advisory-cron =
+#     per-repo opt-in scheduler, macOS+Linux only by design — Phase 3 compile_error!).
+#     If a repo goes PUBLIC later, promote it to BINARIES.
+OPTIONAL_BINARIES="guard vps doc-rotate advisory-cron"
 
 # ── 1. Platform → target triple ─────────────────────────────────────────────
 OS="$(uname -s)" ARCH="$(uname -m)" EXT=""
