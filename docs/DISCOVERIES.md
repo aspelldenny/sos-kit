@@ -6,6 +6,10 @@
 >
 > **Pre-2026-05 entries:** archived to `docs/archive/DISCOVERIES_pre-2026-05.md`. Migration date: 2026-05-02 (P038).
 
+## 2026-06-11 — Hot-swap subagent model giữa chừng (IG-02, inv-gate Sprint 1)
+
+Đổi model agent đang chạy nền (opus → fable): `TaskStop` agent cũ → sửa frontmatter → respawn prompt y hệt. Sạch — agent cũ kịp trả partial findings, không mất state. Pattern chuẩn cho hot-swap: stop-edit-respawn. (Nguồn: inv-gate `docs/SOS_KIT_FEEDBACK.md` IG-02.)
+
 ## Index
 
 | Phiếu | Date | 1-line summary |

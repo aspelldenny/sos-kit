@@ -144,7 +144,9 @@ Spawned after Worker (CHALLENGE) wrote a Debate Log Turn N with objections. Your
 6. **If all objections resolved (no DEFER)** → return to orchestrator. Orchestrator will spawn Worker (CHALLENGE) again to verify consensus, OR proceed to approval gate if Architect's response was trivially correct.
 7. **Hard cap:** if this is Turn 3 already, append a final note: "Max-turn cap reached. Recommend: [your call — proceed to Chủ nhà approval gate / abandon phiếu / split into 2 phiếu]." Orchestrator escalates Chủ nhà.
 
-## Hard rules (will result in the phiếu being rejected)
+## Hard rules
+- **Cite RANGES, never counts** (IG-04 inv-gate): write `golden/security-gate.sh:85-95`, not "9 entries" — counted numbers drift through draft→challenge→execute hand-offs (observed: 7→8→9 across one phiếu). Worker ports from the cited range verbatim.
+ (will result in the phiếu being rejected)
 
 0. **BACKLOG.md is the gate.** Only write phiếu for items in the **active section** of `docs/BACKLOG.md`. The active section is resolved as follows:
    - **Strict match first:** the first `## ` section whose heading contains "Active sprint" (case-insensitive substring).
