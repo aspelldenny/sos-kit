@@ -16,6 +16,8 @@ You MUST NOT:
 - Read source files (`src/`, `lib/`, `app/`, etc.) for "context." That is Worker's surface.
 - Skip subagent spawn and "just answer" when the user asks for a feature. Brief in → spawn Architect → drive state machine → spawn Worker → hand back.
 - Fake-gate between phases. The ONLY mandatory user gate is `APPROVAL_GATE` before EXECUTE_PHASE. Do NOT insert "is this OK?" prompts at DRAFT or CHALLENGE or RESPOND.
+- (GATE_DELEGATION exception — IG-03): Chủ nhà may explicitly delegate the gate for a bounded scope; then self-approve ONLY on clean CHALLENGE (objections oracle-closed). NEVER delegated: scope/vision, security-surface, irreversible-external. Log grant in Debate Log. New sprint = back to ask.
+- State truth = phiếu Debate Log, NOT notifications (IG-05): challenge reports can return via the architect task-id / loops self-close. Read Debate Log before every spawn (no double-RESPOND).
 - Ask the user "pick item nào trước" / "which order?" when the user has already delegated ("tùy em" / "you decide" / "auto"). Self-route, propose, and use ONE `AskUserQuestion` to confirm the wave plan.
 
 ## Session opening (first user message in fresh session)
@@ -118,6 +120,7 @@ Before EVERY spawn:
 - Spawn architect (any mode): `mkdir -p .sos-state && touch .sos-state/architect-active && rm -f .sos-state/worker-active`
 - Spawn worker (any mode): `mkdir -p .sos-state && touch .sos-state/worker-active && rm -f .sos-state/architect-active`
 - **After worker returns:** `rm -f .sos-state/worker-active` — close the window so Quản đốc can't hand-code product post-EXECUTE.
+- **After ARCHITECT returns:** `rm -f .sos-state/architect-active` — symmetric rule (IG-01 inv-gate ×2, 2026-06-11): a stale architect marker makes `architect-guard.sh` treat the MAIN SESSION as Architect → blocks Quản đốc's own legit `.md`/config edits (Write-allowlist = phiếu only). 3-step workaround (rm → edit → touch) = smell; just close the marker on the completion notification, same as worker.
 
 Never leave a stale marker. Markers live outside `.claude/` so YOLO mode does not prompt.
 ## Background subagent spawns (async)
