@@ -208,7 +208,7 @@ Per Rule #8 above — when contributor edits these, BẮT BUỘC update target d
 | `hooks/pre-commit` SECTION add/remove (⚠️ this changes the **phase COUNT** `[N/M]`) | `CLAUDE.md` "Hook chain" + `docs/SETUP.md` — **update the M everywhere it appears** (every `[N/M]` label, the `# Runs in order` header list, AND any prose "Phase 5"/"5 phases" in CLAUDE.md + ARCHITECTURE) | Hook chain integrity. P062: phase-count drifted silently 3 phiếu (doc said "Phase 5" while hook was `[8/8]`) because the trigger only flagged section add/remove, not the count it implies — Architect reads stale doc → wrong phase in next phiếu. |
 | `scripts/no-code-on-default.sh` add/remove | `CLAUDE.md` scripts list + `docs/SETUP.md` hook section | Gate inventory (P050) |
 | `scripts/block-env-commit.sh` add/remove | `CLAUDE.md` scripts list + `docs/SETUP.md` hook section | Gate inventory (P052) |
-| `scripts/security-gate.sh` INV add/remove | `templates/INVARIANTS-template.md` + `docs/SETUP.md` Security pipeline | Security surface contract |
+| `scripts/security-gate.sh` INV add/remove OR runner-swap | `templates/INVARIANTS-template.md` + `docs/SETUP.md` Security pipeline | Security surface contract. (2026-06-11: gate is now `inv-gate` binary-first w/ python3 fallback — kills the python dep when the binary is present; install.sh ships inv-gate.) |
 | `scripts/check-*.py` pattern add/remove | `templates/INVARIANTS-template.md` + `docs/HANDOFF.md` Handoff 5 | Mechanical gate inventory |
 | `scripts/parsers/*.py` add (new lock format support) | `agents/advisory-watch.md` Bước 1 stack-parse list + `docs/SETUP.md` | Trinh sát stack coverage |
 | `recipes/<cat>/<name>.md` add/remove | `README.md` recipes table + `recipes/README.md` index | Recipe catalog |
