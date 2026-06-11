@@ -717,30 +717,59 @@ sos_adopt() {
 {
   "mcpServers": {
     "doctor": {
-      "_comment": "sos-kit mechanical gate. Our own Rust tool — wire via PATH. Install: cargo install --path ~/doctor.",
+      "_comment": "sos-kit mechanical gate (lane/map/rotate/runtime + verify-setup). PATH-rel.",
       "command": "doctor",
+      "args": ["serve"]
+    },
+    "docs-gate": {
+      "_comment": "Docs compliance — same engine the pre-commit hook runs as CLI. PATH-rel.",
+      "command": "docs-gate",
+      "args": ["serve"]
+    },
+    "ship": {
+      "_comment": "Release workflow — test/commit/PR/canary. PATH-rel.",
+      "command": "ship",
+      "args": ["serve"]
+    },
+    "guard": {
+      "_comment": "Pre-deploy infra gate — inert until repo has a deploy/SSH target.",
+      "command": "guard",
+      "args": ["serve"]
+    },
+    "vps": {
+      "_comment": "VPS ops — inert until ~/.vps.toml names a host.",
+      "command": "vps",
       "args": ["serve"]
     }
   }
 }
 JSON
-    added="${added}    + .mcp.json (doctor gate wired — our tool, PATH-rel)\n"
+    added="${added}    + .mcp.json (kit tools wired: doctor/docs-gate/ship/guard/vps — PATH-rel, same set as sos new)\n"
   else
     # JA-05 (jarvis dogfood): hand-editing JSON is where new users drop the ball. jq-merge the
-    # doctor entry ONLY if absent (`//=` never touches existing keys = non-clobber preserved).
+    # kit's 5 MCP tool entries ONLY where absent (`//=` never touches existing keys =
+    # non-clobber preserved). Same 5-server set `sos new` ships.
     if command -v jq >/dev/null 2>&1; then
-      if jq -e '.mcpServers.doctor' "$target/.mcp.json" >/dev/null 2>&1; then
-        conflicts="${conflicts}    ~ .mcp.json (doctor entry already present — kept)\n"
-      elif jq '.mcpServers.doctor //= {"_comment":"sos-kit mechanical gate. Our own Rust tool — wire via PATH. Install: cargo install --path ~/doctor.","command":"doctor","args":["serve"]}' \
-             "$target/.mcp.json" > "$target/.mcp.json.tmp" 2>/dev/null; then
-        mv "$target/.mcp.json.tmp" "$target/.mcp.json"
-        added="${added}    + .mcp.json (doctor entry jq-merged — repo's own MCP servers kept)\n"
+      local mcp_filter='
+        .mcpServers.doctor      //= {"_comment":"sos-kit mechanical gate (lane/map/rotate/runtime + verify-setup). PATH-rel.","command":"doctor","args":["serve"]} |
+        .mcpServers."docs-gate" //= {"_comment":"Docs compliance — same engine the pre-commit hook runs as CLI. PATH-rel.","command":"docs-gate","args":["serve"]} |
+        .mcpServers.ship        //= {"_comment":"Release workflow — test/commit/PR/canary. PATH-rel.","command":"ship","args":["serve"]} |
+        .mcpServers.guard       //= {"_comment":"Pre-deploy infra gate — inert until repo has a deploy/SSH target.","command":"guard","args":["serve"]} |
+        .mcpServers.vps         //= {"_comment":"VPS ops — inert until ~/.vps.toml names a host.","command":"vps","args":["serve"]}'
+      if jq "$mcp_filter" "$target/.mcp.json" > "$target/.mcp.json.tmp" 2>/dev/null; then
+        if cmp -s "$target/.mcp.json.tmp" "$target/.mcp.json"; then
+          rm -f "$target/.mcp.json.tmp"
+          conflicts="${conflicts}    ~ .mcp.json (kit tool entries already present — kept)\n"
+        else
+          mv "$target/.mcp.json.tmp" "$target/.mcp.json"
+          added="${added}    + .mcp.json (kit tool entries jq-merged: doctor/docs-gate/ship/guard/vps — repo's own MCP servers kept)\n"
+        fi
       else
         rm -f "$target/.mcp.json.tmp"
-        conflicts="${conflicts}    ~ .mcp.json (exists, jq-merge failed — add the \"doctor\" server entry by hand)\n"
+        conflicts="${conflicts}    ~ .mcp.json (exists, jq-merge failed — add the kit server entries by hand; see sos new .mcp.json)\n"
       fi
     else
-      conflicts="${conflicts}    ~ .mcp.json (exists — add the \"doctor\" server entry by hand; repo's own MCP kept. Tip: install jq for auto-merge)\n"
+      conflicts="${conflicts}    ~ .mcp.json (exists — add the kit server entries by hand; repo's own MCP kept. Tip: install jq for auto-merge)\n"
     fi
   fi
   # JA-05b: .claude/settings.local.json — pre-approve the 5 marker Bash ops (INSTALL.md §2.5);
