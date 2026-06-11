@@ -83,7 +83,7 @@ for bin in $BINARIES; do
 done
 for bin in $OPTIONAL_BINARIES; do
   if ! fetch_bin "$bin" optional; then
-    echo "  ⚠ $bin unavailable for $TARGET — skipped (optional; not built for this platform yet)."
+    echo "  ⚠ $bin unavailable — skipped (optional: repo not public yet, or no build for $TARGET)."
   fi
 done
 
