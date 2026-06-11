@@ -653,7 +653,10 @@ sos_adopt() {
           mkdir -p "$(dirname "$fdest")"; cp "$fpath" "$fdest"
           added="${added}    + ${frel}\n"
         fi
-      done < <(find "$src" -type f -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store')
+      # -L: deref symlinks — kit's .claude/agents/*.md are symlinks to ../../agents/ (drift-fix
+      # 2026-06-01); plain -type f skips them → adopted repo gets NO spawnable agents (F-04
+      # jarvis dogfood). cp without -P dereferences, so the dest receives a real file.
+      done < <(find -L "$src" -type f -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store')
     else
       local dest="$target/$rel"
       if [[ -e "$dest" ]]; then
@@ -755,6 +758,10 @@ TOML
   # CLAUDE.md = product identity → report-only (never auto-generate over a brownfield).
   local _name; _name="$(basename "$(cd "$target" && pwd)")"
   if [[ -f "$target/CHANGELOG.md" ]]; then conflicts="${conflicts}    ~ CHANGELOG.md (exists — kept)\n"
+  elif [[ -f "$target/docs/CHANGELOG.md" ]]; then
+    # repo keeps its changelog under docs/ (its .docs-gate.toml points there) — do NOT
+    # generate a competing root skeleton (F-05 jarvis dogfood: duplicate changelog noise)
+    conflicts="${conflicts}    ~ docs/CHANGELOG.md (exists — repo's own location, kept; no root skeleton)\n"
   else
     printf '# Changelog\n\nFormat loosely follows Keep a Changelog.\n\n## v0.0.0 — sos adopt — %s\n\n- Spine retrofitted via `sos adopt`.\n' "$(date -u +%Y-%m-%d)" > "$target/CHANGELOG.md"
     added="${added}    + CHANGELOG.md (skeleton)\n"
