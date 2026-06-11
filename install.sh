@@ -36,11 +36,11 @@ BIN_DIR="${SOS_BIN_DIR:-$HOME/.local/bin}"
 BINARIES="doctor claude-hooks docs-gate ship advisory-inbox"
 # OPTIONAL — download failure = WARN + continue, NOT abort (fail-closed stays reserved
 # for the gate binaries above). Two reasons a tool sits here:
-#   guard / vps / doc-rotate / advisory-cron: their repos are PRIVATE (2026-06-11) →
-#     anonymous release download 404s. They are also functionally optional (guard/vps
-#     inert without a deploy/SSH target; doc-rotate = docs hygiene; advisory-cron =
-#     per-repo opt-in scheduler, macOS+Linux only by design — Phase 3 compile_error!).
-#     If a repo goes PUBLIC later, promote it to BINARIES.
+#   guard / vps / doc-rotate: repos PRIVATE (real VPS IP/port in history — scrub before
+#     publish). Functionally optional anyway (guard/vps inert without a deploy/SSH
+#     target; doc-rotate = docs hygiene). Promote to BINARIES when published.
+#   advisory-cron: repo PUBLIC (2026-06-11, history-scanned clean) but macOS+Linux only
+#     by design (Phase 3 compile_error!) → stays optional so Windows installs don't abort.
 OPTIONAL_BINARIES="guard vps doc-rotate advisory-cron"
 
 # ── 1. Platform → target triple ─────────────────────────────────────────────
