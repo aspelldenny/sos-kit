@@ -19,12 +19,16 @@
 # bash here for now — for them, absent binary = allow = their correct default, so a
 # shim adds nothing; direct binary wiring is the claude-hooks-side rollout (khi nguội).
 
-command -v claude-hooks >/dev/null 2>&1 || {
-  echo "🚫 BLOCKED (fail-closed): \`claude-hooks\` binary not on PATH — the merge security gate cannot run." >&2
-  echo "   Every Bash call is blocked until it is installed (1 command, no Rust needed):" >&2
-  echo "     curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh" >&2
-  echo "   Dev path: cargo install --path ~/claude-hooks" >&2
-  exit 2
-}
+# Trusted install locations FIRST (Giám sát 2026-06-11: bare-name exec = a PATH-prepended
+# fake `claude-hooks` would be exec'd by the security gate itself). install.sh targets
+# ~/.local/bin; cargo install targets ~/.cargo/bin. PATH lookup is the LAST resort only.
+for cand in "$HOME/.local/bin/claude-hooks" "$HOME/.cargo/bin/claude-hooks"; do
+  [ -x "$cand" ] && exec "$cand" block-unsafe-merge
+done
+command -v claude-hooks >/dev/null 2>&1 && exec claude-hooks block-unsafe-merge
 
-exec claude-hooks block-unsafe-merge
+echo "🚫 BLOCKED (fail-closed): \`claude-hooks\` binary not found — the merge security gate cannot run." >&2
+echo "   Every Bash call is blocked until it is installed (1 command, no Rust needed):" >&2
+echo "     curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh" >&2
+echo "   Dev path: cargo install --path ~/claude-hooks" >&2
+exit 2

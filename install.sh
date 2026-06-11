@@ -25,6 +25,9 @@ KIT_DIR="${SOS_KIT_DIR:-$HOME/sos-kit}"
 BIN_DIR="${SOS_BIN_DIR:-$HOME/.local/bin}"
 # Binary manifest — each name is a repo under $GH_OWNER with release assets
 # named <bin>-<target-triple>[.exe] (contract: that repo's .github/workflows/release.yml).
+# KNOWN GAP (explicit, Giám sát 2026-06-11 → BACKLOG [P071]): downloads are HTTPS-enforced
+# but carry NO checksum/signature verification yet, and `releases/latest` is unpinned —
+# trust anchor today = the GitHub account. .sha256 publishing + verify is the planned cure.
 BINARIES="doctor claude-hooks"
 
 # ── 1. Platform → target triple ─────────────────────────────────────────────
@@ -48,7 +51,7 @@ for bin in $BINARIES; do
   url="https://github.com/$GH_OWNER/$bin/releases/latest/download/${bin}-${TARGET}${EXT}"
   dest="$BIN_DIR/${bin}${EXT}"
   echo "▶ $bin ← $url"
-  if curl -fSL --proto '=https' --progress-bar -o "${dest}.tmp" "$url"; then
+  if curl -fSL --proto '=https' --connect-timeout 30 --max-time 300 --progress-bar -o "${dest}.tmp" "$url"; then
     mv "${dest}.tmp" "$dest"
     chmod +x "$dest"
     echo "  ✓ $dest ($("$dest" --version 2>/dev/null || echo 'installed'))"
@@ -65,7 +68,7 @@ if [ -d "$KIT_DIR/.git" ]; then
   echo "▶ Kit already at $KIT_DIR — left untouched (update: git -C \"$KIT_DIR\" pull)"
 else
   echo "▶ Cloning sos-kit → $KIT_DIR"
-  git clone --depth 1 "https://github.com/$GH_OWNER/sos-kit" "$KIT_DIR"
+  GIT_TERMINAL_PROMPT=0 git clone --depth 1 "https://github.com/$GH_OWNER/sos-kit" "$KIT_DIR"
 fi
 
 # ── 4. `sos` launcher on PATH ────────────────────────────────────────────────
