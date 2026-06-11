@@ -643,8 +643,15 @@ sos_adopt() {
     local src="$K/$1"; local rel="${2:-$1}"
     [[ -e "$src" ]] || return 0
     if [[ -d "$src" ]]; then
-      local fpath frel fdest
+      local fpath frel fdest kreal
+      kreal="$(realpath "$K")"
       while IFS= read -r fpath; do
+        # symlink-escape guard (Giám sát advisory on the find -L change): the deref'd target
+        # must resolve INSIDE the kit tree — a future out-of-tree symlink (supply-chain or
+        # contributor error) must never be copied into adopted repos. realpath, not string-
+        # match on $fpath: find prints paths under $src, so the escape is only visible after
+        # resolving the link target.
+        [[ "$(realpath "$fpath")" == "$kreal"/* ]] || { echo "  ⚠ skip (symlink escapes kit tree): ${fpath#"$K"/}"; continue; }
         frel="${fpath#"$K"/}"; fdest="$target/$frel"
         if [[ -e "$fdest" ]]; then
           mkdir -p "$(dirname "$incoming/$frel")"; cp "$fpath" "$incoming/$frel"
