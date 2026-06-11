@@ -17,6 +17,9 @@
 >
 > **Cuối ngày:** advisory-cron PUBLIC hoá (Sếp gật, scan sạch) — installer giờ tải được 6/9 ẩn danh. **inv-gate project DỰNG XONG chờ Sếp vào chạy** (`~/inv-gate`: sos adopt CONNECTED rc=0 + doctor v0.1.1; CLAUDE.md golden-oracle method; BACKLOG Sprint 1 = P001 pin oracle → P002-P005 port per INV; golden/ = tarot 5-file 797 LOC frozen; release.yml sẵn; 5 agents background:true; pushed `f2946c4`). Bonus finding: macOS SIGKILL khi overwrite binary in-place (cp đè inode) — install.sh dùng mv nên đã an toàn sẵn.
 >
+> **🔥 Active — cụm skills-audit (Sếp ratified 2026-06-11):** 3-giữ-10-park + định danh caller. Kèm:
+> - [ ] **[NEW]** UserPromptSubmit hook bắt idea-smell → nhắc invoke /idea — trigger "idea mới" mờ, model lúc nhớ lúc quên (ghi BACKLOG thẳng không qua skill); regex các cụm "ghi vào backlog/anh nghĩ ra/ý tưởng/thêm vào backlog" → inject reminder. Coin-flip → deterministic, đúng enforce-via-mechanism. (11/06/2026)
+>
 > **NEXT (Sếp chọn):**
 > 1. **inv-gate Sprint 1** — mở Claude Code ở `~/inv-gate`, banner hiện P001 → brief 1 câu là chạy
 > 2. **[P071]** checksum/signing khi mở public rộng (release.yml +1 step ×9 repo + install.sh verify)
