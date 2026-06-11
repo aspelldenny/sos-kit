@@ -1015,6 +1015,14 @@ sos_sync() {
 
   echo "sos sync — re-sync spine into '$target'  (take-newer unmodified, flag customized)"
   echo "  provenance oracle: $K git history"
+  # Dirty-warn (lesson 2026-06-11: synced into inv-gate MID-PHIẾU — target had live WIP;
+  # a careless `git add -A` after sync would commit someone else's half-done work).
+  # Warn-not-block, same doctrine as adopt's JA-08.
+  if [[ -d "$target/.git" && -n "$(git -C "$target" status --porcelain 2>/dev/null)" ]]; then
+    echo "  ⚠ target has UNCOMMITTED changes (possibly a LIVE session mid-phiếu)."
+    echo "    sync only ADDS/UPDATES spine files, but: do NOT 'git add -A' afterwards —"
+    echo "    you would stage the repo's in-flight work. Let that repo's own session commit."
+  fi
 
   local f rel base root
   for root in scripts phieu templates; do
