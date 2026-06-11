@@ -4,6 +4,9 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-11
 
+**`sos sync` dirty-warn (2026-06-11):**
+- Same JA-08 doctrine as adopt, triggered by a live incident: Quản đốc synced into inv-gate while its session was MID-PHIẾU and a careless `git add -A` staged that repo's in-flight work (own gate blocked the commit; staging reset). sync now warns when the target tree is dirty: spine files still land, but explicitly instructs NOT to `git add -A` — the target repo's own session commits. Warn-not-block.
+
 **MODEL_SELECTION rule — Quản đốc owns per-spawn model choice (2026-06-11):**
 - Worker model analysis (Sếp + Quản đốc, grounded in claude-api reference + Sprint 1 evidence): sonnet 4.6 stays the worker DEFAULT (fast/cheap, fits mechanical CHALLENGE + oracle'd EXECUTE; fable = ~4-5× cost incl. new tokenizer, minutes-long turns, second-architect risk, refusal-classifier risk on security-tooling content, and homogeneous-debate loss vs a fable architect). Escalation is per-spawn via the Agent tool's native `model` param (overrides frontmatter — no hot-swap needed): E1 Tầng-1 cross-system CHALLENGE needing environment reasoning (IG-06 class) · E2 EXECUTE without oracle (creative/algorithmic) · E3 failed-once-on-sonnet retry · E4 Chủ nhà chỉ định. Every override logged in the phiếu Debate Log. Rule landed in orchestrator.md + ORCHESTRATION.md 12b.
 
