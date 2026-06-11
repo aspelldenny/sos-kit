@@ -7,7 +7,15 @@
 
 ## ⚡ The 1-command path (USE THIS)
 
-Pick by repo state — one command does the whole install below (copy + born-wire + validate):
+**Step 0 — get the kit + binaries (once per machine, no Rust needed):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh
+```
+
+Downloads prebuilt binaries (`doctor`, `claude-hooks` — mac-arm64/linux-x64/win-x64 from GitHub Releases) into `~/.local/bin`, clones the kit to `~/sos-kit`, and puts `sos` on PATH. Fail-closed: a failed download aborts. (Developers hacking the Rust tools: `templates/setup-dev.sh` is the cargo path.)
+
+**Then pick by repo state** — one command does the whole install below (copy + born-wire + validate):
 
 | Your repo is… | Command | What it does |
 |---|---|---|
@@ -52,7 +60,7 @@ After `sos adopt`, the report tells you the 2-3 things only YOU can do (fill `do
 ├── scripts/
 │   ├── architect-guard.sh         ← PreToolUse hook (block code reads when architect mode)
 │   ├── block-env-edit.sh          ← PreToolUse hook (block .env edits)
-│   ├── block-unsafe-merge.sh      ← PreToolUse hook (block force-push / unsafe merge — Giám sát backstop)
+│   ├── block-unsafe-merge.sh      ← PreToolUse hook (B+3 fail-closed shim → claude-hooks binary; gates `gh pr merge` — Giám sát backstop)
 │   └── session-start-banner.sh    ← SessionStart hook (show backlog at session start)
 └── docs/
     ├── BACKLOG.md                 ← Live work-in-progress list (NEW in v2)

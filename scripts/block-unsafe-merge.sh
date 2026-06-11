@@ -1,137 +1,34 @@
 #!/usr/bin/env bash
-# PreToolUse hook — block `gh pr merge <N>` nếu PR touch security surface chưa có /security-review APPROVE comment.
+# PreToolUse hook (Bash matcher) — B+3 FAIL-CLOSED SHIM [P064, Sếp-ratified 2026-06-09].
 #
-# Đầu vào: Claude Code hook spec gửi JSON qua stdin với { "tool_input": { "command": "..." } }.
-# Fallback: $CLAUDE_TOOL_INPUT env var nếu stdin trống.
-# Exit 2 → block tool call (stderr message hiện UI). Exit 0 → allow.
+# The merge-gate logic lives in the `claude-hooks` Rust binary (subcommand
+# `block-unsafe-merge`): blocks `gh pr merge <N>` / force-push unless the PR carries a
+# /security-review APPROVE sentinel. This file is ONLY the deploy shim:
 #
-# Doctrine: WORKFLOW_V2.2.md §7 Sub-mech A (trigger gap) + §8 (boundary-check rubric inject).
-# Pattern cứng — orchestrator KHÔNG dựa LLM remember triệu giám sát.
-# Tarot precedent: P297 (2026-05-25 — orchestrator MISS triệu giám sát cho 3 security PR cascade).
+#   binary PRESENT → exec it (stdin JSON + env flow through untouched)
+#   binary ABSENT  → exit 2 = BLOCK, LOUD.
 #
-# Override marker: command chứa `[security-review-skip:<reason>]` → allow với log warning.
-#   Use case: doctrine/docs-only PR mà pattern match false-positive, Sếp đã review tay.
+# Why fail-closed (B+3, NOT bash-fallback A): this hook gates merges on security
+# surfaces. Binary missing → exit 127 → harness would ALLOW = the gate silently opens
+# (P059: the old bash gate already died silently-open on Windows once). A loud total
+# block self-heals in one command — the bash fallback resurrects the rot the Rust port
+# exists to kill. Doctrine: WORKFLOW_V2.2.md §B "guard bảo mật → fail-closed";
+# decision trace: docs/BACKLOG.md [P064] RATIFIED DECISION.
 #
-# Known limitation: chỉ catch numbered form `gh pr merge <N>`.
-# Branch-only form `gh pr merge --merge` (no number) BYPASS hook.
+# The 3 fail-open hooks (architect-guard / block-env-edit / session-banner) keep their
+# bash here for now — for them, absent binary = allow = their correct default, so a
+# shim adds nothing; direct binary wiring is the claude-hooks-side rollout (khi nguội).
 
-set -euo pipefail
+# Trusted install locations FIRST (Giám sát 2026-06-11: bare-name exec = a PATH-prepended
+# fake `claude-hooks` would be exec'd by the security gate itself). install.sh targets
+# ~/.local/bin; cargo install targets ~/.cargo/bin. PATH lookup is the LAST resort only.
+for cand in "$HOME/.local/bin/claude-hooks" "$HOME/.cargo/bin/claude-hooks"; do
+  [ -x "$cand" ] && exec "$cand" block-unsafe-merge
+done
+command -v claude-hooks >/dev/null 2>&1 && exec claude-hooks block-unsafe-merge
 
-# cwd-independent (see architect-guard.sh): bind to repo root so git ops resolve the project.
-cd "${CLAUDE_PROJECT_DIR:-$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}" || exit 0
-
-# Đọc input
-if [ ! -t 0 ]; then
-  INPUT=$(cat || echo "")
-else
-  INPUT="${CLAUDE_TOOL_INPUT:-}"
-fi
-
-# Không có input → pass through
-if [ -z "$INPUT" ]; then exit 0; fi
-
-# Parse command — pure shell, NO interpreter.
-# (python3 trên Windows = Microsoft Store shim: exit≠0 → COMMAND rỗng → exit 0 = FAIL-OPEN,
-#  merge guard chết im lặng.) Các pattern dưới đây đặc thù (`gh pr merge <N>`,
-#  `[security-review-skip:]`) nên match thẳng trên raw payload là an toàn, zero-dep, và không
-#  bị escaped-quote cắt cụt. INPUT đã được verify non-empty ở trên. (Mirror architect-guard.sh.)
-COMMAND="$INPUT"
-
-# Match `gh pr merge <N>` (allow flag variants: --squash, --merge, --delete-branch, etc.)
-if ! echo "$COMMAND" | grep -qE 'gh pr merge[[:space:]]+[0-9]+'; then
-  exit 0
-fi
-
-# Extract PR number (first numeric after `gh pr merge`)
-PR=$(echo "$COMMAND" | sed -nE 's/.*gh pr merge[[:space:]]+([0-9]+).*/\1/p' | head -1)
-if [ -z "$PR" ]; then exit 0; fi
-
-# Override marker check
-if echo "$COMMAND" | grep -qE '\[security-review-skip:[^]]+\]'; then
-  REASON=$(echo "$COMMAND" | sed -nE 's/.*\[security-review-skip:([^]]+)\].*/\1/p')
-  echo "⚠️  Security review override marker detected for PR #$PR. Reason: $REASON" >&2
-  echo "    Allowing merge. Sếp đã review tay — em (hook) không block." >&2
-  exit 0
-fi
-
-# Check security surface — generic pattern (extend per-repo bằng SECURITY_SURFACE_EXTRA env var)
-# Generic surface: src/, schema/migration files, infra config, env files, auth/middleware,
-#                  security agents, security docs, security scripts, pre-commit hook itself.
-SECURITY_SURFACE_PATTERN='src/|schema\.(prisma|sql)|migrations?/|nginx/|docker-compose.*\.yml|Dockerfile|\.env[^.]|middleware\.|lib/auth/|\.claude/agents/security-|docs/security/|scripts/security-gate|scripts/check-(hardcoded|runtime)-secrets|hooks/pre-commit'
-
-# Extend pattern per-repo (optional)
-if [ -n "${SECURITY_SURFACE_EXTRA:-}" ]; then
-  SECURITY_SURFACE_PATTERN="${SECURITY_SURFACE_PATTERN}|${SECURITY_SURFACE_EXTRA}"
-fi
-
-DIFF_FILES=$(gh pr diff "$PR" --name-only 2>/dev/null || echo "")
-if [ -z "$DIFF_FILES" ]; then
-  # gh CLI fail (network/auth) → fail-safe: BLOCK với fallback message (KHÔNG silent allow)
-  cat >&2 <<EOF
-⛔ BLOCKED: gh pr diff #$PR thất bại (network/auth?).
-
-Em (hook) KHÔNG verify được PR có touch security surface không.
-Fail-safe: block merge để Sếp/Quản đốc kiểm tra tay.
-
-Cách hợp lệ:
-  - Kiểm tra gh auth status
-  - Chạy: gh pr diff $PR --name-only
-  - Nếu confirm KHÔNG touch security surface → re-run merge với marker:
-      gh pr merge $PR --merge [security-review-skip:gh-cli-unavailable]
-EOF
-  exit 2
-fi
-
-# Check pattern match
-if ! echo "$DIFF_FILES" | grep -qE "$SECURITY_SURFACE_PATTERN"; then
-  # Also check .env.example skip
-  NON_EXAMPLE=$(echo "$DIFF_FILES" | grep -E "^\.env" | grep -v '\.env\.example' || true)
-  if [ -z "$NON_EXAMPLE" ]; then
-    # PR không touch security surface → allow merge
-    exit 0
-  fi
-fi
-
-# PR touch security surface — check security-review comment APPROVE chưa
-COMMENTS=$(gh pr view "$PR" --json comments --jq '.comments[].body' 2>/dev/null || echo "")
-if echo "$COMMENTS" | grep -q '<!-- security-review-start -->'; then
-  # Có review block. Check verdict.
-  VERDICT_LINE=$(echo "$COMMENTS" | grep -A 50 '<!-- security-review-start -->' | grep -E '^Verdict:' | head -1)
-  if echo "$VERDICT_LINE" | grep -q 'APPROVE'; then
-    # APPROVE → allow
-    exit 0
-  fi
-  # NEEDS_REVIEW or unknown → block
-  cat >&2 <<EOF
-⛔ BLOCKED: PR #$PR touch security surface VÀ /security-review verdict KHÔNG phải APPROVE.
-
-Verdict line: $VERDICT_LINE
-
-Hành động:
-  1. Sếp đọc comment giám sát trên PR #$PR
-  2. Nếu Sếp accept risk → re-run với marker:
-     gh pr merge $PR --merge [security-review-skip:sep-accepted-needs-review]
-  3. Nếu cần fix → spawn Worker EXECUTE fix theo INV flagged, push, gate sẽ re-fire
-EOF
-  exit 2
-fi
-
-# Touch security surface NHƯNG chưa có review → BLOCK
-cat >&2 <<EOF
-⛔ BLOCKED: PR #$PR touch security surface NHƯNG chưa có /security-review.
-
-Em (Quản đốc) suýt MISS triệu giám sát. Hook chặn để fix structural — KHÔNG dựa LLM remember.
-
-Hành động:
-  1. Chạy slash command (em tự gõ):
-     /security-review $PR
-  2. Đợi @agent-boundary-check verdict (advisory, post comment trên PR)
-  3. Verdict APPROVE → re-run merge bình thường (hook sẽ allow)
-  4. Verdict NEEDS_REVIEW → Sếp đọc comment + quyết (re-run với marker nếu accept)
-
-Reference:
-  - PR: \$(gh pr view $PR --json url --jq .url)
-  - Doctrine: WORKFLOW_V2.2.md §7 Sub-mech A (trigger gap) + §8 (rubric inject)
-  - Slash: .claude/commands/security-review.md
-EOF
+echo "🚫 BLOCKED (fail-closed): \`claude-hooks\` binary not found — the merge security gate cannot run." >&2
+echo "   Every Bash call is blocked until it is installed (1 command, no Rust needed):" >&2
+echo "     curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh" >&2
+echo "   Dev path: cargo install --path ~/claude-hooks" >&2
 exit 2

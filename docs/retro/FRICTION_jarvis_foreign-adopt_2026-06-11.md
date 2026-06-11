@@ -18,7 +18,7 @@
 | **JA-03** | 🟡 | ✅ FIXED 2026-06-11 (born-wire) | adopt KHÔNG arm hooks → adopt `[3/4] Born-wire` gọi `install-hooks.sh` (F09 guard giữ safety; declined → report rõ) |
 | **JA-04** | 🟡 | ✅ FIXED 2026-06-11 (born-wire) | adopt KHÔNG chạy `sos init security` → born-wire gọi luôn (idempotent, no-stack → report) |
 | **JA-05** | 🟡 | ✅ FIXED 2026-06-11 | JSON merge tay ×2 → adopt jq-merge `.mcp.json` doctor entry (`//=`, không đụng key sẵn) + `settings.local.json` 5 marker perms (unique); không jq → hướng dẫn tay |
-| **JA-06** | 🟡 | PARTIAL (doc) | `sos` không có trên PATH — INSTALL.md giờ có bước symlink/source one-time; tự động hóa thật = curl\|sh installer (Tier-3, pending) |
+| **JA-06** | 🟡 | ✅ FIXED 2026-06-11 (P064) | `sos` không có trên PATH → `install.sh` (curl\|sh) tải prebuilt binaries (doctor+claude-hooks, GitHub Releases 3-target) + clone kit + đặt `sos` launcher vào `~/.local/bin`. Acceptance: máy-mới-giả-lập chạy `sos adopt` → CONNECTED |
 | **JA-07** | 🟡 | ✅ FIXED 2026-06-11 | INSTALL.md viết lại: lead bằng bảng 3 lệnh `new`/`adopt`/`sync`; manual steps hạ xuống Appendix (reference cho hand-merge) |
 | **JA-08** | 🟡 | ✅ FIXED 2026-06-11 | adopt warn khi target dirty tree (warn-not-block — adopt chỉ ADD file) |
 | **JA-09** | 🟡 | ✅ FIXED 2026-06-11 | adopt report footer "Heads-up for your FIRST commit": CHANGELOG entry mới + fill BACKLOG + restart Claude Code |
