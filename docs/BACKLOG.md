@@ -21,6 +21,9 @@
 > - [ ] **[NEW]** UserPromptSubmit hook bắt idea-smell → nhắc invoke /idea — trigger "idea mới" mờ, model lúc nhớ lúc quên (ghi BACKLOG thẳng không qua skill); regex các cụm "ghi vào backlog/anh nghĩ ra/ý tưởng/thêm vào backlog" → inject reminder. Coin-flip → deterministic, đúng enforce-via-mechanism. (11/06/2026)
 >
 > - [ ] **[NEW]** Register weekly `/retro` cron cho sos-kit — caller đã khai trong SKILL.md, register BLOCKED on advisory-cron `fire_task` no-timeout DEBT (repo nó tự cảnh báo `claude -p` hang). Fix debt đó trước → register `0 18 * * 0`-form. (11/06/2026)
+> **📐 SPEC GHIM — "adopt-hiểu-repo" (Principle 7, Sếp-ratified 2026-06-11 — COMPASS, CHƯA LÀM):**
+> Chuẩn: survey → classify → wire-what-matches → map-from-reality → ask-judgment-only → validate. Điểm hiện tại: map-from-reality ~80% (`sos map`) + validate ~85% (verify-setup trong adopt) ĐẠT; survey ~30% (chỉ manifest+dirs, thiếu framework/DB/CI/cron/deploy-surface); classify ~10% (chỉ new/adopt/sync); wire-what-matches ~15% (jarvis bị nhồi spine y hệt — vụ guard/vps "sida"); judgment-slots ~25% (TODO-dump thay vì interview). Thứ tự khi làm: (a) tier-wiring đã duyệt (gỡ guard/vps khỏi default .mcp.json) + (b) post-adopt interview 4 câu judgment (Quản đốc AskUserQuestion sau adopt: production surface / load-bearing / secret quan trọng / app cấm làm gì → điền INVARIANTS+AGENT_MAP) — 2 món rẻ làm trước; (c) survey/classify engine CHỜ n adopt đủ lớn (dogfood-BEFORE-infra). Đích: ráp vào chạy 70-80% ngay, phần còn lại repo tự mài dao trong quá trình chạy.
+>
 > **NEXT (Sếp chọn):**
 > 1. **inv-gate Sprint 1** — mở Claude Code ở `~/inv-gate`, banner hiện P001 → brief 1 câu là chạy
 > 2. **[P071]** checksum/signing khi mở public rộng (release.yml +1 step ×9 repo + install.sh verify)

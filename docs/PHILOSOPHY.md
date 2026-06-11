@@ -65,7 +65,7 @@ Prompt discipline ("please don't read code, Architect") fails because LLMs reach
 
 This is also why we don't lean on "trust the model": the hallucination-by-irrelevant-context failure mode is **load-bearing**, not occasional. The 3-role split is the minimum viable structure for catching it.
 
-## Six Operational Principles
+## Seven Operational Principles
 
 ### 1. One Command Per Step
 If shipping requires 5 manual steps, you'll eventually skip one. `ship` does all 5 in sequence with gates.
@@ -88,11 +88,21 @@ One person running a software business wears three hats: **Chủ nhà** (owner �
 
 In v2.1+ Subagent mode, a 4th persona — **Quản đốc** (Layer 0, the main Claude Code session as orchestrator) — automates the relay between Kiến trúc sư and Thợ. Quản đốc is not a 4th *human* role; it's the AI persona surfacing the orchestrator state machine to Sếp. The human still wears three hats. See [`LAYERS.md`](./LAYERS.md) for Layer 0 specifics.
 
-SOS Kit enforces role separation through **distinct skills per layer** — `/init` `/idea` `/insight` `/route` `/decide` for Chủ nhà, `/plan` `/forge` for Kiến trúc sư, `/verify` `/apply` `/review` `/qa` `/ship` `/retro` for Thợ. Different prompts, different mental modes, same human.
+SOS Kit enforces role separation structurally: **agent handbooks** (`agents/architect.md` / `worker.md` inline their layer's discipline — phiếu format, Task 0) + **5 living skills, each with a declared mechanical caller** (`/idea` `/init` for Chủ nhà, `/forge` for Kiến trúc sư, `/apply` `/retro` for Thợ — caller law: no hook/cron/CLI/gate caller, no skill; see `docs/LAYERS.md`). Different envelopes, different mental modes, same human.
 
 Handoffs between layers are **formalized** (see [`HANDOFF.md`](./HANDOFF.md)): insight briefing into vision docs, 5-bullet brief from Chủ nhà to Kiến trúc sư, phiếu (ticket) from Kiến trúc sư to Thợ, Discovery Report back up, blocker escalation via Chủ nhà as courier. No freestyle, no "just ping me." Format prevents context loss — the only thing more expensive than overhead is redundant work from misaligned assumptions.
 
 See [`LAYERS.md`](./LAYERS.md) for role boundaries and anti-patterns.
+
+### 7. Adopt Hiểu Repo (Composition)
+
+> **"Adopt không được biến repo thành sos-kit. Adopt phải làm sos-kit hiểu repo."** (Sếp, 2026-06-11)
+
+Projects have different shapes — web app with prod, thin bot, CLI tool, greenfield, brownfield. A smart adopt is NOT an LLM making more judgment calls; it is an installer that knows three categories apart: what can be **mechanically scanned** (stack, paths, existing hooks — scan it, never guess), what must be **asked of Chủ nhà** (production surface, load-bearing pieces, hard no-no's — judgment slots only, never mechanical noise), and what should **not be applied at all** (a Python bot gets no Next.js checks; a thin repo gets no heavy AGENT_MAP; deploy-gated tools stay out until a deploy target exists).
+
+The bar: assembly gets a project to **70-80% fit out of the box and RUNNING** — then the remaining fit is **self-sharpened in use** (mài dao riêng): friction logs feed retros, `sos sync` carries cures back and forth, and the repo grows its own domain agents/gates on top of the spine (tarot grew `prompt-reviewer`; jarvis grew a pytest pre-commit phase). Don't chase 100% fit at install time — chase a kit that learns the repo while working in it.
+
+Status: compass, not yet code — adopt today scores high on map-from-reality + validate, low on survey/classify/wire-what-matches (gap table: `docs/BACKLOG.md` "adopt-hiểu-repo" spec). Build the composition engine only as adoption evidence accumulates (dogfood-BEFORE-infra).
 
 ## The garbage-in blind spot — gate the input, not just the output
 

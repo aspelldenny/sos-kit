@@ -12,7 +12,7 @@ SOS Kit = "Solo Operating System" — a distribution center that packages a **3-
 What's inside:
 - `docs/LAYERS.md` — the 3-role model, access matrix, 2-tier authority, anti-patterns
 - `docs/HANDOFF.md` — 5 handoff protocols (insight briefing, routing, phiếu, escalation, discovery)
-- `docs/PHILOSOPHY.md` — 6 principles (role separation is #6)
+- `docs/PHILOSOPHY.md` — 7 principles (role separation #6, adopt-hiểu-repo #7)
 - `docs/SETUP.md` — install guide for Rust tools + skills + phiếu shell function
 - `phieu/` — ticket workflow backbone
   - `README.md`, `TICKET_TEMPLATE.md`, `phieu.sh` — the core
@@ -168,7 +168,7 @@ sos-kit/
 
 ### Edit docs
 - `README.md` — any tool/skill/integration table MUST match actual folders and binaries. Contributor onboarding breaks if they drift.
-- `docs/PHILOSOPHY.md` — stable. Don't add a 6th principle without strong justification. The 6 operational principles (plus Principle 0 = accountability) are load-bearing.
+- `docs/PHILOSOPHY.md` — stable. Don't add principles without strong justification (Sếp ratification = the bar; #7 adopt-hiểu-repo added 2026-06-11). The 7 operational principles (plus Principle 0 = accountability) are load-bearing.
 - `docs/SETUP.md` — must match real binary names and `cargo install` instructions.
 - `docs/ORCHESTRATION.md` — orchestrator full spec; condensed handbook at `agents/orchestrator.md` mirrors hard rules. Edit both together.
 
