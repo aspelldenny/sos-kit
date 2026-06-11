@@ -33,7 +33,11 @@ BIN_DIR="${SOS_BIN_DIR:-$HOME/.local/bin}"
 # KNOWN GAP (explicit, Giám sát 2026-06-11 → BACKLOG [P071]): downloads are HTTPS-enforced
 # but carry NO checksum/signature verification yet, and `releases/latest` is unpinned —
 # trust anchor today = the GitHub account. .sha256 publishing + verify is the planned cure.
-BINARIES="doctor claude-hooks docs-gate ship guard vps doc-rotate advisory-inbox advisory-cron"
+BINARIES="doctor claude-hooks docs-gate ship guard vps doc-rotate advisory-inbox"
+# OPTIONAL — absent on some platforms by design; download failure = WARN + continue,
+# NOT abort (fail-closed stays reserved for the gate binaries above).
+#   advisory-cron: Phase 3 = macOS+Linux only (launchd/cron; Windows Task Scheduler unbuilt).
+OPTIONAL_BINARIES="advisory-cron"
 
 # ── 1. Platform → target triple ─────────────────────────────────────────────
 OS="$(uname -s)" ARCH="$(uname -m)" EXT=""
@@ -52,7 +56,8 @@ echo "▶ Platform: $OS $ARCH → $TARGET"
 
 # ── 2. Prebuilt binaries ─────────────────────────────────────────────────────
 mkdir -p "$BIN_DIR"
-for bin in $BINARIES; do
+fetch_bin() {  # <bin> <required|optional> → 0 ok | 1 failed
+  bin="$1"
   url="https://github.com/$GH_OWNER/$bin/releases/latest/download/${bin}-${TARGET}${EXT}"
   dest="$BIN_DIR/${bin}${EXT}"
   echo "▶ $bin ← $url"
@@ -60,11 +65,21 @@ for bin in $BINARIES; do
     mv "${dest}.tmp" "$dest"
     chmod +x "$dest"
     echo "  ✓ $dest ($("$dest" --version 2>/dev/null || echo 'installed'))"
-  else
-    rm -f "${dest}.tmp"
+    return 0
+  fi
+  rm -f "${dest}.tmp"
+  return 1
+}
+for bin in $BINARIES; do
+  if ! fetch_bin "$bin" required; then
     echo "✗ Download FAILED for $bin — ABORTING (fail-closed: the kit's gates need it)." >&2
     echo "  Check: https://github.com/$GH_OWNER/$bin/releases" >&2
     exit 1
+  fi
+done
+for bin in $OPTIONAL_BINARIES; do
+  if ! fetch_bin "$bin" optional; then
+    echo "  ⚠ $bin unavailable for $TARGET — skipped (optional; not built for this platform yet)."
   fi
 done
 
@@ -96,7 +111,7 @@ case ":$PATH:" in
 esac
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✓ sos-kit installed: $BINARIES + sos → $BIN_DIR"
+echo "✓ sos-kit installed: $BINARIES + optional($OPTIONAL_BINARIES) + sos → $BIN_DIR"
 echo ""
 echo "Next — pick by repo state:"
 echo "  existing repo:   cd <your-repo> && sos adopt ."
