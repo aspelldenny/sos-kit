@@ -7,7 +7,17 @@
 
 ---
 
-## ▶ NEXT SESSION — agreed plan (2026-06-09, Sếp + Quản đốc) [RESET POINT]
+## ▶ NEXT SESSION — build "1 lệnh" installer (updated 2026-06-11) [RESET POINT]
+
+> **Session 2026-06-11 — steps 2+3 of the plan DONE:** JARVIS foreign-adopt complete (`doctor verify-setup` CONNECTED rc=0; 5 agents + skills + hooks armed + `.sos-stack.toml` + doctor MCP + marker perms). Harvest: **2 adopt bugs fixed** (JA-01 🔴 symlink agents dropped by `find -type f` → `find -L` + realpath escape-guard, Giám sát APPROVE 5/5 + hardening fire-tested; JA-02 duplicate root CHANGELOG) + **12-finding friction log = installer requirements** → `docs/retro/FRICTION_jarvis_foreign-adopt_2026-06-11.md`. Merged `dab96c2`, pushed.
+>
+> **NEXT = step 4: Build "1 lệnh" (Tier-3 distribution)** with the harvested requirements (triage cover of the friction log): adopt "born-wired" như `sos new` (arm hooks JA-03 + init security JA-04) · JSON auto-merge (JA-05) · `sos` on PATH (JA-06) · INSTALL.md rewrite quanh 3 lệnh new/adopt/sync (JA-07) · dirty-tree warn (JA-08) · guided first-commit (JA-09). Plus ratified pieces: prebuilt binary (GitHub Releases 3-target) + `curl|sh` + B+3 fail-closed shim [P064] + golden `setup-dev.sh` [P065]. inv-gate Rust port vẫn optional (đủ-bộ, harvest nhỏ).
+>
+> **⚠️ JARVIS-side loose end (Chủ nhà):** JA-12 — revoke GitHub PAT lộ trong `~/jarvis/scripts/setup_obsidian_server.sh:8,36` (committed+pushed, private) rồi chuyển env var. Jarvis adopt artifacts chưa commit (tree đang lẫn WIP của Sếp — Sếp tự gom commit). BACKLOG jarvis cần fill Active sprint + restart Claude Code để agents load.
+
+---
+
+## ▶ PREVIOUS plan (2026-06-09, Sếp + Quản đốc) — steps 1-3 superseded above
 
 > **Session 2026-06-09 was huge** — built `sos sync` (KIT-LAG cure, n=2 proven) + P069 (Architect Write-envelope enforce) + F09 (install-hooks security-hijack guard); closed Tier-0; de-risked Blocker C trọn; ratified B+3 (fail-closed binary deploy); harvested 3 friction logs (~20 findings, claude-hooks + doc-rotate ×2 + tarot). Details: CHANGELOG v2.3 forge + items below.
 >
