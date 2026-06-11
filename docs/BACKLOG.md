@@ -15,11 +15,13 @@
 >
 > **Phần 2 cùng ngày (sau test tay của Sếp):** doctor **v0.1.1** (verify-setup B+3-shim-aware — Thợ execute qua orchestrator-guard block đúng quy trình, 40/40 test) · manifest **2→9 binary** (release-CI rải đủ 9 repo; advisory-cron matrix mac+linux — Windows bites #1 đúng dự báo) · adopt jq-merge đủ 5 MCP server · sos-kit tự seed INVARIANTS.md (J4) · **jarvis spine restore qua sos sync n=3** (session anh em xoá scripts/+agents — 55 file phục hồi, 3 agents take-newer về background:true) · installer chia core(fail-closed)/optional(warn-skip) vì **4 repo private**: scan history → advisory-cron SẠCH (chờ Sếp gật public), guard/vps/doc-rotate lộ IP+port+root@ VPS thật trong history → GIỮ PRIVATE (scrub-rồi-public khi có user ngoài). **Public test chốt: rc=0, 5 core + sos, 4 optional skip rõ lý do.**
 >
-> **NEXT (không còn blocker đóng-kit — Sếp chọn):**
-> 1. **inv-gate Rust port** (optional, đủ-bộ — golden-oracle như doc-rotate, harvest nhỏ)
-> 2. **[P071]** checksum/signing khi tính mở public (release.yml +1 step ×2 repo + install.sh verify)
-> 3. **media-rating brownfield** adopt-poisoned pass (P068 follow-up, paired code-poison orchestration)
-> 4. Quay về **PRODUCT** (tarot/jarvis) — kit đã đủ răng; bài "tool vs product": xong pain-cure thì về product.
+> **Cuối ngày:** advisory-cron PUBLIC hoá (Sếp gật, scan sạch) — installer giờ tải được 6/9 ẩn danh. **inv-gate project DỰNG XONG chờ Sếp vào chạy** (`~/inv-gate`: sos adopt CONNECTED rc=0 + doctor v0.1.1; CLAUDE.md golden-oracle method; BACKLOG Sprint 1 = P001 pin oracle → P002-P005 port per INV; golden/ = tarot 5-file 797 LOC frozen; release.yml sẵn; 5 agents background:true; pushed `f2946c4`). Bonus finding: macOS SIGKILL khi overwrite binary in-place (cp đè inode) — install.sh dùng mv nên đã an toàn sẵn.
+>
+> **NEXT (Sếp chọn):**
+> 1. **inv-gate Sprint 1** — mở Claude Code ở `~/inv-gate`, banner hiện P001 → brief 1 câu là chạy
+> 2. **[P071]** checksum/signing khi mở public rộng (release.yml +1 step ×9 repo + install.sh verify)
+> 3. **media-rating brownfield** adopt-poisoned pass (P068 follow-up)
+> 4. Quay về **PRODUCT** (tarot/jarvis) — kit đã đủ răng.
 
 ---
 
