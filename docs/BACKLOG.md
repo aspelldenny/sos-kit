@@ -7,13 +7,17 @@
 
 ---
 
-## ▶ NEXT SESSION — build "1 lệnh" installer (updated 2026-06-11) [RESET POINT]
+## ▶ NEXT SESSION — Tier-3 ĐÓNG; còn lại = optional/polish (updated 2026-06-11 EOD) [RESET POINT]
 
-> **Session 2026-06-11 — steps 2+3 of the plan DONE:** JARVIS foreign-adopt complete (`doctor verify-setup` CONNECTED rc=0; 5 agents + skills + hooks armed + `.sos-stack.toml` + doctor MCP + marker perms). Harvest: **2 adopt bugs fixed** (JA-01 🔴 symlink agents dropped by `find -type f` → `find -L` + realpath escape-guard, Giám sát APPROVE 5/5 + hardening fire-tested; JA-02 duplicate root CHANGELOG) + **12-finding friction log = installer requirements** → `docs/retro/FRICTION_jarvis_foreign-adopt_2026-06-11.md`. Merged `dab96c2`, pushed.
+> **Session 2026-06-11 — steps 2+3+4 ALL DONE (trọn plan 2026-06-09):**
+> - **JARVIS foreign-adopt** (steps 2+3): verify-setup CONNECTED; 2 adopt bugs fixed (JA-01 🔴 symlink agents + realpath escape-guard; JA-02 dup changelog); 12-finding friction log → 9/12 đóng trong ngày. JA-12 PAT revoked + script sang env var, gate re-run 2/2 PASS. Jarvis session sống tốt (Quản đốc bên đó tự nhận diện phiếu treo, 115/115 test, đề xuất commit+deploy đúng bài).
+> - **"1 lệnh" SHIPPED (step 4, P064+P065):** adopt born-wire (JA-03/04/05/08/09) + INSTALL.md 3-command rewrite (JA-07) → `113d1ac`. Release-CI doctor v0.1.0 + claude-hooks v0.9.1 (3-target, xanh first-run) + `install.sh` curl|sh (fail-closed, no-Rust, JA-06) + B+3 shim vào `block-unsafe-merge.sh` (live-fire: gate chặn chính lệnh test của Quản đốc giữa session) + `templates/setup-dev.sh` golden → `0f5ffaf`. Giám sát NEEDS_REVIEW → hardened same-branch (curl/git timeouts + trusted-path exec giết PATH-spoof); **[P071]** checksum/pinning = deferral explicit. **Acceptance: public curl|sh thật từ GitHub → sos adopt → CONNECTED (máy-trắng-giả-lập).**
 >
-> **NEXT = step 4: Build "1 lệnh" (Tier-3 distribution)** with the harvested requirements (triage cover of the friction log): adopt "born-wired" như `sos new` (arm hooks JA-03 + init security JA-04) · JSON auto-merge (JA-05) · `sos` on PATH (JA-06) · INSTALL.md rewrite quanh 3 lệnh new/adopt/sync (JA-07) · dirty-tree warn (JA-08) · guided first-commit (JA-09). Plus ratified pieces: prebuilt binary (GitHub Releases 3-target) + `curl|sh` + B+3 fail-closed shim [P064] + golden `setup-dev.sh` [P065]. inv-gate Rust port vẫn optional (đủ-bộ, harvest nhỏ).
->
-> **⚠️ JARVIS-side loose end (Chủ nhà):** JA-12 — revoke GitHub PAT lộ trong `~/jarvis/scripts/setup_obsidian_server.sh:8,36` (committed+pushed, private) rồi chuyển env var. Jarvis adopt artifacts chưa commit (tree đang lẫn WIP của Sếp — Sếp tự gom commit). BACKLOG jarvis cần fill Active sprint + restart Claude Code để agents load.
+> **NEXT (không còn blocker đóng-kit — Sếp chọn):**
+> 1. **inv-gate Rust port** (optional, đủ-bộ — golden-oracle như doc-rotate, harvest nhỏ)
+> 2. **[P071]** checksum/signing khi tính mở public (release.yml +1 step ×2 repo + install.sh verify)
+> 3. **media-rating brownfield** adopt-poisoned pass (P068 follow-up, paired code-poison orchestration)
+> 4. Quay về **PRODUCT** (tarot/jarvis) — kit đã đủ răng; bài "tool vs product": xong pain-cure thì về product.
 
 ---
 
