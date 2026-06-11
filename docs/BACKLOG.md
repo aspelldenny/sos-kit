@@ -32,6 +32,14 @@
 > - [ ] **[NEW]** Sprint-item "assumption note" (IG-06): BACKLOG item viết trước khi có oracle nên khai giả định môi trường — guidance vào TICKET_TEMPLATE/idea skill khi sprint sau xác nhận lại pattern. (11/06/2026)
 > - Carry sang sprint sau: W4 idea-smell live, W14 exit-code contract, W18 CHANGELOG ngày-2, W21 Sếp chấm % fit. W5 nghĩa-vụ-chặn B+3 = test khi merge sprint branch inv-gate (gh pr merge sẽ đòi security-review APPROVE).
 >
+> **🌾 HARVEST inv-gate Sprint 1+2 (2026-06-11 — 11 findings, source: docs/retro/FRICTION_inv-gate_e2e-dogfood_2026-06-11.md). 6 actions DONE/flagged this session:** (1) inv-gate → install.sh BINARIES ✓ · (2) security-gate.sh binary-first per-check (kill python dep, python fallback, both branches fire-tested) ✓ · (3) platform IG-10: Intel-Mac→Rosetta + 3-platform-arch documented ✓ · (4) quarantine xattr-strip Darwin ✓ · (6) doctrine items already synced ✓. Items still OPEN:
+> - [ ] **[FLEET-NODE] 🔴 deadline 16/06/2026** — GitHub Actions Node20 deprecation hits ALL 10 tool repos' release.yml (`actions/checkout@v4` etc). inv-gate self-fixing in P009 (not shipped yet) → **mirror its canonical bump across doctor/claude-hooks/docs-gate/ship/guard/vps/doc-rotate/advisory-inbox/advisory-cron** before next tag, else release CI fails. (action 5 — flagged not executed: exact bump unshipped, 10-repo fleet op = wait for oracle.)
+> - [ ] **[DECISION] IG-07** — local-merge lách sentinel: `block-unsafe-merge` chỉ canh PR-comment (gh), `git merge main + push` tay bỏ qua nghĩa vụ Giám-sát. Fix: pre-push check sentinel APPROVE cho security-surface push, HOẶC document "local merge = Chủ nhà tự chịu".
+> - [ ] **[DECISION] IG-01-deeper** — guard phân vai bằng marker file, không phân biệt main-session-orchestrator edit `.claude/` vs architect-subagent. Symmetric-rm đã vá triệu chứng; gốc vẫn còn (orchestrator sửa config hợp lệ bị chặn). Fix: whitelist `.claude/` edit cho orchestrator HOẶC signal khác ngoài marker.
+> - [ ] **[DECISION] platform-targets** — thêm `x86_64-apple-darwin` (Intel native, bỏ Rosetta) + `aarch64-unknown-linux-gnu` (VPS ARM/Graviton) = 5-target, HAY giữ 3 + Rosetta/document? (IG-10 phần 2.)
+> - [ ] **[DEBT] W16** — security gate quét `.ts/.js`, KHÔNG quét `.rs/.py` → repo Rust không bảo vệ chính source nó (kế thừa tarot). inv-gate Sprint 2 profile-mode.
+> - W21 fit ~65% (Quản đốc chấm, Sếp chỉnh): spine+workflow+gates gánh tốt; trừ điểm IG-01/07/09. IG-08 (non-contiguous synthetic secret) + IG-09 (per-phiếu merge) đã landed vào worker.md.
+>
 > **NEXT (Sếp chọn):**
 > 1. **inv-gate Sprint 1** — mở Claude Code ở `~/inv-gate`, banner hiện P001 → brief 1 câu là chạy
 > 2. **[P071]** checksum/signing khi mở public rộng (release.yml +1 step ×9 repo + install.sh verify)

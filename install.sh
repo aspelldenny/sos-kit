@@ -29,11 +29,13 @@ BIN_DIR="${SOS_BIN_DIR:-$HOME/.local/bin}"
 # claude-hooks (session hooks, B+3 gate) + docs-gate (pre-commit [2/7] — absent = gate
 # silently skips, P006) + ship/guard/vps (release/deploy/ops, wired in .mcp.json) +
 # doc-rotate (docs cap/rotate) + advisory-inbox (CVE inbox CLI, /advisory-scan dep) +
-# advisory-cron (daily scan scheduler — register is per-repo OPT-IN, binary just lands).
+# advisory-cron (daily scan scheduler — register is per-repo OPT-IN, binary just lands) +
+# inv-gate (mechanical security INV gate — v0.1.0 public 2026-06-11; pre-commit [4/7] uses it
+# binary-first, kills the python3 dep in the gate chain — harvest action inv-gate IG-06/dogfood).
 # KNOWN GAP (explicit, Giám sát 2026-06-11 → BACKLOG [P071]): downloads are HTTPS-enforced
 # but carry NO checksum/signature verification yet, and `releases/latest` is unpinned —
 # trust anchor today = the GitHub account. .sha256 publishing + verify is the planned cure.
-BINARIES="doctor claude-hooks docs-gate ship advisory-inbox"
+BINARIES="doctor claude-hooks docs-gate ship advisory-inbox inv-gate"
 # OPTIONAL — download failure = WARN + continue, NOT abort (fail-closed stays reserved
 # for the gate binaries above). Two reasons a tool sits here:
 #   guard / vps / doc-rotate: repos PRIVATE (real VPS IP/port in history — scrub before
@@ -50,9 +52,14 @@ case "$OS-$ARCH" in
   Linux-x86_64)  TARGET="x86_64-unknown-linux-gnu" ;;
   MINGW*-x86_64|MSYS*-x86_64|CYGWIN*-x86_64)
                  TARGET="x86_64-pc-windows-msvc"; EXT=".exe" ;;
+  # Intel Mac: no x86_64-apple-darwin build (kit ships 3 platform-arch only, IG-10). Run the
+  # arm64 binary under Rosetta 2 — it's transparent once Rosetta is installed.
+  Darwin-x86_64) TARGET="aarch64-apple-darwin"
+    echo "ℹ Intel Mac — using arm64 binary via Rosetta 2 (install: softwareupdate --install-rosetta)." >&2 ;;
   *)
     echo "✗ Unsupported platform: $OS $ARCH" >&2
-    echo "  Prebuilt targets: mac-arm64, linux-x64, win-x64 (Git Bash)." >&2
+    echo "  Supported (3 platform-arch — IG-10 scope): mac (arm64 native / Intel via Rosetta)," >&2
+    echo "  linux-x64, win-x64 (Git Bash). Linux-ARM64 not built yet — see BACKLOG." >&2
     echo "  Dev fallback (needs Rust): clone the tool repos + cargo install --path." >&2
     exit 1 ;;
 esac
@@ -68,6 +75,9 @@ fetch_bin() {  # <bin> <required|optional> → 0 ok | 1 failed
   if curl -fSL --proto '=https' --connect-timeout 30 --max-time 300 --progress-bar -o "${dest}.tmp" "$url"; then
     mv "${dest}.tmp" "$dest"
     chmod +x "$dest"
+    # macOS Gatekeeper: curl-downloaded binaries get a com.apple.quarantine xattr → first run
+    # is blocked ("cannot be opened"). Strip it so the binary runs (IG-11 inv-gate dogfood).
+    [ "$OS" = "Darwin" ] && xattr -d com.apple.quarantine "$dest" 2>/dev/null || true
     echo "  ✓ $dest ($("$dest" --version 2>/dev/null || echo 'installed'))"
     return 0
   fi

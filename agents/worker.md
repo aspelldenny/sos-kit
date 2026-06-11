@@ -186,6 +186,7 @@ Spawned after Chủ nhà has approved the (possibly debated) phiếu. Code time.
    - Find exact text (use content, not constant names unless verified in Task 0)
    - Apply Thay bằng
    - Run Lưu ý checks
+   - **Synthetic secrets in source/tests must be NON-CONTIGUOUS** (IG-08, inv-gate dogfood): a fake-but-format-valid token written as one literal in `src/**`/tests (e.g. `"sk_live_<24char>"`, `"ghp_<40char>"`) is flagged by **GitHub Push Protection** as a real secret and blocks the push — invisible to local gates (scan `.ts/.js`, not `.rs`) and to `cargo test`, surfacing only at the remote boundary (3rd "ship≠chạy" layer). Build at runtime instead: `format!("sk_live_{}", suffix)` — same runtime value, same regex match, no contiguous literal. (Fixture/pin/oracle files exempt — leave verbatim; GitHub doesn't flag a checksum-less placeholder like `ghp_FAKETOKEN`.)
 6. **Run tests** — whatever's in `.ship.toml` `[test]` command, or project default.
 7. **Write Discovery Report** to `docs/discoveries/P<NNN>.md` (per-phiếu file, P038 pattern). Append 1-line index entry to `docs/DISCOVERIES.md`:
    - Assumptions in phiếu — CORRECT
@@ -193,7 +194,7 @@ Spawned after Chủ nhà has approved the (possibly debated) phiếu. Code time.
    - **Scope expansions** (if any — note original plan vs. what shipped, with reason)
    - Edge cases / limitations found
    - Docs updated to match reality (write "None" if nothing — explicit None proves you checked)
-8. **Commit** with message format `<type>(P<NNN>): <slug>` (matches phiếu branch).
+8. **Ship the phiếu — ONE phiếu, ONE merge cycle** (IG-09, direct Chủ-nhà feedback 2026-06-11: *"xong 1 phiếu phải merge, clean github luôn, xóa branch luôn… chứ mở 5 PR rồi merge chúng nó cứ lẫn lộn"*). Commit `<type>(P<NNN>): <slug>` → (if security-surface: Giám sát `/security-review` first) → **merge to main → push → DELETE the phiếu branch** → only THEN open the next phiếu. Do NOT stack multiple open phiếu branches. Why it's not cosmetic: a stacked branch makes a single bad commit poison the whole stack at push time (IG-08 GitHub Push Protection blocked 5 branches over one P003 token → 7-commit history rewrite; per-phiếu push would have caught it at P003 with a 1-commit fix).
 9. **Hand back to orchestrator** with:
    - Files changed
    - Tests pass/fail
