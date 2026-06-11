@@ -96,7 +96,7 @@ sos-kit/
 │   ├── architect-guard.sh  # PreToolUse hook — block code reads when architect active
 │   ├── block-env-commit.sh    # pre-commit [7/7] — block .env* secret-file commits (allow .env.example); git-level backstop to P046 PreToolUse guard
 │   ├── block-env-edit.sh   # PreToolUse hook — block .env edits
-│   ├── block-unsafe-merge.sh  # PreToolUse hook — block force-push / unsafe merge (Giám sát backstop)
+│   ├── block-unsafe-merge.sh  # PreToolUse hook — B+3 fail-closed shim → `claude-hooks block-unsafe-merge` binary (gates `gh pr merge <N>` without security APPROVE; binary absent = BLOCK LOUD) [P064]
 │   ├── no-code-on-default.sh  # pre-commit [6/7] — block product code committed on default branch (force feature branch; agent-agnostic)
 │   ├── security-gate.sh, check-*.py, parsers/  # commit-time security gate + advisory lockfile parsers
 │   └── session-start-banner.sh  # SessionStart hook — show BACKLOG on session open
