@@ -631,6 +631,13 @@ sos_adopt() {
   echo "─────────────────────────────────────────"
   echo "sos adopt — retrofit spine into existing '$target' (ADDITIVE + NON-CLOBBER)"
   echo "─────────────────────────────────────────"
+  # JA-08 (jarvis dogfood): dirty target → adopt's ~60 new files mix into the user's WIP in
+  # git status. Warn, don't block (adopt only ADDS files — safe on a dirty tree).
+  if [[ -d "$target/.git" && -n "$(git -C "$target" status --porcelain 2>/dev/null)" ]]; then
+    echo "⚠ target has uncommitted changes — adopt only ADDS files (never edits yours),"
+    echo "  but git status will mix adopt output with your WIP. Commit/stash first to keep"
+    echo "  the adopt reviewable as its own commit. Proceeding."
+  fi
   local incoming="$target/.sos-adopt-incoming"
   local added="" conflicts=""
 
@@ -676,7 +683,7 @@ sos_adopt() {
     fi
   }
 
-  echo "[1/3] Spine (copy-if-absent; existing → staged to .sos-adopt-incoming/)"
+  echo "[1/4] Spine (copy-if-absent; existing → staged to .sos-adopt-incoming/)"
   adopt_item ".claude/agents"
   adopt_item ".claude/commands"
   adopt_item ".claude/settings.json"
@@ -719,11 +726,49 @@ sos_adopt() {
 JSON
     added="${added}    + .mcp.json (doctor gate wired — our tool, PATH-rel)\n"
   else
-    conflicts="${conflicts}    ~ .mcp.json (exists — add the \"doctor\" server entry by hand; repo's own MCP kept)\n"
+    # JA-05 (jarvis dogfood): hand-editing JSON is where new users drop the ball. jq-merge the
+    # doctor entry ONLY if absent (`//=` never touches existing keys = non-clobber preserved).
+    if command -v jq >/dev/null 2>&1; then
+      if jq -e '.mcpServers.doctor' "$target/.mcp.json" >/dev/null 2>&1; then
+        conflicts="${conflicts}    ~ .mcp.json (doctor entry already present — kept)\n"
+      elif jq '.mcpServers.doctor //= {"_comment":"sos-kit mechanical gate. Our own Rust tool — wire via PATH. Install: cargo install --path ~/doctor.","command":"doctor","args":["serve"]}' \
+             "$target/.mcp.json" > "$target/.mcp.json.tmp" 2>/dev/null; then
+        mv "$target/.mcp.json.tmp" "$target/.mcp.json"
+        added="${added}    + .mcp.json (doctor entry jq-merged — repo's own MCP servers kept)\n"
+      else
+        rm -f "$target/.mcp.json.tmp"
+        conflicts="${conflicts}    ~ .mcp.json (exists, jq-merge failed — add the \"doctor\" server entry by hand)\n"
+      fi
+    else
+      conflicts="${conflicts}    ~ .mcp.json (exists — add the \"doctor\" server entry by hand; repo's own MCP kept. Tip: install jq for auto-merge)\n"
+    fi
+  fi
+  # JA-05b: .claude/settings.local.json — pre-approve the 5 marker Bash ops (INSTALL.md §2.5);
+  # missing these = permission prompt on every architect/worker spawn. Copy-if-absent, else
+  # jq-merge into permissions.allow (unique = idempotent).
+  local slj="$target/.claude/settings.local.json"
+  local marker_perms='["Bash(mkdir -p .sos-state)","Bash(touch .sos-state/architect-active)","Bash(rm -f .sos-state/architect-active)","Bash(touch .sos-state/worker-active)","Bash(rm -f .sos-state/worker-active)"]'
+  if [[ ! -f "$slj" ]]; then
+    mkdir -p "$target/.claude"
+    cp "$K/templates/claude-settings.local.json" "$slj"
+    added="${added}    + .claude/settings.local.json (5 marker perms — per-user, don't commit)\n"
+  elif command -v jq >/dev/null 2>&1; then
+    if jq -e --argjson p "$marker_perms" '(.permissions.allow // []) | contains($p)' "$slj" >/dev/null 2>&1; then
+      conflicts="${conflicts}    ~ .claude/settings.local.json (5 marker perms already present — kept)\n"
+    elif jq --argjson p "$marker_perms" '.permissions.allow = ((.permissions.allow // []) + $p | unique)' \
+           "$slj" > "$slj.tmp" 2>/dev/null; then
+      mv "$slj.tmp" "$slj"
+      added="${added}    + .claude/settings.local.json (5 marker perms jq-merged — existing perms kept)\n"
+    else
+      rm -f "$slj.tmp"
+      conflicts="${conflicts}    ~ .claude/settings.local.json (exists, jq-merge failed — add 5 marker perms by hand, INSTALL.md §2.5)\n"
+    fi
+  else
+    conflicts="${conflicts}    ~ .claude/settings.local.json (exists — add 5 marker perms by hand, INSTALL.md §2.5. Tip: install jq for auto-merge)\n"
   fi
   echo "  done"
 
-  echo "[2/3] Category C — generate ONLY if missing (never overwrite existing docs)"
+  echo "[2/4] Category C — generate ONLY if missing (never overwrite existing docs)"
   mkdir -p "$target/docs/security" "$target/docs/ticket/done"
   if [[ ! -f "$target/docs/security/INVARIANTS.md" ]]; then
     cp "$K/templates/INVARIANTS-template.md" "$target/docs/security/INVARIANTS.md"
@@ -819,7 +864,37 @@ EOF
     added="${added}    + .phieu-counter (seed 0 — source phieu/phieu.sh to use \`phieu <slug>\`)\n"
   fi
 
-  echo "[3/3] Validator"
+  # ---- Born-wire (JA-03 + JA-04, jarvis dogfood): `sos new` arms its gates at birth; adopt
+  # used to stop at copy+report → repo had the hooks but they never RAN (memory-dependent
+  # manual step = the class that dies). install-hooks.sh carries the F09 hijack guard
+  # (pre-existing hooksPath ≠ hooks → TTY confirm / non-TTY abort) so auto-arm is safe.
+  echo "[3/4] Born-wire (arm hooks + stack detect)"
+  if [[ -d "$target/.git" && -f "$target/scripts/install-hooks.sh" ]]; then
+    local ih_rc
+    set +e
+    ( cd "$target" && bash scripts/install-hooks.sh ) 2>&1 | sed 's/^/    /'
+    ih_rc=${PIPESTATUS[0]}
+    set -e
+    if [[ "$ih_rc" -eq 0 ]]; then
+      added="${added}    + hooks ARMED (core.hooksPath → hooks/; pre-existing .git/hooks moved to .bak if any)\n"
+    else
+      conflicts="${conflicts}    ~ hooks NOT armed (F09 guard declined — existing hook setup detected; review then run: bash scripts/install-hooks.sh)\n"
+    fi
+  else
+    conflicts="${conflicts}    ~ hooks NOT armed (no .git or scripts/install-hooks.sh missing)\n"
+  fi
+  local is_rc
+  set +e
+  ( cd "$target" && sos_init_security ) >/dev/null 2>&1
+  is_rc=$?
+  set -e
+  case "$is_rc" in
+    0) added="${added}    + .sos-stack.toml (stack detected — advisory-scan/security-review ready)\n" ;;
+    1) conflicts="${conflicts}    ~ .sos-stack.toml (already exists — kept)\n" ;;
+    *) conflicts="${conflicts}    ~ .sos-stack.toml (no stack manifest detected — see file comments, add [[stack]] by hand)\n" ;;
+  esac
+
+  echo "[4/4] Validator"
   local doctor_bin="${DOCTOR_BIN:-doctor}"
   if command -v "$doctor_bin" >/dev/null 2>&1 || [[ -x "$doctor_bin" ]]; then
     set +e
@@ -851,6 +926,13 @@ EOF
   echo ""
   echo "Next: diff staged wiring  (git diff --no-index <existing> $incoming/<path>)  → merge by hand;"
   echo "      add MISSING docs; fill # TODO; then: doctor verify-setup --repo $target"
+  # JA-09 (jarvis dogfood): the armed docs-gate WILL block the first commit if the repo's
+  # changelog is stale (>max_age). Turn the first gate-fail into a guided step, not a wall.
+  echo ""
+  echo "Heads-up for your FIRST commit (hooks are now armed):"
+  echo "  - docs-gate freshness: add a new CHANGELOG entry (e.g. \`## <ver> — sos-kit adopted — $(date -u +%Y-%m-%d)\`)"
+  echo "  - fill docs/BACKLOG.md Active sprint (1-2 real items) — the session banner reads it"
+  echo "  - restart Claude Code in the repo so agents/skills load"
 }
 
 sos_sync() {

@@ -1,16 +1,35 @@
-# sos-kit v2.2 — Install Guide
+# sos-kit — Install Guide
 
-> Cài v2.2 vào project hiện có (đã có git, đã có docs/ basic) hoặc project trống.
-> v2.2 = 3-role envelope + Orchestrator + Workflow v2.2 doctrine (lane budgets, oracle-first, AGENT_MAP, hooks-not-prose, watchlist sensors).
+> Cài sos-kit vào project (mới hoặc hiện có).
+> = 3-role envelope + Orchestrator + Workflow v2.2+ doctrine (lane budgets, oracle-first, AGENT_MAP, hooks-not-prose, watchlist sensors).
 >
 > **Doctrine source:** `~/sos-kit/docs/WORKFLOW_V2.2.md` — read once per project setup. Retro trace: `~/sos-kit/docs/retro/WORKFLOW_V2.2_RETRO_advisory-inbox.md` (CLOSED 7-round forge).
+
+## ⚡ The 1-command path (USE THIS)
+
+Pick by repo state — one command does the whole install below (copy + born-wire + validate):
+
+| Your repo is… | Command | What it does |
+|---|---|---|
+| **Empty / new** | `sos new <dir> --stack <python\|rust\|ts>` | Bootstrap from golden: spine + skeletons + git init + hooks armed + validator |
+| **Existing code, no kit** | `sos adopt <dir>` | Retrofit: ADDITIVE + NON-CLOBBER copy → **born-wire** (arm hooks via F09-guarded install-hooks + `sos init security` stack detect + jq-merge `.mcp.json` doctor entry & `settings.local.json` marker perms) → `doctor verify-setup` |
+| **Adopted from an OLDER kit** | `sos sync <dir>` | Re-sync spine: take-newer unmodified files (provenance = kit git history), flag customized to `.sos-sync-incoming/` |
+
+**Getting `sos` on PATH first** (one-time):
+
+```bash
+git clone https://github.com/aspelldenny/sos-kit ~/sos-kit
+ln -s ~/sos-kit/bin/sos.sh ~/.local/bin/sos   # or: echo 'source ~/sos-kit/bin/sos.sh' >> ~/.zshrc
+```
+
+After `sos adopt`, the report tells you the 2-3 things only YOU can do (fill `docs/BACKLOG.md` Active sprint, a fresh CHANGELOG entry for your first gated commit, restart Claude Code so agents load). Everything else is wired automatically. **The manual steps below are the REFERENCE for what adopt does under the hood** — read them to understand the pieces, or to hand-merge a file adopt flagged.
 
 ## Prerequisites
 
 - Project là git repo
-- Bash (macOS/Linux/WSL/Git Bash trên Windows)
+- Bash (macOS/Linux/WSL/Git Bash trên Windows) + `jq` (optional — enables JSON auto-merge during adopt)
 - Claude Code v2.1+ (để hỗ trợ subagent + SessionStart hook)
-- (Optional nhưng recommended) sos-kit v1 Rust tools đã cài: `ship`, `docs-gate`, `vps`
+- (Optional nhưng recommended) sos-kit Rust tools đã cài: `ship`, `docs-gate`, `doctor`, `vps`
 
 ## What gets installed
 
@@ -44,7 +63,9 @@
         └── TICKET_TEMPLATE.md      ← Phiếu format (already in v1)
 ```
 
-## Install steps (5 phút)
+## Appendix — manual install steps (reference: what `sos adopt` automates)
+
+> ⚠️ **Prefer `sos adopt` / `sos new` above.** This section exists so you can (a) understand each piece, (b) hand-merge a file adopt flagged to `.sos-adopt-incoming/`, or (c) install on a machine without the kit checkout. Hand-copying is how installs go incomplete — the media-rating collapse traced partly to a skipped security pair.
 
 ### 1. Copy v2 files vào project
 
@@ -131,7 +152,7 @@ Nếu `.claude/settings.json` đã có, **merge** thay vì overwrite. Add hai ho
 
 Nếu đã có `PreToolUse` hooks khác → merge cùng matcher hoặc thêm entry mới. **All three matchers must be present** — `block-unsafe-merge` (Bash) is the mechanical backstop for the no-merge-without-Giám-sát invariant; omitting it is how a repo ends up able to merge security changes unreviewed.
 
-### 2.5. Pre-approve marker file Bash ops (skip per-spawn permission prompts)
+### 2.5. Pre-approve marker file Bash ops (skip per-spawn permission prompts) — `sos adopt` jq-merges this automatically
 
 Orchestrator (main session) flips two markers (marker hygiene per `docs/ORCHESTRATION.md` Hard rule #6): `.sos-state/architect-active` before/after spawning Architect (gates `architect-guard.sh`), and `.sos-state/worker-active` before/after spawning Worker (gates `orchestrator-guard.sh`). Without pre-approval, Claude Code prompts on every spawn — defeats v2.1 auto-orchestration.
 
@@ -184,7 +205,7 @@ if [ -d docs ] && [ $(find docs -name "*.md" | wc -l) -gt 10 ]; then
 fi
 ```
 
-### 3.5. Setup pre-commit hook (CRITICAL — enforces docs gate)
+### 3.5. Setup pre-commit hook (CRITICAL — enforces docs gate) — `sos adopt` arms this automatically (born-wire)
 
 **Without this, docs có thể commit lỗi thời → Architect viết phiếu sai.**
 
@@ -194,8 +215,8 @@ mkdir -p hooks
 cp ~/sos-kit/hooks/pre-commit hooks/pre-commit
 chmod +x hooks/pre-commit
 
-# Tell git to use it
-git config core.hooksPath hooks
+# Arm it (F09-guarded — detects + protects a pre-existing hook setup)
+bash scripts/install-hooks.sh   # preferred over raw `git config core.hooksPath hooks`
 ```
 
 **Recommend:** đổi `.ship.toml` `[docs_gate] blocking = true` để `ship` cũng enforce.

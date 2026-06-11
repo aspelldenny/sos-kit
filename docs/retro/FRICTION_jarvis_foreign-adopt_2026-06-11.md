@@ -15,13 +15,13 @@
 |---|---|---|---|
 | **JA-01** | 🔴 | ✅ FIXED session này | `sos adopt` drop CẢ 4 spawnable agents (symlink + `find -type f`) → fix `find -L` trong `adopt_item` |
 | **JA-02** | 🟡 | ✅ FIXED session này | adopt đẻ root `CHANGELOG.md` thừa khi repo để changelog ở `docs/` → check `docs/CHANGELOG.md` trước khi generate |
-| **JA-03** | 🟡 | OPEN | adopt KHÔNG arm hooks (`sos new` arm, adopt chỉ copy) — installer phải chạy `install-hooks.sh` (đã có F09 guard, an toàn) |
-| **JA-04** | 🟡 | OPEN | adopt KHÔNG chạy `sos init security` (`sos new` có) → thiếu `.sos-stack.toml` cho advisory-scan/security-review |
-| **JA-05** | 🟡 | OPEN | JSON merge tay ×2 (`.mcp.json` thêm doctor entry; `settings.local.json` thêm 5 marker permissions) — installer cần auto-merge (jq) hoặc in chính xác block cần dán |
-| **JA-06** | 🟡 | OPEN | `sos` không có trên PATH — ngay cả máy chính chủ kit. Installer phải symlink/alias `sos` (curl\|sh step 1) |
-| **JA-07** | 🟡 | OPEN | INSTALL.md (copy tay 5') và `sos adopt` (1 lệnh) là 2 đường song song chưa thống nhất — INSTALL.md không nhắc `sos adopt`. New user không biết theo đường nào |
-| **JA-08** | 🟡 | OPEN | adopt không warn khi target dirty tree — output adopt lẫn WIP của user trong `git status` (jarvis có 7 modified + 9 untracked lúc adopt) |
-| **JA-09** | 🟡 | OPEN | First-commit-after-adopt sẽ bị docs-gate block (changelog stale 2026-04-24) — expected onboarding moment nhưng cần message hướng dẫn "thêm CHANGELOG entry" thay vì FAIL khô |
+| **JA-03** | 🟡 | ✅ FIXED 2026-06-11 (born-wire) | adopt KHÔNG arm hooks → adopt `[3/4] Born-wire` gọi `install-hooks.sh` (F09 guard giữ safety; declined → report rõ) |
+| **JA-04** | 🟡 | ✅ FIXED 2026-06-11 (born-wire) | adopt KHÔNG chạy `sos init security` → born-wire gọi luôn (idempotent, no-stack → report) |
+| **JA-05** | 🟡 | ✅ FIXED 2026-06-11 | JSON merge tay ×2 → adopt jq-merge `.mcp.json` doctor entry (`//=`, không đụng key sẵn) + `settings.local.json` 5 marker perms (unique); không jq → hướng dẫn tay |
+| **JA-06** | 🟡 | PARTIAL (doc) | `sos` không có trên PATH — INSTALL.md giờ có bước symlink/source one-time; tự động hóa thật = curl\|sh installer (Tier-3, pending) |
+| **JA-07** | 🟡 | ✅ FIXED 2026-06-11 | INSTALL.md viết lại: lead bằng bảng 3 lệnh `new`/`adopt`/`sync`; manual steps hạ xuống Appendix (reference cho hand-merge) |
+| **JA-08** | 🟡 | ✅ FIXED 2026-06-11 | adopt warn khi target dirty tree (warn-not-block — adopt chỉ ADD file) |
+| **JA-09** | 🟡 | ✅ FIXED 2026-06-11 | adopt report footer "Heads-up for your FIRST commit": CHANGELOG entry mới + fill BACKLOG + restart Claude Code |
 | **JA-10** | 🟢 | giữ | F09 install-hooks guard worked-as-intended trên foreign repo: jarvis có sẵn `.git/hooks/pre-commit` → move `.bak` + báo rõ, không hijack im lặng. n=1 foreign |
 | **JA-11** | 🟢 | giữ | `doctor verify-setup` 3-way triage dẫn thẳng tới root cause: J6 BROKEN = boundary-check.md vắng mặt = JA-01. Không có verify-setup thì agents-mất-tích sẽ im lặng tới lần spawn đầu |
 | **JA-12** | 🔴 | → JARVIS repo | INV-010 bắt **GitHub PAT thật** hardcode trong `scripts/setup_obsidian_server.sh:8,36` (committed 17804e7 + pushed, repo PRIVATE) — kit-side = worked-as-intended 🟢; jarvis-side = incident: revoke token + chuyển env var |
