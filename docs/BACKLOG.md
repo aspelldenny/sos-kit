@@ -221,6 +221,15 @@ Sếp đang dogfood sos-kit trên `~/ket` + tự dogfood trong chính `~/sos-kit
 
 ---
 
+## 🛡️ Next sprint candidate: Trust gate port từ thanhtra v1.2 (12/06/2026 — Sếp duyệt ghi backlog, "để anh tính tiếp")
+
+> **Threat model:** sos-kit là ĐÚNG class "Rules File Backdoor" — skills/agents/templates markdown được Claude Code load thẳng vào context người dùng, tức **PR độc hại vào repo này = prompt injection tới mọi user**, payload có thể vô hình (Unicode Tags U+E0000–E007F, zero-width, bidi). Vendors (Cursor, GitHub) đã phán class này là "user responsibility" → ecosystem không đỡ hộ, repo tự phòng thủ. Tier-1 GitHub hardening đã bật 12/06 (secret scanning + push protection, ruleset, fork-PR approval, immutable releases); item này là tầng content.
+> **Oracle = thanhtra v1.2** (cùng owner, đã chạy thật): `thanhtra/core/trust.py` — 3 lớp detector deterministic (hidden-unicode / auto-exec / injection-marker; regex không bị prompt-inject, Trail of Bits đã bypass mọi scanner LLM nên gate PHẢI deterministic) + `scripts/validate-trust.py` (self-test payload trồng + self-scan + baseline `tests/trust-baseline.json` — corpus quote cụm tấn công hợp lệ thì diff baseline, marker MỚI = FAIL tới khi review) + SECURITY.md 5 invariants + `.github/workflows/gate.yml`.
+
+- [ ] **[NEW]** Port trust gate — **KHÔNG copy nguyên xi, 3 chỗ phải lệch oracle:** (a) thanhtra hard-fail mọi auto-exec config, nhưng sos-kit **CỐ Ý ship** `.claude/settings.json` hooks + `.mcp.json` (đó là sản phẩm) → auto-exec chuyển sang baseline-diff: thay đổi hooks/mcp = FAIL cho tới khi review + rebaseline, diff hiện trong PR; (b) U+FEFF literal `phieu/DISCOVERY_PROTOCOL.md:196` (quote kỹ thuật BOM trong tài liệu) sẽ trip hidden-unicode gate → đổi sang escape/mô tả trước khi bật; (c) SECURITY.md threat model riêng cho kit: hooks chạy gì khi user trust folder, invariants (không fetch URL runtime, không giấu gì khỏi user, install chỉ symlink/copy khai báo rõ). Gotcha từ thanhtra: rebaseline dùng `git ls-files` → `git add` file mới TRƯỚC khi rebaseline; không bao giờ commit Unicode ẩn literal trong code/test — dùng escape. Làm xong copy pattern sang **claude-hooks [P012]** (share phieu/ sync). ~1 session.
+
+---
+
 ## 🌊 Future waves (low commitment)
 
 - [ ] **v2.2 — Debate token optimization.** Park until ≥5 multi-turn phiếu deliver real cost-distribution data. Candidates: skip-CHALLENGE for trivial phiếu (needs criteria), Haiku for Architect DRAFT, inline doc snippets in spawn prompt to skip subagent's Read step. Baseline target: 42k → 25k tokens per multi-turn phiếu.
