@@ -147,10 +147,10 @@ bash scripts/install-hooks.sh      # sets: git config core.hooksPath hooks
 `core.hooksPath` is local git state (not committed) → re-run after a fresh clone.
 `sos new` runs this automatically on spawn.
 
-**Pre-commit chain ([1/7]…[7/7]):**
-The chain includes two agent-agnostic git-level gates (P049–P052 harvest):
+**Pre-commit chain ([1/8]…[8/8]):**
+The chain includes two agent-agnostic git-level gates (P049–P052 harvest) plus a content-integrity gate (P073):
 
-**`[6/7]` no-code-on-default** (`scripts/no-code-on-default.sh`):
+**`[6/8]` no-code-on-default** (`scripts/no-code-on-default.sh`):
 Blocks product code (`.ts`/`.rs`/`.py`/`.go`/`.swift`/etc.) committed directly on the
 default branch — forcing a feature branch for code changes. Docs-only (`*.md`) commits
 on the default branch remain allowed (kit maintenance, README fixes, doctrine edits).
@@ -164,7 +164,7 @@ on the default branch remain allowed (kit maintenance, README fixes, doctrine ed
   patterns. If absent, falls back to the full extension-union and **blocks** (greenfield
   commits on main are the primary failure target — ket P020 live failure).
 
-**`[7/7]` block-env-commit** (`scripts/block-env-commit.sh`) — P052:
+**`[7/8]` block-env-commit** (`scripts/block-env-commit.sh`) — P052:
 Blocks staging any `.env*` file so a secret-bearing env file cannot enter git history
 (irreversible). Matches on **basename** across the full staged path — so `config/.env.docker`
 is caught, not just root-level `.env`. `.env.example` (the template) is the only allowlisted
@@ -177,6 +177,33 @@ exception. Agent-agnostic git-level backstop to the Claude-only PreToolUse `bloc
   a `.env*`; the gate runs live in the kit (near-no-op by absence of any tracked `.env*`).
 - **Override** (rare, intentional, you accept the irreversible leak): `touch .sos-state/allow-env-commit`
   before commit, `rm` after. Do NOT use `--no-verify`.
+
+**`[8/8]` trust-gate** (`scripts/trust-gate.sh`) — P073:
+Provides content-integrity for auto-exec surfaces (hooks, scripts, `.mcp.json`, `.claude/settings.json`, `install.sh`, `phieu/phieu.sh`, `templates/setup-dev.sh`). Two checks in one phase:
+
+1. **Baseline-diff**: compares sha256 of each tracked auto-exec surface against `.sos-trust-baseline`. Any changed/added/removed surface BLOCKS the commit with a clear message naming the offending file(s).
+2. **Hidden-unicode scan**: scans instruction/doc files for U+FEFF BOM, zero-width, bidi, and tag-range codepoints (prompt injection vector). Any hit BLOCKS the commit with `file:line`.
+
+**Rebaseline workflow** (when a legitimate auto-exec surface change is reviewed and accepted):
+
+```bash
+# 1. Edit the surface (e.g. hooks/pre-commit, scripts/*.sh, install.sh)
+# 2. Stage all changes
+git add <changed-surface-file>
+# IMPORTANT: new auto-exec files must be `git add`ed BEFORE rebaseline —
+# `git ls-files` only sees tracked files; untracked = silently missed.
+# 3. Regenerate the baseline
+scripts/trust-gate.sh rebaseline
+# 4. Stage the updated baseline
+git add .sos-trust-baseline
+# 5. Commit — trust-gate passes
+git commit -m "feat(...): ..."
+```
+
+The `.sos-trust-baseline` diff in the PR is the human-readable audit trail of which auto-exec surfaces changed.
+
+- **sos-kit self-tracks**: `trust-gate.sh` itself is an auto-exec surface tracked in its own baseline (a malicious edit to the gate is exactly what we want to catch).
+- **`settings.local.json` excluded**: globally gitignored (per-machine), not in baseline. See `SECURITY.md` for rationale.
 
 ### 5a. Bootstrap `docs-gate` config
 

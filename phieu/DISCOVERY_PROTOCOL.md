@@ -193,7 +193,7 @@ Discovery Report is for things found DURING or AFTER implementation. Pre-impleme
 
 ### Edge cases / limitations discovered
 - CSV needs BOM for Excel to render Vietnamese diacritics correctly (discovered when Sếp opened export in Excel and saw "Tình yêu" as "Tu00ecnh you00eau")
-- Added `﻿` BOM to response Content-Type charset. Tested on Excel + Google Sheets + macOS Numbers.
+- Added a `U+FEFF` BOM to response Content-Type charset. Tested on Excel + Google Sheets + macOS Numbers.
 - PostgreSQL `JSONB` cast to text required for CSV serialization of reading interpretation — noted in query
 
 ### Docs updated to match reality

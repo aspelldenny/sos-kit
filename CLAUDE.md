@@ -38,6 +38,8 @@ What's inside:
 sos-kit/
 ├── README.md               # User-facing entry point — MUST reflect reality
 ├── CLAUDE.md               # This file — for Claude Code contributors
+├── SECURITY.md             # Threat model, invariants, trust anchor, rebaseline workflow (P073)
+├── .sos-trust-baseline     # Committed sha256 snapshot of auto-exec surfaces (P073 trust gate). Rebaseline: `scripts/trust-gate.sh rebaseline` after any reviewed change.
 ├── .claude/
 │   └── commands/           # Slash command files (P041+: advisory-scan.md, security-review.md)
 ├── CHANGELOG.md            # Release history — newest entry on top
@@ -98,9 +100,10 @@ sos-kit/
 │   ├── block-env-edit.sh   # PreToolUse hook — block .env edits
 │   ├── idea-smell.sh       # UserPromptSubmit hook — regex idea-smell in Sếp message → inject /idea reminder (skills dogfood 2026-06-11)
 │   ├── block-unsafe-merge.sh  # PreToolUse hook — B+3 fail-closed shim → `claude-hooks block-unsafe-merge` binary (gates `gh pr merge <N>` without security APPROVE; binary absent = BLOCK LOUD) [P064]
-│   ├── no-code-on-default.sh  # pre-commit [6/7] — block product code committed on default branch (force feature branch; agent-agnostic)
+│   ├── no-code-on-default.sh  # pre-commit [6/8] — block product code committed on default branch (force feature branch; agent-agnostic)
 │   ├── security-gate.sh, check-*.py, parsers/  # commit-time security gate + advisory lockfile parsers
-│   └── session-start-banner.sh  # SessionStart hook — show BACKLOG on session open
+│   ├── session-start-banner.sh  # SessionStart hook — show BACKLOG on session open
+│   └── trust-gate.sh          # pre-commit [8/8] — auto-exec surface baseline-diff + hidden-unicode scan (P073, port thanhtra v1.2). Baseline committed to .sos-trust-baseline; rebaseline after reviewed change: `scripts/trust-gate.sh rebaseline`
 │   # (.claude/agents/ is symlinked to agents/ — no sync script; see agents/README.md)
 ├── skills/                 # 5 LIVING skills — each declares mechanical `caller:` (no caller = attic)
 │   ├── idea/SKILL.md       # Chủ nhà — intake → BACKLOG. Caller: UserPromptSubmit idea-smell hook
@@ -208,6 +211,7 @@ Per Rule #8 above — when contributor edits these, BẮT BUỘC update target d
 | `hooks/pre-commit` SECTION add/remove (⚠️ this changes the **phase COUNT** `[N/M]`) | `CLAUDE.md` "Hook chain" + `docs/SETUP.md` — **update the M everywhere it appears** (every `[N/M]` label, the `# Runs in order` header list, AND any prose "Phase 5"/"5 phases" in CLAUDE.md + ARCHITECTURE) | Hook chain integrity. P062: phase-count drifted silently 3 phiếu (doc said "Phase 5" while hook was `[8/8]`) because the trigger only flagged section add/remove, not the count it implies — Architect reads stale doc → wrong phase in next phiếu. |
 | `scripts/no-code-on-default.sh` add/remove | `CLAUDE.md` scripts list + `docs/SETUP.md` hook section | Gate inventory (P050) |
 | `scripts/block-env-commit.sh` add/remove | `CLAUDE.md` scripts list + `docs/SETUP.md` hook section | Gate inventory (P052) |
+| `scripts/trust-gate.sh` add/remove OR `.sos-trust-baseline` format change | `CLAUDE.md` scripts list + `SECURITY.md` + `docs/SETUP.md` rebaseline workflow | Auto-exec integrity surface (P073). `.sos-trust-baseline` = committed sha256 snapshot; rebaseline via `scripts/trust-gate.sh rebaseline` after any reviewed auto-exec surface change. |
 | `scripts/security-gate.sh` INV add/remove OR runner-swap | `templates/INVARIANTS-template.md` + `docs/SETUP.md` Security pipeline | Security surface contract. (2026-06-11: gate is now `inv-gate` binary-first w/ python3 fallback — kills the python dep when the binary is present; install.sh ships inv-gate.) |
 | `scripts/check-*.py` pattern add/remove | `templates/INVARIANTS-template.md` + `docs/HANDOFF.md` Handoff 5 | Mechanical gate inventory |
 | `scripts/parsers/*.py` add (new lock format support) | `agents/advisory-watch.md` Bước 1 stack-parse list + `docs/SETUP.md` | Trinh sát stack coverage |

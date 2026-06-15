@@ -10,6 +10,7 @@
 #   5. Case-collision gate (path khác-case)
 #   6. No-code-on-default gate (P050 — force feature branch for product code)
 #   7. Block .env* secret-file commits (P052 — agent-agnostic backstop to P046 PreToolUse guard)
+#   8. Trust gate (auto-exec baseline-diff + hidden-unicode — P073, port thanhtra v1.2)
 #
 # Exit non-zero blocks commit. Use `git commit --no-verify` to bypass (not recommended).
 
@@ -29,7 +30,7 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 # 1. Stack-specific type check (auto-detect)
 # ─────────────────────────────────────────────────────────────────────
-blue "[1/7] Type check"
+blue "[1/8] Type check"
 
 if [ -f "Cargo.toml" ]; then
     echo "  → cargo check"
@@ -94,7 +95,7 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 # 2. docs-gate (v1 checks)
 # ─────────────────────────────────────────────────────────────────────
-blue "[2/7] docs-gate (v1: CHANGELOG + ARCHITECTURE 9 sections)"
+blue "[2/8] docs-gate (v1: CHANGELOG + ARCHITECTURE 9 sections)"
 
 # --- docs-gate (P006: graceful skip on fresh install) ---
 if [ ! -f .docs-gate.toml ]; then
@@ -120,7 +121,7 @@ echo ""
 # ─────────────────────────────────────────────────────────────────────
 # 3. sos-kit v2 specific checks
 # ─────────────────────────────────────────────────────────────────────
-blue "[3/7] sos-kit v2 checks"
+blue "[3/8] sos-kit v2 checks"
 
 # 3a. BACKLOG.md must exist
 if [ ! -f "docs/BACKLOG.md" ]; then
@@ -189,7 +190,7 @@ if [ -n "$CODE_STAGED" ] && [ -n "$PHIEU_STAGED" ]; then
     DISCOVERIES_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^docs/DISCOVERIES\.md$' || true)
     # CHANGELOG lives at root in some repos (sos-kit, claude-hooks), docs/ in others (doc-rotate).
     # Accept BOTH — hardcoding docs/ gave a false-positive warning every code+phiếu commit and
-    # disagreed with [2/7] docs-gate which reads the root path (F-003 claude-hooks dogfood).
+    # disagreed with [2/8] docs-gate which reads the root path (F-003 claude-hooks dogfood).
     CHANGELOG_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^(docs/)?CHANGELOG\.md$' || true)
     if [ -z "$DISCOVERIES_STAGED" ] || [ -z "$CHANGELOG_STAGED" ]; then
         yellow "  ⚠️  Code + phiếu changed but DISCOVERIES.md or CHANGELOG.md not staged"
@@ -204,7 +205,7 @@ echo ""
 # 4. Security gate (INV-009 source + INV-010 runtime — Sub-mech F)
 #    Doctrine: WORKFLOW_V2.2.md §7 Sub-mech F. Wired via P306 backport.
 # ─────────────────────────────────────────────────────────────────────
-blue "[4/7] Security gate (INV-009 + INV-010)"
+blue "[4/8] Security gate (INV-009 + INV-010)"
 
 if [ -f "scripts/security-gate.sh" ]; then
     if bash scripts/security-gate.sh --mechanical-only > /tmp/sos-secgate.log 2>&1; then
@@ -225,7 +226,7 @@ echo ""
 # 5. Case-collision gate (path khác-case cùng tồn tại — vỡ Linux/CI)
 #    Doctrine: Két dogfood — Scripts/ ↔ scripts/ thrash.
 # ─────────────────────────────────────────────────────────────────────
-blue "[5/7] Case-collision gate"
+blue "[5/8] Case-collision gate"
 
 if [ -f "scripts/check-case-collision.sh" ]; then
     if bash scripts/check-case-collision.sh; then
@@ -245,7 +246,7 @@ echo ""
 #    Doctrine: gate INVARIANT (no code on default) not PROCEDURE (when to branch).
 #    ket P020 live failure. Agent-agnostic git-level (P049–P052 harvest).
 # ─────────────────────────────────────────────────────────────────────
-blue "[6/7] No-code-on-default gate"
+blue "[6/8] No-code-on-default gate"
 
 if [ -f "scripts/no-code-on-default.sh" ]; then
     if bash scripts/no-code-on-default.sh; then
@@ -265,7 +266,7 @@ echo ""
 #    Agent-agnostic git-level backstop to the Claude-only PreToolUse block-env-edit.sh (P046).
 #    Grounding: media audit SEC-SECRET-01 (.env.docker committed → irreversible leak).
 # ─────────────────────────────────────────────────────────────────────
-blue "[7/7] Block .env* commit"
+blue "[7/8] Block .env* commit"
 
 if [ -f "scripts/block-env-commit.sh" ]; then
     if bash scripts/block-env-commit.sh; then
@@ -276,6 +277,26 @@ if [ -f "scripts/block-env-commit.sh" ]; then
     fi
 else
     echo "  ⏭  scripts/block-env-commit.sh missing — run scripts/install-hooks.sh after bootstrap"
+fi
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────
+# 8. Trust gate (auto-exec baseline-diff + hidden-unicode — P073, port thanhtra v1.2)
+#    Doctrine: BACKLOG line 246 Rules-File-Backdoor threat model. Baseline-diff (not hard-fail)
+#    because the kit ships auto-exec as product; change = FAIL until reviewed + rebaselined.
+# ─────────────────────────────────────────────────────────────────────
+blue "[8/8] Trust gate (auto-exec baseline + hidden-unicode)"
+
+if [ -f "scripts/trust-gate.sh" ]; then
+    if bash scripts/trust-gate.sh; then
+        green "  ✅ Auto-exec surfaces match baseline; no hidden unicode"
+    else
+        red "  ❌ Trust gate failed (detail above)"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+else
+    echo "  ⏭  scripts/trust-gate.sh missing — run scripts/install-hooks.sh after bootstrap"
 fi
 
 echo ""
