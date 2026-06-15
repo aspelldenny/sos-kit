@@ -14,6 +14,7 @@
 
 | Phiếu | Date | 1-line summary |
 |---|---|---|
+| [P072](discoveries/P072.md) | 2026-06-15 | Fleet Node20 bump: all 10 repos rc-oracle PASS (3/3 green, 0 annotations, prerelease=true, latest unchanged); guard/vps/doc-rotate/advisory-cron upgraded to full draft/publish+sha256 template (P071+P072 combined for optionals); P009 oracle gap documented (github-script@v7 invisible to P009 because P071 added it after P009) |
 | [P071-stage1](discoveries/P071-stage1.md) | 2026-06-15 | Stage 1 fan-out: .sha256 publish pattern applied to 5 REQUIRED repos (claude-hooks 0.9.2, docs-gate/ship/advisory-inbox/inv-gate 0.1.1); all CI GREEN; all 3 targets carry .sha256; inv-gate @v3 draft/publish confirmed working; Stage 2 gate condition met |
 | [P052](discoveries/P052.md) | 2026-06-08 | git-level .env* block gate — `scripts/block-env-commit.sh` + pre-commit [7/7]; 9/9 fire-test cases PASS; .envrc deliberately excluded (O1.1 locked as test); regex verbatim with block-env-edit.sh; Tầng 1 docs updated |
 | [P053](discoveries/P053.md) | 2026-06-06 | sentinel deadlock fix — PR mode always-post sentinel incl. clean APPROVE; dry-run grep simulation PASS; stale-sentinel documented + [P055] filed; Tầng 1 docs updated (boundary-check.md, README.md) |
