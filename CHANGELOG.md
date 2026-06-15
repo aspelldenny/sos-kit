@@ -2,7 +2,10 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-11
+## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-15
+
+**`.mcp.json` PATH-portable — open-source hardening leg 1 of 3 (2026-06-15):**
+- Pre-open-source security pass flagged `.mcp.json` shipping a hardcoded `"command": "/Users/nguyenhuuanh/.cargo/bin/doctor"` — both a per-machine path that breaks on every clone AND a maintainer-username leak. Changed to PATH-resolved `"command": "doctor"` (install.sh installs binaries to `~/.local/bin`), matching the doctrine already written in BACKLOG ("MCP wiring PATH-rel, never hardcode `~/.cargo`") — closing the doctrine-vs-reality drift (BACKLOG line 246 claimed `.mcp.json` was "đã sạch"; it wasn't). Opens the **open-source-hardening sprint** (3 legs gating public release): leg 1 = this path/username leak (done); leg 2 = `[P071]` install.sh release-asset checksum + version pinning; leg 3 = `[P-trust-gate]` auto-exec baseline-diff (port from thanhtra v1.2 — hooks/`.mcp.json`/settings change = FAIL until reviewed + rebaselined).
 
 **`sos sync` dirty-warn (2026-06-11):**
 - Same JA-08 doctrine as adopt, triggered by a live incident: Quản đốc synced into inv-gate while its session was MID-PHIẾU and a careless `git add -A` staged that repo's in-flight work (own gate blocked the commit; staging reset). sync now warns when the target tree is dirty: spine files still land, but explicitly instructs NOT to `git add -A` — the target repo's own session commits. Warn-not-block.

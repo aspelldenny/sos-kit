@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "doctor": {
-      "_comment": "v2.2 mechanical gate — lane-check, validate-map, rotate-check, runtime-scan. Doctrine source repo dogfoods own gates. Binary: ~/doctor v0.1.0.",
-      "command": "/Users/nguyenhuuanh/.cargo/bin/doctor",
+      "_comment": "v2.2 mechanical gate — lane-check, validate-map, rotate-check, runtime-scan. Doctrine source repo dogfoods own gates. Binary: doctor v0.1.0 (PATH-resolved; install.sh puts it in ~/.local/bin — never hardcode a per-machine path).",
+      "command": "doctor",
       "args": [
         "serve"
       ]
