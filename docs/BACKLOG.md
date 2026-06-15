@@ -7,6 +7,25 @@
 
 ---
 
+## 🔒 Active sprint — open-source-hardening (Sếp ratified 2026-06-15)
+
+> **Gate:** sos-kit does NOT go public until all 3 legs are green. Triggered by Sếp's question "đủ an toàn open source chưa? pull code có mã độc về thì toác". A pre-public security pass found 3 vectors; this sprint closes them in order.
+>
+> Threat model the 3 legs cover (distinct, complementary):
+> - **Leg 1 — privacy/portability** (✅ DONE, `fix/mcp-path-portable` b20aa0c, awaiting merge): `.mcp.json` hardcoded `~/.cargo/bin/doctor` → PATH-rel `doctor`. Killed username leak + broke-on-clone.
+> - **Leg 2 — download integrity `[P071]`** (NEXT — phiếu being drafted): `install.sh` `curl|sh` pulls 10 release binaries with NO checksum + unpinned `releases/latest`. Vector = swapped/poisoned release asset. Survey (2026-06-15): all 10 source repos share one `release.yml` template → `.sha256` publish = ~2-line CI patch ×10 repos + ~6-line verify in `fetch_bin()`; recommend plain sha256 (not minisign/cosign — violates §0.1 cheapest-mechanism). 2 risks: cross-platform sha256 probe (`shasum -a 256` mac vs `sha256sum` linux) needs real 2-OS discrimination test; rollout order = ship CI + re-tag ALL repos FIRST, then flip install.sh enforce (half-rollout = fail-closed abort for everyone). ~1-day Tầng-1 phiếu. Full survey in this session's transcript.
+> - **Leg 3 — auto-exec change integrity `[P-trust-gate]`** (AFTER leg 2): port thanhtra v1.2 trust gate. Vector = malicious PR/commit modifying a hook / `.mcp.json` / `.claude/settings.json` → user `git pull` → auto-exec. Because sos-kit INTENTIONALLY ships those as its product, can't hard-fail like thanhtra → **baseline-diff**: change to auto-exec surface = FAIL until reviewed + rebaselined, diff in PR. 3 oracle-deviations + gotchas already specced at the "Trust gate port" section below (line ~233). ~1 session.
+
+### Active items (in order)
+- [ ] **[P071]** Release-asset integrity — `.sha256` publish (CI ×10 repos) + install.sh fetch-verify + version pinning. **Leg 2.** Detail at line ~309. Phiếu drafted (`docs/ticket/P071-install-checksum.md`), CHALLENGE next.
+- [ ] **[NEW]** Dogfood P071 + kit trên **cả Linux + Windows** (không chỉ macOS) — Sếp có sẵn 2 máy. **Acceptance-gate của P071, KHÔNG phải dogfood chung:** P071 Task 6 (2-OS discrimination test) chỉ coi là xong khi `$SHA` probe verify thật trên Linux (`sha256sum`) + Windows Git Bash (cả 2) + macOS (`shasum -a 256`). Bonus bắt: install.sh curl|sh + sos adopt/new line-ending / command-availability gaps; advisory-cron win-skip phải warn-skip sạch. → **P071 done = probe xanh trên 2-3 OS.** (15/06/2026)
+- [ ] **[P-trust-gate]** Auto-exec baseline-diff gate (port thanhtra v1.2). **Leg 3.** Detail at "Trust gate port" section ~233. Blocked-by P071 (sequential).
+
+> **Follow-up (NOT a public gate — reproducibility, not integrity):**
+> - [ ] **[P-pin]** Version-pinning manifest cho install.sh (`releases/latest` → pinned tag + `versions.env`). Split khỏi P071 tại APPROVAL_GATE 2026-06-15 (checksum một mình đã đóng supply-chain HIGH). Edge đã khảo sát: manifest-before-clone ordering → Approach A (inline vars trong install.sh). Recurring bump cost mỗi release. Làm khi n-user lớn cần reproducible install. (15/06/2026)
+
+---
+
 ## ▶ NEXT SESSION — Tier-3 ĐÓNG; còn lại = optional/polish (updated 2026-06-11 EOD) [RESET POINT]
 
 > **Session 2026-06-11 — steps 2+3+4 ALL DONE (trọn plan 2026-06-09):**

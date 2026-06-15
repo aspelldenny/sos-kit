@@ -22,3 +22,8 @@ bootstrap/*/target/
 # Python bytecode (P040 — scripts/parsers/ added)
 __pycache__/
 *.pyc
+
+# Thanhtra — 3rd-party security-scan skill, run periodically by the maintainer.
+# Scan artifacts are local evidence, not committed (re-generated each scan).
+thanhtra-reports/
+.thanhtra-pre-scan.json
