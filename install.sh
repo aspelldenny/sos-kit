@@ -32,9 +32,11 @@ BIN_DIR="${SOS_BIN_DIR:-$HOME/.local/bin}"
 # advisory-cron (daily scan scheduler — register is per-repo OPT-IN, binary just lands) +
 # inv-gate (mechanical security INV gate — v0.1.0 public 2026-06-11; pre-commit [4/7] uses it
 # binary-first, kills the python3 dep in the gate chain — harvest action inv-gate IG-06/dogfood).
-# KNOWN GAP (explicit, Giám sát 2026-06-11 → BACKLOG [P071]): downloads are HTTPS-enforced
-# but carry NO checksum/signature verification yet, and `releases/latest` is unpinned —
-# trust anchor today = the GitHub account. .sha256 publishing + verify is the planned cure.
+# Download integrity: fetch-verify now enforced (P071-Stage2). Each binary download
+# fetches its companion .sha256, recomputes the hash of the .tmp file with $SHA_CMD, and
+# string-compares the first field. Mismatch → ABORT (poisoned/corrupt asset). Required-bin
+# with missing .sha256 → ABORT (Stage 1 must have published it). Trust anchor: GitHub
+# account + sha256 checksum. Version pinning (releases/latest→pinned-tag) = follow-up [P-pin].
 BINARIES="doctor claude-hooks docs-gate ship advisory-inbox inv-gate"
 # OPTIONAL — download failure = WARN + continue, NOT abort (fail-closed stays reserved
 # for the gate binaries above). Two reasons a tool sits here:
@@ -65,6 +67,20 @@ case "$OS-$ARCH" in
 esac
 echo "▶ Platform: $OS $ARCH → $TARGET"
 
+# ── Hash tool probe ──────────────────────────────────────────────────────────
+# Prefers sha256sum (Linux-native; macOS also has /sbin/sha256sum — Darwin 1.0).
+# Falls back to shasum -a 256 (macOS standard tool, also present on Git Bash).
+# $SHA_CMD is intentionally a plain string (not an array) so "shasum -a 256"
+# word-splits correctly in POSIX sh at the call site in fetch_bin().
+if command -v sha256sum >/dev/null 2>&1; then
+  SHA_CMD="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then
+  SHA_CMD="shasum -a 256"
+else
+  echo "✗ No sha256 tool (need sha256sum or shasum) — cannot verify downloads. ABORTING." >&2
+  exit 1
+fi
+
 # ── 2. Prebuilt binaries ─────────────────────────────────────────────────────
 mkdir -p "$BIN_DIR"
 fetch_bin() {  # <bin> <required|optional> → 0 ok | 1 failed
@@ -73,6 +89,31 @@ fetch_bin() {  # <bin> <required|optional> → 0 ok | 1 failed
   dest="$BIN_DIR/${bin}${EXT}"
   echo "▶ $bin ← $url"
   if curl -fSL --proto '=https' --connect-timeout 30 --max-time 300 --progress-bar -o "${dest}.tmp" "$url"; then
+    # ── Integrity verify: fetch .sha256, recompute, compare first field ──────
+    # Use recompute+string-compare (NOT sha256sum -c / shasum -c) because -c
+    # matches by the filename recorded in the .sha256 (CI wrote <bin>-<target>)
+    # but we downloaded to <dest>.tmp — filenames differ across the .tmp rename.
+    sha_url="${url}.sha256"
+    if curl -fSL --proto '=https' --connect-timeout 30 --max-time 60 -o "${dest}.sha256.tmp" "$sha_url" 2>/dev/null; then
+      expected=$(cut -d' ' -f1 "${dest}.sha256.tmp")
+      actual=$($SHA_CMD "${dest}.tmp" | cut -d' ' -f1)
+      rm -f "${dest}.sha256.tmp"
+      if [ "$expected" != "$actual" ]; then
+        echo "✗ CHECKSUM MISMATCH for $bin — expected $expected, got $actual. ABORTING." >&2
+        rm -f "${dest}.tmp"
+        return 1
+      fi
+      echo "  ✓ sha256 verified"
+    else
+      rm -f "${dest}.sha256.tmp"
+      if [ "$2" = required ]; then
+        echo "✗ No .sha256 published for required bin $bin — cannot verify. ABORTING (Stage 1 incomplete?)." >&2
+        rm -f "${dest}.tmp"
+        return 1
+      fi
+      echo "  ⚠ no .sha256 for optional $bin — skipping verify (install unverified)."
+    fi
+    # ── End verify ───────────────────────────────────────────────────────────
     mv "${dest}.tmp" "$dest"
     chmod +x "$dest"
     # macOS Gatekeeper: curl-downloaded binaries get a com.apple.quarantine xattr → first run

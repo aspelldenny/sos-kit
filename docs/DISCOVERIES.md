@@ -6,6 +6,9 @@
 >
 > **Pre-2026-05 entries:** archived to `docs/archive/DISCOVERIES_pre-2026-05.md`. Migration date: 2026-05-02 (P038).
 
+## 2026-06-15 — P071 Stage 2: install.sh sha256 fetch-verify shipped (mac PASS; Linux+Win pending)
+Full report: `docs/discoveries/P071.md`. macOS has `/sbin/sha256sum` (Darwin 1.0) — probe selects sha256sum (not shasum) on mac; shasum is the fallback. 3-case discrimination: good binary PASS, corrupted ABORT, missing-.sha256-required ABORT, missing-.sha256-optional WARN. INVARIANTS.md INV-LOCAL candidate → INV-LOCAL-1 active. SETUP.md N/A.
+
 ## 2026-06-11 — Hot-swap subagent model giữa chừng (IG-02, inv-gate Sprint 1)
 
 Đổi model agent đang chạy nền (opus → fable): `TaskStop` agent cũ → sửa frontmatter → respawn prompt y hệt. Sạch — agent cũ kịp trả partial findings, không mất state. Pattern chuẩn cho hot-swap: stop-edit-respawn. (Nguồn: inv-gate `docs/SOS_KIT_FEEDBACK.md` IG-02.)

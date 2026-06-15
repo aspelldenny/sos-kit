@@ -124,5 +124,14 @@ Giám sát returns verdict wrapped in `<!-- security-review-start -->` ... `<!--
 
 ## INV-LOCAL (project-specific)
 
-# No local INV — sos-kit is a meta-kit (docs/templates/shell, no runtime app surface).
-# Candidates if that changes: install.sh download integrity [P071].
+### INV-LOCAL-1 — install.sh release-asset integrity
+
+**Statement:** Every binary downloaded by `install.sh` MUST be verified against a published `.sha256` checksum (fetched from the same GitHub release, recomputed on the `.tmp` file, first-field string-compared). Mismatch or missing `.sha256` on a required bin → ABORT. Missing `.sha256` on an optional bin → warn + install unverified.
+
+**Why:** The `curl|sh` installer downloads prebuilt binaries over HTTPS. Without checksum verification, a swapped/poisoned release asset (compromised account, MITM on redirect, bad re-tag) would be `chmod +x` + run with zero detection — a supply-chain HIGH. Trust anchor = GitHub account + sha256 checksum (plain sha256 per WORKFLOW_V2.2 §0.1 cheapest-mechanism; minisign/cosign would add a verify-the-verifier bootstrap problem).
+
+**Implementation:** `install.sh` hash-tool probe (`$SHA_CMD`) + verify block inside `fetch_bin()` — shipped P071-Stage2. Version pinning (`releases/latest` → pinned tag) = follow-up `[P-pin]`.
+
+**Status:** Active (P071-Stage2, 2026-06-15). Was: Candidate.
+
+**Implemented in Giám sát:** No (install.sh is a shell script, not a product app surface — human review at PR time is correct gate).
