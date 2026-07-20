@@ -7,19 +7,40 @@
 
 ---
 
-## 🔒 Active sprint — open-source-hardening (Sếp ratified 2026-06-15)
+## 🔒 Active sprint — runtime-portability foundation (Sếp ratified 2026-07-20)
 
-> **Gate:** sos-kit does NOT go public until all 3 legs are green. Triggered by Sếp's question "đủ an toàn open source chưa? pull code có mã độc về thì toác". A pre-public security pass found 3 vectors; this sprint closes them in order.
+> **Mục tiêu:** rút SOS Kit ra khỏi Claude Code thành một core độc lập runtime, sau đó cắm lại Claude Code như adapter đầu tiên, viết Codex adapter và dogfood trước khi đóng gói.
 >
-> Threat model the 3 legs cover (distinct, complementary):
-> - **Leg 1 — privacy/portability** (✅ DONE, `fix/mcp-path-portable` b20aa0c, awaiting merge): `.mcp.json` hardcoded `~/.cargo/bin/doctor` → PATH-rel `doctor`. Killed username leak + broke-on-clone.
-> - **Leg 2 — download integrity `[P071]`** (NEXT — phiếu being drafted): `install.sh` `curl|sh` pulls 10 release binaries with NO checksum + unpinned `releases/latest`. Vector = swapped/poisoned release asset. Survey (2026-06-15): all 10 source repos share one `release.yml` template → `.sha256` publish = ~2-line CI patch ×10 repos + ~6-line verify in `fetch_bin()`; recommend plain sha256 (not minisign/cosign — violates §0.1 cheapest-mechanism). 2 risks: cross-platform sha256 probe (`shasum -a 256` mac vs `sha256sum` linux) needs real 2-OS discrimination test; rollout order = ship CI + re-tag ALL repos FIRST, then flip install.sh enforce (half-rollout = fail-closed abort for everyone). ~1-day Tầng-1 phiếu. Full survey in this session's transcript.
-> - **Leg 3 — auto-exec change integrity `[P-trust-gate]`** (AFTER leg 2): port thanhtra v1.2 trust gate. Vector = malicious PR/commit modifying a hook / `.mcp.json` / `.claude/settings.json` → user `git pull` → auto-exec. Because sos-kit INTENTIONALLY ships those as its product, can't hard-fail like thanhtra → **baseline-diff**: change to auto-exec surface = FAIL until reviewed + rebaselined, diff in PR. 3 oracle-deviations + gotchas already specced at the "Trust gate port" section below (line ~233). ~1 session.
+> **Scope gate vòng này:** CHỈ Claude Code + Codex. Cursor, OpenCode và Antigravity để future adapters; không implement hoặc tuyên bố support khi chưa có môi trường dogfood thật.
+>
+> **Thứ tự cứng:** portable core → Claude parity → Rust adapter framework → Codex adapter → sos-kit self-dogfood → brownfield dogfood → packaging. Chưa qua gate trước thì không khởi công gate sau.
 
 ### Active items (in order)
-- [ ] **[P071]** Release-asset integrity — `.sha256` publish (CI ×10 repos) + install.sh fetch-verify + version pinning. **Leg 2.** Detail at line ~309. Phiếu drafted (`docs/ticket/P071-install-checksum.md`), CHALLENGE next.
+
+- [x] **[P074] Runtime boundary inventory** — DONE 2026-07-20. Ownership A: một monorepo/version/`sos`; core + Claude/Codex adapters module hóa; sister tools qua managed manifest để giữ one-command UX. Docs-only, không đổi runtime. Phiếu: `docs/ticket/P074-runtime-boundary-inventory.md`.
+- [ ] **[P075] Portable SOS Core** — tạo `SOS.md`, role/policy/workflow trung lập; core không chứa runtime-specific tool/model/env.
+- [ ] **[P076] Claude Code adapter parity** — tái dựng wiring Claude từ cùng core; golden behavior trước/sau phải tương đương.
+- [ ] **[P077] Rust adapter framework** — adapter contract, policy engine, manifest, dry-run/non-clobber/rollback/sync/doctor và lifecycle state.
+- [ ] **[P078] Codex native adapter** — `AGENTS.md`, `.codex/agents`, hooks, skills, MCP và permission envelope.
+- [ ] **[P079] Codex self-dogfood** — Codex chạy trọn một phiếu thật ngay trên sos-kit qua DRAFT→CHALLENGE→APPROVAL→EXECUTE→DISCOVERY→MERGE.
+- [ ] **[P080] Dual-runtime brownfield dogfood** — Claude + Codex cùng repo, fresh + brownfield, regression và cross-platform.
+- [ ] **[P081] Distribution** — Rust prebuilt/checksum trước; npm/pnpm wrapper và native plugins chỉ sau dogfood xanh.
+
+---
+
+## ⏸ Carry-over acceptance — open-source-hardening (không block P074)
+
+> **Trạng thái:** implementation cả 3 leg đã ship. Còn acceptance P071 trên Linux + Windows Git Bash; log tại `docs/retro/DOGFOOD_P071-task6_3OS_2026-06-15.md`. Carry-over này không mở lại scope portability.
+>
+> Threat model the 3 legs cover (distinct, complementary):
+> - **Leg 1 — privacy/portability:** ✅ DONE (`b20aa0c`) — `.mcp.json` dùng PATH-relative `doctor`.
+> - **Leg 2 — download integrity `[P071]`:** ✅ IMPLEMENTED (`ef04ea4`) — installer verify `.sha256`; ⏳ Linux/Windows discrimination acceptance còn treo.
+> - **Leg 3 — auto-exec integrity `[P073]`:** ✅ DONE (`2ab5b64`) — trust baseline + hidden-unicode gate + `SECURITY.md`.
+
+### Remaining acceptance items
+- [x] **[P071 implementation]** Release `.sha256` + installer fetch-verify shipped. Version pinning tách sang `[P-pin]` follow-up.
 - [ ] **[NEW]** Dogfood P071 + kit trên **cả Linux + Windows** (không chỉ macOS) — Sếp có sẵn 2 máy. **Acceptance-gate của P071, KHÔNG phải dogfood chung:** P071 Task 6 (2-OS discrimination test) chỉ coi là xong khi `$SHA` probe verify thật trên Linux (`sha256sum`) + Windows Git Bash (cả 2) + macOS (`shasum -a 256`). Bonus bắt: install.sh curl|sh + sos adopt/new line-ending / command-availability gaps; advisory-cron win-skip phải warn-skip sạch. → **P071 done = probe xanh trên 2-3 OS.** (15/06/2026)
-- [ ] **[P-trust-gate]** Auto-exec baseline-diff gate (port thanhtra v1.2). **Leg 3.** Detail at "Trust gate port" section ~233. Blocked-by P071 (sequential).
+- [x] **[P073]** Auto-exec baseline-diff + hidden-unicode gate shipped.
 
 > **Follow-up (NOT a public gate — reproducibility, not integrity):**
 > - [ ] **[P-pin]** Version-pinning manifest cho install.sh (`releases/latest` → pinned tag + `versions.env`). Split khỏi P071 tại APPROVAL_GATE 2026-06-15 (checksum một mình đã đóng supply-chain HIGH). Edge đã khảo sát: manifest-before-clone ordering → Approach A (inline vars trong install.sh). Recurring bump cost mỗi release. Làm khi n-user lớn cần reproducible install. (15/06/2026)

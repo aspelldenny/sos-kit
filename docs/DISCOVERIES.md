@@ -6,6 +6,9 @@
 >
 > **Pre-2026-05 entries:** archived to `docs/archive/DISCOVERIES_pre-2026-05.md`. Migration date: 2026-05-02 (P038).
 
+## 2026-07-20 — P074: Runtime boundary + monorepo ownership locked
+Chủ nhà chọn A: một `sos-kit` monorepo, một version và một `sos` entrypoint; portable core + Claude/Codex adapters là module riêng. Inventory xác nhận Claude coupling lan ngoài `.claude/**`; one-command tool install sẽ do manifest quản lý. Full report: `docs/discoveries/P074.md`.
+
 ## 2026-06-15 — P073: Trust gate shipped (baseline-diff + hidden-unicode + SECURITY.md, 20 surfaces)
 Unicode pre-fix: 2 raw U+FEFF escaped (DISCOVERY_PROTOCOL.md:196 + P073-trust-gate.md:45); re-scan 0. grep-P BSD gap: switched to byte-pattern `LC_ALL=C grep -e $'\x...'` fallback. Baseline: 20 surfaces (5 non-script + 11 scripts incl trust-gate.sh + install.sh + phieu.sh + setup-dev.sh). All 4 discrimination tests PASS. Phase count bumped to [8/8] everywhere.
 Full report: `docs/discoveries/P073.md`
@@ -21,6 +24,7 @@ Full report: `docs/discoveries/P071.md`. macOS has `/sbin/sha256sum` (Darwin 1.0
 
 | Phiếu | Date | 1-line summary |
 |---|---|---|
+| [P074](discoveries/P074.md) | 2026-07-20 | Runtime boundary inventory; ownership A locked: one monorepo/version/`sos`, modular core + Claude/Codex adapters; managed tool manifest preserves one-command UX without big-bang source merge |
 | [P073](discoveries/P073.md) | 2026-06-15 | Trust gate: 20-surface baseline-diff + hidden-unicode gate; 2 U+FEFF escaped pre-enable; BSD grep-P gap → byte-pattern fallback; 4 discrimination tests PASS; [8/8] phase wired; SECURITY.md written |
 | [P072](discoveries/P072.md) | 2026-06-15 | Fleet Node20 bump: all 10 repos rc-oracle PASS (3/3 green, 0 annotations, prerelease=true, latest unchanged); guard/vps/doc-rotate/advisory-cron upgraded to full draft/publish+sha256 template (P071+P072 combined for optionals); P009 oracle gap documented (github-script@v7 invisible to P009 because P071 added it after P009) |
 | [P071-stage1](discoveries/P071-stage1.md) | 2026-06-15 | Stage 1 fan-out: .sha256 publish pattern applied to 5 REQUIRED repos (claude-hooks 0.9.2, docs-gate/ship/advisory-inbox/inv-gate 0.1.1); all CI GREEN; all 3 targets carry .sha256; inv-gate @v3 draft/publish confirmed working; Stage 2 gate condition met |

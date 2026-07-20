@@ -2,7 +2,10 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + install completeness — 2026-06-15
+## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-20
+
+**[P074] Portability architecture — one monorepo, one `sos`, modular adapters (2026-07-20):**
+- Added tracked-tree runtime inventory and target architecture. Chủ nhà selected ownership A: Rust CLI remains in `sos-kit`; P077 will promote the skeleton into the canonical workspace and update the old “not runtime source” contract. Target separates portable core, Claude adapter, Codex adapter and generated artifacts while distributing one product/version/binary. One-command install uses a managed tool manifest for hooks, doctor, inv/docs gates, doc-rotate and ship; sister tools need not be source-merged before the UX is unified. No runtime behavior changed in P074.
 
 **[P073] Trust gate — auto-exec baseline-diff + hidden-unicode (2026-06-15):**
 - Open-source hardening Leg 3 of 3 (port thanhtra v1.2). Ships: `scripts/trust-gate.sh` (two checks: sha256 baseline-diff of 20 auto-exec surfaces + hidden-unicode scan of instruction/doc files); `.sos-trust-baseline` (committed hash snapshot, 20 surfaces: 5 non-script + 13 scripts + install.sh + phieu/phieu.sh + templates/setup-dev.sh); `SECURITY.md` (threat model, 6 invariants, trust anchor, rebaseline workflow, future-work notes); `hooks/pre-commit` bumped to `[1/8]`…`[8/8]`. Unicode pre-fix: escaped 2 raw U+FEFF chars (`phieu/DISCOVERY_PROTOCOL.md:196` + `docs/ticket/P073-trust-gate.md:45`); re-scan confirmed 0 remaining. Challenge resolution: BROAD scan scope (incl. `docs/ticket/`), `settings.local.json` excluded (globally gitignored), 3 extra surfaces added (`install.sh` + `phieu/phieu.sh` + `templates/setup-dev.sh`). Discrimination tests (3 cases) PASS. `INVARIANTS-template.md`: N/A (gate is sos-kit-specific, not a generic project-level INV).
