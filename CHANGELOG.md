@@ -4,6 +4,9 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-20
 
+**[P075] Portable SOS Core — neutral roles, workflow, policy and asset ownership (2026-07-20):**
+- Added `SOS.md` plus `core/README.md`, `core/ROLES.md`, `core/WORKFLOW.md`, `core/POLICY.md` and `core/ASSETS.md` as the runtime-neutral semantic contract. Roles now use intent-level capability names instead of host tool/model/event vocabulary; lifecycle defines one ticket as one delivery unit (`gates → commit → push/merge → verify remote → next ticket`); policy centralizes authority, bounded delegation, information envelopes, oracle/scope/safety rules; asset ownership separates portable, transitional, adapter-owned and generated content. Negative runtime-token oracle passes with zero hits. Existing adapter behavior is unchanged; parity migration remains P076.
+
 **[P074] Portability architecture — one monorepo, one `sos`, modular adapters (2026-07-20):**
 - Added tracked-tree runtime inventory and target architecture. Chủ nhà selected ownership A: Rust CLI remains in `sos-kit`; P077 will promote the skeleton into the canonical workspace and update the old “not runtime source” contract. Target separates portable core, Claude adapter, Codex adapter and generated artifacts while distributing one product/version/binary. One-command install uses a managed tool manifest for hooks, doctor, inv/docs gates, doc-rotate and ship; sister tools need not be source-merged before the UX is unified. No runtime behavior changed in P074.
 

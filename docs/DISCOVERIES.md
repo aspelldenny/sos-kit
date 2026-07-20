@@ -6,6 +6,9 @@
 >
 > **Pre-2026-05 entries:** archived to `docs/archive/DISCOVERIES_pre-2026-05.md`. Migration date: 2026-05-02 (P038).
 
+## 2026-07-20 — P075: Portable SOS Core extracted
+Six neutral contract files now own roles, workflow, policy and asset classes. Capability vocabulary replaces host tool names; one ticket must reach verified remote delivery before the next executes. Zero runtime-token oracle passes. Full report: `docs/discoveries/P075.md`.
+
 ## 2026-07-20 — P074: Runtime boundary + monorepo ownership locked
 Chủ nhà chọn A: một `sos-kit` monorepo, một version và một `sos` entrypoint; portable core + Claude/Codex adapters là module riêng. Inventory xác nhận Claude coupling lan ngoài `.claude/**`; one-command tool install sẽ do manifest quản lý. Full report: `docs/discoveries/P074.md`.
 
@@ -24,6 +27,7 @@ Full report: `docs/discoveries/P071.md`. macOS has `/sbin/sha256sum` (Darwin 1.0
 
 | Phiếu | Date | 1-line summary |
 |---|---|---|
+| [P075](discoveries/P075.md) | 2026-07-20 | Portable core: six neutral contract files, capability-based roles, lifecycle/policy/asset ownership, one-ticket/one-remote-delivery rule; zero runtime-token oracle passes |
 | [P074](discoveries/P074.md) | 2026-07-20 | Runtime boundary inventory; ownership A locked: one monorepo/version/`sos`, modular core + Claude/Codex adapters; managed tool manifest preserves one-command UX without big-bang source merge |
 | [P073](discoveries/P073.md) | 2026-06-15 | Trust gate: 20-surface baseline-diff + hidden-unicode gate; 2 U+FEFF escaped pre-enable; BSD grep-P gap → byte-pattern fallback; 4 discrimination tests PASS; [8/8] phase wired; SECURITY.md written |
 | [P072](discoveries/P072.md) | 2026-06-15 | Fleet Node20 bump: all 10 repos rc-oracle PASS (3/3 green, 0 annotations, prerelease=true, latest unchanged); guard/vps/doc-rotate/advisory-cron upgraded to full draft/publish+sha256 template (P071+P072 combined for optionals); P009 oracle gap documented (github-script@v7 invisible to P009 because P071 added it after P009) |
