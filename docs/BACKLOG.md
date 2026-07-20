@@ -19,7 +19,7 @@
 
 - [x] **[P074] Runtime boundary inventory** — DONE 2026-07-20. Ownership A: một monorepo/version/`sos`; core + Claude/Codex adapters module hóa; sister tools qua managed manifest để giữ one-command UX. Docs-only, không đổi runtime. Phiếu: `docs/ticket/P074-runtime-boundary-inventory.md`.
 - [x] **[P075] Portable SOS Core** — DONE 2026-07-20. `SOS.md` + `core/{README,ROLES,WORKFLOW,POLICY,ASSETS}.md`; capability vocabulary trung lập, one-ticket/one-delivery rule, zero runtime-token gate. Không đổi behavior adapter hiện tại.
-- [ ] **[P076] Claude Code adapter parity** — tái dựng wiring Claude từ cùng core; golden behavior trước/sau phải tương đương.
+- [ ] **[P076] Claude Code adapter parity — NEXT SESSION** — tái dựng wiring Claude từ cùng core; golden behavior trước/sau phải tương đương. Chưa mở phiếu/branch. Plan: `docs/plans/P076-claude-adapter-parity.md`.
 - [ ] **[P077] Rust adapter framework** — adapter contract, policy engine, manifest, dry-run/non-clobber/rollback/sync/doctor và lifecycle state.
 - [ ] **[P078] Codex native adapter** — `AGENTS.md`, `.codex/agents`, hooks, skills, MCP và permission envelope.
 - [ ] **[P079] Codex self-dogfood** — Codex chạy trọn một phiếu thật ngay trên sos-kit qua DRAFT→CHALLENGE→APPROVAL→EXECUTE→DISCOVERY→MERGE.
