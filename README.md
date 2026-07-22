@@ -67,7 +67,7 @@ Each stage belongs to exactly one layer. Crossing layers without a handoff is th
 | **[docs-gate](https://github.com/aspelldenny/docs-gate)** | 5.2MB | Enforce documentation compliance before every commit |
 | **[guard](https://github.com/aspelldenny/guard)** | 1.9MB | Pre-deploy infrastructure gate — catch schema drift, env sync, canary mismatch before they hit production |
 | **[vps](https://github.com/aspelldenny/vps)** | 1.2MB | Production ops — status, logs, restart, metrics for Docker Compose projects over SSH |
-| **sos** (in `bootstrap/sos-rs/`) | (planned) | 0→1 bootstrap — `sos new <dir> --stack <python\|rust\|ts>` (greenfield: freeze spine + skeleton + `doctor verify-setup` validate) · `sos adopt <dir>` (brownfield: retrofit spine into an EXISTING repo, additive + non-clobber + report) · `sos map [dir]` (scan repo → draft AGENT_MAP with real surfaces: sound framework + human-set load_bearing/blast) · `sos init` / `sos init security` / `blueprint` / `contract` / `apply` / `launch`. Bash MVP at `bin/sos.sh`. See [`docs/GENESIS.md`](./docs/GENESIS.md) + [`docs/BOOTSTRAP_AUTOMATION_DRAFT.md`](./docs/BOOTSTRAP_AUTOMATION_DRAFT.md) §7–§8. |
+| **sos** (in `crates/`, relocated from `bootstrap/sos-rs/` P077f) | (planned) | 0→1 bootstrap — `sos new <dir> --stack <python\|rust\|ts>` (greenfield: freeze spine + skeleton + `doctor verify-setup` validate) · `sos adopt <dir>` (brownfield: retrofit spine into an EXISTING repo, additive + non-clobber + report) · `sos map [dir]` (scan repo → draft AGENT_MAP with real surfaces: sound framework + human-set load_bearing/blast) · `sos init` / `sos init security` / `blueprint` / `contract` / `apply` / `launch`. Bash MVP at `bin/sos.sh`. See [`docs/GENESIS.md`](./docs/GENESIS.md) + [`docs/BOOTSTRAP_AUTOMATION_DRAFT.md`](./docs/BOOTSTRAP_AUTOMATION_DRAFT.md) §7–§8. |
 
 After `sos init security` writes `.sos-stack.toml`, run `/advisory-scan` in Claude Code to invoke the Trinh sát (advisory-watch specialist subagent — P041). It surfaces GHSA + vendor advisories that match your stack's resolved dep versions into `docs/security/advisory-inbox.md`. Chủ nhà reviews each row and marks `dismissed` or creates a follow-on phiếu to patch. See [`docs/SETUP.md`](./docs/SETUP.md) "Security pipeline" section.
 
@@ -403,8 +403,8 @@ sos-kit/
 │   └── worker.md
 ├── bin/
 │   └── sos.sh                  # CLI entrypoint — delegates to subcommands
-├── bootstrap/
-│   └── sos-rs/                 # Rust CLI source skeleton (bootstrap target)
+├── Cargo.toml                  # Rust workspace root (relocated from bootstrap/sos-rs/ P077f)
+├── crates/                     # Rust CLI source — sos-cli/sos-core/sos-install/sos-adapter-claude/sos-hooks
 ├── docs/
 │   ├── PHILOSOPHY.md           # 6 principles
 │   ├── LAYERS.md               # 3-role model (Chủ nhà / Kiến trúc sư / Thợ)

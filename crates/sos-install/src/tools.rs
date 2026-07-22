@@ -17,16 +17,17 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::process::Command;
 
-/// `tool-manifest.toml` embedded at compile time (kit root, 5 levels up
+/// `tool-manifest.toml` embedded at compile time (kit root, 3 levels up
 /// from this file — `crates/sos-install/src/tools.rs` ->
-/// `bootstrap/sos-rs/crates/sos-install` -> kit root). Embedding (not an
-/// env-var/flag lookup) is deliberate: the compiled `sos` binary is used
-/// INSIDE arbitrary target projects that do not necessarily have a sos-kit
-/// checkout available at runtime, so the pin must travel WITH the binary,
-/// not be resolved relative to wherever it happens to run
-/// (`[needs Worker verify]` anchor resolved this way — see Discovery).
+/// `crates/sos-install` -> kit root, since P077f relocated the workspace
+/// to repo-root). Embedding (not an env-var/flag lookup) is deliberate: the
+/// compiled `sos` binary is used INSIDE arbitrary target projects that do
+/// not necessarily have a sos-kit checkout available at runtime, so the pin
+/// must travel WITH the binary, not be resolved relative to wherever it
+/// happens to run (`[needs Worker verify]` anchor resolved this way — see
+/// Discovery).
 const EMBEDDED_TOOL_MANIFEST: &str =
-    include_str!("../../../../../tool-manifest.toml");
+    include_str!("../../../tool-manifest.toml");
 
 /// One pinned sister-tool entry — mirrors `tool-manifest.toml`'s `[[tool]]`
 /// array-of-tables shape exactly (Task 1 CHỐT schema).
