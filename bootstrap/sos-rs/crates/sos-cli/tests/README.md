@@ -310,3 +310,69 @@ see "`sos new` — synthetic fake-kit + doctor-absent" above). **P077c4 added `"
 (now `&["map", "sync", "new", "adopt"]`, 4/4 commands enforced — no command left
 informational) with its own `parity_adopt_enforced` test (four-layer assert: stdout +
 tree-shape + gen-content + preservation-assert, see "`sos adopt`" above).
+
+## Correctness oracle vs parity oracle (P077c5 — OA-02 fix)
+
+`PARITY_ENFORCED` keeps its 4-name shape (`["map", "sync", "new", "adopt"]`), but from
+P077c5 onward **its members are two different KINDS of oracle**:
+
+- **Parity oracle** (`sync`, `new`, unchanged; `adopt`'s stdout/tree/preservation layers) —
+  asserts Rust output == a Bash-captured golden. Proves bug-for-bug fidelity to
+  `bin/sos.sh`, including Bash's bugs.
+- **Correctness oracle** (`map`, fully; `adopt`'s `docs/AGENT_MAP.yaml` gen-content line
+  only) — asserts Rust output == a hand-authored/frozen-from-corrected-Rust golden.
+  Rust is **intentionally NOT** bit-identical to Bash here: `map` had a real bug
+  (OA-02, `docs/retro/OUTSIDER_AUDIT_SYSTEM_GAPS_2026-07-22.md:93-131`) that c1–c4
+  deliberately ported bug-for-bug (parity-first strategy), and c5 fixes it in Rust
+  only — `bin/sos.sh` stays unchanged/buggy by design (Rust-only fix; Bash fix, if
+  ever done, is deferred to the P077e cutover decision, not this phiếu).
+
+**Why this split exists:** the parity-first strategy (c1–c4) and the OA-02 audit finding
+are in tension — you cannot simultaneously assert "==Bash" and "fixes Bash's bug" for the
+same artifact. c5 resolves the tension by keeping `sync`/`new` (unaffected by OA-02) on
+pure parity, and flipping ONLY the OA-02-affected artifacts (`map`'s two goldens, and
+`adopt`'s one `docs/AGENT_MAP.yaml` gen-hash line) to a correctness oracle.
+
+**Mechanical guard against silent regression** (`golden/capture.sh`): this script still
+runs the REAL (buggy) `bin/sos.sh` to freeze goldens. If it blindly overwrote
+`map.golden`/`map.agent_map.golden`/`adopt.gen.golden`'s AGENT_MAP line, a future re-run
+would silently reintroduce OA-02 into the goldens. So:
+- The `map`-capturing block writes to `map.golden.bash-reference` /
+  `map.agent_map.golden.bash-reference` instead (informational only, no test reads them).
+- `freeze_adopt_gen()` explicitly SKIPS `docs/AGENT_MAP.yaml` (prints a `WARN:` to
+  stderr) rather than hashing the Bash-buggy file.
+- **The 3 correctness-oracle golden artifacts are only ever updated by hand**, verified
+  against the CORRECTED Rust binary's actual output (`cargo run -- map <fixture>` /
+  `cargo run -- adopt <fixture>`), never by re-running `capture.sh` end-to-end.
+
+**OA-02 fix — 3 parts, all in `map.rs`:**
+1. **Stack-aware source surface** — `STACK_MARKERS` detects a manifest (`Cargo.toml`,
+   `pyproject.toml`/`setup.py`/`requirements.txt`, `package.json`, `go.mod`,
+   `Package.swift`) anywhere in the tree (`detect_present_stacks`, unbounded depth —
+   monorepo-aware) and emits a matching generic-extension surface (`rust_src`,
+   `python_src`, `node_src`, `go_src`, `swift_src`) additive to the 6 pre-existing
+   dir-pattern surfaces. A standard Rust crate now maps `src/main.rs`.
+2. **Kit-managed asset exclusion** — `KIT_MANAGED_ROOTS` (`templates`, `phieu`,
+   `scripts`, `hooks`, `.claude` — verified against `adopt.rs`'s actual copy targets at
+   CHALLENGE) is checked against every entry's FIRST relative-path component in
+   `scan_surface`; matches are skipped from every surface. Fixes both standalone `sos
+   map` (repo already has kit assets from a prior adopt) and map-within-adopt
+   (`templates/` just copied by `[1/4]`).
+3. **3-verdict status** — `status: draft_needs_review` → `status: coverage_unknown`
+   (`PATH_VALID` / `COVERAGE_UNKNOWN` / `COVERAGE_REVIEWED`; map never self-asserts
+   `COVERAGE_REVIEWED`). The zero-surface stub case (previously `draft_unmapped`) is
+   folded into `COVERAGE_UNKNOWN` too — a fresh empty scan is still "unreviewed", not a
+   distinct 4th state (Worker CHALLENGE O1.1, self-decided Tầng 2).
+
+**Acceptance fixtures (`parity.rs`, `oa02_*` tests)** hard-fail on regression:
+`oa02_rust_crate_maps_src_main` (Cargo.toml + src/main.rs → `rust_src` surface present,
+status `coverage_unknown`), `oa02_templates_excluded_from_frontend` (kit `templates/`
+never becomes a `frontend` surface, product surfaces still map correctly),
+`oa02_monorepo_nested_packages_mapped` (nested `migrations/` + a nested Rust
+sub-package's `Cargo.toml` both produce expected surfaces). Verified to fire loud: a
+1-token sabotage (renaming the `rust_src` marker) failed 2 of the 3 `oa02_*` tests with
+a clear panic message; reverted, all 8 `parity.rs` tests green again.
+
+**`adopt.rs` needed ZERO code change** (Task 4) — `run_map_subcommand` re-invokes the
+compiled `sos` binary's `map` subcommand as a subprocess, so it inherits the exclude-list
+and 3-verdict fix automatically once `map.rs` has them.

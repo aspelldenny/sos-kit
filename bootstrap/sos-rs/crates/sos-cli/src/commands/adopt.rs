@@ -373,10 +373,11 @@ fn wire_settings_local(kit: &Path, target: &Path, added: &mut Vec<String>, confl
 /// `sos_map "$target" >/dev/null` (bin/sos.sh:814). This reuses `map.rs`'s
 /// logic WITHOUT modifying map.rs (constraint: map.rs is untouched, shared
 /// with c1/c5), while still suppressing map's own stdout the way Bash's
-/// redirect does. GIỮ OA-02 bug-for-bug: [1/4] has already copied kit assets
-/// into `target` by the time this runs, so the scan (and the AGENT_MAP.yaml
-/// it writes) includes those copied kit assets — intentionally NOT excluded
-/// (P077c5 fixes this).
+/// redirect does. `[1/4]` has already copied kit assets into `target` by the
+/// time this runs, but from P077c5 onward `map.rs`'s KIT_MANAGED_ROOTS
+/// exclude-list (Part 2) skips those same roots regardless of caller — this
+/// function needed ZERO code change to inherit the OA-02 fix, since it just
+/// re-invokes the same (now-fixed) `sos map` binary.
 fn run_map_subcommand(target: &Path) {
     if let Ok(exe) = std::env::current_exe() {
         let _ = Command::new(exe).arg("map").arg(target).output();

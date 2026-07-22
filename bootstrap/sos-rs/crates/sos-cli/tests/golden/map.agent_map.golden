@@ -1,4 +1,4 @@
-# AGENT_MAP — scan-generated DRAFT (sos map). status: draft_needs_review.
+# AGENT_MAP — scan-generated DRAFT (sos map). status: coverage_unknown.
 #
 # SOUND half (auto): the surfaces + edit-paths below are REAL dirs/files in THIS repo, coarse-
 #   grouped by directory pattern. This is NOT the tarot example (no "map nói dối").
@@ -6,9 +6,11 @@
 #   judge importance (product knowledge). Split coarse regions into semantic surfaces as you
 #   refine (e.g. routes_handlers → auth / ratings / privacy).
 #
+# 3-verdict status: PATH_VALID (validate-map property) / COVERAGE_UNKNOWN (fresh scan, default) /
+#   COVERAGE_REVIEWED (human-set only — map never self-asserts this).
 # Validator: doctor validate-map --map docs/AGENT_MAP.yaml (every path must exist).
 version: 1
-status: draft_needs_review
+status: coverage_unknown
 generated_by: "sos map (scan)"
 
 surfaces:

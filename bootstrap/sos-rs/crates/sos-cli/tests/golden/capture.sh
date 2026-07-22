@@ -7,6 +7,13 @@
 # (that change itself would be its own phiếu — .golden is not meant to be re-frozen
 # casually; a diff here without a corresponding bin/sos.sh phiếu is a regression signal).
 #
+# P077c5 EXCEPTION — map/adopt is a CORRECTNESS oracle, not Bash-parity, from this
+# phiếu onward (OA-02 fix: Rust intentionally != Bash; bin/sos.sh stays buggy by
+# design, fix deferred to P077e cutover). This script's `map`/`docs/AGENT_MAP.yaml`
+# capture writes to `*.bash-reference` files (informational only) instead of the
+# real goldens — see the guard comments at each call site below. sync/new remain
+# full Bash-parity and are safe to re-capture with this script as before.
+#
 # Usage:
 #   SOS_KIT_DIR=/path/to/sos-kit bash tests/golden/capture.sh [output-dir]
 #
@@ -229,9 +236,22 @@ freeze_adopt_tree() {  # <target-dir> -> sorted path-shape manifest, INCLUDES .s
 }
 
 freeze_adopt_gen() {  # <target-dir> -> sorted "<relpath> <sha256>" manifest, GENERATED-authored only
+  # P077c5 GUARD: map/adopt is a CORRECTNESS oracle from here on (tests/README.md),
+  # NOT a Bash-parity oracle -- `docs/AGENT_MAP.yaml` is written by the map-within-
+  # adopt call, which shells out to the REAL (still OA-02-buggy) `bin/sos.sh` in
+  # this script's Bash-capture path. Hashing it here would silently re-freeze the
+  # BUGGY content back into adopt.gen.golden on a naive re-run. So: skip it in the
+  # automated capture; its golden line must be hand-verified/regenerated against
+  # the CORRECTED RUST binary's output (`sos adopt` via `cargo run`), never copied
+  # from this function's output. All other files here are still authored/copied
+  # content unrelated to OA-02 and remain safe to auto-capture from Bash.
   local tgt="$1" f
   {
     for f in "${ADOPT_GEN_FILES[@]}"; do
+      if [[ "$f" == "docs/AGENT_MAP.yaml" ]]; then
+        echo "WARN: skipping docs/AGENT_MAP.yaml auto-capture (P077c5 correctness oracle -- see comment above)" >&2
+        continue
+      fi
       [[ -f "$tgt/$f" ]] || continue
       local hash
       hash="$(cat "$tgt/$f" | strip_timestamp | normalize "$tgt" | sha256_of_stdin)"
@@ -328,16 +348,23 @@ run_isolated_kit_doctor_absent "$fake_kit_adopt" sos_adopt "$tgt" --stack python
 freeze_adopt_tree "$tgt" > "$OUT/adopt.tree.golden"
 freeze_adopt_gen "$tgt" > "$OUT/adopt.gen.golden"
 
-echo "== capturing map =="
+echo "== capturing map (Bash REFERENCE ONLY from P077c5 -- see guard below) =="
 tgt="$WORK/map-fixture"
 mkdir -p "$tgt/src/routes" "$tgt/src/models"
 echo "def h(): pass" > "$tgt/src/routes/api.py"
 echo "class M: pass" > "$tgt/src/models/user.py"
-run_isolated sos_map "$tgt" | normalize "$tgt" > "$OUT/map.golden"
-# P077c1 (additive): map's REAL work-product is the file it writes, not just
-# the 1-line stdout confirmation above. Freeze that file's content too, so
-# the parity harness isn't blind to scan-correctness (see Debate Log V2).
-cat "$tgt/docs/AGENT_MAP.yaml" | normalize "$tgt" > "$OUT/map.agent_map.golden"
+# P077c5 GUARD: `map` is a CORRECTNESS oracle (Rust intentionally != Bash,
+# tests/README.md), NOT a Bash-parity oracle from this phiếu onward. Bash
+# `sos_map` still carries OA-02 (no source surface, no kit-asset exclusion,
+# `draft_needs_review` wording) by design -- `bin/sos.sh` stays unchanged
+# (P077c invariant; Bash fix deferred to P077e cutover). Writing this capture
+# straight to `map.golden`/`map.agent_map.golden` would silently re-introduce
+# OA-02 into the goldens `tests/parity.rs` asserts against. So: capture Bash's
+# output to `*.bash-reference` (informational, NOT read by any test) instead.
+# `map.golden`/`map.agent_map.golden` are hand-authored/frozen against the
+# CORRECTED RUST binary's output ONLY -- never regenerate them from this block.
+run_isolated sos_map "$tgt" | normalize "$tgt" > "$OUT/map.golden.bash-reference"
+cat "$tgt/docs/AGENT_MAP.yaml" | normalize "$tgt" > "$OUT/map.agent_map.golden.bash-reference"
 
 echo "== capturing sync (synthetic fake-kit fixture, P077c2 re-froze) =="
 fake_kit="$WORK/sync-fake-kit"
