@@ -45,6 +45,8 @@ sos-kit/
 2. `sos-adapter-codex` chưa tạo — P078, ngoài scope P077.
 3. `sos-install`/`sos-adapter-claude`/`sos-hooks` là skeleton rỗng — logic P077d.
 
+**P077d1 status (adapter contract + manifest schema carved):** trait `Adapter` (5 method — `detect/plan/render/verify/uninstall`, khớp dòng 63-69 dưới) render tại `sos-core/src/adapter.rs` cùng type runtime-neutral (`Capabilities`/`Plan`/`Artifact`/`Findings`/`RemovalPlan`); `ManagedManifest` (6 field, khớp `core/ASSETS.md:57-64`) render tại `sos-core/src/manifest.rs`, serde TOML round-trip tested. `sos-adapter-claude` implement trait với stub bodies (zero fs mutation, zero install logic — đó là P077d2). Dependency-direction giữ nguyên (adapter→core one-way, guard test vẫn xanh).
+
 ## Ownership và dependency direction
 
 ### Portable core

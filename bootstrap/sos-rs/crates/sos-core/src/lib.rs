@@ -6,4 +6,6 @@
 //! `tests/dep_direction.rs`). Adapters depend on this crate, never the
 //! reverse.
 
+pub mod adapter;
+pub mod manifest;
 pub mod state;

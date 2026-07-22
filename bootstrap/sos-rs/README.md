@@ -31,7 +31,17 @@ Dependency-direction gate (Tầng 1 — enforced two ways):
 **Deviation from target (`docs/PORTABILITY_ARCHITECTURE.md` lines 24-38)** — tracked, not yet fixed:
 1. Workspace root stays at `bootstrap/sos-rs/` (target: repo-root) — relocation is P077e.
 2. `sos-adapter-codex` not created (target lists it) — that's P078, out of scope here.
-3. `sos-install` / `sos-adapter-claude` / `sos-hooks` are empty skeletons — real logic lands in P077d.
+3. `sos-install` / `sos-hooks` are still empty skeletons; `sos-adapter-claude` now implements the `Adapter` contract (stub bodies — see below). Real install-engine logic lands in P077d2.
+
+### Adapter contract + managed-manifest schema (P077d1)
+
+`sos-core` now carries the foundation abstraction that `sos-install` (d2) and every runtime adapter (`sos-adapter-claude`, and a future `sos-adapter-codex`, P078) build on — **zero install engine, zero filesystem mutation**:
+
+- `crates/sos-core/src/adapter.rs` — the `Adapter` trait, 5 methods (`detect`/`plan`/`render`/`verify`/`uninstall`) per `docs/PORTABILITY_ARCHITECTURE.md:63-69`, plus runtime-neutral placeholder types (`Capabilities`, `Plan`/`ManagedOperation`, `Asset`/`Artifact`, `Findings`/`Finding`, `RemovalPlan`/`RemovalStep`). No host token (`.claude`, `CLAUDE_*`, Codex) — enforced by the dep-direction guard's forbidden-token scan.
+- `crates/sos-core/src/manifest.rs` — `ManagedManifest` struct, 6 fields per `core/ASSETS.md:57-64` (`owner`, `source_version`, `source_identity`, `target_path`, `content_hash`, `rollback_ref: Option<String>`), serde-derived, TOML round-trip tested (`sos-core` already depends on `toml` for `state.toml`).
+- `crates/sos-adapter-claude/src/lib.rs` — `ClaudeAdapter` implements `Adapter` with **stub bodies only** (no fs mutation, no real rendering) — proves the trait is implementable end-to-end while keeping the dependency-direction gate exercised (adapter → core, one-way).
+- New tests: `crates/sos-core/tests/adapter_trait_shape.rs` (compile-level trait-bound proof), `crates/sos-core/src/manifest.rs` inline round-trip tests, `sos-adapter-claude`'s own trait-bound test. `crates/sos-core/tests/dep_direction.rs` re-verified green after the addition.
+- Install engine (transaction plan / dry-run / non-clobber / rollback / apply) and tool-manifest pinning (OA-07) are **out of scope** here — P077d2/P077d3.
 
 ## Build
 
