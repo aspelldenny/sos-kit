@@ -4,6 +4,11 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**[P078a] ADD — `core/STATE.md` portable serialization contract (2026-07-22):**
+- New `core/STATE.md`: canonical machine-readable format for ticket storage/schema, lifecycle state artifact, approval record, edit allowlist, review trigger map and blocked format — lifted from Codex Adapter Discovery Report's Core UNDER-SPECIFICATION list (`docs/adapters/CODEX_ADAPTER_DISCOVERY_2026-07-22.md:26-28`). 4 remaining items (tier-classifier owner, concurrent-ownership lock/worktree, publish-actor division, backlog serialization) deferred to follow-up P078a2.
+- Runtime-neutral (no host token — verified via grep), backward-compatible with existing Claude adapter behavior (state-file is an OPTIONAL projection; the ticket debate log stays authoritative per `core/WORKFLOW.md:49`). No semantics changed in `WORKFLOW.md`/`POLICY.md`/`ROLES.md`.
+- Unblocks P078b (Codex adapter render).
+
 **[P077f] RELOCATE — Rust workspace `bootstrap/sos-rs/` → repo-root (2026-07-22):**
 - Pure `git mv` + path-fix, no logic/behavior change (reversible via `git revert`). `Cargo.toml`+`Cargo.lock`+`crates/` moved to repo-root; `bootstrap/` removed (empty after move). Layout now matches `docs/PORTABILITY_ARCHITECTURE.md` target tree — **P077 fully DONE (a-f)**.
 - **Path-fixes:** resolver `bin/sos.sh` `_sos_workspace_root()` `bootstrap/sos-rs` → repo-root; `crates/sos-cli/tests/parity.rs` `CARGO_MANIFEST_DIR` depth (4→2 hop to `scripts/install-hooks.sh`); `crates/sos-install/src/tools.rs` `include_str!` depth (5→3 hop to `tool-manifest.toml` — a hardcoded relative-path site OUTSIDE the `CARGO_MANIFEST_DIR` family, missed by the initial anchor-grep and caught in Worker CHALLENGE Turn 1 O1.1, added as Task 2b); `.gitignore` `bootstrap/*/target/` → `/target/`.

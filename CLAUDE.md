@@ -63,6 +63,13 @@ sos-kit/
 │   ├── flask.toml
 │   ├── rust.toml
 │   └── python.toml
+├── core/                   # Portable semantic core (P075) — runtime-neutral, shared by every host integration
+│   ├── README.md           # Core boundary + dependency rules ("core never imports an integration")
+│   ├── ROLES.md             # Roles and capability envelopes
+│   ├── WORKFLOW.md         # Ticket lifecycle and state transitions
+│   ├── POLICY.md           # Authority, evidence, scope and safety policy
+│   ├── ASSETS.md           # Asset ownership and migration state
+│   └── STATE.md            # Portable serialization contract (P078a) — ticket storage/schema, lifecycle state artifact, approval record, edit allowlist, review trigger map, blocked format
 ├── crates/                 # Canonical Rust workspace for the `sos` binary (P077e cutover, relocated from bootstrap/sos-rs/ P077f) — sos-cli/sos-core/sos-install/sos-adapter-claude/sos-hooks. See crates/README.md.
 ├── docs/
 │   ├── BACKLOG.md          # Live sprint tracker — surfaced by SessionStart hook
