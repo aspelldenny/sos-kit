@@ -105,6 +105,29 @@ default for unparseable input: an `apply_patch` payload whose patch body doesn't
 `*** Add/Update/Delete/Move File:` marker BLOCKs (fail-CLOSED), because an unparsed Codex patch
 could otherwise write anywhere silently.
 
+**Multi-path bypass hole — CLOSED (P078d2a, 2026-07-22).** P079 live-dogfood found all 5 guards
+above extracted only the FIRST `*** ... File: <path>` marker from a multi-file `apply_patch`
+(`| head -n1`) — a patch listing an allowed path FIRST and a forbidden path (`.env`, `src/**`,
+`.sos-state/ticket-state.env`) SECOND would exit ALLOW on the first match and never inspect the
+rest, silently letting the second write through. Fixed: every guard with an allow-list now
+extracts EVERY path in the patch and **BLOCKs if ANY path violates** the rule (ALLOW requires
+every path to be exempt — the previous "first-path-exempt → allow-all" semantic is gone).
+Verified via a negative-test: reverting to `head -n1` flips the bypass-fixture tests from
+BLOCK(exit 2) back to ALLOW(exit 0) (`crates/sos-adapter-codex/src/lib.rs`,
+`docs/discoveries/P078d2a.md`).
+
+**Approval-gate self-bootstrap exemption (P078d2a #5) — coupled with the fix above.**
+`scripts/codex/approval-gate.sh` now allows a patch that touches ONLY
+`.sos-state/ticket-state.env` (and no other path) through when the state file doesn't exist yet,
+so a fresh install isn't permanently deadlocked (previously: BLOCK on every non-ticket patch when
+the state file was missing, including the patch that would create it). **This exemption is safe
+only because the multi-path fix above lands in the same patch** — a patch bundling
+`ticket-state.env` with a second path is caught by the all-path check and falls through to the
+normal fail-CLOSED BLOCK, not the bootstrap ALLOW. A rendered skeleton state file
+(`.sos-state/ticket-state.env`, empty `version=`/`approved_version=`) is now also emitted at
+install time so most fresh installs never reach the missing-file branch at all; its non-clobber
+safety reuses the pre-existing `sos-install::engine` checksum/manifest logic — no engine change.
+
 ## Install: tool-version drift (OA-07) is workflow-safety, not a trust boundary (P078c)
 
 `sos install` reorders render vs. tool-manifest check (P078c): adapter files are written first,

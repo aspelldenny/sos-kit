@@ -398,15 +398,16 @@ mod tests {
     // Runs on ANY machine, no `codex` binary required.
 
     #[test]
-    fn plan_renders_seventeen_artifacts() {
-        // 10 (b2) + 7 (b3 enforcement: hooks.json, rules, 5 guards).
+    fn plan_renders_eighteen_artifacts() {
+        // 10 (b2) + 7 (b3 enforcement: hooks.json, rules, 5 guards) + 1
+        // (d2a #5: .sos-state/ticket-state.env bootstrap skeleton).
         let adapter = CodexAdapter;
         let capabilities = adapter.detect();
         let plan = adapter.plan(&capabilities);
         assert_eq!(
             plan.operations.len(),
-            17,
-            "plan() must render 10 (b2) + 7 (b3 enforcement) = 17 artifacts"
+            18,
+            "plan() must render 10 (b2) + 7 (b3 enforcement) + 1 (d2a state skeleton) = 18 artifacts"
         );
     }
 
@@ -639,6 +640,16 @@ mod tests {
             )
         }
 
+        /// P078d2a #6 multi-path bypass fixture: a SINGLE apply_patch with TWO
+        /// `*** ... File:` markers in ONE patch body -- (action1, path1) FIRST,
+        /// (action2, path2) SECOND. This is the exact shape the pre-fix
+        /// `head -n1` extraction only ever saw the first of.
+        fn synthetic_apply_patch_multi(action1: &str, path1: &str, action2: &str, path2: &str) -> String {
+            format!(
+                r#"{{"hook_event_name":"PreToolUse","permission_mode":"bypassPermissions","cwd":"/tmp/x","tool_name":"apply_patch","tool_input":{{"command":"*** Begin Patch\n*** {action1} File: {path1}\n+x\n*** {action2} File: {path2}\n+y\n*** End Patch"}},"tool_use_id":"t"}}"#
+            )
+        }
+
         #[test]
         fn architect_guard_allows_when_marker_absent() {
             // No architect-active marker -> allow anything, even the real
@@ -806,6 +817,114 @@ mod tests {
             let payload = synthetic_apply_patch("Update", "docs/ticket/P078b3-x.md");
             let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, no_setup);
             assert_eq!(code, 0);
+        }
+
+        // ── P078d2a #6 multi-path bypass -- the core security oracle ──────
+        // Pre-fix, every guard extracted ONLY the first `*** ... File:` path
+        // (`head -n1`). A patch with an allowed path FIRST and a forbidden
+        // path SECOND would exit ALLOW on the first match without ever
+        // looking at the second. These tests assert BLOCK for exactly that
+        // shape across every guard that has an allow-list (anchor #6).
+
+        #[test]
+        fn architect_guard_blocks_multipath_bypass_ticket_first_forbidden_second() {
+            let payload = synthetic_apply_patch_multi(
+                "Update",
+                "docs/ticket/P099-example.md",
+                "Add",
+                ".env",
+            );
+            let code = run_guard(templates::GUARD_ARCHITECT, &payload, with_architect_active);
+            assert_eq!(code, 2, "multi-path bypass (ticket-first, .env-second) must BLOCK");
+        }
+
+        #[test]
+        fn architect_guard_blocks_multipath_bypass_ticket_first_state_file_second() {
+            let payload = synthetic_apply_patch_multi(
+                "Update",
+                "docs/ticket/P099-example.md",
+                "Add",
+                ".sos-state/ticket-state.env",
+            );
+            let code = run_guard(templates::GUARD_ARCHITECT, &payload, with_architect_active);
+            assert_eq!(code, 2, "multi-path bypass (ticket-first, state-file-second) must BLOCK");
+        }
+
+        #[test]
+        fn architect_guard_allows_multipath_all_ticket_files() {
+            // No-regress: multiple paths, ALL exempt -> still ALLOW.
+            let payload = synthetic_apply_patch_multi(
+                "Add",
+                "docs/ticket/P099-a.md",
+                "Update",
+                "docs/ticket/P099-b.md",
+            );
+            let code = run_guard(templates::GUARD_ARCHITECT, &payload, with_architect_active);
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn orchestrator_guard_blocks_multipath_bypass_docs_first_source_second() {
+            let payload = synthetic_apply_patch_multi(
+                "Update",
+                "docs/DISCOVERIES.md",
+                "Add",
+                "src/evil.rs",
+            );
+            let code = run_guard(templates::GUARD_ORCHESTRATOR, &payload, no_setup);
+            assert_eq!(code, 2, "multi-path bypass (docs-first, src-second, no worker marker) must BLOCK");
+        }
+
+        #[test]
+        fn block_env_edit_blocks_multipath_bypass_src_first_env_second() {
+            let payload = synthetic_apply_patch_multi(
+                "Add",
+                "src/config.rs",
+                "Update",
+                ".env",
+            );
+            let code = run_guard(templates::GUARD_BLOCK_ENV, &payload, no_setup);
+            assert_eq!(code, 2, "multi-path bypass (src-first, .env-second) must BLOCK");
+        }
+
+        #[test]
+        fn approval_gate_blocks_multipath_bypass_ticket_first_source_second() {
+            let payload = synthetic_apply_patch_multi(
+                "Update",
+                "docs/ticket/P078b3-x.md",
+                "Add",
+                "src/evil.rs",
+            );
+            // No state file -> src/evil.rs is a non-ticket path that is NOT
+            // ticket-state.env alone -> fail-CLOSED BLOCK (not the #5 exemption).
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, no_setup);
+            assert_eq!(code, 2, "multi-path bypass (ticket-first, src-second) must BLOCK");
+        }
+
+        // ── P078d2a #5 approval bootstrap (coupled with #6 above) ─────────
+
+        #[test]
+        fn approval_gate_allows_bootstrap_when_only_state_file_touched() {
+            // State file missing, patch touches ONLY .sos-state/ticket-state.env
+            // -> self-bootstrap exemption -> ALLOW.
+            let payload = synthetic_apply_patch("Add", ".sos-state/ticket-state.env");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, no_setup);
+            assert_eq!(code, 0, "bootstrap-only patch (state file missing) must ALLOW");
+        }
+
+        #[test]
+        fn approval_gate_blocks_bootstrap_when_state_file_plus_other_path() {
+            // State file missing, patch touches ticket-state.env AND another
+            // path in the SAME patch -> #6 all-path check sees the second
+            // path -> exemption does NOT apply -> BLOCK.
+            let payload = synthetic_apply_patch_multi(
+                "Add",
+                ".sos-state/ticket-state.env",
+                "Add",
+                "src/evil.rs",
+            );
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, no_setup);
+            assert_eq!(code, 2, "state-file + a second path bundled in one patch must BLOCK");
         }
 
         #[test]
