@@ -1,0 +1,27 @@
+─────────────────────────────────────────
+sos new — bootstrap '<TARGET>' (stack: python)
+─────────────────────────────────────────
+[1/4] Category A — freeze (copy from golden)
+  ✓ agents(deref) + commands + settings.json + skills(5 living) + scripts + phieu + templates + hooks/pre-commit + .gitignore + .mcp.json(doctor)
+[2/4] Category C — generate skeletons (+ # TODO)
+  ✓ INVARIANTS.md + AGENT_MAP.yaml + BACKLOG.md + CLAUDE.md + ARCHITECTURE.md + CHANGELOG.md + stack manifest
+[3/4] Category B — defaults
+  ✓ .docs-gate.toml + .sos-stack.toml
+[4/4] Validator
+      [WIRED ] J1 sentinel-contract — emit 'security-review-start' present; hook-side grep delegated to claude-hooks binary (B+3 shim)
+      [WIRED ] J2 rubric-source — agent handbook enumerates INV rubric inline
+      [WIRED ] J4 invariants-file — docs/security/INVARIANTS.md present
+      [WIRED ] J5 merge-gate — block-unsafe-merge.sh present + registered in settings.json + gates `gh pr merge`
+      [WIRED ] J6 verdict-contract — agent emits `Verdict:`/APPROVE; hook-side parse delegated to claude-hooks binary (B+3 shim)
+    boundary-check: CONNECTED — all wiring joints intact
+  ✓ verify-setup: CONNECTED
+  Category C placeholders to fill (# TODO):
+    - CLAUDE.md
+    - docs/ARCHITECTURE.md
+    - docs/security/INVARIANTS.md
+[+] Git init + arm hooks
+    ✓ core.hooksPath → hooks/ (tracked hooks now live: pre-commit pre-push )
+  ✓ git repo (branch main) + pre-commit/pre-push hooks armed
+
+✓ sos new done: <TARGET>
+  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git add -A && git commit.

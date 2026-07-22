@@ -24,7 +24,7 @@ Identical to bash MVP — see `cat ../../bin/sos.sh` or `sos help`.
 
 - **Bash MVP** ships immediately, easy to iterate on while the design churns.
 - **Rust port** matches DNA of `ship`/`guard`/`vps`/`docs-gate` (4 sister tools), gets cargo-installable, faster startup, type-safe state machine.
-- When Rust port reaches feature parity + battle-tested, deprecate bash and move to its own repo `github.com/aspelldenny/sos`.
+- **Ownership (updated P077a):** the Rust workspace is being lifted INTO `sos-kit` itself (`docs/PORTABILITY_ARCHITECTURE.md`, `docs/plans/P077-decomposition.md`) — it does NOT move to a separate repo. `bin/sos.sh` stays canonical through P077a–P077d (Rust is developed alongside it, verified against a frozen Bash golden oracle — see `tests/README.md`). Only P077e (the decomposition's final, founder-confirmed sub-phiếu) cuts over the Rust binary to canonical and updates the repo's "not a runtime binary source" contract in root `CLAUDE.md`.
 
 ## TODO before parity
 
