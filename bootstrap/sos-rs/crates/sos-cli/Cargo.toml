@@ -1,0 +1,21 @@
+[package]
+name = "sos-cli"
+version = "0.1.0"
+edition = "2021"
+description = "SOS Kit 0->1 bootstrap CLI — composition root (binary `sos`)"
+license = "MIT"
+
+[[bin]]
+name = "sos"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+anyhow = { workspace = true }
+sha2 = { workspace = true }
+walkdir = { workspace = true }
+chrono = { workspace = true }
+sos-core = { path = "../sos-core" }
+sos-install = { path = "../sos-install" }
+sos-adapter-claude = { path = "../sos-adapter-claude" }
+sos-hooks = { path = "../sos-hooks" }

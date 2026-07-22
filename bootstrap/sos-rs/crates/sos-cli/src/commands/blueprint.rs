@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-use crate::state::{self, Phase};
+use sos_core::state::{self, Phase};
 
 pub fn run() -> Result<()> {
     if !Path::new("docs/PROJECT.md").exists() {

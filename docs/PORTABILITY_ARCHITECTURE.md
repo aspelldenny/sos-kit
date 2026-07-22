@@ -40,6 +40,11 @@ sos-kit/
 
 `bootstrap/sos-rs` là nguồn khởi đầu được nâng vào workspace này ở P077, không extract sang repo khác. `CLAUDE.md` hiện nói repo không chứa runtime source; P077 phải sửa contract đó cùng lúc workspace trở thành canonical.
 
+**P077b status (crate boundary carved):** 5 crate skeleton dựng tại `bootstrap/sos-rs/crates/` với đúng dependency direction (adapter→core, core zero adapter dep, CLI composition root — xem `bootstrap/sos-rs/README.md` "Module layout"). Deviation so target — đúng 3 điểm đã biết trước, KHÔNG phát sinh thêm:
+1. Workspace root ở `bootstrap/sos-rs/` (target: repo-root) — relocate = P077e.
+2. `sos-adapter-codex` chưa tạo — P078, ngoài scope P077.
+3. `sos-install`/`sos-adapter-claude`/`sos-hooks` là skeleton rỗng — logic P077d.
+
 ## Ownership và dependency direction
 
 ### Portable core

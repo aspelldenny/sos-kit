@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use std::fs;
 use std::path::PathBuf;
 
-use crate::state::{self, Phase};
+use sos_core::state::{self, Phase};
 
 pub fn run(recipe: &str) -> Result<()> {
     let s = state::load()?;

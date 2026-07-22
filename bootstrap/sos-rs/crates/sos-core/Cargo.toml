@@ -1,0 +1,12 @@
+[package]
+name = "sos-core"
+version = "0.1.0"
+edition = "2021"
+description = "SOS Kit portable core — state.toml management, spec_hash, config schema. Host-neutral: ZERO dep on any adapter/install/hooks/cli crate."
+license = "MIT"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+chrono = { workspace = true }

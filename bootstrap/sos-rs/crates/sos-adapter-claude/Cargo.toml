@@ -1,0 +1,9 @@
+[package]
+name = "sos-adapter-claude"
+version = "0.1.0"
+edition = "2021"
+description = "SOS Kit Claude Code adapter (detect/plan/render/verify/uninstall) — skeleton, logic in P077d. Depends on sos-core (adapter->core one-way)."
+license = "MIT"
+
+[dependencies]
+sos-core = { path = "../sos-core" }

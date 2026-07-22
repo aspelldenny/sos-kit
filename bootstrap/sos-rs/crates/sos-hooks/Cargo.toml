@@ -1,0 +1,9 @@
+[package]
+name = "sos-hooks"
+version = "0.1.0"
+edition = "2021"
+description = "SOS Kit hooks framework (pre-commit / SessionStart wiring) — skeleton, logic in P077d"
+license = "MIT"
+
+[dependencies]
+sos-core = { path = "../sos-core" }
