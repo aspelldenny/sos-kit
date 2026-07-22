@@ -54,6 +54,8 @@ An adapter-owned artifact must identify the portable source or policy it represe
 
 Generated state includes installed registrations, local lifecycle state, trust snapshots, hook stubs and future managed manifests.
 
+**Physical render (P077d1):** the 6-field schema below is now a concrete Rust type — `ManagedManifest` in `bootstrap/sos-rs/crates/sos-core/src/manifest.rs` (serde, TOML round-trip tested). Schema only; apply/rollback logic lands in P077d2.
+
 Every managed artifact records:
 
 - owning integration or portable component;
