@@ -63,6 +63,31 @@ missing or the versions mismatch.
 (`core/POLICY.md` review-trigger map). Still MISSING→guard-replaced, not SOUND: the guard
 itself is bypassable the same way as gap #1 (untrusted repo / disabled hooks).
 
+**P078e Task 1 (approval-transition deadlock fix + actor-check, 2026-07-23):** P079 round-2
+live-dogfood found bootstrap (`version=V1, approved_version=empty`) then BLOCKED the very first
+legitimate approval write (`version=V2, approved_version=V2`) because the state file already
+existed — a circular deadlock (writing the approval record requires the record to already be
+approved). Fix: the state-file-alone exemption (previously create-when-missing only, P078d2a
+#5) now also covers **update** — a patch that touches ONLY `.sos-state/ticket-state.env` is
+allowed through regardless of whether the file is being created or updated. This is gated on a
+**new actor-check**: the exemption fires ONLY when neither `.sos-state/worker-active` nor
+`.sos-state/architect-active` is present (mirrors `orchestrator-guard.sh`'s
+`[ -f ".sos-state/worker-active" ] && continue` pattern) — i.e. only the owner/orchestrator
+main-thread may write an approval record through this path; a worker/architect subagent turn
+gets no special treatment and still falls through to the ordinary version-match BLOCK. The
+pre-existing all-path check (P078d2a #6) is unchanged and still blocks any patch that bundles
+`ticket-state.env` with a second path (code or otherwise) in the same patch.
+
+**Codex caveat (actor-check is best-effort here, not SOUND):** the actor-check depends on the
+`worker-active`/`architect-active` markers, which per gap #6 below are **not reliably set**
+inside custom-role Codex subagents (`openai/codex#21753`). On Claude the check is correct and
+complete (subagent hooks fire reliably). On Codex, a worker subagent's own `apply_patch` may not
+even route through this in-session hook at all — so the actor-check is defense-in-depth only,
+not the real backstop. The actual guarantee for approval-record integrity on Codex remains
+**human-review-at-the-git-commit-boundary**, same as every other gap in this document. Gap #2
+(`sos install` arming Git hooks by default) is tracked separately as P078f (not yet SHIPPED at
+time of writing) — see `docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md`.
+
 ## 5. Architect Read/Glob path interception — PARTIAL
 
 **What's missing:** Codex has no Read/Glob-equivalent tool call to intercept — file reads happen

@@ -978,6 +978,104 @@ mod tests {
             assert_eq!(code, 2, "state-file + a second path bundled in one patch must BLOCK");
         }
 
+        // ── P078e Task 1 -- approval-transition deadlock fix + actor-check ──
+        // (P079 round-2 Gap #1: bootstrap creates version=V1/approved_version
+        // =empty; the first legit approval write -- version=V2,
+        // approved_version=V2 -- was itself BLOCKed by the version-match
+        // check because the state file already existed. Fix extends the
+        // state-file-alone exemption to create+update, gated on an
+        // actor-check so the same agent under review can't self-approve.)
+
+        fn state_env(version: &str, approved: &str) -> String {
+            format!("version={version}\napproved_version={approved}\n")
+        }
+
+        #[test]
+        fn approval_gate_allows_v1_to_v2_transition_when_main_thread_round2_repro() {
+            // Round-2 repro: state already exists (version=V1, approved_version
+            // =empty), patch updates ONLY ticket-state.env to
+            // version=V2/approved_version=V2, no worker/architect marker set
+            // -> ALLOW (deadlock fixed).
+            let payload = synthetic_apply_patch("Update", ".sos-state/ticket-state.env");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, |dir| {
+                fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                fs::write(dir.join(".sos-state/ticket-state.env"), state_env("V1", "")).unwrap();
+            });
+            assert_eq!(
+                code, 0,
+                "main-thread update-only write to ticket-state.env (V1->V2 approval) must ALLOW"
+            );
+        }
+
+        #[test]
+        fn approval_gate_blocks_state_file_alone_write_when_worker_active_self_approve() {
+            // O1.1 fix (the core security oracle for this phiếu): same
+            // update-only write to ticket-state.env as above, but with
+            // .sos-state/worker-active SET -> the actor-check must deny the
+            // exemption -> falls through to version-match -> BLOCK (chặn
+            // worker self-approve).
+            let payload = synthetic_apply_patch("Update", ".sos-state/ticket-state.env");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, |dir| {
+                fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                fs::write(dir.join(".sos-state/ticket-state.env"), state_env("V1", "")).unwrap();
+                fs::write(dir.join(".sos-state/worker-active"), "").unwrap();
+            });
+            assert_eq!(
+                code, 2,
+                "state-file-alone write while worker-active marker is set must BLOCK (self-approve guard)"
+            );
+        }
+
+        #[test]
+        fn approval_gate_blocks_state_file_alone_write_when_architect_active() {
+            // Same actor-check, architect marker variant.
+            let payload = synthetic_apply_patch("Update", ".sos-state/ticket-state.env");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, |dir| {
+                fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                fs::write(dir.join(".sos-state/ticket-state.env"), state_env("V1", "")).unwrap();
+                fs::write(dir.join(".sos-state/architect-active"), "").unwrap();
+            });
+            assert_eq!(
+                code, 2,
+                "state-file-alone write while architect-active marker is set must BLOCK"
+            );
+        }
+
+        #[test]
+        fn approval_gate_still_blocks_pre_approval_code_edit_regression() {
+            // Regression (unchanged behaviour): a product-code edit, state
+            // exists but not-yet-approved for the current version, no marker
+            // -> still BLOCK. The approval-gate must still gate code writes.
+            let payload = synthetic_apply_patch("Update", "src/x.rs");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, |dir| {
+                fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                fs::write(dir.join(".sos-state/ticket-state.env"), state_env("V2", "V1")).unwrap();
+            });
+            assert_eq!(code, 2, "pre-approval code edit must still BLOCK");
+        }
+
+        #[test]
+        fn approval_gate_blocks_multipath_bundle_state_file_plus_code_even_main_thread() {
+            // d2a all-path #6 preserved: bundling ticket-state.env + a code
+            // path in ONE patch must BLOCK even with no marker set (main
+            // thread) -- the exemption only ever fires for ticket-state.env
+            // ALONE.
+            let payload = synthetic_apply_patch_multi(
+                "Update",
+                ".sos-state/ticket-state.env",
+                "Add",
+                "src/evil.rs",
+            );
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, |dir| {
+                fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                fs::write(dir.join(".sos-state/ticket-state.env"), state_env("V1", "")).unwrap();
+            });
+            assert_eq!(
+                code, 2,
+                "state-file + code path bundled in one patch must BLOCK even with no marker set"
+            );
+        }
+
         #[test]
         fn all_guard_scripts_are_bash_syntax_clean() {
             for identity in [
