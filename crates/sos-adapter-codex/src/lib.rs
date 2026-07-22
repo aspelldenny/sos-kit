@@ -449,6 +449,104 @@ mod tests {
         assert!(rules.contains("prefix_rule"));
     }
 
+    // ── P078d1 schema-shape oracle (Codex 0.145.0 live-dogfood, P079) ──────
+    //
+    // The tests above (`toml_artifacts_parse_ok`, `hooks_json_is_valid_json_
+    // with_expected_events`) only assert generic valid-TOML / valid-JSON +
+    // key presence -- that oracle PASSED while all 3 startup-blockers below
+    // were still live against real Codex 0.145.0 (P079 dogfood). These 3
+    // tests assert the Codex-SPECIFIC shape each blocker violated.
+    //
+    // Honest limit (ghi rõ, b2/b3-gap lesson): structural-valid + shape-assert
+    // PASS here still does NOT prove Codex 0.145.0 accepts the output --
+    // only a live Codex run is ground-truth. This oracle is a hand-coded
+    // approximation of the 3 confirmed error messages from P079, not the
+    // real Codex deserializer.
+
+    #[test]
+    fn config_toml_root_settings_are_not_nested_in_a_table() {
+        // Bug #1 (P079): sandbox_mode/approval_policy rendered AFTER [agents]
+        // -> TOML table-scope binds them into [agents] -> Codex 0.145.0:
+        // "invalid type string \"workspace-write\", expected struct AgentRoleToml".
+        let rendered = rendered_map();
+        let content = rendered.get(".codex/config.toml").unwrap();
+        let value: toml::Value =
+            content.parse().expect("config.toml must be valid TOML");
+
+        assert!(
+            value.get("sandbox_mode").is_some(),
+            "sandbox_mode must be a ROOT key, not nested under a table"
+        );
+        assert!(
+            value.get("approval_policy").is_some(),
+            "approval_policy must be a ROOT key, not nested under a table"
+        );
+
+        // Negative-check the specific failure mode: it must NOT have landed
+        // inside [agents] (that was the exact bug).
+        if let Some(agents) = value.get("agents") {
+            assert!(
+                agents.get("sandbox_mode").is_none(),
+                "sandbox_mode must NOT be nested under [agents] (P079 bug #1)"
+            );
+            assert!(
+                agents.get("approval_policy").is_none(),
+                "approval_policy must NOT be nested under [agents] (P079 bug #1)"
+            );
+        }
+    }
+
+    #[test]
+    fn hooks_json_top_level_keys_are_description_and_hooks_only() {
+        // Bug #3 (P079): `_provenance` + `_partial_note` top-level fields ->
+        // Codex 0.145.0: "unknown field _provenance, expected description or hooks".
+        let rendered = rendered_map();
+        let content = rendered.get(".codex/hooks.json").unwrap();
+        let value: serde_json::Value =
+            serde_json::from_str(content).expect("hooks.json must be valid JSON");
+        let obj = value.as_object().expect("hooks.json top level must be an object");
+
+        for key in obj.keys() {
+            assert!(
+                key == "description" || key == "hooks",
+                "hooks.json top-level key `{key}` is not accepted by Codex 0.145.0 \
+                 (only `description`/`hooks` allowed) -- P079 bug #3"
+            );
+        }
+        assert!(!obj.contains_key("_provenance"), "_provenance is not a valid top-level field (P079 bug #3)");
+        assert!(!obj.contains_key("_partial_note"), "_partial_note is not a valid top-level field (P079 bug #3)");
+        // Provenance/PARTIAL trace must survive, folded into `description`.
+        let description = obj.get("description").and_then(|v| v.as_str()).unwrap_or("");
+        assert!(description.contains("bypassable"), "provenance/PARTIAL note must be folded into `description`");
+    }
+
+    #[test]
+    fn rules_exec_policy_pattern_is_list_form_not_bare_string() {
+        // Bug #2 (P079): `pattern = "git push --force"` (bare string) ->
+        // Codex 0.145.0: "pattern doesn't match, expected list, actual string".
+        //
+        // Oracle note (honest, Worker CHALLENGE Turn 1 finding + Architect
+        // ACCEPT V2): `.rules` content is STARLARK function-call syntax
+        // (`prefix_rule(pattern = [...], decision = "...")`), NOT TOML/JSON --
+        // `toml::from_str` on this content deterministically ERRORS (syntax
+        // mismatch, confirmed empirically in Worker CHALLENGE). Adding a real
+        // Starlark parser crate for a test-only assertion is Tầng 1 new-dep
+        // overkill (WORKFLOW_V2.2.md Sub-mech B). This is a STRUCTURAL-STRING
+        // oracle -- weaker than a real parser, but sufficient to catch the
+        // exact bug class (bare-string vs list) and to negative-test.
+        let rendered = rendered_map();
+        let content = rendered.get(".codex/rules/exec-policy.rules").unwrap();
+
+        assert!(
+            content.contains("pattern = [\"git\", \"push\", \"--force\"]"),
+            "pattern must be rendered as a token LIST, e.g. pattern = [\"git\", \"push\", \"--force\"]"
+        );
+        assert!(
+            !content.contains("pattern = \""),
+            "pattern must NOT be a bare string (P079 bug #2) -- found `pattern = \"...\"` form"
+        );
+    }
+
     #[cfg(unix)]
     mod mock_payload_oracle {
         //! Core oracle (Decision 5): feed REAL/derived Codex apply_patch+Bash

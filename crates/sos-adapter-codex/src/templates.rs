@@ -256,7 +256,19 @@ here.
 }
 
 fn config_toml() -> String {
-    r#"[mcp_servers.doctor]
+    // P078d1 fix #1: TOML table-scope. A bare `key = value` line binds to the
+    // MOST RECENT [table] header above it (root, if none yet). The prior
+    // render put sandbox_mode/approval_policy AFTER [agents] -- Codex 0.145.0
+    // then deserialized them as members of AgentRoleToml (err: "invalid type
+    // string \"workspace-write\", expected struct AgentRoleToml"). Root-level
+    // settings MUST render before the FIRST table header in the file
+    // ([mcp_servers.doctor] is first, not [agents] -- placing root keys
+    // merely before [agents] would still nest them under
+    // [mcp_servers.doctor]). See docs/discoveries/P078d1.md.
+    r#"sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+
+[mcp_servers.doctor]
 # Pointer: core/ASSETS.md (MCP registration), core/POLICY.md (authority/scope).
 # PATH-relative command -- never a per-machine absolute path (mirrors root .mcp.json).
 command = "doctor"
@@ -265,9 +277,6 @@ enabled_tools = ["*"]
 
 [agents]
 enabled = true
-
-sandbox_mode = "workspace-write"
-approval_policy = "on-request"
 "#
     .to_string()
 }
@@ -289,9 +298,13 @@ approval_policy = "on-request"
 // For `tool_name="Bash"`, `tool_input.command` is a plain shell string.
 
 fn hooks_json() -> String {
+    // P078d1 fix #3: Codex 0.145.0 hooks.json top-level schema only accepts
+    // `description` / `hooks` (err: "unknown field _provenance, expected
+    // description or hooks"). The former `_provenance` + `_partial_note`
+    // custom fields are folded into the single top-level `description`
+    // string below so the provenance/PARTIAL trace is not lost.
     r#"{
-  "_provenance": "core/POLICY.md (enforcement), core/WORKFLOW.md (state gates) -- P078b3",
-  "_partial_note": "Enforcement is bypassable: project hooks only run for TRUSTED repos, non-managed hooks need /hooks trust, and users can disable hooks entirely. Git/CI review-trigger backstops (core/POLICY.md) MUST be retained -- this hook layer is fast-feedback, not the security boundary.",
+  "description": "Provenance: core/POLICY.md (enforcement), core/WORKFLOW.md (state gates) -- P078b3. PARTIAL: Enforcement is bypassable: project hooks only run for TRUSTED repos, non-managed hooks need /hooks trust, and users can disable hooks entirely. Git/CI review-trigger backstops (core/POLICY.md) MUST be retained -- this hook layer is fast-feedback, not the security boundary.",
   "hooks": {
     "SessionStart": [
       { "hooks": [ { "type": "command", "command": "bash scripts/codex/idea-smell.sh" } ] }
@@ -683,13 +696,17 @@ fn rules_exec_policy() -> String {
 # PARTIAL (honest): bypassable if the repo is untrusted or the user disables rules --
 # Git/CI backstops (branch protection, push-protection) are the real boundary; this
 # is fast-feedback only.
+#
+# P078d1 fix #2: `pattern` MUST be a token LIST, not a bare string -- Codex
+# 0.145.0 rejected the prior string form (err: "pattern doesn't match,
+# expected list, actual string"). Each argv token is one list element.
 
-prefix_rule(pattern = "git push --force", decision = "forbidden")
-prefix_rule(pattern = "git push -f", decision = "forbidden")
-prefix_rule(pattern = "git push --force-with-lease", decision = "prompt")
-prefix_rule(pattern = "rm -rf /", decision = "forbidden")
-prefix_rule(pattern = "rm -rf ~", decision = "forbidden")
-prefix_rule(pattern = "git reset --hard", decision = "prompt")
+prefix_rule(pattern = ["git", "push", "--force"], decision = "forbidden")
+prefix_rule(pattern = ["git", "push", "-f"], decision = "forbidden")
+prefix_rule(pattern = ["git", "push", "--force-with-lease"], decision = "prompt")
+prefix_rule(pattern = ["rm", "-rf", "/"], decision = "forbidden")
+prefix_rule(pattern = ["rm", "-rf", "~"], decision = "forbidden")
+prefix_rule(pattern = ["git", "reset", "--hard"], decision = "prompt")
 "#
     .to_string()
 }

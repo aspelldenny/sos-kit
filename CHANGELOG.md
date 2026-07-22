@@ -4,6 +4,16 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**[P078d1] FIX — Codex adapter startup-schema fixes: 3 STARTUP-BLOCKERS from P079 live-dogfood (2026-07-22):**
+- `crates/sos-adapter-codex/src/templates.rs`, 3 content-fn format fixes, all confirmed against real Codex 0.145.0 error messages (`docs/adapters/P079-CODEX-DOGFOOD-FINDINGS-2026-07-22.md`):
+  - `config_toml()` — `sandbox_mode`/`approval_policy` now emit BEFORE the first table header (`[mcp_servers.doctor]`), not merely before `[agents]` (Worker CHALLENGE caught that the original fix-wording would still nest under `[mcp_servers.doctor]`). Fixes `invalid type string "workspace-write", expected struct AgentRoleToml`.
+  - `rules_exec_policy()` — `pattern` now a token LIST (`pattern = ["git", "push", "--force"]`), was a bare string. Fixes `pattern doesn't match, expected list, actual string`.
+  - `hooks_json()` — dropped unsupported top-level `_provenance`/`_partial_note` fields, folded into `description` (Codex hooks schema only accepts `description`/`hooks`). Fixes `unknown field _provenance, expected description or hooks`.
+- 3 new schema-shape tests added (`crates/sos-adapter-codex/src/lib.rs`) using real parsers (`toml`, `serde_json`) for config.toml/hooks.json, and a documented structural-string oracle for `.rules` (Starlark syntax — `toml`/`serde_json` cannot parse it; adding a Starlark parser crate for a test-only need was rejected as Tầng-1 overkill). All 3 negative-tested (revert fix → test FAILS, restore → PASS).
+- **Honest limit (b2/b3-gap lesson):** the prior oracle (generic valid-TOML/valid-JSON) PASSED while these 3 blockers were live — schema-shape assert is still a hand-coded approximation of Codex 0.145.0's real deserializer, not a substitute for a live-Codex run.
+- `cargo build/test --workspace` green, `sos-adapter-codex` lib tests ×20 = 0 flaky, dep-direction green. Live render re-smoke (`sos install --runtime codex`) confirms all 3 fixes in the actual written files.
+- Additive: only `templates.rs` (3 content-fn) + test module. Enforcement content-fns (marker lifecycle, approval-gate, guard path-parsing) untouched — deferred to **P078d2**. Full report: `docs/discoveries/P078d1.md`.
+
 **[P078c] FIX — install: render-before-toolgate reorder, unblock P079 Codex dogfood (2026-07-22):**
 - `sos install --runtime <codex|claude>` used to run `resolve_tools()?` (OA-07 tool-manifest check) BEFORE `apply()`/`dry_run()`, with `?` hard-aborting on any required-tool drift/missing — so a machine with sister-tool drift (this dev machine, live: `doctor` 0.1.1 < pinned 0.1.3, `inv-gate` MISSING) could not render/write ANY adapter file, blocking P079's Codex dogfood over an unrelated concern.
 - Default flow now: render (`apply()`/`dry_run()`) runs first, unconditionally; tool-check runs AFTER as a report, not a gate — required drift/missing prints a loud stderr WARNING (tool name + expected + found + `sos tools status` pointer, reusing `tools::describe_failure()`'s exact message, no new format invented) and exits **3** (distinct "installed, tools-not-ready"), never silently swallowed. Render/apply failure stays exit 1 (unchanged). All-tools-ready stays exit 0.
