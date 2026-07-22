@@ -201,6 +201,102 @@ failed specifically on the **gen-content** assert (tree unaffected). Both revert
 re-green — proof the 3-layer split isn't redundant, each layer catches a distinct
 regression class.
 
+## `sos adopt` — brownfield 4-collision fixture + preservation-assert (P077c4, four-layer oracle)
+
+`sos_adopt`'s real work-product is the OPPOSITE discipline of `new`'s: it must
+**RESPECT** whatever is already in the target repo (ADDITIVE + NON-CLOBBER), not
+freely bootstrap a fresh tree. A stdout-only (or even 3-layer stdout+tree+gen)
+fixture would be blind to the ONE property that actually matters for `adopt` —
+whether a pre-existing file in the target ever gets overwritten. P077c4 adds a
+4th layer specifically for this:
+
+- `adopt.golden` — stdout report (**re-froze**, same host-artifact class as
+  pre-c3 `new.golden`: the PREVIOUS golden had been captured with a real
+  `doctor` on `PATH`, showing the CONNECTED `[WIRED] J1..J6` + `validate-map:
+  paths resolve` block — not a deliberate capture choice. Re-froze under
+  `DOCTOR_BIN=/nonexistent/doctor`, confirmed the skip branch fires
+  deterministically).
+- `adopt.tree.golden` — sorted path-shape manifest, excludes `.git*` (same
+  `.git`-prefix filter as `new`'s/`sync`'s tree builders — this ALSO excludes
+  `.gitignore`, an inherited quirk from the shared filter, not new to c4),
+  **INCLUDES `.sos-adopt-incoming/**`** (the staged-collision directory is
+  itself part of adopt's real work-product and must be tree-verified).
+- `adopt.gen.golden` — content-hash manifest, GENERATED-authored files ONLY
+  (`.mcp.json`, `docs/security/INVARIANTS.md`, `docs/AGENT_MAP.yaml`,
+  `.docs-gate.toml`, `CHANGELOG.md`, `docs/ARCHITECTURE.md`, `.gitignore`,
+  `.sos-stack.toml`) — copied/staged kit assets are tree-only, never hashed
+  (kit-content-coupling guard, same rationale as `new`'s `NEW_GEN_FILES`).
+- **preservation-assert** (in-test, `parity_adopt_enforced`, NOT a golden file)
+  — the universal non-clobber property both Bash and Rust must hold,
+  independent of what stdout/tree/gen happen to say: (i) every seeded
+  pre-existing file's sha256 is IDENTICAL before vs. after `adopt` runs, (ii)
+  every `.sos-adopt-incoming/<path>` byte-matches the kit source it was staged
+  from. This is stronger than freezing "file X unchanged" into a golden — it's
+  a property test against the fixture's OWN pre-adopt state, immune to
+  content-coupling.
+
+**Brownfield fixture, 4 collision cases** (`build_adopt_fixture()` /
+`capture.sh`'s `build_adopt_brownfield()`) — `adopt` refuses an empty target
+(bin/sos.sh:629-631, "use sos new instead"), so the fixture must seed a
+non-empty repo exercising every non-clobber branch in one deterministic scenario:
+
+| Case | Seed | adopt does | Layer that proves it |
+|---|---|---|---|
+| (a) spine ABSENT | (no seed) | copy → ADDED | tree (new path appears) |
+| (b) spine COLLISION | `templates/INVARIANTS-template.md`, custom content | STAGE to `.sos-adopt-incoming/<path>`, target file UNTOUCHED | tree (staged path) + preservation-assert (i) target unchanged + (ii) staged byte-matches kit |
+| (c) Cat-C doc EXISTING | `CHANGELOG.md` | generate SKIPS (never overwrite) | preservation-assert (i) unchanged |
+| (d) source non-spine | `src/routes/api.py` + `src/models/user.py` + `pyproject.toml` | untouched, but SCANNED by map-within-adopt (OA-02 material) | preservation-assert (i) unchanged; gen (AGENT_MAP.yaml content) |
+
+Fake-kit = `new`'s fake-kit shape (`build_new_fixture()`) PLUS
+`templates/claude-settings.local.json` — **2nd fixture gotcha found during
+Worker CHALLENGE Turn 1's live-probe** (adopt's `[1/4]`/`[3/4]` error without
+it: `.claude/settings.local.json` copy-if-absent reads that template, and
+`scripts/install-hooks.sh` must be the REAL, executable script since born-wire
+actually runs it). Target committed clean (`git init` + `add -A` + `commit`)
+so the dirty-warn branch does NOT fire (bin/sos.sh:642-646).
+
+**Bug-for-bug divergences kept ON PURPOSE (P077c5 fixes both):**
+- **OA-02** — `[2/4]` calls into `map`'s scan logic (via a subprocess
+  re-invocation of the SAME compiled `sos` binary — `run_map_subcommand()` in
+  `adopt.rs` — output fully discarded, matching Bash's `sos_map "$target"
+  >/dev/null`; this reuses `map.rs`'s logic WITHOUT modifying `map.rs`) AFTER
+  `[1/4]` has already copied kit assets into the target. `AGENT_MAP.yaml`
+  therefore maps those kit assets too (e.g. `frontend` surface picking up the
+  freshly-copied `templates/` dir) — confirmed reproducing live during
+  CHALLENGE (byte-identical AGENT_MAP.yaml across 2 independent live runs, so
+  this is a deterministic bug, not flaky nondeterminism).
+- **Non-clobber list order** — `added`/`conflicts` in the stdout report follow
+  raw filesystem/`find`-enumeration order (bin/sos.sh:661/679/708/717 have no
+  `| sort`), NOT alphabetical — same divergence class as `sync`'s spine walk
+  (see that section above). Confirmed same-platform deterministic via a live
+  2-run probe during CHALLENGE (byte-identical stdout, tree, and AGENT_MAP.yaml
+  across both runs); cross-platform order-match remains unverified (documented
+  residual risk, not yet load-bearing — no CI wires `bootstrap/sos-rs` today).
+
+**`.mcp.json` / `.claude/settings.local.json` exists-branch (jq-merge):** shells
+out to the real `jq` binary (bug-for-bug — no new JSON-merge crate dependency
+added). The parity fixture's brownfield target never seeds these 2 files, so
+it always takes the create-if-absent branch — the jq-merge branch is
+implemented for real-world correctness but is **out of hard-fail parity scope**
+(phiếu Constraint 7; covering it would require a jq-dependent fixture branch,
+a design expansion left for a future phiếu if needed).
+
+**Negative tests (P077c4), one per layer, each fired independently:**
+1. **Tree** — sabotaged `adopt_item`'s directory-copy branch to skip the actual
+   `fs::copy` for `phieu/README.md` while still pushing the "+" line to
+   `added` (i.e. stdout LIES that it copied) → failed specifically on the
+   **tree-manifest** assert; stdout was unaffected (proves tree catches a
+   report/reality mismatch that stdout alone can't).
+2. **Gen** — sabotaged the `.docs-gate.toml` heredoc's `ticket_dir` value →
+   failed specifically on the **gen-content** assert; tree/stdout unaffected.
+3. **Preservation** — sabotaged the collision branch to copy the kit's version
+   into BOTH `.sos-adopt-incoming/<path>` AND directly over the pre-existing
+   target file (simulating the exact non-clobber violation this layer exists
+   to catch) → failed specifically on the **preservation-assert**; stdout/
+   tree/gen were all unaffected (same paths, same report line — proves this is
+   the ONLY layer that can catch a real clobber-class regression). All 3
+   reverted, `cargo test --workspace` returned to green after each.
+
 ## Flipping to hard-fail (P077c)
 
 `parity.rs` used to have a single `const HARD_FAIL: bool = false;`. **P077c1 refactored
@@ -210,5 +306,7 @@ needed. **P077c2 added `"sync"`** (now `&["map", "sync"]`) with its own dedicate
 `parity_sync_enforced` test (stdout + tree-manifest two-fixture assert, see above).
 **P077c3 added `"new"`** (now `&["map", "sync", "new"]`) with its own
 `parity_new_enforced` test (three-fixture assert: stdout + tree-shape + gen-content,
-see "`sos new` — synthetic fake-kit + doctor-absent" above). c4 reuses this same
-mechanism for `adopt`.
+see "`sos new` — synthetic fake-kit + doctor-absent" above). **P077c4 added `"adopt"`**
+(now `&["map", "sync", "new", "adopt"]`, 4/4 commands enforced — no command left
+informational) with its own `parity_adopt_enforced` test (four-layer assert: stdout +
+tree-shape + gen-content + preservation-assert, see "`sos adopt`" above).

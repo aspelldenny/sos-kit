@@ -32,6 +32,19 @@
 #     sorted, no content, excludes `.git/`), `new.gen.golden` (content-hash manifest,
 #     GENERATED-authored files only — copied kit assets are tree-only, never hashed,
 #     to avoid kit-content-coupling).
+#   - `adopt` (P077c4 re-froze) uses a synthetic fake-kit (same 2-gotcha shape as
+#     `new`'s, PLUS a real `templates/claude-settings.local.json`) + a BROWNFIELD
+#     target seeded with 4 collision cases (absent/spine-collision/doc-existing/
+#     source-non-spine), committed clean (no dirty-warn), `DOCTOR_BIN=/nonexistent`.
+#     The PREVIOUS `adopt.golden` (P077a) was captured on the CONNECTED doctor path
+#     (`[WIRED] J1..J6` + `validate-map: paths resolve`) — a host artifact, same
+#     class as `new`'s pre-c3 golden — re-froze under doctor-absent. Four "goldens":
+#     `adopt.golden` (stdout), `adopt.tree.golden` (path-shape, sorted, excludes
+#     `.git/`, INCLUDES `.sos-adopt-incoming/**`), `adopt.gen.golden` (content-hash,
+#     GENERATED-authored only), and an in-test-only preservation-assert (NOT a
+#     golden file — universal property: pre-existing seeded files' sha256 must be
+#     identical before/after, `.sos-adopt-incoming/<path>` must byte-match kit
+#     source — see tests/README.md "sos adopt" section + parity.rs).
 
 set -euo pipefail
 
@@ -168,6 +181,65 @@ freeze_new_gen() {  # <target-dir> -> sorted "<relpath> <sha256>" manifest, GENE
   } | LC_ALL=C sort
 }
 
+build_fake_kit_adopt() {  # <fake-kit-dir> -> minimal plain-tree fake-kit for `adopt` (P077c4).
+  # Same shape as `new`'s fake-kit (build_fake_kit_new), PLUS
+  # templates/claude-settings.local.json (2nd fixture gotcha found during
+  # Worker CHALLENGE Turn 1 live-probe: [1/4]/[3/4] error without it).
+  local kit="$1"
+  build_fake_kit_new "$kit"
+  echo '{"permissions":{"allow":[]}}' > "$kit/templates/claude-settings.local.json"
+}
+
+# GENERATED-authored files `sos_adopt` writes when absent (bin/sos.sh:806-900) --
+# content-hashed into adopt.gen.golden. Copied/staged kit assets are NEVER in this
+# list (tree-shape only + preservation-assert, not gen-hash -- kit-content-coupling
+# guard, same rationale as NEW_GEN_FILES).
+ADOPT_GEN_FILES=(
+  ".mcp.json"
+  "docs/security/INVARIANTS.md"
+  "docs/AGENT_MAP.yaml"
+  ".docs-gate.toml"
+  "CHANGELOG.md"
+  "docs/ARCHITECTURE.md"
+  ".gitignore"
+  ".sos-stack.toml"
+)
+
+build_adopt_brownfield() {  # <target-dir> -> brownfield target, 4 collision-case (P077c4)
+  local tgt="$1"
+  mkdir -p "$tgt/templates" "$tgt/docs" "$tgt/src/routes" "$tgt/src/models"
+  # (a) spine ABSENT -- no seed needed, adopt_item will ADD.
+  # (b) spine COLLISION -- same path as a kit spine item, DIFFERENT content ->
+  #     must be STAGED to .sos-adopt-incoming/, target file itself UNCHANGED.
+  echo "custom INVARIANTS content — brownfield repo's own, never seen by kit" > "$tgt/templates/INVARIANTS-template.md"
+  # (c) Cat-C doc EXISTING -- generate must SKIP (never overwrite).
+  echo "# my own changelog — pre-existing, never touched by adopt" > "$tgt/CHANGELOG.md"
+  # (d) source non-spine -- untouched by adopt, but SCANNED by the map-within-adopt
+  #     call (OA-02 bug material -- feeds AGENT_MAP.yaml real surfaces).
+  echo "def h(): pass" > "$tgt/src/routes/api.py"
+  echo "class M: pass" > "$tgt/src/models/user.py"
+  echo "[tool.poetry]" > "$tgt/pyproject.toml"
+  ( cd "$tgt" && git init -q && git config user.email "sos-kit-fixture@example.com" \
+    && git config user.name "sos-kit fixture" && git add -A && git commit -q -m seed )
+}
+
+freeze_adopt_tree() {  # <target-dir> -> sorted path-shape manifest, INCLUDES .sos-adopt-incoming/**, excludes .git/
+  local tgt="$1"
+  find "$tgt" -not -path '*/.git*' | sed "s#^${tgt}/\{0,1\}##" | sed '/^$/d' | LC_ALL=C sort
+}
+
+freeze_adopt_gen() {  # <target-dir> -> sorted "<relpath> <sha256>" manifest, GENERATED-authored only
+  local tgt="$1" f
+  {
+    for f in "${ADOPT_GEN_FILES[@]}"; do
+      [[ -f "$tgt/$f" ]] || continue
+      local hash
+      hash="$(cat "$tgt/$f" | strip_timestamp | normalize "$tgt" | sha256_of_stdin)"
+      echo "$f $hash"
+    done
+  } | LC_ALL=C sort
+}
+
 build_fake_kit() {  # <fake-kit-dir> -> git init + 2-commit history, minimal spine
   # Synthetic self-contained fake-kit (P077c2): decouples sync.golden from
   # real sos-kit HEAD (see tests/README.md). Exercises all 4 sync outcomes:
@@ -246,11 +318,15 @@ run_isolated_kit_doctor_absent "$fake_kit_new" sos_new "$tgt" --stack python \
 freeze_new_tree "$tgt" > "$OUT/new.tree.golden"
 freeze_new_gen "$tgt" > "$OUT/new.gen.golden"
 
-echo "== capturing adopt =="
+echo "== capturing adopt (synthetic fake-kit + 4-collision brownfield + doctor-absent, P077c4 re-froze) =="
+fake_kit_adopt="$WORK/adopt-fake-kit"
+build_fake_kit_adopt "$fake_kit_adopt"
 tgt="$WORK/adopt-fixture"
-mkdir -p "$tgt/src"
-echo "print('hi')" > "$tgt/src/app.py"
-run_isolated sos_adopt "$tgt" --stack python | normalize "$tgt" > "$OUT/adopt.golden"
+build_adopt_brownfield "$tgt"
+run_isolated_kit_doctor_absent "$fake_kit_adopt" sos_adopt "$tgt" --stack python \
+  | strip_timestamp | normalize "$tgt" | sed "s#${fake_kit_adopt}#<SOS_KIT_DIR>#g" > "$OUT/adopt.golden"
+freeze_adopt_tree "$tgt" > "$OUT/adopt.tree.golden"
+freeze_adopt_gen "$tgt" > "$OUT/adopt.gen.golden"
 
 echo "== capturing map =="
 tgt="$WORK/map-fixture"

@@ -72,6 +72,16 @@ enum Cmd {
         #[arg(long)]
         force: bool,
     },
+    /// Retrofit sos-kit spine into an EXISTING repo (brownfield) — ADDITIVE +
+    /// NON-CLOBBER, bug-for-bug parity with `bin/sos.sh` sos_adopt (P077c4).
+    Adopt {
+        /// Existing repo dir to retrofit.
+        dir: String,
+        /// Declared but unused, bug-for-bug (bin/sos.sh:615-621 parses
+        /// `--stack` and never reads the variable again in sos_adopt).
+        #[arg(long)]
+        stack: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -97,5 +107,6 @@ fn main() -> anyhow::Result<()> {
         Cmd::New { target, stack, pilot, force } => {
             commands::new::run(&target, stack.as_deref(), pilot, force)
         }
+        Cmd::Adopt { dir, stack } => commands::adopt::run(&dir, stack.as_deref()),
     }
 }

@@ -26,7 +26,7 @@ use walkdir::WalkDir;
 /// Commands whose Rust impl has reached bug-for-bug parity with the Bash
 /// oracle. Add a name here once its golden(s) are proven to match — the rest
 /// of this harness (fixture build, normalize, assert) is already generic.
-const PARITY_ENFORCED: &[&str] = &["map", "sync", "new"];
+const PARITY_ENFORCED: &[&str] = &["map", "sync", "new", "adopt"];
 
 struct Case {
     name: &'static str,
@@ -398,6 +398,197 @@ fn parity_new_enforced() {
         gen_golden.trim(),
         "new gen-content manifest mismatch vs new.gen.golden (hard-fail — new is PARITY_ENFORCED)"
     );
+}
+
+/// Build the same synthetic fake-kit + 4-collision BROWNFIELD target
+/// `capture.sh`'s `build_fake_kit_adopt()`/`build_adopt_brownfield()` build
+/// (P077c4). Fake-kit = `build_new_fixture()`'s shape (`adopt`'s [1/4] copies
+/// the exact same spine `new` does) PLUS `templates/claude-settings.local.json`
+/// (2nd fixture gotcha found during Worker CHALLENGE Turn 1's live-probe:
+/// [1/4]/[3/4] error without it — `.claude/settings.local.json` copy-if-absent
+/// + `scripts/install-hooks.sh` must actually be the REAL, executable script).
+///
+/// Brownfield target seeds all 4 collision cases (a) spine ABSENT (no seed —
+/// implicit), (b) spine COLLISION (`templates/INVARIANTS-template.md`, content
+/// differs from kit's — must be STAGED, target file UNCHANGED), (c) Cat-C doc
+/// EXISTING (`CHANGELOG.md` — generate must SKIP), (d) source non-spine
+/// (`src/routes/api.py` + `src/models/user.py` + `pyproject.toml` — untouched,
+/// but feeds the map-within-adopt OA-02 scan). Committed clean (git init +
+/// commit) so the dirty-warn branch does NOT fire (deterministic stdout).
+fn build_adopt_fixture() -> (TempFixture, PathBuf, PathBuf) {
+    let (tmp, kit, _unused_new_target) = build_new_fixture();
+    fs::write(
+        kit.join("templates/claude-settings.local.json"),
+        "{\"permissions\":{\"allow\":[]}}\n",
+    )
+    .unwrap();
+
+    let target = tmp.path().join("adopt-fixture");
+    fs::create_dir_all(target.join("templates")).unwrap();
+    fs::create_dir_all(target.join("docs")).unwrap();
+    fs::create_dir_all(target.join("src/routes")).unwrap();
+    fs::create_dir_all(target.join("src/models")).unwrap();
+    fs::write(
+        target.join("templates/INVARIANTS-template.md"),
+        "custom INVARIANTS content — brownfield repo's own, never seen by kit\n",
+    )
+    .unwrap();
+    fs::write(
+        target.join("CHANGELOG.md"),
+        "# my own changelog — pre-existing, never touched by adopt\n",
+    )
+    .unwrap();
+    fs::write(target.join("src/routes/api.py"), "def h(): pass\n").unwrap();
+    fs::write(target.join("src/models/user.py"), "class M: pass\n").unwrap();
+    fs::write(target.join("pyproject.toml"), "[tool.poetry]\n").unwrap();
+
+    run_git(&["init", "-q"], &target);
+    run_git(&["config", "user.email", "sos-kit-fixture@example.com"], &target);
+    run_git(&["config", "user.name", "sos-kit fixture"], &target);
+    run_git(&["add", "-A"], &target);
+    run_git(&["commit", "-q", "-m", "seed"], &target);
+
+    (tmp, kit, target)
+}
+
+/// GENERATED-authored files `sos_adopt` writes when absent — content-hashed
+/// into `adopt.gen.golden`. Copied/staged kit assets are NEVER in this list
+/// (tree-shape + preservation-assert cover them instead — kit-content-coupling
+/// guard, same rationale as `NEW_GEN_FILES`).
+const ADOPT_GEN_FILES: &[&str] = &[
+    ".mcp.json",
+    "docs/security/INVARIANTS.md",
+    "docs/AGENT_MAP.yaml",
+    ".docs-gate.toml",
+    "CHANGELOG.md",
+    "docs/ARCHITECTURE.md",
+    ".gitignore",
+    ".sos-stack.toml",
+];
+
+/// Post-`adopt` path-shape manifest: every relpath under target, sorted,
+/// EXCLUDING `.git*` (bug-for-bug with the pre-existing `new`/`sync` tree
+/// builders' `.git` prefix filter, which also excludes `.gitignore` —
+/// inherited, not introduced by c4). INCLUDES `.sos-adopt-incoming/**`.
+fn build_adopt_tree_manifest(target: &Path) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for entry in WalkDir::new(target).into_iter().filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if path == target {
+            continue;
+        }
+        let rel = path.strip_prefix(target).unwrap().to_string_lossy().replace('\\', "/");
+        if rel.starts_with(".git") {
+            continue;
+        }
+        lines.push(rel);
+    }
+    lines.sort();
+    lines.join("\n")
+}
+
+/// Post-`adopt` content-hash manifest, GENERATED-authored files only. Mirrors
+/// `capture.sh`'s `freeze_adopt_gen`.
+fn build_adopt_gen_manifest(target: &Path, target_str: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for f in ADOPT_GEN_FILES {
+        let p = target.join(f);
+        if !p.is_file() {
+            continue;
+        }
+        let raw = fs::read_to_string(&p).unwrap_or_else(|e| panic!("read {}: {e}", p.display()));
+        let normalized = strip_bare_date(&strip_timestamp(&raw)).replace(target_str, "<TARGET>");
+        let hash = sha256_hex_of_bytes(normalized.as_bytes());
+        lines.push(format!("{f} {hash}"));
+    }
+    lines.sort();
+    lines.join("\n")
+}
+
+/// Seeded pre-existing files whose sha256 the preservation-assert (in-test
+/// INVARIANT, NOT a golden) checks are UNCHANGED before/after `adopt` runs —
+/// this is the non-clobber guarantee's proof, independent of tree/gen/stdout.
+const ADOPT_PRESERVED_SEEDS: &[&str] = &[
+    "templates/INVARIANTS-template.md",
+    "CHANGELOG.md",
+    "src/routes/api.py",
+    "src/models/user.py",
+    "pyproject.toml",
+];
+
+/// Staged-collision pairs: (target-side `.sos-adopt-incoming/<path>`, kit-side
+/// source `<path>`) — the preservation-assert's 2nd half: staged copies must
+/// byte-match the kit source they were staged from.
+const ADOPT_STAGED_COLLISIONS: &[&str] = &["templates/INVARIANTS-template.md"];
+
+#[test]
+fn parity_adopt_enforced() {
+    assert!(
+        PARITY_ENFORCED.contains(&"adopt"),
+        "this test only makes sense while adopt is in PARITY_ENFORCED"
+    );
+
+    let (_tmp, kit, target) = build_adopt_fixture();
+    let target_str = target.to_string_lossy().into_owned();
+    let kit_str = kit.to_string_lossy().into_owned();
+
+    // Preservation baseline — hash every seeded pre-existing file BEFORE adopt runs.
+    let before: Vec<(&str, String)> =
+        ADOPT_PRESERVED_SEEDS.iter().map(|f| (*f, sha256_hex(&target.join(f)))).collect();
+
+    let raw = run_rust_with_kit_doctor_absent(&["adopt", &target_str, "--stack", "python"], &kit);
+
+    // ---- Assert 1: stdout == adopt.golden ----
+    let stdout_actual =
+        strip_bare_date(&strip_timestamp(&normalize(&raw, &target_str))).replace(&kit_str, "<SOS_KIT_DIR>");
+    let stdout_golden = read_golden("adopt.golden");
+    assert_eq!(
+        stdout_actual.trim(),
+        stdout_golden.trim(),
+        "adopt stdout mismatch vs adopt.golden (hard-fail — adopt is PARITY_ENFORCED). \
+         NOTE: captured with DOCTOR_BIN=/nonexistent/doctor — a mismatch may mean \
+         the doctor-absent skip branch didn't fire, not just a content regression."
+    );
+
+    // ---- Assert 2: tree-manifest == adopt.tree.golden ----
+    let tree_actual = build_adopt_tree_manifest(&target);
+    let tree_golden = read_golden("adopt.tree.golden");
+    assert_eq!(
+        tree_actual.trim(),
+        tree_golden.trim(),
+        "adopt file-tree manifest mismatch vs adopt.tree.golden (hard-fail — adopt is PARITY_ENFORCED)"
+    );
+
+    // ---- Assert 3: gen-content == adopt.gen.golden ----
+    let gen_actual = build_adopt_gen_manifest(&target, &target_str);
+    let gen_golden = read_golden("adopt.gen.golden");
+    assert_eq!(
+        gen_actual.trim(),
+        gen_golden.trim(),
+        "adopt gen-content manifest mismatch vs adopt.gen.golden (hard-fail — adopt is PARITY_ENFORCED)"
+    );
+
+    // ---- Assert 4: preservation invariant (NOT a golden — universal property) ----
+    for (f, before_hash) in &before {
+        let after_hash = sha256_hex(&target.join(f));
+        assert_eq!(
+            before_hash, &after_hash,
+            "preservation-assert FAILED: pre-existing seed '{f}' changed during adopt \
+             (non-clobber violated — adopt must NEVER overwrite an existing target file)"
+        );
+    }
+    for rel in ADOPT_STAGED_COLLISIONS {
+        let staged = target.join(".sos-adopt-incoming").join(rel);
+        let kit_src = kit.join(rel);
+        let staged_bytes =
+            fs::read(&staged).unwrap_or_else(|e| panic!("preservation-assert: staged copy missing at {}: {e}", staged.display()));
+        let kit_bytes = fs::read(&kit_src).unwrap_or_else(|e| panic!("read kit source {}: {e}", kit_src.display()));
+        assert_eq!(
+            staged_bytes, kit_bytes,
+            "preservation-assert FAILED: staged '.sos-adopt-incoming/{rel}' does not byte-match kit source \
+             (non-clobber staging must copy the kit's version verbatim)"
+        );
+    }
 }
 
 fn sha256_hex(path: &Path) -> String {
