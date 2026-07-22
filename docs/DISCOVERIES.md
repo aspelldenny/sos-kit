@@ -6,6 +6,9 @@
 >
 > **Pre-2026-05 entries:** archived to `docs/archive/DISCOVERIES_pre-2026-05.md`. Migration date: 2026-05-02 (P038).
 
+## 2026-07-22 — P076: Claude adapter parity — declarative boundary
+Sếp confirmed (B) declarative at ESCALATE GATE (physical move infeasible without breaking golden parity or a plan-forbidden temp renderer). Shipped `adapters/claude/README.md` + `MAPPING.md` (artifact → `core/ROLES.md#<role_id>` mapping, covers golden sections 1-6,8; added `.mcp.json` row per Worker CHALLENGE completeness note) + body-only provenance markers on 11 files (5 agents + README + 5 skills, zero frontmatter touch). Golden parity re-run post-execute: sections 1,2,3,4,6,8 diff = 0. One Tầng-2 self-adapt: reworded `core/ASSETS.md` note to drop literal `adapters/` path string — literal wording would have failed the phiếu's own regression check (constraint 7, no core→adapter reference). Zero physical file move; render deferred P077. Full report: `docs/discoveries/P076.md`.
+
 ## 2026-07-22 — P082: Lane-field template drift fix (OA-01)
 `phieu/TICKET_TEMPLATE.md` had `**Tầng:**` but no `**Lane:**` field, so every phiếu born from it exited 2 (missing field) on `doctor lane-check` — the pre-CHALLENGE lane budget gate was blind on all canonical phiếu. Added the field (bare `Normal` token) + `scripts/lane-check-contract.sh` (degraded warn-skip) wired as sub-check `3f` in pre-commit `[3/8]` (no new phase). Oracle-verified pre-fix exit 2 → post-fix exit 0 (181 lines/3 anchors/2 constraints, well under Normal budget — no F1/F2 needed). Full report: `docs/discoveries/P082.md`.
 

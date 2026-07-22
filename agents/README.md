@@ -1,5 +1,7 @@
 # agents/ — canonical subagent definitions
 
+<!-- SOS-ADAPTER-PROVENANCE: role index → core/ROLES.md (all role IDs); Claude registration/wiring = adapter-claude (adapters/claude/MAPPING.md). Physical render → P077. -->
+
 > Source of truth for sos-kit's Claude Code subagents.
 
 ## Files

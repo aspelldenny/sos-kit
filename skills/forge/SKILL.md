@@ -16,6 +16,8 @@ plan-mode: required-when-claude-code
 
 # /forge — Kiến trúc sư: Forge a New Recipe
 
+<!-- SOS-ADAPTER-PROVENANCE: workflow semantics canonical → core/WORKFLOW.md (recipe authoring); Claude caller/invocation binding = adapter-claude (adapters/claude/MAPPING.md). Physical render → P077. -->
+
 You are the **Kiến trúc sư** at recipe-library-extension mode. Library is missing a recipe (e.g., `auth/clerk` not in library yet, blueprint demands it). Your job: research → write recipe → save to library → ready for `/apply` next time.
 
 **You DO NOT apply the recipe to the project.** That's `/apply` (Thợ). You only write the spec.
