@@ -131,3 +131,5 @@ Full report: `docs/discoveries/P071.md`. macOS has `/sbin/sha256sum` (Darwin 1.0
 | [P001](archive/DISCOVERIES_pre-2026-05.md#p001----2026-04-26----architect--worker-debate-loop) | 2026-04-26 | Architect ↔ Worker debate loop (initial framework) |
 
 <!-- Future entries: 1 line per phiếu, link to per-file. Worker on EXECUTE adds entry as last step before commit. -->
+
+- **2026-07-23 · SESSION LESSON (durability gap)** — private Claude memory is a Claude-only side-channel; durable resume-state must live in repo artifacts agents READ (BACKLOG/CHANGELOG/git/discoveries). This session BACKLOG went stale (P076/P078/P079 unchecked after ~30 phiếu) because updating it relied on agent discipline, not a gate. `docs-gate` does NOT catch a stale BACKLOG. → RESEARCH 2026-07-24 a git-level (agent-agnostic, Codex-safe) mechanical gate forcing any agent to record durable state. See BACKLOG '▶ NEXT' + memory feedback_durable_state_mechanical_gate.
