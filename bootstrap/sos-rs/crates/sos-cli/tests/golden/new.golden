@@ -8,13 +8,7 @@ sos new — bootstrap '<TARGET>' (stack: python)
 [3/4] Category B — defaults
   ✓ .docs-gate.toml + .sos-stack.toml
 [4/4] Validator
-      [WIRED ] J1 sentinel-contract — emit 'security-review-start' present; hook-side grep delegated to claude-hooks binary (B+3 shim)
-      [WIRED ] J2 rubric-source — agent handbook enumerates INV rubric inline
-      [WIRED ] J4 invariants-file — docs/security/INVARIANTS.md present
-      [WIRED ] J5 merge-gate — block-unsafe-merge.sh present + registered in settings.json + gates `gh pr merge`
-      [WIRED ] J6 verdict-contract — agent emits `Verdict:`/APPROVE; hook-side parse delegated to claude-hooks binary (B+3 shim)
-    boundary-check: CONNECTED — all wiring joints intact
-  ✓ verify-setup: CONNECTED
+  ⏭ doctor not found — skip verify-setup (install: cargo install --path ~/doctor, or set DOCTOR_BIN=/path/to/doctor)
   Category C placeholders to fill (# TODO):
     - CLAUDE.md
     - docs/ARCHITECTURE.md
