@@ -15,12 +15,28 @@
 //!   explicit `FindingStatus` (`core/POLICY.md` oracle vocab). It never
 //!   asserts `Sound` for a gap — `core/ROLES.md` separation-invariant #5:
 //!   capability absence must be explicit, not simulated.
-//! - `plan()` / `render()` / `uninstall()` — minimal-honest stubs. Real
-//!   artifact rendering (`AGENTS.md`, `.codex/**`) is P078b2/b3 — this
-//!   crate does not fake render output.
+//! - `plan()` / `render()` — **P078b2 LIVE**: declarative render of the 10
+//!   Codex-native artifacts (`AGENTS.md`, 4× `.codex/agents/*.toml`, 4×
+//!   `.agents/skills/*/SKILL.md`, `.codex/config.toml`) —
+//!   `docs/ticket/P078b2-codex-render.md`. `render()` is per-`Asset`
+//!   (trait shape, `sos_core::adapter::Adapter::render`); `plan()`
+//!   enumerates the fixed 10-`Asset` set (`templates::all_assets()`) and
+//!   calls `render()` on each, mapping `Artifact{target_path, content}` →
+//!   `ManagedOperation{description, target_path, content}` for the
+//!   install engine (`sos-install::engine`) to apply — engine code is
+//!   untouched (it already consumes `ManagedOperation` generically).
+//!   Content is a crate-embedded template/format-string
+//!   (`templates.rs`) — `render()` never reads `core/**` off the
+//!   filesystem; every artifact carries a pointer to a stable core ID,
+//!   not a copy of role/skill semantics (Decision 1/2,
+//!   `core/ASSETS.md:51`). `uninstall()` remains an honest stub (real
+//!   safe-removal for rendered artifacts is P078b3).
+
+mod templates;
 
 use sos_core::adapter::{
-    Adapter, Artifact, Asset, Capabilities, Finding, FindingStatus, Findings, Plan, RemovalPlan,
+    Adapter, Artifact, Asset, Capabilities, Finding, FindingStatus, Findings, ManagedOperation,
+    Plan, RemovalPlan,
 };
 use sos_core::manifest::ManagedManifest;
 use std::process::Command;
@@ -67,21 +83,33 @@ impl Adapter for CodexAdapter {
         Capabilities { features }
     }
 
-    fn plan(&self, _capabilities: &Capabilities) -> Plan {
-        // Stub: real managed-operation planning for AGENTS.md/.codex/**
-        // artifacts is P078b2/b3. Empty plan lets `install --runtime codex
-        // --dry-run` run structurally (zero mutation either way).
-        Plan::default()
+    fn plan(&self, capabilities: &Capabilities) -> Plan {
+        // P078b2 LIVE: enumerate the fixed 10-Asset set, render() each,
+        // map Artifact -> ManagedOperation. No fs mutation here (Plan
+        // construction only) — engine (sos-install::engine) resolves +
+        // applies against the real filesystem separately.
+        let operations = templates::all_assets()
+            .iter()
+            .map(|asset| {
+                let artifact = self.render(asset, capabilities);
+                ManagedOperation {
+                    description: format!("render Codex artifact `{}`", asset.identity),
+                    target_path: artifact.target_path,
+                    content: artifact.content,
+                }
+            })
+            .collect();
+        Plan { operations }
     }
 
     fn render(&self, asset: &Asset, _capabilities: &Capabilities) -> Artifact {
-        // Stub: real Codex-native rendering (AGENTS.md/.codex/agents/*.toml/
-        // .agents/skills/*/SKILL.md/.codex/config.toml) is P078b2. This
-        // passthrough mirrors ClaudeAdapter's d1-stub shape — no Codex
-        // format transform happens here.
+        // P078b2 LIVE: identity selects a crate-embedded template
+        // (templates.rs) — no `core/**` filesystem read at render time
+        // (Decision 1). Unknown identity panics (programmer error — the
+        // only caller is plan()'s fixed 10-Asset set).
         Artifact {
-            target_path: asset.identity.clone(),
-            content: asset.content.clone(),
+            target_path: templates::target_path_for(&asset.identity).to_string(),
+            content: templates::content_for(&asset.identity),
         }
     }
 
@@ -187,20 +215,9 @@ mod tests {
     }
 
     #[test]
-    fn plan_render_uninstall_are_honest_stubs() {
-        let adapter = CodexAdapter;
-        let capabilities = adapter.detect();
-        let plan = adapter.plan(&capabilities);
-        assert!(plan.operations.is_empty(), "plan() stub must be empty, not fake-rendered");
-
-        let asset = Asset {
-            identity: "test-asset".to_string(),
-            content: "test-content".to_string(),
-        };
-        let artifact = adapter.render(&asset, &capabilities);
-        assert_eq!(artifact.target_path, "test-asset");
-        assert_eq!(artifact.content, "test-content");
-
+    fn uninstall_remains_an_honest_stub() {
+        // Real safe-removal for rendered artifacts is P078b3 — b2 only
+        // renders (declarative), never touches removal.
         let manifest = ManagedManifest {
             owner: "sos-adapter-codex".to_string(),
             source_version: "0.1.0".to_string(),
@@ -209,7 +226,177 @@ mod tests {
             content_hash: "test".to_string(),
             rollback_ref: None,
         };
-        let removal = adapter.uninstall(&manifest);
+        let removal = CodexAdapter.uninstall(&manifest);
         assert!(removal.steps.is_empty(), "uninstall() stub must be empty");
     }
+
+    // -- P078b2 structural oracle (Decision 5) --------------------------
+    // Runs on ANY machine, no `codex` binary required. Fresh in-memory
+    // render only — never writes into the sos-kit repo itself
+    // (Decision 6, checked separately by the Regression gate: `git
+    // status` must show no `.codex/`/`AGENTS.md`/`.agents/` in this repo).
+
+    #[test]
+    fn plan_renders_exactly_ten_artifacts() {
+        let adapter = CodexAdapter;
+        let capabilities = adapter.detect();
+        let plan = adapter.plan(&capabilities);
+        assert_eq!(
+            plan.operations.len(),
+            10,
+            "plan() must render exactly 10 declarative artifacts (Decision 4: 4 skills, no init)"
+        );
+    }
+
+    #[test]
+    fn render_is_per_asset_and_pure() {
+        // Trait shape check (Worker CHALLENGE anchor #1/#3): render() takes
+        // ONE Asset, returns ONE Artifact — no fs side-effect.
+        let adapter = CodexAdapter;
+        let capabilities = adapter.detect();
+        let asset = Asset {
+            identity: templates::AGENT_ARCHITECT.to_string(),
+            content: templates::AGENT_ARCHITECT.to_string(),
+        };
+        let artifact = adapter.render(&asset, &capabilities);
+        assert_eq!(artifact.target_path, ".codex/agents/architect.toml");
+        assert!(!artifact.content.is_empty());
+    }
+
+    fn rendered_map() -> std::collections::HashMap<String, String> {
+        let adapter = CodexAdapter;
+        let capabilities = adapter.detect();
+        adapter
+            .plan(&capabilities)
+            .operations
+            .into_iter()
+            .map(|op| (op.target_path, op.content))
+            .collect()
+    }
+
+    #[test]
+    fn toml_artifacts_parse_ok() {
+        let rendered = rendered_map();
+        for path in [
+            ".codex/agents/architect.toml",
+            ".codex/agents/worker.toml",
+            ".codex/agents/advisory-watch.toml",
+            ".codex/agents/boundary-check.toml",
+            ".codex/config.toml",
+        ] {
+            let content = rendered.get(path).unwrap_or_else(|| panic!("missing rendered artifact {path}"));
+            content
+                .parse::<toml::Value>()
+                .unwrap_or_else(|e| panic!("{path} failed to parse as TOML: {e}"));
+        }
+    }
+
+    #[test]
+    fn agent_toml_has_three_required_fields() {
+        let rendered = rendered_map();
+        for path in [
+            ".codex/agents/architect.toml",
+            ".codex/agents/worker.toml",
+            ".codex/agents/advisory-watch.toml",
+            ".codex/agents/boundary-check.toml",
+        ] {
+            let content = rendered.get(path).unwrap();
+            let value: toml::Value = content.parse().unwrap();
+            let table = value.as_table().unwrap();
+            for field in ["name", "description", "developer_instructions"] {
+                assert!(
+                    table.contains_key(field),
+                    "{path} missing required field `{field}` (report anchor #5)"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn config_toml_has_mcp_and_agents_sections() {
+        let rendered = rendered_map();
+        let content = rendered.get(".codex/config.toml").unwrap();
+        let value: toml::Value = content.parse().unwrap();
+        assert!(value.get("mcp_servers").and_then(|v| v.get("doctor")).is_some());
+        assert!(value.get("agents").is_some());
+    }
+
+    #[test]
+    fn skill_frontmatter_has_name_and_description() {
+        let rendered = rendered_map();
+        for path in [
+            ".agents/skills/idea/SKILL.md",
+            ".agents/skills/forge/SKILL.md",
+            ".agents/skills/apply/SKILL.md",
+            ".agents/skills/retro/SKILL.md",
+        ] {
+            let content = rendered.get(path).unwrap();
+            assert!(content.starts_with("---\n"), "{path} must open with YAML frontmatter fence");
+            let end = content[4..].find("---").unwrap_or_else(|| panic!("{path} missing closing frontmatter fence"));
+            let frontmatter = &content[4..4 + end];
+            assert!(frontmatter.contains("name:"), "{path} frontmatter missing name:");
+            assert!(frontmatter.contains("description:"), "{path} frontmatter missing description:");
+        }
+    }
+
+    #[test]
+    fn agents_md_is_well_formed_and_non_empty() {
+        let rendered = rendered_map();
+        let content = rendered.get("AGENTS.md").unwrap();
+        assert!(!content.trim().is_empty());
+        assert!(content.contains("orchestrator"));
+        assert!(content.contains("core/ROLES.md#orchestrator"));
+    }
+
+    #[test]
+    fn every_artifact_contains_its_core_id_pointer() {
+        let rendered = rendered_map();
+        let expectations: &[(&str, &str)] = &[
+            ("AGENTS.md", "core/ROLES.md#orchestrator"),
+            (".codex/agents/architect.toml", "core/ROLES.md#architect"),
+            (".codex/agents/worker.toml", "core/ROLES.md#worker"),
+            (".codex/agents/advisory-watch.toml", "core/ROLES.md#advisory_watch"),
+            (".codex/agents/boundary-check.toml", "core/ROLES.md#boundary_check"),
+            (".agents/skills/idea/SKILL.md", "core/WORKFLOW.md"),
+            (".agents/skills/forge/SKILL.md", "core/WORKFLOW.md"),
+            (".agents/skills/apply/SKILL.md", "core/WORKFLOW.md"),
+            (".agents/skills/retro/SKILL.md", "core/WORKFLOW.md"),
+            (".codex/config.toml", "core/ASSETS.md"),
+        ];
+        for (path, pointer) in expectations {
+            let content = rendered.get(*path).unwrap();
+            assert!(
+                content.contains(pointer),
+                "{path} must contain core-ID pointer `{pointer}` (Decision 2 — pointer, not copy)"
+            );
+        }
+    }
+
+    #[test]
+    fn architect_toml_carries_partial_marker_others_stay_honest() {
+        let rendered = rendered_map();
+        let architect = rendered.get(".codex/agents/architect.toml").unwrap();
+        assert!(architect.contains("PARTIAL"), "architect.toml must carry the PARTIAL envelope marker (Decision 3)");
+        assert!(architect.contains("workspace-write"));
+
+        let worker = rendered.get(".codex/agents/worker.toml").unwrap();
+        assert!(worker.contains("workspace-write"));
+
+        for path in [
+            ".codex/agents/advisory-watch.toml",
+            ".codex/agents/boundary-check.toml",
+        ] {
+            let content = rendered.get(path).unwrap();
+            assert!(content.contains(r#"sandbox_mode = "read-only""#), "{path} must be honest read-only, not PARTIAL-tool-scoped");
+        }
+    }
+
+    // NOTE (Decision 1, no-core-fs-read claim): NOT tested via a
+    // CWD-mutating unit test — `std::env::set_current_dir` is
+    // process-global and would race with other tests running in
+    // parallel in the same test binary (flaky by construction). The
+    // claim is instead verified by code review: `templates.rs` contains
+    // zero `std::fs`/`std::path::Path::new("core"` reads — every
+    // `content_for`/`target_path_for` arm is a pure string literal/match.
+    // See `docs/discoveries/P078b2.md` for the citation.
 }

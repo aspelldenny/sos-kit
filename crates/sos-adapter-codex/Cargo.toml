@@ -7,3 +7,6 @@ license = "MIT"
 
 [dependencies]
 sos-core = { path = "../sos-core" }
+
+[dev-dependencies]
+toml = { workspace = true }

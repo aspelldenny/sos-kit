@@ -423,6 +423,7 @@ name = "sos-adapter-codex"
 version = "0.1.0"
 dependencies = [
  "sos-core",
+ "toml",
 ]
 
 [[package]]
