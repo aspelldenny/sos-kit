@@ -1,8 +1,11 @@
 # Codex adapter boundary
 
-> Status (P078b1): **foundation.** `crates/sos-adapter-codex` exists — `detect()` and `verify()`
-> are live (structural). No Codex-native artifact has been rendered yet (`AGENTS.md`, `.codex/**`,
-> `.agents/skills/**`) — physical rendering is P078b2/b3. Mirrors `adapters/claude/` shape
+> Status (P078b2): **10 declarative artifacts rendered** (`render()`/`plan()` live, structural
+> oracle) — `AGENTS.md`, 4× `.codex/agents/*.toml` (architect PARTIAL-marked; advisory-watch/
+> boundary-check honest read-only), 4× `.agents/skills/{idea,forge,apply,retro}/SKILL.md` (`init`
+> deliberately deferred — see `MAPPING.md`), `.codex/config.toml`. Enforcement
+> (`.codex/hooks.json`/`.codex/rules/**`/rewritten guard scripts) = P078b3. Behavioral verification
+> (Codex CLI actually reading/running this output) = P079. Mirrors `adapters/claude/` shape
 > (declarative-first pattern, P076).
 
 ## What this adapter owns
@@ -54,9 +57,6 @@ The boundary declared here has a **live but minimal** code counterpart:
   absence of the binary never panics). `verify()` reports the 5 known capability gaps below with
   an explicit `FindingStatus` (`Sound`/`Partial`/`Missing`, `crates/sos-core/src/adapter.rs`) —
   never `Sound` for a gap.
-- `plan()` / `render()` / `uninstall()` are **minimal-honest stubs** — no artifact bytes are
-  produced yet. Real rendering into `AGENTS.md`/`.codex/**`/`.agents/skills/**` is P078b2; the
-  hook/rule/guard-script enforcement layer is P078b3.
 - `sos install --runtime codex` is wired into the composition root
   (`crates/sos-cli/src/commands/install.rs`) and no longer errors "not yet available" — it drives
   the same install ENGINE (`sos-install::engine`) that `--runtime claude` uses, purely through the
@@ -64,6 +64,30 @@ The boundary declared here has a **live but minimal** code counterpart:
 - Oracle boundary (Decision 5, `docs/ticket/P078b1-codex-adapter-foundation.md`): **structural
   only** — this foundation is verified without Codex CLI installed. Whether Codex actually
   executes the rendered artifacts correctly is **behavioral**, deferred to P079.
+
+## Render note (P078b2)
+
+- `plan()` / `render()` are now **LIVE**: `render(asset)→Artifact` is per-`Asset` (trait shape
+  unchanged); `plan()` enumerates a fixed 10-`Asset` set (`templates::all_assets()`) and calls
+  `render()` on each, mapping `Artifact{target_path, content}` → `ManagedOperation{description,
+  target_path, content}` — the install engine (`sos-install::engine`) consumes this generically,
+  zero engine change.
+- Content-source: crate-embedded template/format-string in
+  `crates/sos-adapter-codex/src/templates.rs` — `render()` never reads `core/**` off the
+  filesystem; every artifact carries a `core/ROLES.md#<role_id>` (etc.) pointer string, never a
+  copy of role/skill semantics (`core/ASSETS.md:51`).
+- PARTIAL-honest: `architect.toml`'s `developer_instructions` explicitly states the envelope is
+  enforced via a PreToolUse hook (P078b3) + prose, NOT Codex structural tool-removal — matching
+  `verify()` Finding #1 word-for-word intent. `advisory-watch.toml`/`boundary-check.toml` render
+  honest `sandbox_mode="read-only"` with no PARTIAL marker (the sandbox genuinely enforces
+  read-only structurally for those roles).
+- Skill set rendered = 4 (`idea`/`forge`/`apply`/`retro`) — `init` deliberately deferred, not
+  silently dropped (see `MAPPING.md`).
+- `uninstall()` remains an honest stub — real safe-removal of rendered artifacts is P078b3.
+- Oracle boundary unchanged: **structural only** (`docs/ticket/P078b2-codex-render.md` Decision 5)
+  — fresh render verified via unit tests without Codex CLI installed; nothing is committed into
+  this repo (`.codex/`, `AGENTS.md`, `.agents/` only ever land in a target project via
+  `install --runtime codex`).
 
 ## Semantic source of truth
 
