@@ -1,6 +1,6 @@
 # SOS Kit — Solo Operating System
 
-One person. No team. Full operating system from inbound request to production health.
+One person. No team. Full operating system from code-ready to production health.
 
 SOS Kit is a collection of Rust CLI tools, Claude Code skills, subagents, and role-separation protocols that let one human run a software business without dropping context.
 
@@ -236,21 +236,18 @@ vps init                  # generate ~/.vps.toml with your SSH + project paths
 ```
 
 ### Skills (global)
+
+Skills ship with a mechanical caller (hook / cron / CLI — see "Caller law" above), so most invoke
+themselves. Global copy is only needed for the 5 living skills that a human still runs manually
+via CLI/cron:
+
 ```bash
 # Chủ nhà layer
 cp -r skills/init    ~/.claude/skills/init
-cp -r skills/insight ~/.claude/skills/insight
-cp -r skills/route   ~/.claude/skills/route
-cp -r skills/decide  ~/.claude/skills/decide
 # Kiến trúc sư layer
-cp -r skills/plan    ~/.claude/skills/plan
 cp -r skills/forge   ~/.claude/skills/forge
 # Thợ layer
-cp -r skills/verify  ~/.claude/skills/verify
 cp -r skills/apply   ~/.claude/skills/apply
-cp -r skills/review  ~/.claude/skills/review
-cp -r skills/qa      ~/.claude/skills/qa
-cp -r skills/ship    ~/.claude/skills/ship
 cp -r skills/retro   ~/.claude/skills/retro
 ```
 

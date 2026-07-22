@@ -31,26 +31,20 @@ guard --version
 vps --version
 ```
 
-### 2. Install Claude Code skills (all 3 layers)
+### 2. Install Claude Code skills (5 living — each with a declared mechanical caller)
 
 ```bash
 # From this repo
 # Chủ nhà layer
 cp -r skills/init    ~/.claude/skills/init
-cp -r skills/insight ~/.claude/skills/insight
-cp -r skills/route   ~/.claude/skills/route
-cp -r skills/decide  ~/.claude/skills/decide
 # Kiến trúc sư layer
-cp -r skills/plan    ~/.claude/skills/plan
 cp -r skills/forge   ~/.claude/skills/forge
 # Thợ layer
-cp -r skills/verify  ~/.claude/skills/verify
 cp -r skills/apply   ~/.claude/skills/apply
-cp -r skills/review  ~/.claude/skills/review
-cp -r skills/qa      ~/.claude/skills/qa
-cp -r skills/ship    ~/.claude/skills/ship
 cp -r skills/retro   ~/.claude/skills/retro
 ```
+
+8 more (`insight route decide plan verify review qa ship`) are parked in `skills/attic/` — no mechanical caller (see caller law in `CLAUDE.md`); not installed.
 
 `/idea` is project-local (lives in `.claude/skills/idea/`) — copied per-project alongside the v2 subagent envelope, not installed globally.
 

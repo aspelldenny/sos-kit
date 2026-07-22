@@ -45,7 +45,7 @@ Specialist subagents sit **beside** the 3 main roles — not replacing them. The
 | Cannot | Edit, Write, Task, Skill, arbitrary Bash | Edit, Write, WebFetch, WebSearch, Task, Skill, `gh pr comment`, arbitrary Bash |
 | Output | Sentinel-wrapped advisory rows → caller appends to inbox | Sentinel-wrapped verdict block (5 INV + APPROVE/NEEDS_REVIEW) → caller posts as PR comment (or local fallback file) |
 
-**Critical**: Kiến trúc sư lives in Claude Web Project. No Bash, no Grep on source, no filesystem access beyond project's attached docs. This is why Task 0 grep-first + Discovery Report exist — they are the Architect's only connection to code reality.
+**Critical**: Kiến trúc sư runs as a subagent inside the same Claude Code session, spawned by Quản đốc — its envelope is docs-only by tool grant (`Read`, `Write`, `Glob` only; no `Bash`, no `Grep` on source, no filesystem access beyond docs), not by being in a different app. This is why Task 0 grep-first + Discovery Report exist — they are the Architect's only connection to code reality.
 
 ## The 3 layers in detail
 
@@ -73,7 +73,8 @@ Specialist subagents sit **beside** the 3 main roles — not replacing them. The
 │  Full spec: `docs/ORCHESTRATION.md`                             │
 ├─────────────────────────────────────────────────────────────────┤
 │  Layer 1 — CHỦ NHÀ (Owner / Router / Vision keeper)             │
-│  Skills: /init  /idea  /insight  /route  /decide                │
+│  Skills: /init  /idea  (attic: insight route decide — no        │
+│    caller; role absorbed by orchestrator/manual judgment)       │
 │  Tools: Claude Code OR Claude Web (usually wherever the human is)│
 │  Owns:                                                          │
 │    • Vision docs (PROJECT.md, SOUL.md, CHARACTER*.md)           │
@@ -81,15 +82,18 @@ Specialist subagents sit **beside** the 3 main roles — not replacing them. The
 │    • Approve/veto on phiếu before Worker executes               │
 │    • User-visible wording (email, UI copy — final cut)          │
 │    • Scope / timeline / quality trade-offs                      │
-│    • Relay between Architect ↔ Worker (Architect can't ping     │
-│      Worker directly; Chủ nhà is the courier)                   │
+│    • Approval gate + brief-in — Quản đốc automates the          │
+│      Architect ↔ Worker relay in-session (v2 default); Chủ nhà  │
+│      is only the human courier in v1/cross-session mode         │
 │  Does NOT:                                                      │
 │    • Write phiếu (that's Architect)                             │
 │    • Implement (that's Worker)                                  │
 ├─────────────────────────────────────────────────────────────────┤
 │  Layer 2 — KIẾN TRÚC SƯ (Architect / Ticket writer)             │
-│  Skills: /plan  /forge  /verify *                                 │
-│  Tools: Claude Web Project — docs access ONLY                   │
+│  Skills: /forge  (attic: plan verify — inlined in                │
+│    agents/architect.md / agents/worker.md handbooks)             │
+│  Tools: Read, Write, Glob (docs-only envelope; no Bash/Grep/     │
+│    Edit-src) — spawned in-session by Quản đốc                    │
 │  Owns:                                                          │
 │    • Phiếu file with full context, tasks, constraints, Task 0   │
 │    • Task 0 anchors (specify — Worker grep-verifies)            │
@@ -101,7 +105,8 @@ Specialist subagents sit **beside** the 3 main roles — not replacing them. The
 │    • Decide implementation detail (that's Worker's Tầng 2)      │
 ├─────────────────────────────────────────────────────────────────┤
 │  Layer 3 — THỢ (Worker / Executor / Field reporter)             │
-│  Skills: /verify *  /apply  /review  /qa  /ship  /retro           │
+│  Skills: /apply  /retro  (attic: verify review qa ship — no      │
+│    caller; absorbed by orchestrator/Giám sát/`ship` binary)      │
 │  Tools: Claude Code — full shell + code access                  │
 │  Owns:                                                          │
 │    • Execute phiếu Nhiệm vụ after Task 0 passes                 │
@@ -112,7 +117,8 @@ Specialist subagents sit **beside** the 3 main roles — not replacing them. The
 │    • Challenge Architect when architectural assumption is wrong │
 │  Does NOT:                                                      │
 │    • Decide scope or architecture unilaterally                  │
-│    • Ping Architect directly (goes through Chủ nhà)             │
+│    • Ping Architect directly (routed by Quản đốc in-session;    │
+│      falls to Chủ nhà only in v1/cross-session mode)            │
 │    • Ship without passing gates                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -163,7 +169,7 @@ This role is often misunderstood. Chủ nhà is NOT just the CEO router. Chủ n
 4. **Route inbound** — classify incoming requests (code / marketing / design / strategy / skip). `/route` skill.
 5. **Trade-off decisions** — scope, timeline, quality, pricing. `/decide` skill.
 6. **Approve user-visible wording** — email copy, UI strings, error messages users see. Final cut.
-7. **Relay Architect ↔ Worker** — Architect in Claude Web cannot ping Worker in Claude Code directly. Chủ nhà is the human courier. See `phieu/RELAY_PROTOCOL.md`.
+7. **Relay Architect ↔ Worker** — in v2 default, both are subagents in the same Claude Code session and Quản đốc automates the relay in-session. Chủ nhà only steps in as human courier in v1/cross-session mode (separate worktrees or sessions). See `phieu/RELAY_PROTOCOL.md`.
 
 ## Which role am I in right now?
 
@@ -193,9 +199,9 @@ Symptom: phiếu says "add column X", Worker also renames table Y "while I'm her
 Fix: Scope expansion is Architect's call. Tầng 1 changes escalate to Chủ nhà → Architect. Worker does NOT silently expand.
 
 ### 3. Worker pings Architect directly
-Symptom: Worker sees Architect's assumption is wrong, tries to chat with Claude Web session.
-Reality: Worker cannot. Claude Code and Claude Web are separate sessions. Chủ nhà is the human courier.
-Fix: Worker writes escalation to Chủ nhà → Chủ nhà paste into Claude Web → Architect responds → Chủ nhà pastes back.
+Symptom: Worker sees Architect's assumption is wrong, tries to self-resolve or chat with the Architect subagent directly instead of writing a Debate Log escalation.
+Reality: Worker cannot ping Architect directly — even in-session, Quản đốc is the only one that routes between subagents (state machine: DRAFT → CHALLENGE → RESPOND → APPROVAL → EXECUTE). Only in v1/cross-session mode (separate worktrees/sessions) does this fall to Chủ nhà as manual human courier — see `phieu/RELAY_PROTOCOL.md`.
+Fix: Worker writes the objection to the phiếu's Debate Log; Quản đốc spawns Architect in RESPOND mode. In v1/cross-session mode: Worker writes escalation to Chủ nhà → Chủ nhà pastes to Architect's session → Architect responds → Chủ nhà pastes back.
 
 ### 4. Chủ nhà skips vision docs
 Symptom: Chủ nhà starts routing inbound without having written PROJECT.md / SOUL.md first.
