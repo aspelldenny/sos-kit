@@ -27,7 +27,7 @@ What's inside:
 
 ## What this repo is NOT
 
-- **Not a runtime binary source.** The Rust CLIs (`ship`, `docs-gate`, `guard`, `vps`) live in their own repos. This repo only references them.
+- **Runtime monorepo (as of P077e).** This repo now contains the canonical runtime source for the `sos` CLI — a Rust workspace at `bootstrap/sos-rs/` (crates `sos-cli`/`sos-core`/`sos-install`/`sos-adapter-claude`/`sos-hooks`). The 6 heavy `sos` subcommands (`new`/`adopt`/`sync`/`map`/`install`/`tools`) dispatch to this binary; `bin/sos.sh` is a thin launcher that keeps only the 7 Claude-flavored guidance commands (`init`/`blueprint`/`contract`/`apply`/`recipe`/`launch`/`status`) in Bash until P078 renders them per-runtime. The **sister** CLIs (`ship`, `docs-gate`, `guard`, `vps`) STILL live in their own repos (`~/ship` etc.) — this repo references + version-pins them via `tool-manifest.toml`, it does not vendor their source.
 - **Not a boilerplate project scaffolder.** `recipes/` provides battle-tested **patterns** (DNA snippets, decision rationale) that `/apply` consumes — but the kit doesn't generate full app templates from a blank directory. SOS Kit picks up after "code is ready," not "project is empty."
 - **Not a planning methodology.** Use your own (Shape Up, Vibecode, whatever). SOS Kit picks up after "code is ready."
 - **Not a place for experimental features.** If a skill or config hasn't been used on a real project for ≥2 weeks, don't add it here.
@@ -55,9 +55,9 @@ sos-kit/
 │   ├── boundary-check.md   # Giám sát specialist subagent (P042 — scoped Bash for git+grep, checks 5 INV)
 │   └── README.md           # Agent setup instructions
 ├── bin/
-│   └── sos.sh              # CLI entrypoint — delegates to subcommands
+│   └── sos.sh              # Thin launcher (P077e cutover): 6 heavy subcommands (new/adopt/sync/map/install/tools) exec the Rust `sos` binary; 7 guidance subcommands (init/blueprint/contract/apply/recipe/launch/status) stay Bash until P078
 ├── bootstrap/
-│   └── sos-rs/             # Rust CLI source skeleton (bootstrap target)
+│   └── sos-rs/             # Canonical Rust workspace for the `sos` binary (P077e cutover). Heavy subcommands dispatch here. Relocate to repo-root Cargo.toml = P077f.
 ├── configs/                # .ship.toml examples per stack
 │   ├── nextjs.toml
 │   ├── flask.toml
@@ -187,7 +187,7 @@ sos-kit/
 
 > Each rule is flagged `[mechanical]` (a cheap automated gate can/does enforce it soundly) or `[judgment]` (relies on contributor discretion — stays guidance, no gate). Per `docs/WORKFLOW_V2.2.md` §0.1: *mechanical → gate; judgment → guidance.* These tags are a doc-convention (executable-contract clarity, like a type annotation); a `doc-lint` that machine-verifies the tags is deliberately NOT built (over-build — Q-D3/WORKFLOW_V2.3 retro).
 
-1. `[judgment]` **No runtime code in this repo.** Rust source belongs in their own repos (`ship`, `docs-gate`, `guard`, `vps`). This repo is documentation, templates, and skill markdown only. `phieu/phieu.sh` is an exception — a single shell function file users source — but it does no computation beyond git and file ops.
+1. `[judgment]` **The `sos` CLI runtime source lives here; sister-tool source does not.** Since P077e this repo IS the canonical Rust workspace for the `sos` binary (`bootstrap/sos-rs/`). Sister CLIs (`ship`, `docs-gate`, `guard`, `vps`) still belong in their own repos — do not vendor their source here. Beyond the `sos` workspace, this repo stays documentation, templates, and skill markdown. `phieu/phieu.sh` and `bin/sos.sh` are Bash exceptions (a sourced shell function + the thin launcher) doing only git/file ops + dispatch.
 2. `[judgment]` **Every new file must justify its existence.** No `TODO.md`, no placeholder directories, no "might use later" stubs.
 3. `[mechanical]` **No hardcoded personal paths.** Replace `/Users/<name>/...` with `~/` or a generic example before committing. _(Greppable: `/Users/` or `/home/<user>/` — candidate for a pre-commit grep gate.)_
 4. `[judgment]` **README is the single source of truth.** If a tool is listed in `README.md` but not in `docs/SETUP.md`, that's a bug. Fix the gap in both places. Same for `docs/LAYERS.md` skill table.

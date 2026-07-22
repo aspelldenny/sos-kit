@@ -1,6 +1,12 @@
-# sos — Rust port (skeleton)
+# sos — canonical Rust workspace (post-P077e cutover)
 
-Phase 2 of the `sos` 0→1 bootstrap tool. Bash MVP at `bin/sos.sh` is the canonical executable today.
+The `sos` 0→1 bootstrap tool. **Canonical since P077e**: this workspace IS the runtime source
+for the 6 heavy `sos` subcommands (`new`/`adopt`/`sync`/`map`/`install`/`tools`) — `bin/sos.sh`
+dispatches (`exec`) to the built binary here for those 6, and keeps only the 7 Claude-flavored
+guidance subcommands (`init`/`blueprint`/`contract`/`apply`/`recipe`/`launch`/`status`) in Bash
+until P078 renders them per-runtime. This workspace does **not** extract to a separate repo —
+it stays part of sos-kit, transitionally rooted at `bootstrap/sos-rs/` (relocation to a
+repo-root `Cargo.toml` is P077f, deferred, orthogonal to this cutover).
 
 ## Status
 
@@ -87,18 +93,19 @@ Identical to bash MVP — see `cat ../../bin/sos.sh` or `sos help`.
 
 - **Bash MVP** ships immediately, easy to iterate on while the design churns.
 - **Rust port** matches DNA of `ship`/`guard`/`vps`/`docs-gate` (4 sister tools), gets cargo-installable, faster startup, type-safe state machine.
-- **Ownership (updated P077a):** the Rust workspace is being lifted INTO `sos-kit` itself (`docs/PORTABILITY_ARCHITECTURE.md`, `docs/plans/P077-decomposition.md`) — it does NOT move to a separate repo. `bin/sos.sh` stays canonical through P077a–P077d (Rust is developed alongside it, verified against a frozen Bash golden oracle — see `crates/sos-cli/tests/README.md`). Only P077e (the decomposition's final, founder-confirmed sub-phiếu) cuts over the Rust binary to canonical and updates the repo's "not a runtime binary source" contract in root `CLAUDE.md`.
+- **Ownership (updated P077e — CUTOVER LIVE):** the Rust workspace lives INSIDE `sos-kit` itself (`docs/PORTABILITY_ARCHITECTURE.md`, `docs/plans/P077-decomposition.md`) and does NOT move to a separate repo. Through P077a–P077d, `bin/sos.sh`'s Bash implementation stayed canonical while Rust was developed alongside it, verified against a frozen Bash golden oracle (`crates/sos-cli/tests/README.md`). **As of P077e, this binary is canonical** for the 6 heavy subcommands (`new`/`adopt`/`sync`/`map`/`install`/`tools`) — `bin/sos.sh` execs it; the old Bash `sos_new`/`sos_adopt`/`sos_sync`/`sos_map` functions are retained DORMANT (rollback safety only, not called by the dispatcher). Root `CLAUDE.md`'s "not a runtime binary source" contract has been flipped to reflect this repo as the runtime monorepo for the `sos` binary.
 
-## Command parity status (P077c)
+## Command parity status (P077c, cutover-updated P077e)
 
-`bin/sos.sh` is canonical; `crates/sos-cli/tests/parity.rs` diffs the Rust binary against a
+This Rust binary is canonical (post-P077e); `crates/sos-cli/tests/parity.rs` diffs it against a
 frozen oracle (`tests/golden/*.golden`, see `tests/golden/capture.sh` + `tests/README.md`). A
 command enters `PARITY_ENFORCED` (hard-fail on mismatch) once its Rust impl is proven against
-that oracle. **`sync`/`new` are Bash-PARITY oracles** (Rust proven bug-for-bug identical to
-Bash). **`map`/`adopt` became CORRECTNESS oracles as of P077c5** (Rust intentionally DIVERGES
-from Bash to fix OA-02 — `docs/retro/OUTSIDER_AUDIT_SYSTEM_GAPS_2026-07-22.md:93-131`; `bin/sos.sh`
-stays unchanged/buggy by design, Rust-only fix, cutover to Bash deferred to P077e). See
-`tests/README.md` "correctness oracle vs parity oracle" section.
+that oracle. **`sync`/`new` are Bash-PARITY oracles** (Rust proven bug-for-bug identical to the
+now-dormant Bash). **`map`/`adopt` became CORRECTNESS oracles as of P077c5** (Rust intentionally
+DIVERGES from the old Bash to fix OA-02 — `docs/retro/OUTSIDER_AUDIT_SYSTEM_GAPS_2026-07-22.md:93-131`;
+the dormant Bash `sos_map`/`sos_adopt` stay unchanged/buggy by design — users now get the fix
+live via the P077e dispatch cutover). See `tests/README.md` "correctness oracle vs parity oracle"
+section.
 
 | Command | Status |
 |---|---|
