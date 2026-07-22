@@ -63,6 +63,31 @@ Rust workspace (repo-root `Cargo.toml`+`crates/`, relocated from `bootstrap/sos-
 
 **P078c status (render-before-toolgate reorder — unblock P079 dogfood):** `install --runtime <codex|claude>` step order đổi TỪ `plan()→resolve_tools()?→apply()/dry_run()` (tool-drift HARD-BLOCK render qua dấu `?`) SANG `plan()→apply()/dry_run()→tool-check-report` (render TRƯỚC, tool-check SAU, KHÔNG abort). Concern-conflation gốc (`docs/discoveries/P077d3.md`): render adapter files KHÔNG phụ thuộc sister-tool version — chỉ tool-manifest gate mới cần đo "workflow-ready". Reorder = ZERO thay đổi ở `sos-install::engine`/`sos-install::tools` — cả 2 concern vốn đã độc lập callable (`engine::apply()`/`engine::dry_run()` không nhận tool-status làm input, tự thân đã document rõ "Step 5 tool-resolve is intentionally NOT called here"; `tools::check_tools()`/`tools::required_drift()`/`tools::describe_failure()` vốn đã `pub` + non-`Result` — install.rs chỉ đổi CÁCH GỌI, tái dùng nguyên các hàm này thay vì `resolve_tools()?`). 2 hàm `run_claude()`/`run_codex()` refactor thành 1 hàm chung `run_adapter(&dyn Adapter, owner, runtime_label, dry_run, require_tools)` (symmetric tự thỏa qua shared path, KHÔNG duplicate logic). **Exit-code 3-way contract (CHỐT):** `0` = render OK + tools ready; `3` = render OK NHƯNG tool-drift/missing (installed-but-tools-not-ready — WARNING loud stderr + tool list + pointer `sos tools status`, KHÔNG bao giờ nuốt silent); `1` = render/apply THẬT SỰ lỗi (nguyên trạng, rollback). Cơ chế: `std::process::exit(3)` gọi trực tiếp trong `report_tool_drift()` sau khi in warning — tái dùng pattern có sẵn (`commands/tools.rs:51`, `commands/launch.rs:34`), KHÔNG cần đổi `main.rs` return-type/`ExitCode` plumbing, KHÔNG phá `?`-error-handling ở chỗ khác. **`--require-tools` opt-in (CHỐT: CÓ)** — clap flag mới trên `Install` (`main.rs`), khi set khôi phục hành vi PRE-P078c y hệt: `resolve_tools()?` chạy TRƯỚC apply/dry_run, drift → abort exit 1, KHÔNG render (fail-closed mạnh nhất, dành CI/production). `--require-tools --dry-run` cùng lúc: vẫn gate trước (Tầng-2 CHỐT — CI muốn cùng tín hiệu fail-closed dù dry-run không mutate). **dry-run show-both:** giữ nguyên plan-print, cộng thêm tool-drift warning (report-only, không abort) trừ khi `--require-tools` đã gate ở trên. **OA-07 preserved:** drift luôn loud + non-zero (exit 3 mặc định, exit 1 khi `--require-tools`); `sos tools status` UNCHANGED (vẫn exit 1 on drift, dedicated check). Smoke thật trên máy dev (doctor 0.1.1<0.1.3 DRIFT, inv-gate MISSING — pre-existing OA-07 evidence, KHÔNG mock): `install --runtime codex` → 17 file ghi thật (`AGENTS.md`+`.codex/**`+`scripts/codex/**`+`.agents/skills/**`) + WARNING loud liệt kê 6 tool + exit **3**; `--require-tools` → exit 1, ZERO file ghi; `--runtime claude` symmetric (ClaudeAdapter plan rỗng → chỉ `.sos-manifest.toml`, tool-drift warning + exit 3 vẫn đúng); `--dry-run` in cả 17 would-CREATE cả warning, zero mutation. Additive verified: `git diff bin/sos.sh install.sh crates/sos-install/` rỗng. **P079 Codex dogfood giờ UNBLOCK** — tool-drift trên máy dev không còn chặn render nữa. Oracle: `cargo build/test --workspace` xanh, ×20 = 0 flaky, clippy 0 warning mới (pre-existing `sync.rs:102` giữ nguyên), dep-direction guard xanh.
 
+**P078d2b status (in-subagent enforcement — declare MISSING, P078d DONE):** live probe
+(`docs/adapters/SUBAGENT-HOOK-PROBE-2026-07-22.md`) xác định dứt khoát: Codex 0.145.0 KHÔNG
+dispatch `SubagentStart`/`SubagentStop` (và suy ra `PreToolUse` in-subagent) cho custom-role
+spawn (`architect`/`worker`) — chỉ `agent_type="default"` fire; upstream
+`openai/codex#21753`. Dogfood P079 #4 xác nhận trực tiếp (không chỉ suy luận): architect
+subagent's forbidden `apply_patch` trên `src/` THÀNH CÔNG in-subagent, marker
+`architect-active` KHÔNG BAO GIỜ được tạo. **Khai MISSING (KHÔNG PARTIAL, KHÔNG simulate):**
+`CodexAdapter::verify()` (`crates/sos-adapter-codex/src/lib.rs`) thêm Finding #6 (5→6,
+`FindingStatus::Missing`, cite `#21753`) — Findings #1/#3/#5 (PARTIAL) GIỮ NGUYÊN status, chỉ
+thêm 1 câu làm rõ "enforced on MAIN THREAD only". `templates.rs` `hooks_json()`:
+SubagentStart/Stop marker GIỮ render (byte-identical, DEFAULT subagent vẫn fire) + deprecation
+comment (Rust-comment-only, 0 JSON output change). `agents_md()` thêm 1 bullet orchestrator
+boundary-review guidance (main-thread chịu trách nhiệm review vì in-subagent guard không
+enforce). `adapters/codex/CAPABILITY.md` §6 mới (bảng Claude-vs-Codex + 3 backstop thật:
+main-thread `PreToolUse` dogfood-confirmed + universal Git pre-commit/pre-push agent-agnostic +
+AGENTS.md guidance) + `SECURITY.md` threat-model note ("đừng tin architect subagent tự giữ
+envelope; tin cổng Git") + `MAPPING.md` "5 Findings" → 6. **KHÔNG hack/workaround Codex bug —
+declaration + deprecate only.** Additive verified: `git diff` d2a guards (#5/#6 multi-path +
+approval bootstrap), `crates/sos-install/engine.rs`, `crates/sos-core` = rỗng. Oracle
+STRUCTURAL: `cargo build/test --workspace` xanh ×20 = 0 flaky, dep-direction guard xanh (0 hit
+trong `sos-core`), d1 render regression xanh (`hooks_json_is_valid_json_with_expected_events` +
+`hooks_json_top_level_keys_are_description_and_hooks_only` PASS — declaration KHÔNG phá render).
+**P078d (d1 startup-schema + d2a multi-path-guard + d2b MISSING-declaration) = DONE. P078 tổng
+thể = code build đủ, phần còn lại là re-dogfood round-2 (P079) do Sếp chạy.**
+
 ## Ownership và dependency direction
 
 ### Portable core

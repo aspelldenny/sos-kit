@@ -11,10 +11,16 @@
 //!   `docs/ticket/P078b1-codex-adapter-foundation.md`).
 //! - `verify()` — the machine surface of the PARTIAL-declaration
 //!   mechanism: reports the 5 known Codex capability gaps
-//!   (`docs/adapters/CODEX_ADAPTER_DISCOVERY_2026-07-22.md:15-22`) with an
-//!   explicit `FindingStatus` (`core/POLICY.md` oracle vocab). It never
-//!   asserts `Sound` for a gap — `core/ROLES.md` separation-invariant #5:
-//!   capability absence must be explicit, not simulated.
+//!   (`docs/adapters/CODEX_ADAPTER_DISCOVERY_2026-07-22.md:15-22`) PLUS
+//!   (P078d2b) a 6th Finding — in-subagent role-envelope enforcement is
+//!   MISSING on Codex 0.145.0 (custom-role SubagentStart/Stop and
+//!   in-subagent PreToolUse hooks do not fire — upstream
+//!   `openai/codex#21753`, probe: `docs/adapters/SUBAGENT-HOOK-PROBE-2026-07-22.md`,
+//!   dogfood-confirmed: `docs/adapters/P079-CODEX-DOGFOOD-FINDINGS-2026-07-22.md#4`)
+//!   — with an explicit `FindingStatus` (`core/POLICY.md` oracle vocab).
+//!   It never asserts `Sound` for a gap — `core/ROLES.md`
+//!   separation-invariant #5: capability absence must be explicit, not
+//!   simulated.
 //! - `plan()` / `render()` — **P078b2 LIVE**: declarative render of the 10
 //!   Codex-native artifacts (`AGENTS.md`, 4× `.codex/agents/*.toml`, 4×
 //!   `.agents/skills/*/SKILL.md`, `.codex/config.toml`) —
@@ -118,8 +124,8 @@ impl Adapter for CodexAdapter {
         // (`docs/ticket/P078b1-codex-adapter-foundation.md` Task 4). Each
         // Finding mirrors a gap in
         // `docs/adapters/CODEX_ADAPTER_DISCOVERY_2026-07-22.md:15-22` and
-        // `adapters/codex/CAPABILITY.md`. Exactly 5 Findings — never
-        // Sound.
+        // `adapters/codex/CAPABILITY.md`. Exactly 6 Findings (P078d2b added
+        // #6, in-subagent enforcement MISSING) — never Sound.
         Findings {
             items: vec![
                 Finding {
@@ -127,7 +133,8 @@ impl Adapter for CodexAdapter {
                     message: "No Codex equivalent of Claude's per-role built-in tool allowlist \
                               (`tools: Read,Write,Glob`). Architect envelope enforced via \
                               PreToolUse-hook + prose + sandbox_mode=read-only, weaker than \
-                              Claude's structural tool removal."
+                              Claude's structural tool removal. Enforced on the MAIN THREAD only \
+                              — NOT inside spawned custom-role subagents (see Finding #6)."
                         .to_string(),
                     status: FindingStatus::Partial,
                 },
@@ -151,7 +158,8 @@ impl Adapter for CodexAdapter {
                     message: "No native semantic ticket-version approval in Codex \
                               (`approval_policy=on-request` approves operations, not a \
                               ticket version). Must be built via a persisted approved-version \
-                              marker + PreToolUse guard (P078b3)."
+                              marker + PreToolUse guard (P078b3). Enforced on the MAIN THREAD \
+                              only — NOT inside spawned custom-role subagents (see Finding #6)."
                         .to_string(),
                     status: FindingStatus::Missing,
                 },
@@ -162,9 +170,29 @@ impl Adapter for CodexAdapter {
                               requires inspecting shell command text (P078b3). Enforcement \
                               is additionally not unbypassable: hook config is ignored for \
                               untrusted repos and can be user-disabled — Git/CI backstops \
-                              must be retained."
+                              must be retained. Enforced on the MAIN THREAD only — NOT inside \
+                              spawned custom-role subagents (see Finding #6)."
                         .to_string(),
                     status: FindingStatus::Partial,
+                },
+                Finding {
+                    target_path: "in-subagent role-envelope enforcement (architect/worker)"
+                        .to_string(),
+                    message: "Codex 0.145.0 does NOT fire SubagentStart/Stop or in-subagent \
+                              PreToolUse hooks for custom-role subagents (only \
+                              `agent_type=\"default\"` dispatches — upstream \
+                              `openai/codex#21753`, probe: \
+                              docs/adapters/SUBAGENT-HOOK-PROBE-2026-07-22.md). Role envelope \
+                              is NOT enforced inside spawned architect/worker agents — a \
+                              spawned architect or worker can write freely inside its own turn \
+                              (dogfood-confirmed: \
+                              docs/adapters/P079-CODEX-DOGFOOD-FINDINGS-2026-07-22.md#4, \
+                              forbidden apply_patch succeeded in-subagent). Backstops: \
+                              main-thread PreToolUse guards (dogfood-confirmed fire) + \
+                              universal Git pre-commit/pre-push (agent-agnostic) + AGENTS.md \
+                              guidance (prose-only)."
+                        .to_string(),
+                    status: FindingStatus::Missing,
                 },
             ],
         }
@@ -197,12 +225,13 @@ mod tests {
     }
 
     #[test]
-    fn verify_reports_exactly_five_gaps_none_sound() {
+    fn verify_reports_exactly_six_gaps_none_sound() {
         let findings = CodexAdapter.verify();
         assert_eq!(
             findings.items.len(),
-            5,
-            "verify() must declare exactly 5 known Codex capability gaps"
+            6,
+            "verify() must declare exactly 6 known Codex capability gaps \
+             (5 original + P078d2b in-subagent-enforcement Missing)"
         );
         for finding in &findings.items {
             assert_ne!(
@@ -212,6 +241,28 @@ mod tests {
                 finding.target_path
             );
         }
+    }
+
+    #[test]
+    fn verify_declares_in_subagent_enforcement_missing() {
+        // P078d2b Finding #6 — machine source-of-truth for the honest
+        // "in-subagent role-envelope enforcement is MISSING on Codex
+        // 0.145.0" declaration (upstream openai/codex#21753).
+        let findings = CodexAdapter.verify();
+        let finding = findings
+            .items
+            .iter()
+            .find(|f| f.target_path.contains("in-subagent"))
+            .expect("verify() must contain an in-subagent enforcement Finding");
+        assert_eq!(
+            finding.status,
+            FindingStatus::Missing,
+            "in-subagent role-envelope enforcement must be declared Missing, not simulated"
+        );
+        assert!(
+            finding.message.contains("21753"),
+            "Finding must cite upstream openai/codex#21753"
+        );
     }
 
     #[test]

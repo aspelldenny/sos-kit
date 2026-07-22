@@ -83,7 +83,48 @@ mitigations are unbypassable. Codex project hooks run only for TRUSTED repos; no
 require explicit `/hooks` trust; users can disable hooks entirely; enterprise
 `requirements.toml` settings are stronger but not guaranteed present. **Retain Git/CI backstops
 for every gap above** — the hook layer is a fast-feedback convenience, not the sole enforcement
-boundary.
+boundary. **All five gaps' `PreToolUse`/`UserPromptSubmit` guards run on the MAIN THREAD only —
+see §6 below for why the same guards do NOT enforce inside spawned custom-role subagents.**
+
+## 6. In-subagent role-envelope enforcement (custom-role subagents) — MISSING
+
+**What's missing:** Codex 0.145.0 does **not** fire `SubagentStart`/`SubagentStop` (nor, by
+extension, in-subagent `PreToolUse`) for **custom-role** spawns (`architect`/`worker`/
+`advisory-watch`/`boundary-check`) — only `agent_type="default"` dispatches these hooks.
+Session metadata carries `agent_role:"architect"`, but the hook is never invoked. This is an
+upstream Codex CLI regression/gap: `github.com/openai/codex/issues/21753` (probe:
+`docs/adapters/SUBAGENT-HOOK-PROBE-2026-07-22.md`). Consequence: the `architect-active`/
+`worker-active` state-file markers that the 5 guards above key off of are **never set** when a
+custom-role subagent is spawned, and a spawned architect/worker can write freely inside its own
+turn — **dogfood-confirmed** (`docs/adapters/P079-CODEX-DOGFOOD-FINDINGS-2026-07-22.md` #4: the
+architect subagent's forbidden Rust `src/` `apply_patch` succeeded in-subagent; the marker was
+never created).
+
+**Claude vs Codex — where the architect envelope is actually enforced:**
+
+| Layer of containment | Claude | Codex 0.145.0 |
+|---|---|---|
+| Per-role tool-removal (write-time) | ✅ `tools:` frontmatter removes Bash/Edit per role | ❌ only `sandbox_mode` (gap #1, PARTIAL) — no per-role tool allowlist |
+| In-subagent `PreToolUse` guard (runtime) | ✅ guard fires INSIDE the subagent | ❌ custom-role lifecycle/`PreToolUse` hooks don't fire (`openai/codex#21753`) |
+| → Where enforcement actually happens | write-time removal + in-subagent runtime | **boundary only** (main-thread + Git/CI) |
+
+**Backstops that DO work on Codex — rely on these, declared explicitly (not simulated SOUND):**
+1. **Main-thread `PreToolUse` guards** — dogfood-confirmed to fire (`orchestrator-guard.sh`
+   blocked a source-probe, `block-env-edit.sh` blocked a `.env` edit — both on the main thread,
+   P079 SOUND findings).
+2. **Universal Git pre-commit/pre-push** — agent-agnostic; fires at the `git commit`/`git push`
+   boundary regardless of which runtime (Codex or Claude) authored the diff (`hooks/pre-commit`,
+   `hooks/pre-push`).
+3. **`AGENTS.md` role/orchestrator guidance** — prose-only, not mechanically enforced.
+
+**Status = MISSING, not PARTIAL.** In-subagent enforcement genuinely does not happen on Codex
+0.145.0 — this is not simulated as SOUND or PARTIAL with backstop prose; the machine
+declaration (`CodexAdapter::verify()` Finding #6) mirrors this section exactly.
+
+**The SubagentStart/Stop marker hooks are retained, best-effort only** (see the deprecation
+comment in `crates/sos-adapter-codex/src/templates.rs` `hooks_json()`): they still fire for
+**DEFAULT** subagents (probe-confirmed) and will activate automatically for custom roles if
+upstream `#21753` is ever fixed, but they are NOT relied upon for any capability claim above.
 
 ## P078b3 enforcement status (guards rendered — still PARTIAL, never claimed SOUND)
 
