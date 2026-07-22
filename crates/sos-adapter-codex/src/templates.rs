@@ -175,6 +175,7 @@ Hard rules (see `core/WORKFLOW.md`, `core/POLICY.md` for the canonical text -- t
 - No EXECUTE phase begins before the exact ticket version has been approved (`core/WORKFLOW.md` approval gate).
 - Spawn `advisory-watch` / `boundary-check` subagents for their scoped read-only checks (`.codex/agents/advisory-watch.toml`, `.codex/agents/boundary-check.toml`).
 - **Spawn caveat (P079 #7, observed on first custom-agent spawn):** a full-history forked agent inherits the PARENT's agent type, breaking the intended role. When spawning `architect`/`worker`/`advisory-watch`/`boundary-check`, either omit `agent_type` on the spawn call or spawn WITHOUT a full-history fork -- do not fork-with-full-history while also setting `agent_type` to the child role.
+- **In-subagent enforcement gap (P078d2b, upstream `openai/codex#21753`):** on Codex 0.145.0, role-envelope guards do NOT enforce inside spawned custom-role subagents (their lifecycle/PreToolUse hooks never fire for `architect`/`worker`). The orchestrator (main thread) is therefore responsible for boundary review of every subagent-authored diff before merge -- the Git pre-commit/pre-push gate is the real backstop, not an in-subagent guard. Optionally the orchestrator may `touch .sos-state/<role>-active` before delegating and `rm` it after (best-effort, main-thread only -- this does NOT enforce anything inside the spawned agent itself).
 
 Full role contract: `core/ROLES.md#orchestrator`.
 "#
@@ -323,6 +324,20 @@ fn hooks_json() -> String {
     // description or hooks"). The former `_provenance` + `_partial_note`
     // custom fields are folded into the single top-level `description`
     // string below so the provenance/PARTIAL trace is not lost.
+    //
+    // P078d2b DEPRECATED-BEST-EFFORT (SubagentStart/SubagentStop below):
+    // Codex 0.145.0 does NOT dispatch these hooks for CUSTOM-role subagents
+    // (architect/worker) -- only `agent_type="default"` fires (upstream
+    // `openai/codex#21753`; probe:
+    // docs/adapters/SUBAGENT-HOOK-PROBE-2026-07-22.md; dogfood-confirmed:
+    // docs/adapters/P079-CODEX-DOGFOOD-FINDINGS-2026-07-22.md#4 -- the
+    // architect-active/worker-active marker was NEVER created and the
+    // forbidden apply_patch succeeded in-subagent). This marker fires for
+    // DEFAULT subagents only and is NOT relied upon for any capability
+    // claim -- see `CodexAdapter::verify()` Finding #6 (Missing) and
+    // `adapters/codex/CAPABILITY.md` §6. Retained (not removed) so it
+    // activates automatically if upstream #21753 is ever fixed; retaining
+    // it also keeps DEFAULT-subagent marker behavior working today.
     r#"{
   "description": "Provenance: core/POLICY.md (enforcement), core/WORKFLOW.md (state gates) -- P078b3. PARTIAL: Enforcement is bypassable: project hooks only run for TRUSTED repos, non-managed hooks need /hooks trust, and users can disable hooks entirely. Git/CI review-trigger backstops (core/POLICY.md) MUST be retained -- this hook layer is fast-feedback, not the security boundary.",
   "hooks": {

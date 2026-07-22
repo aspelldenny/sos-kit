@@ -28,7 +28,7 @@
 |---|---|
 | Adapter trait implementable for Codex | `crates/sos-adapter-codex/src/lib.rs` `impl Adapter for CodexAdapter` |
 | Structural capability detection | `CodexAdapter::detect()` — static facts + fail-safe `codex --version` probe |
-| Capability-gap declaration (machine) | `CodexAdapter::verify()` — 5 `Finding`s with `FindingStatus` (`Sound`/`Partial`/`Missing`) |
+| Capability-gap declaration (machine) | `CodexAdapter::verify()` — 6 `Finding`s with `FindingStatus` (`Sound`/`Partial`/`Missing`) — #6 added P078d2b: in-subagent role-envelope enforcement = `Missing` (upstream `openai/codex#21753`) |
 | Capability-gap declaration (human, frozen) | `CAPABILITY.md` (this directory) |
 | Composition-root wiring | `crates/sos-cli/src/commands/install.rs` `run_codex()` |
 

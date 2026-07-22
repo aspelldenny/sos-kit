@@ -128,6 +128,24 @@ normal fail-CLOSED BLOCK, not the bootstrap ALLOW. A rendered skeleton state fil
 install time so most fresh installs never reach the missing-file branch at all; its non-clobber
 safety reuses the pre-existing `sos-install::engine` checksum/manifest logic — no engine change.
 
+**In-subagent role-envelope enforcement — MISSING, not PARTIAL (P078d2b, upstream
+`openai/codex#21753`).** All 5 guards above are `PreToolUse`/`UserPromptSubmit` hooks that fire
+on the **main thread**. On Codex 0.145.0, they do **not** fire inside a spawned **custom-role**
+subagent (`architect`/`worker`/`advisory-watch`/`boundary-check`) — only `agent_type="default"`
+dispatches `SubagentStart`/`SubagentStop` and (by extension) in-subagent `PreToolUse`; custom-role
+spawns get nothing (probe: `docs/adapters/SUBAGENT-HOOK-PROBE-2026-07-22.md`). This is
+**dogfood-confirmed, not theoretical**: `docs/adapters/P079-CODEX-DOGFOOD-FINDINGS-2026-07-22.md`
+#4 — a spawned architect's forbidden `apply_patch` against Rust `src/` succeeded in-subagent, and
+the `architect-active` marker was never created. **Do not trust an architect/worker subagent to
+police its own envelope on Codex; trust the Git gate.** The real backstops are: (1) main-thread
+`PreToolUse` guards (dogfood-confirmed to fire — `orchestrator-guard.sh`/`block-env-edit.sh`
+blocked real attempts on the main thread), (2) universal Git pre-commit/pre-push (agent-agnostic —
+fires at the commit/push boundary regardless of runtime), (3) `AGENTS.md` guidance (prose only).
+The `SubagentStart`/`SubagentStop` marker hooks in `.codex/hooks.json` are retained best-effort
+(they still fire for DEFAULT subagents and would activate for custom roles if upstream `#21753`
+is fixed) but are explicitly NOT relied upon for this or any other capability claim — see
+`CodexAdapter::verify()` Finding #6 and `adapters/codex/CAPABILITY.md` §6.
+
 ## Install: tool-version drift (OA-07) is workflow-safety, not a trust boundary (P078c)
 
 `sos install` reorders render vs. tool-manifest check (P078c): adapter files are written first,
