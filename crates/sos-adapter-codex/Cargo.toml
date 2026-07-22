@@ -1,0 +1,9 @@
+[package]
+name = "sos-adapter-codex"
+version = "0.1.0"
+edition = "2021"
+description = "SOS Kit Codex CLI adapter (detect/plan/render/verify/uninstall) — foundation (P078b1): detect+verify live, render deferred to P078b2/b3. Depends on sos-core (adapter->core one-way)."
+license = "MIT"
+
+[dependencies]
+sos-core = { path = "../sos-core" }

@@ -419,6 +419,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sos-adapter-codex"
+version = "0.1.0"
+dependencies = [
+ "sos-core",
+]
+
+[[package]]
 name = "sos-cli"
 version = "0.1.0"
 dependencies = [
@@ -427,6 +434,7 @@ dependencies = [
  "clap",
  "sha2",
  "sos-adapter-claude",
+ "sos-adapter-codex",
  "sos-core",
  "sos-hooks",
  "sos-install",

@@ -81,12 +81,31 @@ pub struct Artifact {
     pub content: String,
 }
 
+/// Oracle-strength vocabulary for a single `Finding` (P078b1 — additive).
+/// Vocab matches `core/POLICY.md` "Oracle-first claims" (SOUND/PARTIAL/
+/// MISSING): SOUND = the oracle closes the stated claim; PARTIAL = the
+/// oracle covers only named dimensions, residual risk explicit; MISSING =
+/// no oracle exists, claim is unverified. Plain, host-neutral enum — no
+/// adapter-specific variant (`core/ROLES.md` sep-inv #5: capability
+/// absence must be explicit, an integration cannot simulate success with
+/// prose).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FindingStatus {
+    Sound,
+    Partial,
+    Missing,
+}
+
 /// One verification finding — e.g. drift between an installed artifact
-/// and its expected content-hash. Output of `verify()`.
+/// and its expected content-hash, or a declared capability gap. Output of
+/// `verify()`. `status` (P078b1 additive): the oracle-strength this
+/// finding is asserted at — see `FindingStatus`. Existing callers must
+/// supply a status; there is no silent default toward `Sound`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Finding {
     pub target_path: String,
     pub message: String,
+    pub status: FindingStatus,
 }
 
 /// Aggregate output of `verify()`.
