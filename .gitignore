@@ -5,7 +5,7 @@
 node_modules/
 
 # Rust build artifacts
-bootstrap/*/target/
+/target/
 **/*.rs.bk
 
 # SOS Kit state (architect marker, per-project state)

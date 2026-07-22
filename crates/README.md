@@ -5,8 +5,8 @@ for the 6 heavy `sos` subcommands (`new`/`adopt`/`sync`/`map`/`install`/`tools`)
 dispatches (`exec`) to the built binary here for those 6, and keeps only the 7 Claude-flavored
 guidance subcommands (`init`/`blueprint`/`contract`/`apply`/`recipe`/`launch`/`status`) in Bash
 until P078 renders them per-runtime. This workspace does **not** extract to a separate repo —
-it stays part of sos-kit, transitionally rooted at `bootstrap/sos-rs/` (relocation to a
-repo-root `Cargo.toml` is P077f, deferred, orthogonal to this cutover).
+it stays part of sos-kit, rooted at the repo root (`Cargo.toml` + `crates/`), relocated from
+the transitional `bootstrap/sos-rs/` path in P077f (pure move, no logic change).
 
 ## Status
 
@@ -36,8 +36,8 @@ Dependency-direction gate (Tầng 1 — enforced two ways):
 - **Compiler graph** — `sos-core/Cargo.toml` declares zero adapter/install/hooks/cli dep, so `use sos_adapter_*` etc. in core is a compile error.
 - **Guard test** — `crates/sos-core/tests/dep_direction.rs` scans `sos-core/src/**` for forbidden tokens, catches regression the compiler alone would miss (e.g. a stray dep added to Cargo.toml).
 
-**Deviation from target (`docs/PORTABILITY_ARCHITECTURE.md` lines 24-38)** — tracked, not yet fixed:
-1. Workspace root stays at `bootstrap/sos-rs/` (target: repo-root) — relocation is P077e.
+**Deviation from target (`docs/PORTABILITY_ARCHITECTURE.md` lines 24-38)** — status:
+1. ~~Workspace root stays at `bootstrap/sos-rs/` (target: repo-root)~~ — **RESOLVED P077f**: workspace now lives at repo-root, layout matches target.
 2. `sos-adapter-codex` not created (target lists it) — that's P078, out of scope here.
 3. `sos-hooks` is still an empty skeleton (out of P077d2 scope); `sos-adapter-claude` implements the `Adapter` contract (stub bodies only — `plan()`/`render()` do not touch `.claude/**` for real, that's deferred past d2); `sos-install` now has a LIVE install engine (see below) — the remaining gap is real Claude asset rendering, not the engine.
 
@@ -78,7 +78,7 @@ Fills d2's step-5 `resolve_tools()` seam (was a `Vec::new()` no-op stub) with a 
 ## Build
 
 ```bash
-cd bootstrap/sos-rs
+cd <repo-root>
 cargo build --workspace --release
 # binary: target/release/sos (produced by the sos-cli crate)
 cargo install --path crates/sos-cli
@@ -87,7 +87,7 @@ cargo install --path crates/sos-cli
 
 ## Usage
 
-Identical to bash MVP — see `cat ../../bin/sos.sh` or `sos help`.
+Identical to bash MVP — see `cat ../bin/sos.sh` or `sos help`.
 
 ## Why both Rust and bash
 

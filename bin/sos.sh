@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sos — 0→1 bootstrap (bash MVP — Rust port at bootstrap/sos-rs/)
+# sos — 0→1 bootstrap (bash MVP — Rust port at repo-root, crates/)
 #
 # Source from your shell (or symlink to /usr/local/bin/sos):
 #   source /path/to/sos-kit/bin/sos.sh
@@ -1289,7 +1289,8 @@ sos_status() {
 # `command -v sos` — install.sh installs THIS launcher itself as `sos` on
 # PATH, so `command -v sos` would recurse into this very script.
 _sos_workspace_root() {
-  printf '%s\n' "${SOS_KIT_DIR}/bootstrap/sos-rs"
+  # P077f: workspace relocated to repo-root (was bootstrap/sos-rs/).
+  printf '%s\n' "${SOS_KIT_DIR}"
 }
 
 _sos_rust_bin() {

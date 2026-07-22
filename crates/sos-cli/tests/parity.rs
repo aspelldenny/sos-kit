@@ -243,7 +243,7 @@ fn build_new_fixture() -> (TempFixture, PathBuf, PathBuf) {
     // to it) — reuse the REAL script from the real sos-kit checkout this test
     // binary was built from (content never gen-hashed/frozen, path-only).
     let real_install_hooks =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../scripts/install-hooks.sh");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../scripts/install-hooks.sh");
     fs::copy(&real_install_hooks, kit.join("scripts/install-hooks.sh"))
         .unwrap_or_else(|e| panic!("copy install-hooks.sh from {:?}: {e}", real_install_hooks));
     #[cfg(unix)]

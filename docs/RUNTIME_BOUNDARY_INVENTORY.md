@@ -37,7 +37,7 @@ Các row áp dụng từ trên xuống; row cụ thể thắng glob rộng hơn.
 | `docs/archive/**`, `docs/discoveries/**`, `docs/retro/**`, `docs/ticket/**`, `docs/DISCOVERIES.md`, `CHANGELOG.md` | `CORE` | Immutable audit/history trail | Runtime-token hits là bằng chứng lịch sử, không phải runtime dependency; không rewrite lịch sử | Core audit archive | Giữ nguyên; future entries dùng neutral vocabulary khi phù hợp |
 | `README.md`, `INSTALL.md`, `SECURITY.md` | `MIXED` | User entry/install/threat model | Hiện dẫn Claude-first install và Claude auto-exec surfaces | Product docs chung với runtime selector | P075-P078/P081 |
 | `bin/sos.sh` | `MIXED` | Bash MVP cho new/adopt/sync/state và skill delegation | In thẳng “Open Claude Code”, gọi `/init`, `/apply`, `/forge`, sinh Claude wiring | Golden behavior oracle; logic sang Rust core + adapters | P075-P077 |
-| `bootstrap/sos-rs/**` | `MIXED` | Rust CLI skeleton và state machine | CLI portable nhưng LLM phases vẫn delegate Claude skills; README định extraction cũ | Rust workspace chính thức trong `sos-kit` | P077 |
+| `crates/**` (repo-root, relocated from `bootstrap/sos-rs/` P077f) | `MIXED` | Rust CLI skeleton và state machine | CLI portable nhưng LLM phases vẫn delegate Claude skills; README định extraction cũ | Rust workspace chính thức trong `sos-kit` | P077 |
 | `install.sh`, `templates/setup-dev.sh` | `MIXED` | One-command bootstrap và dev install | Tải `claude-hooks`, clone kit, cài launcher; tool list hard-coded | Thin bootstrap tải `sos`; `sos install` xử lý manifest/runtime | P077/P081 |
 | `integrations/**` | `CORE` | CI canary và uptime example | Không cần Claude host; runtime mentions nếu có là integration history | Core integration catalog | P075 |
 | `.gitattributes`, `.gitignore`, `LICENSE` | `CORE` | Repository mechanics/legal | Không runtime coupling | Monorepo root | Giữ nguyên/P077 |
@@ -58,4 +58,4 @@ git grep -Il -E 'Claude|CLAUDE_|\.claude|sonnet|opus|AskUserQuestion|PreToolUse|
 2. Claude coupling không chỉ nằm trong `.claude/`; nó lan vào Bash CLI, docs, skills và lifecycle scripts qua env/tool/event names.
 3. Universal Git gates đã là portable asset tốt nhất. Target chỉ cần đổi hook stub sang gọi một entrypoint ổn định của `sos`.
 4. `install.sh` đã chứng minh nhu cầu one-command, nhưng manifest hiện nằm trong shell và cài nhiều binary trước khi có product CLI quản lý chúng.
-5. Rust ownership decision cũ trong `bootstrap/sos-rs/README.md` mâu thuẫn target mới. P077 sẽ cập nhật repo contract và giữ Rust workspace tại đây.
+5. Rust ownership decision cũ trong `crates/README.md` (relocated from `bootstrap/sos-rs/README.md` P077f) mâu thuẫn target mới. P077 sẽ cập nhật repo contract và giữ Rust workspace tại đây.
