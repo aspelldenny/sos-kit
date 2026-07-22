@@ -105,6 +105,19 @@ default for unparseable input: an `apply_patch` payload whose patch body doesn't
 `*** Add/Update/Delete/Move File:` marker BLOCKs (fail-CLOSED), because an unparsed Codex patch
 could otherwise write anywhere silently.
 
+## Install: tool-version drift (OA-07) is workflow-safety, not a trust boundary (P078c)
+
+`sos install` reorders render vs. tool-manifest check (P078c): adapter files are written first,
+tool-version drift is reported after (loud WARNING + exit 3) instead of blocking the write, with
+`--require-tools` as an opt-in fail-closed escape hatch for CI/production. **N/A explicit for
+this repo's threat model:** OA-07 (sister-tool version drift — `docs/retro/OUTSIDER_AUDIT_SYSTEM_GAPS_2026-07-22.md`)
+is a 🟠 workflow-safety concern (repo contract may assume tool behavior a stale local binary
+doesn't have yet) — it does not touch an auto-exec surface, a trust anchor, or the checksum
+verification chain described above. Rendering adapter files is pure filesystem write of
+crate-embedded content (no remote fetch, no code execution) regardless of tool-drift state;
+nothing here weakens `.sos-trust-baseline`, the checksum-verified binary installs, or the
+Codex-adapter guard fail-CLOSED behavior documented above.
+
 ## Reporting a vulnerability
 
 If you discover a security issue in SOS Kit:

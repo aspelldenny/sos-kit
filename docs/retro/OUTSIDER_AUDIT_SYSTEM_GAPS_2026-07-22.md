@@ -314,6 +314,18 @@ unpinned nguyên trạng tới khi P077e cutover Rust binary thành canonical �
 CHO Rust path, Bash path còn hở tới cutover. Chi tiết: `docs/discoveries/P077d3.md`,
 `CHANGELOG.md` `[P077d3]`.
 
+### Status update (P078c, 2026-07-22) — resolved-differently: render decoupled từ tool-gate
+
+d3 wired tool-check là HARD-BLOCK render (`resolve_tools()?` chạy TRƯỚC `apply()`/`dry_run()` ở
+`install.rs`) — hệ quả: máy có tool drift (evidence trên, live reproduce) thì `sos install`
+KHÔNG ghi được adapter file nào, chặn cả P079 Codex dogfood dù render adapter file không hề phụ
+thuộc sister-tool version. P078c tách 2 concern: render TRƯỚC/độc lập tool-check; drift surfaced
+qua **loud-warn + exit 3** (distinct "installed, tools-not-ready") thay vì abort. `--require-tools`
+opt-in flag giữ NGUYÊN hành vi fail-closed d3 (tool-check trước render, abort exit 1, no render)
+cho CI/production cần mạnh nhất. OA-07 tín hiệu KHÔNG bị yếu đi: drift vẫn luôn loud + non-zero,
+chỉ đổi "block render" → "render + report"; `sos tools status` không đổi. Chi tiết:
+`docs/discoveries/P078c.md`, `CHANGELOG.md` `[P078c]`.
+
 ---
 
 ## OA-08 🟠 — guards là discipline guard, chưa phải complete sandbox
