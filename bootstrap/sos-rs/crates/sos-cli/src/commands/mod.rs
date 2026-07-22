@@ -8,3 +8,4 @@ pub mod status;
 pub mod map;
 pub mod sync;
 pub mod new;
+pub mod adopt;

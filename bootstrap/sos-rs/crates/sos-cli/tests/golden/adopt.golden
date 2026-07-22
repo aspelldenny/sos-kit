@@ -5,90 +5,38 @@ sos adopt — retrofit spine into existing '<TARGET>' (ADDITIVE + NON-CLOBBER)
   done
 [2/4] Category C — generate ONLY if missing (never overwrite existing docs)
 [3/4] Born-wire (arm hooks + stack detect)
+    ✓ core.hooksPath → hooks/ (tracked hooks now live: pre-commit pre-push )
 [4/4] Validator
-      [WIRED ] J1 sentinel-contract — emit 'security-review-start' present; hook-side grep delegated to claude-hooks binary (B+3 shim)
-      [WIRED ] J2 rubric-source — agent handbook enumerates INV rubric inline
-      [WIRED ] J4 invariants-file — docs/security/INVARIANTS.md present
-      [WIRED ] J5 merge-gate — block-unsafe-merge.sh present + registered in settings.json + gates `gh pr merge`
-      [WIRED ] J6 verdict-contract — agent emits `Verdict:`/APPROVE; hook-side parse delegated to claude-hooks binary (B+3 shim)
-    boundary-check: CONNECTED — all wiring joints intact
-  ✓ verify-setup: CONNECTED
-  ✓ validate-map: AGENT_MAP paths resolve
+  ⏭ doctor not found (set DOCTOR_BIN=/path or cargo install --path ~/doctor)
 
 ═══ sos adopt report ═══
 ADDED (copied — were absent):
-    + .claude/agents/advisory-watch.md
-    + .claude/agents/architect.md
-    + .claude/agents/boundary-check.md
     + .claude/agents/worker.md
-    + .claude/commands/security-review.md
-    + .claude/commands/advisory-scan.md
+    + .claude/commands/idea.md
     + .claude/settings.json
     + .claude/agents/orchestrator.md
-    + scripts/security-gate.sh
-    + scripts/check-hardcoded-secrets.py
-    + scripts/block-env-commit.sh
-    + scripts/parsers/pyproject_toml.py
-    + scripts/parsers/package_lock_v3.py
-    + scripts/parsers/requirements_txt.py
-    + scripts/parsers/go_sum.py
-    + scripts/parsers/pnpm_lock_v9.py
-    + scripts/parsers/cargo_lock.py
     + scripts/install-hooks.sh
-    + scripts/idea-smell.sh
-    + scripts/check-case-collision.sh
-    + scripts/no-code-on-default.sh
-    + scripts/architect-guard.sh
-    + scripts/trust-gate.sh
-    + scripts/lane-check-contract.sh
-    + scripts/check-runtime-secrets.py
-    + scripts/block-env-edit.sh
-    + scripts/session-start-banner.sh
-    + scripts/block-unsafe-merge.sh
-    + scripts/orchestrator-guard.sh
     + phieu/README.md
-    + phieu/phieu.sh
-    + phieu/AUDIT_PROTOCOL.md
-    + phieu/LAUNCH_CHECKLIST.md
-    + phieu/DISCOVERY_PROTOCOL.md
-    + phieu/RELAY_PROTOCOL.md
-    + phieu/VISION_TEMPLATES/PROJECT_template.md
-    + phieu/VISION_TEMPLATES/DESIGN_SPEC_template.md
-    + phieu/VISION_TEMPLATES/CHARACTER_template.md
-    + phieu/VISION_TEMPLATES/VOICE_template.md
-    + phieu/VISION_TEMPLATES/SOUL_template.md
-    + phieu/VISION_TEMPLATES/TEST_CASES_template.md
-    + phieu/TICKET_TEMPLATE.md
-    + phieu/GENESIS_TEMPLATE.md
     + templates/claude-settings.local.json
-    + templates/advisory-inbox.md
-    + templates/.docs-gate.toml
     + templates/BACKLOG_template.md
-    + templates/INVARIANTS-template.md
-    + templates/setup-dev.sh
-    + templates/.sos-stack.toml.example
     + hooks/pre-commit
     + hooks/pre-push
-    + docs/ORCHESTRATION.md
-    + .claude/skills/init/SKILL.md
-    + .claude/skills/apply/SKILL.md
     + .claude/skills/idea/SKILL.md
-    + .claude/skills/forge/SKILL.md
-    + .claude/skills/retro/SKILL.md
     + .mcp.json (kit tools wired: doctor/docs-gate/ship/guard/vps — PATH-rel, same set as sos new)
     + .claude/settings.local.json (5 marker perms — per-user, don't commit)
     + docs/security/INVARIANTS.md
     + docs/AGENT_MAP.yaml (scanned real surfaces — set load_bearing + blast by hand)
     + .docs-gate.toml
-    + CHANGELOG.md (skeleton)
     + docs/ARCHITECTURE.md (skeleton)
     + docs/BACKLOG.md (template — fill Active sprint)
     + .gitignore (10 build/runtime ignore lines)
     + .phieu-counter (seed 0 — source phieu/phieu.sh to use `phieu <slug>`)
+    + hooks ARMED (core.hooksPath → hooks/; pre-existing .git/hooks moved to .bak if any)
+    + .sos-stack.toml (stack detected — advisory-scan/security-review ready)
 REVIEW / merge by hand (existing-or-missing — adopt did NOT touch):
+    ~ templates/INVARIANTS-template.md
+    ~ CHANGELOG.md (exists — kept)
     ! CLAUDE.md (MISSING — add a project CLAUDE.md by hand; adopt won't guess product identity)
-    ~ hooks NOT armed (no .git or scripts/install-hooks.sh missing)
-    ~ .sos-stack.toml (no stack manifest detected — see file comments, add [[stack]] by hand)
 
 Next: diff staged wiring  (git diff --no-index <existing> <TARGET>/.sos-adopt-incoming/<path>)  → merge by hand;
       add MISSING docs; fill # TODO; then: doctor verify-setup --repo <TARGET>
