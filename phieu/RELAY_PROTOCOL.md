@@ -1,6 +1,8 @@
 # Relay Protocol — Chủ nhà as the Courier
 
-> Kiến trúc sư (Claude Web Project) and Thợ (Claude Code) are separate sessions. They cannot talk directly. Chủ nhà is the only bridge.
+> **v2 mode note:** in v2 default, Kiến trúc sư and Thợ run as subagents **inside the same Claude Code session**, spawned by Quản đốc, which automates the relay in-session (Debate Log CHALLENGE/RESPOND turns) — this protocol does NOT apply. This doc is for **v1 / cross-session mode**: Architect and Worker in separate sessions or worktrees (e.g. Architect in Claude Web Project, or Worker on a different machine/worktree). Still valid for that case, just not the happy-path default.
+
+> Kiến trúc sư (v1: Claude Web Project) and Thợ (Claude Code) are separate sessions. They cannot talk directly. Chủ nhà is the only bridge.
 >
 > Most of the time the relay is implicit (Chủ nhà commits phiếu file, Thợ reads it from disk). But when Thợ hits a Tầng 1 blocker mid-ticket, Chủ nhà has to actively route messages back and forth. This doc is the protocol for that routing.
 

@@ -143,7 +143,7 @@ See [`ORCHESTRATION.md`](./ORCHESTRATION.md) for the full state machine and an e
 - Scope balloons beyond what's in the phiếu (new column needed, new API route, auth change)
 - Phiếu solution is clean but Thợ sees a subtle issue (race condition, security gap)
 
-**Key constraint:** Thợ CANNOT ping Architect directly. Claude Code session and Claude Web session are separate. Chủ nhà is the human courier.
+**Key constraint:** Thợ CANNOT ping Architect directly. In v2 default (subagent mode), this handoff runs as a Debate Log escalation that Quản đốc routes in-session (see Handoff 2.5) — Chủ nhà only enters if genuinely architectural. In v1/cross-session mode (below), Claude Code session and Claude Web session are separate, and Chủ nhà is the human courier.
 
 **Format (Thợ → Chủ nhà):**
 
