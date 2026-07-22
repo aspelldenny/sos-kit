@@ -107,6 +107,15 @@ unparsed Codex patch could silently write anywhere, whereas an unparsed Claude `
 essentially never occurs in practice — the failure modes are asymmetric, so the safe defaults are
 too.
 
+**Multi-path bypass — CLOSED (P078d2a, 2026-07-22).** P079 live-dogfood found all 5 guards above
+extracted only the FIRST `*** ... File: <path>` marker from a multi-file `apply_patch`
+(`| head -n1`) — a patch listing an allowed path FIRST and a forbidden path SECOND exited ALLOW on
+the first match, never checking the rest. Fixed: every guard now extracts every path in the patch
+and BLOCKs if ANY path violates the rule (`crates/sos-adapter-codex/src/templates.rs`, full detail
+`SECURITY.md` + `docs/discoveries/P078d2a.md`). Approval-gate additionally gained a narrow
+self-bootstrap exemption (allow ONLY a patch touching `.sos-state/ticket-state.env` alone when the
+state file is missing) — safe only because it's coupled with the all-path fix in the same phiếu.
+
 **`block-unsafe-merge` — DEFERRED, not rendered (Decision 4, P078b3):** the mechanical class
 (force-push, `rm -rf` prefixes) is covered by `.codex/rules/exec-policy.rules` (Starlark
 `prefix_rule`, most-restrictive-wins). The semantic class — blocking `gh pr merge <N>` without a

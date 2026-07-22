@@ -9,7 +9,8 @@
 //! role/skill semantics (`core/ROLES.md` sep-inv #5, `core/ASSETS.md:51`).
 //!
 //! `asset_identity(..)` values are the stable keys `render()` matches on;
-//! `all_assets()` is the fixed 10+7-Asset set `plan()` enumerates.
+//! `all_assets()` is the fixed 10+7+1-Asset set `plan()` enumerates (18
+//! total after P078d2a's state-skeleton addition).
 //!
 //! P078b3 EXTENDS this with 7 **enforcement** artifacts (`HOOKS_JSON`,
 //! `RULES_EXEC_POLICY`, 5× `GUARD_*`) — `docs/ticket/P078b3-codex-enforcement.md`
@@ -49,7 +50,21 @@ pub const GUARD_APPROVAL_GATE: &str = "codex_guard_approval_gate";
 pub const GUARD_IDEA_SMELL: &str = "codex_guard_idea_smell";
 pub const RULES_EXEC_POLICY: &str = "codex_rules_exec_policy";
 
-/// Fixed 10+7-Asset set. `content` is unused by `render()` (identity alone
+/// P078d2a #5 (approval bootstrap): a rendered SKELETON of the
+/// approval-gate's state file. Reuses the install engine's ALREADY-generic
+/// checksum/manifest non-clobber logic (`sos-install::engine`, `Decision`
+/// enum) -- rendering this once at install time gives fresh installs a
+/// file to read (fixing the fail-CLOSED chicken-egg deadlock, `:634` in
+/// `guard_approval_gate_sh`); the engine's existing Conflict-on-user-edit
+/// rule (content hash differs from both desired AND recorded manifest
+/// hash -> never overwrite, stage instead) means once a real
+/// `approved_version=` is written by the workflow, re-running install can
+/// never clobber it. No engine change needed -- purely additive via this
+/// crate's existing render surface.
+pub const STATE_SKELETON: &str = "codex_state_skeleton";
+
+/// Fixed 10+7+1-Asset set (18 total, P078d2a adds the state skeleton).
+/// `content` is unused by `render()` (identity alone
 /// selects the crate template) — kept as a stable echo of `identity` so
 /// the generic core `Asset` type has a non-empty, deterministic payload.
 pub fn all_assets() -> Vec<Asset> {
@@ -72,6 +87,8 @@ pub fn all_assets() -> Vec<Asset> {
         GUARD_APPROVAL_GATE,
         GUARD_IDEA_SMELL,
         RULES_EXEC_POLICY,
+        // P078d2a #5: state-file skeleton (bootstrap fix).
+        STATE_SKELETON,
     ]
     .into_iter()
     .map(|identity| Asset {
@@ -101,6 +118,7 @@ pub fn target_path_for(identity: &str) -> &'static str {
         GUARD_APPROVAL_GATE => "scripts/codex/approval-gate.sh",
         GUARD_IDEA_SMELL => "scripts/codex/idea-smell.sh",
         RULES_EXEC_POLICY => ".codex/rules/exec-policy.rules",
+        STATE_SKELETON => ".sos-state/ticket-state.env",
         other => panic!("templates::target_path_for: unknown asset identity `{other}`"),
     }
 }
@@ -138,6 +156,7 @@ pub fn content_for(identity: &str) -> String {
         GUARD_APPROVAL_GATE => guard_approval_gate_sh(),
         GUARD_IDEA_SMELL => guard_idea_smell_sh(),
         RULES_EXEC_POLICY => rules_exec_policy(),
+        STATE_SKELETON => state_skeleton_env(),
         other => panic!("templates::content_for: unknown asset identity `{other}`"),
     }
 }
@@ -155,6 +174,7 @@ Hard rules (see `core/WORKFLOW.md`, `core/POLICY.md` for the canonical text -- t
 - The main thread is the orchestrator. It MUST NOT implement the active ticket itself -- spawn the `architect` and `worker` subagents per phase (`.codex/agents/architect.toml`, `.codex/agents/worker.toml`).
 - No EXECUTE phase begins before the exact ticket version has been approved (`core/WORKFLOW.md` approval gate).
 - Spawn `advisory-watch` / `boundary-check` subagents for their scoped read-only checks (`.codex/agents/advisory-watch.toml`, `.codex/agents/boundary-check.toml`).
+- **Spawn caveat (P079 #7, observed on first custom-agent spawn):** a full-history forked agent inherits the PARENT's agent type, breaking the intended role. When spawning `architect`/`worker`/`advisory-watch`/`boundary-check`, either omit `agent_type` on the spawn call or spawn WITHOUT a full-history fork -- do not fork-with-full-history while also setting `agent_type` to the child role.
 
 Full role contract: `core/ROLES.md#orchestrator`.
 "#
@@ -389,16 +409,28 @@ TOOL_NAME=$(printf '%s' "$INPUT_JSON" | sed -n 's/.*"tool_name"[[:space:]]*:[[:s
 
 case "$TOOL_NAME" in
     apply_patch)
-        # Extract the FIRST *** Add/Update/Delete/Move File: <path> marker from the raw
-        # JSON line. tool_input.command's embedded newlines are literal backslash-n (not
-        # real newlines) in the hook's stdin JSON — [^\\"]+ stops at the escape or the
-        # closing quote, giving a clean path (ground-truth confirmed, P078b3 Turn 2).
-        PATCH_PATH=$(printf '%s' "$INPUT_JSON" \
+        # Extract EVERY *** Add/Update/Delete/Move File: <path> marker from the raw
+        # JSON line (P078d2a #6 fix -- was FIRST-path-only via `head -n1`, a
+        # SECURITY HOLE: a multi-file apply_patch could put a ticket-allowed path
+        # first and a forbidden path second, and the old code exited ALLOW on the
+        # first match without ever looking at the rest). tool_input.command's
+        # embedded newlines are literal backslash-n (not real newlines) in the
+        # hook's stdin JSON -- [^\\"]+ stops at the escape or the closing quote,
+        # giving a clean path per match (ground-truth confirmed, P078b3 Turn 2).
+        # `grep -oE` already emits ONE OUTPUT LINE PER MATCH even though every
+        # match sits on the same single JSON input line -- removing `head -n1`
+        # alone is sufficient to get every path; no new regex is needed.
+        # NOTE (open, [needs Worker verify], P079 #6 spec): `*** Move File: <src>`
+        # is paired with a separate `*** Move to: <dest>` line in the wider V4A
+        # spec, but this was not present in the P078b3 ground-truth sample --
+        # only the Move source path is parsed here; the dest line is NOT matched
+        # by this regex and is therefore untouched by this guard. Documented gap,
+        # not guessed at (Luật chơi #6 -- do not invent unconfirmed format).
+        PATCH_PATHS=$(printf '%s' "$INPUT_JSON" \
             | grep -oE '\*\*\* (Add|Update|Delete|Move) File: [^\\"]+' \
-            | head -n1 \
             | sed -E 's/^\*\*\* (Add|Update|Delete|Move) File: //' || true)
 
-        if [ -z "$PATCH_PATH" ]; then
+        if [ -z "$PATCH_PATHS" ]; then
             cat >&2 <<'EOF'
 BLOCKED: architect-guard could not extract a safe file path from this apply_patch
 payload (fail-CLOSED, P078b3 Decision 1). Unlike the Claude guard (which allows on
@@ -409,17 +441,32 @@ EOF
             exit 2
         fi
 
-        NORMALIZED_PATH="${PATCH_PATH#./}"
-        case "$(basename "$NORMALIZED_PATH")" in
-            P[0-9]*-*.md) exit 0 ;;   # phiếu file -> allow
-        esac
-        cat >&2 <<EOF
+        # block-if-ANY (P078d2a #6): populate the array via a HERESTRING
+        # `while read` (bash 3.2 compatible -- no `readarray`/`mapfile`,
+        # macOS ships bash 3.2), then a plain `for` over the array -- NEVER
+        # `... | while read; do ...; exit 2; done` (a PIPED while runs in a
+        # subshell; `exit 2` there would only exit the subshell, silently
+        # keeping the security hole open while still printing "BLOCKED" to
+        # stderr). A herestring (`<<<`) does not create a subshell here.
+        ALL_PATHS=()
+        while IFS= read -r LINE; do
+            ALL_PATHS+=("$LINE")
+        done <<< "$PATCH_PATHS"
+        for RAW_PATH in "${ALL_PATHS[@]}"; do
+            [ -z "$RAW_PATH" ] && continue
+            NORMALIZED_PATH="${RAW_PATH#./}"
+            case "$(basename "$NORMALIZED_PATH")" in
+                P[0-9]*-*.md) continue ;;   # phiếu file -> allow this one path
+            esac
+            cat >&2 <<EOF
 BLOCKED: Architect envelope violation (apply_patch write).
 
 Architect may ONLY write phiếu files (P<NNN>-<slug>.md): $NORMALIZED_PATH is outside
 the envelope. Write a Task 0 anchor instead -- a spawned Worker verifies it.
 EOF
-        exit 2
+            exit 2
+        done
+        exit 0
         ;;
     Bash)
         # Heuristic (PARTIAL, gap #5): pattern-match the RAW tool_input.command text
@@ -491,43 +538,57 @@ cd "$REPO_ROOT" 2>/dev/null || true
 TOOL_NAME=$(printf '%s' "$INPUT_JSON" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ "$TOOL_NAME" = "apply_patch" ] || exit 0
 
-PATCH_PATH=$(printf '%s' "$INPUT_JSON" \
+# Extract EVERY path (P078d2a #6 fix -- see architect-guard.sh comment for the
+# full rationale: `head -n1` was a SECURITY HOLE letting a second, product-source
+# path ride through behind a first docs/kit-tooling path).
+PATCH_PATHS=$(printf '%s' "$INPUT_JSON" \
     | grep -oE '\*\*\* (Add|Update|Delete|Move) File: [^\\"]+' \
-    | head -n1 \
     | sed -E 's/^\*\*\* (Add|Update|Delete|Move) File: //' || true)
 
-if [ -z "$PATCH_PATH" ]; then
+if [ -z "$PATCH_PATHS" ]; then
     echo "BLOCKED: orchestrator-guard could not parse apply_patch path -- fail-CLOSED (P078b3 Decision 1)." >&2
     exit 2
 fi
 
-NORMALIZED_PATH="${PATCH_PATH#./}"
+# block-if-ANY (P078d2a #6): populate the array via a HERESTRING `while read`
+# (bash 3.2 compatible -- no `readarray`/`mapfile`), then a plain `for` over
+# the array -- NEVER `... | while read; do ...; exit 2; done` (a PIPED while
+# runs in a subshell; `exit 2` there would silently keep the hole open).
+ALL_PATHS=()
+while IFS= read -r LINE; do
+    ALL_PATHS+=("$LINE")
+done <<< "$PATCH_PATHS"
+for RAW_PATH in "${ALL_PATHS[@]}"; do
+    [ -z "$RAW_PATH" ] && continue
+    NORMALIZED_PATH="${RAW_PATH#./}"
 
-# Docs are never product source (mirror Claude guard).
-case "$NORMALIZED_PATH" in
-    *.md) exit 0 ;;
-esac
+    # Docs are never product source (mirror Claude guard).
+    case "$NORMALIZED_PATH" in
+        *.md) continue ;;
+    esac
 
-# The kit's own bundled tooling is kit-maintenance, not the product it ships.
-case "$NORMALIZED_PATH" in
-    bootstrap/*|crates/*|Cargo.toml|Cargo.lock) exit 0 ;;
-esac
+    # The kit's own bundled tooling is kit-maintenance, not the product it ships.
+    case "$NORMALIZED_PATH" in
+        bootstrap/*|crates/*|Cargo.toml|Cargo.lock) continue ;;
+    esac
 
-# Is this product source? Anything else -> allow.
-case "$NORMALIZED_PATH" in
-    *.swift|*.pbxproj|src/*|*/src/*) ;;
-    *) exit 0 ;;
-esac
+    # Is this product source? Anything else -> allow this one path.
+    case "$NORMALIZED_PATH" in
+        *.swift|*.pbxproj|src/*|*/src/*) ;;
+        *) continue ;;
+    esac
 
-[ -f ".sos-state/worker-active" ] && exit 0
+    [ -f ".sos-state/worker-active" ] && continue
 
-cat >&2 <<EOF
+    cat >&2 <<EOF
 BLOCKED: Orchestrator envelope violation (apply_patch).
 
 Product source $NORMALIZED_PATH is being written without a worker-active marker.
 Set .sos-state/worker-active before spawning the worker subagent (rm -f it after).
 EOF
-exit 2
+    exit 2
+done
+exit 0
 "#
     .to_string()
 }
@@ -548,28 +609,41 @@ INPUT_JSON=$(cat)
 TOOL_NAME=$(printf '%s' "$INPUT_JSON" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ "$TOOL_NAME" = "apply_patch" ] || exit 0
 
-PATCH_PATH=$(printf '%s' "$INPUT_JSON" \
+# Extract EVERY path (P078d2a #6 fix -- see architect-guard.sh comment for the
+# full rationale: `head -n1` was a SECURITY HOLE letting a second .env-touching
+# path ride through behind a first, innocuous-looking path).
+PATCH_PATHS=$(printf '%s' "$INPUT_JSON" \
     | grep -oE '\*\*\* (Add|Update|Delete|Move) File: [^\\"]+' \
-    | head -n1 \
     | sed -E 's/^\*\*\* (Add|Update|Delete|Move) File: //' || true)
 
-if [ -z "$PATCH_PATH" ]; then
+if [ -z "$PATCH_PATHS" ]; then
     echo "BLOCKED: block-env-edit could not parse apply_patch path -- fail-CLOSED (secret guard, P078b3)." >&2
     exit 2
 fi
 
-BASE=$(basename "$PATCH_PATH")
-[ "$BASE" = ".env.example" ] && exit 0
+# block-if-ANY (P078d2a #6): populate the array via a HERESTRING `while read`
+# (bash 3.2 compatible -- no `readarray`/`mapfile`), then a plain `for` over
+# the array -- NEVER `... | while read; do ...; exit 2; done` (a PIPED while
+# runs in a subshell; `exit 2` there would silently keep the hole open).
+ALL_PATHS=()
+while IFS= read -r LINE; do
+    ALL_PATHS+=("$LINE")
+done <<< "$PATCH_PATHS"
+for RAW_PATH in "${ALL_PATHS[@]}"; do
+    [ -z "$RAW_PATH" ] && continue
+    BASE=$(basename "$RAW_PATH")
+    [ "$BASE" = ".env.example" ] && continue
 
-if echo "$BASE" | grep -qE '^\.env($|\.)'; then
-    cat >&2 <<EOF
-BLOCKED: apply_patch touching $PATCH_PATH.
+    if echo "$BASE" | grep -qE '^\.env($|\.)'; then
+        cat >&2 <<EOF
+BLOCKED: apply_patch touching $RAW_PATH.
 
 .env* holds real secrets -- do not edit via the agent tool. Edit .env.example
 (template) instead, or edit the real .env by hand outside the agent.
 EOF
-    exit 2
-fi
+        exit 2
+    fi
+done
 exit 0
 "#
     .to_string()
@@ -598,6 +672,18 @@ fn guard_approval_gate_sh() -> String {
 # BLOCK (treat "cannot prove approval" the same as "not approved"). Ticket files
 # themselves (docs/ticket/P<NNN>-*.md) are ALWAYS allowed through this guard --
 # drafting/amending the ticket doesn't require its own prior approval.
+#
+# Self-bootstrap exemption (P078d2a #5, coupled hard with #6 below): when the
+# state file does not exist yet, a patch that creates ONLY
+# .sos-state/ticket-state.env (and touches NO other path) is allowed through --
+# otherwise there is no way to ever initialize the state file (chicken-egg
+# deadlock at fresh install). This exemption is SAFE ONLY because the #6
+# all-path check below sees every path in the patch: an attacker cannot smuggle
+# a second path (.env, src/**, a forged approved_version) alongside
+# ticket-state.env in the same patch -- the moment a second path is present,
+# the set is no longer "exactly ticket-state.env alone" and this guard falls
+# through to the normal fail-CLOSED BLOCK. Do NOT loosen this to "contains"
+# semantics -- it must stay "IS EXACTLY the one path."
 
 set -euo pipefail
 
@@ -616,22 +702,46 @@ cd "$REPO_ROOT" 2>/dev/null || true
 TOOL_NAME=$(printf '%s' "$INPUT_JSON" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ "$TOOL_NAME" = "apply_patch" ] || exit 0
 
-PATCH_PATH=$(printf '%s' "$INPUT_JSON" \
+# Extract EVERY path (P078d2a #6 fix -- see architect-guard.sh comment for the
+# full rationale). This is the all-path check the #5 bootstrap exemption below
+# depends on for its safety.
+PATCH_PATHS=$(printf '%s' "$INPUT_JSON" \
     | grep -oE '\*\*\* (Add|Update|Delete|Move) File: [^\\"]+' \
-    | head -n1 \
     | sed -E 's/^\*\*\* (Add|Update|Delete|Move) File: //' || true)
 
-if [ -z "$PATCH_PATH" ]; then
+if [ -z "$PATCH_PATHS" ]; then
     echo "BLOCKED: approval-gate could not parse apply_patch path -- fail-CLOSED (P078b3 Decision 1)." >&2
     exit 2
 fi
 
-case "$(basename "$PATCH_PATH")" in
-    P[0-9]*-*.md) exit 0 ;;   # editing/drafting the ticket itself never needs its own approval
-esac
+ALL_PATHS=()
+while IFS= read -r LINE; do
+    ALL_PATHS+=("$LINE")
+done <<< "$PATCH_PATHS"
+
+# Ticket files are always allowed individually; build the set of paths that
+# still need an approval check. If nothing remains, every path in this patch
+# was a ticket file -- allow.
+NON_TICKET_PATHS=()
+for RAW_PATH in "${ALL_PATHS[@]}"; do
+    [ -z "$RAW_PATH" ] && continue
+    case "$(basename "$RAW_PATH")" in
+        P[0-9]*-*.md) continue ;;   # editing/drafting the ticket itself never needs its own approval
+    esac
+    NON_TICKET_PATHS+=("$RAW_PATH")
+done
+
+[ ${#NON_TICKET_PATHS[@]} -eq 0 ] && exit 0
 
 STATE_FILE=".sos-state/ticket-state.env"
 if [ ! -f "$STATE_FILE" ]; then
+    # Self-bootstrap exemption (#5): allow ONLY if the entire non-ticket path
+    # set is exactly {.sos-state/ticket-state.env} -- one element, that exact
+    # value. Any other path present (checked via the #6 all-path list above)
+    # falls through to fail-CLOSED BLOCK below.
+    if [ ${#NON_TICKET_PATHS[@]} -eq 1 ] && [ "${NON_TICKET_PATHS[0]}" = "$STATE_FILE" ]; then
+        exit 0
+    fi
     echo "BLOCKED: approval-gate found no $STATE_FILE -- treating as UNAPPROVED, fail-CLOSED." >&2
     exit 2
 fi
@@ -643,9 +753,9 @@ if [ -z "$APPROVED" ] || [ "$APPROVED" != "$VERSION" ]; then
     cat >&2 <<EOF
 BLOCKED: ticket version '$VERSION' is not approved (approved_version='$APPROVED').
 
-apply_patch on $PATCH_PATH is blocked until the exact version carries an approval
-record (core/STATE.md approval record; only the owner or a bounded delegate may
-create one -- this guard reads, it does not mutate).
+apply_patch on ${NON_TICKET_PATHS[0]} is blocked until the exact version carries an
+approval record (core/STATE.md approval record; only the owner or a bounded
+delegate may create one -- this guard reads, it does not mutate).
 EOF
     exit 2
 fi
@@ -674,6 +784,33 @@ case "$INPUT" in
     ;;
 esac
 exit 0
+"#
+    .to_string()
+}
+
+fn state_skeleton_env() -> String {
+    // P078d2a #5 -- rendered ONCE at install time so approval-gate.sh
+    // (`:634` STATE_FILE check) has something to read on a fresh install
+    // instead of hitting its fail-CLOSED "missing state file" BLOCK
+    // immediately. Non-clobber is handled entirely by the pre-existing
+    // generic install-engine checksum/manifest logic (`sos-install::engine`
+    // `Decision::Conflict`) -- once the workflow writes a real
+    // `approved_version=`, this file's on-disk content diverges from both
+    // the skeleton AND the manifest-recorded hash, so a re-install
+    // Conflicts (stages incoming, never overwrites) rather than clobbering
+    // real approval state. This crate makes zero engine changes -- purely
+    // additive via the existing render surface.
+    r#"# .sos-state/ticket-state.env — SOS Kit ticket approval-state projection.
+# Machine-written/read by scripts/codex/approval-gate.sh — DO NOT edit by
+# hand except to bootstrap a fresh install (this skeleton IS that
+# bootstrap). Authoritative record = the ticket's own Debate Log
+# (core/STATE.md "Authoritative-vs-projection rule"); this file is a
+# derived, mechanically-read projection only.
+#
+#   version=<ticket version string, e.g. V2>
+#   approved_version=<approved version string, empty/absent if none>
+version=
+approved_version=
 "#
     .to_string()
 }

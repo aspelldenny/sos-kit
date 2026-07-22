@@ -37,7 +37,7 @@
 | Concern | Covered by |
 |---|---|
 | 10 declarative artifacts, crate-embedded template | `crates/sos-adapter-codex/src/templates.rs` (content-source, no `core/**` filesystem read at render time — Decision 1) |
-| `render(asset)→Artifact` per-Asset, `plan()` enumerates fixed 10-Asset set | `crates/sos-adapter-codex/src/lib.rs` `CodexAdapter::plan()`/`render()` |
+| `render(asset)→Artifact` per-Asset, `plan()` enumerates fixed 18-Asset set (10 b2 + 7 b3 enforcement + 1 d2a state-skeleton) | `crates/sos-adapter-codex/src/lib.rs` `CodexAdapter::plan()`/`render()` |
 | Core-ID pointer, not semantic copy | Every template contains a `core/ROLES.md#<id>` / `core/WORKFLOW.md` / `core/ASSETS.md` string pointer only |
 | PARTIAL-honest in-artifact marker | `architect.toml` template carries the PARTIAL envelope text; `advisory-watch.toml`/`boundary-check.toml` stay honest `sandbox_mode="read-only"` |
 | Structural oracle (TOML parse, frontmatter valid, core-ID pointer present, PARTIAL marker present, artifact count == 10) | `crates/sos-adapter-codex/src/lib.rs` `#[cfg(test)]` module |
@@ -62,11 +62,12 @@ newlines escaped as literal `\n`. Fixture committed:
 | Concern | Covered by |
 |---|---|
 | 7 enforcement artifacts, crate-embedded template | `crates/sos-adapter-codex/src/templates.rs` (`HOOKS_JSON`/`RULES_EXEC_POLICY`/5× `GUARD_*` identities) |
-| apply_patch path extraction (fail-CLOSED) | `grep -oE '\*\*\* (Add\|Update\|Delete\|Move) File: [^\\"]+'` on the raw hook stdin JSON line — every guard BLOCKs (exit 2) if this yields no path, inverting the Claude fail-open precedent |
+| State-file bootstrap skeleton (P078d2a #5, 18th artifact) | `crates/sos-adapter-codex/src/templates.rs` `STATE_SKELETON` → `.sos-state/ticket-state.env`, rendered empty at install; non-clobber via the pre-existing `sos-install::engine` checksum/manifest logic |
+| apply_patch path extraction (fail-CLOSED, ALL paths — P078d2a #6) | `grep -oE '\*\*\* (Add\|Update\|Delete\|Move) File: [^\\"]+'` on the raw hook stdin JSON line, EVERY match (not just the first — `head -n1` removed, was a multi-path bypass hole) — every guard BLOCKs (exit 2) if this yields no path (inverting the Claude fail-open precedent) OR if ANY extracted path violates the guard's rule (block-if-any, not first-path-exempt-allow-all) |
 | Architect envelope (write-allowlist + shell-read heuristic) | `scripts/codex/architect-guard.sh` — apply_patch write-allowlist `P[0-9]*-*.md`; Bash-read heuristic on `src/`/`.rs`/vision-doc substrings (PARTIAL, gap #5) |
 | Orchestrator envelope (product-source gate) | `scripts/codex/orchestrator-guard.sh` — blocks apply_patch product-source writes unless `.sos-state/worker-active` present |
 | Secret guard | `scripts/codex/block-env-edit.sh` — blocks apply_patch on `.env*` except `.env.example` |
-| Approval gate (Codex native gap #4, guard-BUILT) | `scripts/codex/approval-gate.sh` — reads `.sos-state/ticket-state.env` projection (`version`/`approved_version`), read-compares ONLY, never mutates; fail-CLOSED when state file missing |
+| Approval gate (Codex native gap #4, guard-BUILT) | `scripts/codex/approval-gate.sh` — reads `.sos-state/ticket-state.env` projection (`version`/`approved_version`), read-compares ONLY, never mutates; fail-CLOSED when state file missing, EXCEPT a narrow self-bootstrap exemption (P078d2a #5) when the patch touches `.sos-state/ticket-state.env` alone — safe only because it's coupled with the all-path fix (#6) above |
 | Idea-smell intake pointer | `scripts/codex/idea-smell.sh` — UserPromptSubmit regex reminder (`core/WORKFLOW.md` intake) |
 | Mechanical exec policy | `.codex/rules/exec-policy.rules` — Starlark `prefix_rule` force-push/destructive-command deny; PR-merge-sentinel gate DEFERRED (semantic, external `claude-hooks` binary — Git/CI backstop retained) |
 | Mock-payload structural oracle (block/allow correctness) | `crates/sos-adapter-codex/src/lib.rs` `mock_payload_oracle` test module — feeds real + path-substituted-real fixture payloads to each rendered guard, asserts exit-code block(2)/allow(0); `#[cfg(unix)]`-gated (bash-exec), content-pattern assertions stay cross-platform |
