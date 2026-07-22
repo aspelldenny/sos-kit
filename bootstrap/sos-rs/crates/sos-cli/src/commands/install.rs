@@ -39,9 +39,12 @@ fn run_claude(dry_run: bool) -> Result<()> {
     let capabilities = adapter.detect();
     let plan = adapter.plan(&capabilities);
 
-    // Step 5 seam (P077d3, OA-07) — called at the right transaction
-    // position, result intentionally unused.
-    let _ = engine::resolve_tools();
+    // Step 5 (P077d3, OA-07) — tool-manifest resolve+verify, called at the
+    // right transaction position, BEFORE any filesystem mutation. `?`
+    // propagates a required-tool failure as a hard install error (fail
+    // rõ); nothing has been written yet at this point, so there is
+    // nothing to roll back.
+    engine::resolve_tools()?;
 
     let project_root = Path::new(".");
 

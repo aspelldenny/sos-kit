@@ -293,10 +293,19 @@ pub fn apply(
     }
 }
 
-/// SEAM P077d3 (OA-07): tool-manifest resolve — no-op until d3 fills it.
-/// Step 5 of the transaction 7-step
-/// (`docs/PORTABILITY_ARCHITECTURE.md:109-117`). d2 calls this at the
-/// correct position but asserts NOTHING about its result.
-pub fn resolve_tools() -> Vec<String> {
-    Vec::new()
+/// P077d3 (OA-07): tool-manifest resolve — step 5 of the transaction
+/// 7-step (`docs/PORTABILITY_ARCHITECTURE.md:109-117`), filled in.
+///
+/// Verify-ONLY (d3 GIỚI HẠN): reads the embedded `tool-manifest.toml` pin,
+/// resolves each sister tool's installed `--version` against it
+/// (`crate::tools::gate_required`), and fails LOUD if any REQUIRED tool is
+/// missing/older-than-pinned/unparseable. Runs BEFORE `decide_targets()`/
+/// `apply()` (same call position d2 wired at, `commands/install.rs`) — so
+/// a step-5 failure happens before any filesystem mutation, which
+/// trivially satisfies "fail rõ + rollback": there is nothing to roll
+/// back yet because nothing was written. No atomic-upgrade/auto-fetch of
+/// the external binaries happens here — that's P081 future.
+pub fn resolve_tools() -> Result<Vec<crate::tools::ToolStatus>> {
+    let manifest = crate::tools::embedded_manifest_parsed()?;
+    crate::tools::gate_required(&manifest, None)
 }

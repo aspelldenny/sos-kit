@@ -18,7 +18,9 @@ crates/
 ├── sos-cli              # composition root — binary `sos`. Deps: sos-core +
 │                       # sos-install + sos-adapter-claude + sos-hooks.
 ├── sos-install          # install ENGINE (transaction/dry-run/non-clobber/
-│                       # rollback/manifest) — LIVE, P077d2. Deps: sos-core.
+│                       # rollback/manifest) — LIVE, P077d2. `tools.rs`
+│                       # (tool-manifest pin/drift-check core) — LIVE, P077d3.
+│                       # Deps: sos-core.
 ├── sos-adapter-claude   # Claude Code adapter skeleton (detect/plan/render/
 │                       # verify/uninstall) — logic lands in P077d. Deps: sos-core.
 └── sos-hooks            # hooks framework skeleton — logic lands in P077d.
@@ -54,6 +56,18 @@ Dependency-direction gate (Tầng 1 — enforced two ways):
 - **Step 5 seam:** `resolve_tools()` is a stub no-op — `// SEAM P077d3` — P078/OA-07 fills it; d2 asserts nothing about its result.
 - **Oracle:** `crates/sos-install/tests/install.rs`, a deterministic `MockAdapter` + 5 hard-fail correctness fixtures (additive / non-clobber×2 / rollback / idempotence / dry-run) — **not** a Bash-parity fixture (`sos install` has no Bash counterpart).
 - **Wired command:** `sos install --runtime <auto|claude|codex> [--dry-run]` (`crates/sos-cli/src/commands/install.rs`) — `claude` constructs `ClaudeAdapter` (still d1-stub, so plan/render stay minimal/empty — real Claude asset rendering is deferred past d2); `codex` errors clearly ("not yet available, P078"). Fully additive alongside `install.sh`/`bin/sos.sh` (zero-touch, verified `git diff` empty).
+
+### tool-manifest (P077d3, OA-07)
+
+Fills d2's step-5 `resolve_tools()` seam (was a `Vec::new()` no-op stub) with a real pin+drift-check, verify-ONLY (no download/atomic-upgrade/auto-fetch of the external binaries — that's P081 future):
+
+- **`tool-manifest.toml`** (kit ROOT, sibling of `.sos-trust-baseline` — committed config, NOT generated, NOT `.sos-manifest.toml`) — `[[tool]]` array-of-tables, one entry per sister tool: `name`/`version`/`required` + `[tool.asset]`/`[tool.checksum]` keyed by the 3 target-triple `install.sh` resolves (`aarch64-apple-darwin`/`x86_64-unknown-linux-gnu`/`x86_64-pc-windows-msvc`). 6 `required = true` (`doctor`/`claude-hooks`/`docs-gate`/`ship`/`advisory-inbox`/`inv-gate`, matches `install.sh:40` `BINARIES`) + 4 `required = false` (`guard`/`vps`/`doc-rotate`/`advisory-cron`, matches `install.sh:48` `OPTIONAL_BINARIES`). Versions filled from each sister tool's own source `Cargo.toml` (live-checked 2026-07-22), NOT `releases/latest` (the OA-07 bug). Checksums are honest `TODO-sha256-<tool>-P081` placeholders — no prebuilt asset has been hashed against this pin shape yet (E2); real checksum-fill is P081.
+- **`crates/sos-install/src/tools.rs`** (NEW) — `ToolManifest`/`ToolPin` (serde TOML deserialize) + `check_tools()` (resolves each tool's installed `<name> --version` — E1-confirmed uniform `"<name> <x.y.z>"` format across all 9 live-tested sos-kit tools, no `v` prefix — against the pin; hand-rolled dotted-tuple version compare, no `semver` crate anywhere in the workspace) + `Verdict` (`Ok`/`Newer`/`Drift`/`Missing`/`Unparseable`) + `required_drift()`/`gate_required()` (fail-closed core, shared by BOTH surfaces below) + `validate_manifest()` (schema-integrity: every checksum cell must be a real-looking 64-hex or a `TODO` placeholder — catches a corrupted manifest even though d3 can't verify real binary bytes). Embedded at compile time via `include_str!` (not an env-var/path lookup — the compiled `sos` binary runs inside arbitrary target projects that don't necessarily have a sos-kit checkout, so the pin must travel WITH the binary).
+- **`sos tools status`** (NEW, `crates/sos-cli/src/commands/tools.rs`) — table report (tool/required/expected/installed/verdict), exit 1 if any REQUIRED tool is Drift/Missing/Unparseable, exit 0 otherwise (optional drift = warn line only, never flips exit).
+- **Step 5 filled** (`sos_install::engine::resolve_tools()`) — now reads the embedded manifest and calls `gate_required()` at the SAME call position d2 wired (`commands/install.rs`, before `decide_targets()`/`apply()`); a required-tool failure aborts the install with `?` BEFORE any filesystem mutation happens — trivially satisfies "fail rõ + rollback" (nothing was written yet).
+- **No `sos doctor` subcommand exists** in `sos-cli` today — every `doctor` reference is `Command::new("doctor")` shelling to the EXTERNAL binary (`adopt.rs`/`new.rs` `verify-setup`). Fail-clear therefore surfaces via `sos tools status` + the step-5 install gate only — no subcommand was added that could collide with the real `doctor` binary's identity.
+- **Oracle:** `crates/sos-install/tests/tools.rs` — 3 fixture groups (manifest-pin-verify incl. sabotage-checksum-fails-loud, status-drift, doctor/step-5 fail-clear), fake-PATH stub-script harness (child-process-scoped `PATH` override, not global `env::set_var`, so parallel `#[test]` threads never race) — entirely synthetic, zero dependency on any real sister tool being installed.
+- **Live smoke evidence** (this dev machine, unmodified): `sos tools status` / `sos install --dry-run` both reproduce OA-07's exact finding — `doctor 0.1.1` vs pinned `0.1.3`, `inv-gate` MISSING, exit 1 — proving the gate genuinely fires on real drift, not just synthetic fixtures.
 
 ## Build
 

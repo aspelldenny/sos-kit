@@ -7,3 +7,4 @@
 //! ZERO host-specific (Claude/Codex) knowledge.
 
 pub mod engine;
+pub mod tools;

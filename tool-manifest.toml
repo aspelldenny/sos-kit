@@ -1,0 +1,187 @@
+# tool-manifest.toml — pin sister-tool version + per-platform asset + checksum (OA-07, P077d3).
+#
+# Committed KIT config (kit root) — NOT generated, NOT gitignored. This is
+# DIFFERENT from `.sos-manifest.toml` (P077d2, generated PROJECT artifact
+# that tracks files installed INTO a project). tool-manifest.toml pins the
+# EXTERNAL sister binaries (doctor/ship/docs-gate/...) that a project's
+# tooling depends on — the thing we PULL IN, not the thing we RAN OUT.
+#
+# required = true  → tool missing or older-than-pinned makes `sos tools
+#                     status` / `sos doctor`-surface / install step-5 FAIL
+#                     (exit != 0). Matches install.sh's BINARIES list.
+# required = false → warn-skip only, never flips exit code. Matches
+#                     install.sh's OPTIONAL_BINARIES list.
+#
+# Keys of [tool.asset] / [tool.checksum] = the 3 target-triple install.sh
+# resolves to (install.sh:52-60): aarch64-apple-darwin,
+# x86_64-unknown-linux-gnu, x86_64-pc-windows-msvc (Intel Mac runs the
+# arm64 binary via Rosetta — no 4th triple, install.sh:57-58).
+#
+# version = pinned value, filled from each sister tool's OWN source
+# Cargo.toml (live-checked 2026-07-22 against local `~/<tool>` checkouts —
+# NOT `releases/latest`, which is exactly the OA-07 unpinned-drift bug).
+# Re-fill when a tool cuts a new release meant to become the new floor.
+#
+# checksum = sha256 hex per platform, keyed to the pinned version's release
+# asset. E2 (Task 0 escape hatch): no prebuilt binary has been hashed
+# against THIS manifest shape yet — placeholder value below, filled with
+# "TODO-sha256-<tool>-P081" (not a real hash — do not use to verify
+# artifact integrity yet). Real checksum-fill is a P081 follow-up once a
+# release pipeline computes+publishes it for this pin format. install.sh's
+# EXISTING integrity check (fetch + recompute + compare a companion
+# `.sha256` file, P071) is unrelated and unaffected — it verifies the ASSET
+# CHOSEN, this manifest pins the VERSION+ASSET+CHECKSUM to select.
+
+# ── required (6) — matches install.sh:40 BINARIES ──────────────────────────
+
+[[tool]]
+name     = "doctor"
+version  = "0.1.3"          # source: ~/doctor/Cargo.toml (installed on this dev machine: 0.1.1 — OA-07 evidence)
+required = true
+
+[tool.asset]
+"aarch64-apple-darwin"     = "doctor-aarch64-apple-darwin"
+"x86_64-unknown-linux-gnu" = "doctor-x86_64-unknown-linux-gnu"
+"x86_64-pc-windows-msvc"   = "doctor-x86_64-pc-windows-msvc.exe"
+
+[tool.checksum]
+"aarch64-apple-darwin"     = "TODO-sha256-doctor-P081"
+"x86_64-unknown-linux-gnu" = "TODO-sha256-doctor-P081"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-doctor-P081"
+
+[[tool]]
+name     = "claude-hooks"
+version  = "0.9.2"          # source: ~/claude-hooks/Cargo.toml (installed: 0.9.0)
+required = true
+
+[tool.asset]
+"aarch64-apple-darwin"     = "claude-hooks-aarch64-apple-darwin"
+"x86_64-unknown-linux-gnu" = "claude-hooks-x86_64-unknown-linux-gnu"
+"x86_64-pc-windows-msvc"   = "claude-hooks-x86_64-pc-windows-msvc.exe"
+
+[tool.checksum]
+"aarch64-apple-darwin"     = "TODO-sha256-claude-hooks-P081"
+"x86_64-unknown-linux-gnu" = "TODO-sha256-claude-hooks-P081"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-claude-hooks-P081"
+
+[[tool]]
+name     = "docs-gate"
+version  = "0.1.1"          # source: ~/docs-gate/Cargo.toml (installed: 0.1.0 — OA-07 evidence)
+required = true
+
+[tool.asset]
+"aarch64-apple-darwin"     = "docs-gate-aarch64-apple-darwin"
+"x86_64-unknown-linux-gnu" = "docs-gate-x86_64-unknown-linux-gnu"
+"x86_64-pc-windows-msvc"   = "docs-gate-x86_64-pc-windows-msvc.exe"
+
+[tool.checksum]
+"aarch64-apple-darwin"     = "TODO-sha256-docs-gate-P081"
+"x86_64-unknown-linux-gnu" = "TODO-sha256-docs-gate-P081"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-docs-gate-P081"
+
+[[tool]]
+name     = "ship"
+version  = "0.1.1"          # source: ~/ship/Cargo.toml (installed: 0.1.0 — OA-07 evidence)
+required = true
+
+[tool.asset]
+"aarch64-apple-darwin"     = "ship-aarch64-apple-darwin"
+"x86_64-unknown-linux-gnu" = "ship-x86_64-unknown-linux-gnu"
+"x86_64-pc-windows-msvc"   = "ship-x86_64-pc-windows-msvc.exe"
+
+[tool.checksum]
+"aarch64-apple-darwin"     = "TODO-sha256-ship-P081"
+"x86_64-unknown-linux-gnu" = "TODO-sha256-ship-P081"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-ship-P081"
+
+[[tool]]
+name     = "advisory-inbox"
+version  = "0.1.1"          # source: ~/advisory-inbox/Cargo.toml (installed: 0.1.0)
+required = true
+
+[tool.asset]
+"aarch64-apple-darwin"     = "advisory-inbox-aarch64-apple-darwin"
+"x86_64-unknown-linux-gnu" = "advisory-inbox-x86_64-unknown-linux-gnu"
+"x86_64-pc-windows-msvc"   = "advisory-inbox-x86_64-pc-windows-msvc.exe"
+
+[tool.checksum]
+"aarch64-apple-darwin"     = "TODO-sha256-advisory-inbox-P081"
+"x86_64-unknown-linux-gnu" = "TODO-sha256-advisory-inbox-P081"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-advisory-inbox-P081"
+
+[[tool]]
+name     = "inv-gate"
+version  = "0.1.1"          # source: ~/inv-gate/Cargo.toml (NOT installed on this dev machine at all — OA-07 evidence, reproduces live as MISSING)
+required = true
+
+[tool.asset]
+"aarch64-apple-darwin"     = "inv-gate-aarch64-apple-darwin"
+"x86_64-unknown-linux-gnu" = "inv-gate-x86_64-unknown-linux-gnu"
+"x86_64-pc-windows-msvc"   = "inv-gate-x86_64-pc-windows-msvc.exe"
+
+[tool.checksum]
+"aarch64-apple-darwin"     = "TODO-sha256-inv-gate-P081"
+"x86_64-unknown-linux-gnu" = "TODO-sha256-inv-gate-P081"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-inv-gate-P081"
+
+# ── optional (4) — matches install.sh:48 OPTIONAL_BINARIES ─────────────────
+
+[[tool]]
+name     = "guard"
+version  = "0.1.0"          # source: ~/guard/Cargo.toml (installed: 0.1.0)
+required = false
+
+[tool.asset]
+"aarch64-apple-darwin"     = "guard-aarch64-apple-darwin"
+"x86_64-unknown-linux-gnu" = "guard-x86_64-unknown-linux-gnu"
+"x86_64-pc-windows-msvc"   = "guard-x86_64-pc-windows-msvc.exe"
+
+[tool.checksum]
+"aarch64-apple-darwin"     = "TODO-sha256-guard-P081"
+"x86_64-unknown-linux-gnu" = "TODO-sha256-guard-P081"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-guard-P081"
+
+[[tool]]
+name     = "vps"
+version  = "0.1.0"          # source: ~/vps/Cargo.toml (installed: 0.1.0)
+required = false
+
+[tool.asset]
+"aarch64-apple-darwin"     = "vps-aarch64-apple-darwin"
+"x86_64-unknown-linux-gnu" = "vps-x86_64-unknown-linux-gnu"
+"x86_64-pc-windows-msvc"   = "vps-x86_64-pc-windows-msvc.exe"
+
+[tool.checksum]
+"aarch64-apple-darwin"     = "TODO-sha256-vps-P081"
+"x86_64-unknown-linux-gnu" = "TODO-sha256-vps-P081"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-vps-P081"
+
+[[tool]]
+name     = "doc-rotate"
+version  = "0.21.0"         # source: ~/doc-rotate/Cargo.toml (installed: 0.21.0)
+required = false
+
+[tool.asset]
+"aarch64-apple-darwin"     = "doc-rotate-aarch64-apple-darwin"
+"x86_64-unknown-linux-gnu" = "doc-rotate-x86_64-unknown-linux-gnu"
+"x86_64-pc-windows-msvc"   = "doc-rotate-x86_64-pc-windows-msvc.exe"
+
+[tool.checksum]
+"aarch64-apple-darwin"     = "TODO-sha256-doc-rotate-P081"
+"x86_64-unknown-linux-gnu" = "TODO-sha256-doc-rotate-P081"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-doc-rotate-P081"
+
+[[tool]]
+name     = "advisory-cron"
+version  = "0.1.0"          # source: ~/advisory-cron/Cargo.toml (installed: 0.1.0). macOS+Linux only by design (compile_error! on Windows) — Windows target row kept for schema symmetry only, install.sh already skips it there.
+required = false
+
+[tool.asset]
+"aarch64-apple-darwin"     = "advisory-cron-aarch64-apple-darwin"
+"x86_64-unknown-linux-gnu" = "advisory-cron-x86_64-unknown-linux-gnu"
+"x86_64-pc-windows-msvc"   = "advisory-cron-x86_64-pc-windows-msvc.exe"
+
+[tool.checksum]
+"aarch64-apple-darwin"     = "TODO-sha256-advisory-cron-P081"
+"x86_64-unknown-linux-gnu" = "TODO-sha256-advisory-cron-P081"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-advisory-cron-P081"
