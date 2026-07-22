@@ -1,21 +1,11 @@
 [workspace]
-# Transitional scaffold (P077a) — root stays at bootstrap/sos-rs/, NOT repo-root.
-# Relocating to repo-root + carving crates (sos-core/sos-cli/adapter) is P077b/P077e.
-members = ["."]
+# P077b — carved into virtual workspace (5 crates under crates/*).
+# Root stays at bootstrap/sos-rs/, NOT repo-root — relocation is P077e.
+members = ["crates/*"]
 resolver = "2"
 
-[package]
-name = "sos"
-version = "0.1.0"
-edition = "2021"
-description = "SOS Kit 0→1 bootstrap — vision/blueprint/contract/apply/launch"
-license = "MIT"
-
-[[bin]]
-name = "sos"
-path = "src/main.rs"
-
-[dependencies]
+[workspace.dependencies]
+# shared version pin — deps split across crates by need
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"

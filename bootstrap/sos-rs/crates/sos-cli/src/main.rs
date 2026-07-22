@@ -8,7 +8,6 @@
 
 use clap::{Parser, Subcommand};
 
-mod state;
 mod commands;
 
 #[derive(Parser)]

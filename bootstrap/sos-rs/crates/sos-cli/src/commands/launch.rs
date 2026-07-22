@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use std::fs;
 use std::path::Path;
 
-use crate::state::{self, HistoryEntry, Phase};
+use sos_core::state::{self, HistoryEntry, Phase};
 
 const GENESIS_PATH: &str = "docs/ticket/P000-genesis.md";
 

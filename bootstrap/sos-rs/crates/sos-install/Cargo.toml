@@ -1,0 +1,9 @@
+[package]
+name = "sos-install"
+version = "0.1.0"
+edition = "2021"
+description = "SOS Kit install framework (transaction plan / dry-run / non-clobber / rollback / manifest) — skeleton, logic in P077d"
+license = "MIT"
+
+[dependencies]
+sos-core = { path = "../sos-core" }
