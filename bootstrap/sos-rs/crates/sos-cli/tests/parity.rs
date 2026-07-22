@@ -5,8 +5,7 @@
 //
 // P077a/b left this INFORMATIONAL (`HARD_FAIL: bool = false`, always PASS).
 // P077c1 flips it to a per-command hard-fail SET: a command enters
-// `PARITY_ENFORCED` once its Rust impl is proven to match the Bash oracle
-// bug-for-bug. `map` is the first (and, at this phiếu, only) member.
+// `PARITY_ENFORCED` once its Rust impl is proven correct against its oracle.
 // c2 (sync) / c3 (new) / c4 (adopt) add their own name to the slice as they land
 // — no other harness rewrite needed.
 //
@@ -17,6 +16,14 @@
 // content. Both are diffed; a mismatch in EITHER hard-fails when the command
 // is in `PARITY_ENFORCED` — otherwise the stdout-only oracle is blind to
 // scan-correctness (the false-green class this harness exists to prevent).
+//
+// P077c5 NOTE — `PARITY_ENFORCED` keeps its 4-name shape, but `map`/`adopt`'s
+// SEMANTICS changed: from c1-c4 they were bug-for-bug ==Bash parity oracles;
+// from c5 onward they are CORRECTNESS oracles (Rust intentionally != Bash —
+// OA-02 fix; `bin/sos.sh` stays buggy by design, deferred to P077e cutover).
+// `sync`/`new` remain pure Bash-parity, unchanged. Don't be misled by the name
+// `PARITY_ENFORCED` for `map`/`adopt` — read `parity_map_enforced`/
+// `parity_adopt_enforced`'s doc comments (below) for what they actually assert.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -521,6 +528,11 @@ const ADOPT_PRESERVED_SEEDS: &[&str] = &[
 /// byte-match the kit source they were staged from.
 const ADOPT_STAGED_COLLISIONS: &[&str] = &["templates/INVARIANTS-template.md"];
 
+/// Stdout + tree-manifest + preservation asserts stay Bash-PARITY (unchanged
+/// by c5). The gen-content assert's `docs/AGENT_MAP.yaml` line is the ONE
+/// CORRECTNESS-oracle exception (P077c5, map-within-adopt inherits the OA-02
+/// fix) — its golden line is hand-verified against the corrected Rust binary,
+/// never auto-captured from Bash (see capture.sh's `freeze_adopt_gen` guard).
 #[test]
 fn parity_adopt_enforced() {
     assert!(
@@ -673,6 +685,10 @@ fn build_map_fixture() -> (TempFixture, PathBuf) {
     (tmp, target)
 }
 
+/// CORRECTNESS oracle (P077c5) — asserts Rust `map` output against a
+/// hand-authored/frozen-from-corrected-Rust golden, NOT against Bash (Bash
+/// `sos_map` still carries OA-02 by design). See capture.sh's map-section
+/// guard comment for why this golden is never auto-regenerated from Bash.
 #[test]
 fn parity_map_enforced() {
     assert!(
@@ -733,4 +749,130 @@ fn parity_skeleton_informational() {
     // always pass regardless of mismatch. Commands in PARITY_ENFORCED are
     // hard-failed by their own dedicated test above instead.
     let _ = any_mismatch;
+}
+
+// ---------------------------------------------------------------------------
+// P077c5 — OA-02 acceptance fixtures (Task 6).
+//
+// These are the CORRECTNESS oracle's hard-fail proof, independent of the
+// Bash-golden diffs above: they assert the specific properties OA-02's audit
+// (`docs/retro/OUTSIDER_AUDIT_SYSTEM_GAPS_2026-07-22.md:127-130`) demanded,
+// on synthetic self-contained fixtures (pattern reused from c1-c4).
+// ---------------------------------------------------------------------------
+
+/// Parse `docs/AGENT_MAP.yaml`'s `edit:` list entries under a given
+/// `<surface_name>:` block into a flat Vec<String> (test-only mini-parser —
+/// good enough for the fixed shape `render_surface_block()` emits).
+fn agent_map_surface_entries(yaml: &str, surface_name: &str) -> Option<Vec<String>> {
+    let marker = format!("  {surface_name}:");
+    let start = yaml.find(&marker)?;
+    let rest = &yaml[start + marker.len()..];
+    let mut entries = Vec::new();
+    for line in rest.lines() {
+        if line.starts_with("      - ") {
+            entries.push(line.trim_start_matches("      - ").to_string());
+        } else if line.starts_with("  ") && !line.starts_with("    ") {
+            // Reached the next top-level surface block — stop.
+            break;
+        }
+    }
+    Some(entries)
+}
+
+/// Acceptance #1 (audit `:128`) — a standard Rust crate must map `src/main.rs`
+/// (or another file under `src/**`) into a generic source surface. Regression
+/// this guards: OA-02's original finding (Rust crate adopted, no source
+/// surface emitted at all).
+#[test]
+fn oa02_rust_crate_maps_src_main() {
+    let tmp = TempFixture::new("oa02-rust");
+    let target = tmp.path().join("rust-crate-fixture");
+    fs::create_dir_all(target.join("src")).unwrap();
+    fs::write(target.join("Cargo.toml"), "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n").unwrap();
+    fs::write(target.join("src/main.rs"), "fn main() {}\n").unwrap();
+
+    let target_str = target.to_string_lossy().into_owned();
+    let _stdout = run_rust(&["map", &target_str]);
+
+    let map_content = fs::read_to_string(target.join("docs/AGENT_MAP.yaml"))
+        .expect("Rust map did not write docs/AGENT_MAP.yaml");
+
+    let entries = agent_map_surface_entries(&map_content, "rust_src")
+        .unwrap_or_else(|| panic!("no `rust_src` surface emitted for a Cargo.toml+src/main.rs fixture:\n{map_content}"));
+    assert!(
+        entries.iter().any(|e| e == "src/main.rs"),
+        "rust_src surface did not include src/main.rs (entries: {entries:?})"
+    );
+    assert_eq!(map_content.trim_start().find("status:").is_some(), true);
+    assert!(
+        map_content.contains("status: coverage_unknown"),
+        "fresh scan must emit status: coverage_unknown (3-verdict, not draft_needs_review)"
+    );
+}
+
+/// Acceptance #2 (audit `:129`) — a kit-managed `templates/` dir present in the
+/// target must NOT be scanned into a `frontend` (or any) product surface.
+/// Regression this guards: the exact OA-02 finding from the brownfield smoke
+/// test (`frontend` surface pointing at freshly-adopted `templates/`).
+#[test]
+fn oa02_templates_excluded_from_frontend() {
+    let tmp = TempFixture::new("oa02-templates");
+    let target = tmp.path().join("templates-fixture");
+    fs::create_dir_all(target.join("templates")).unwrap();
+    fs::create_dir_all(target.join("src/routes")).unwrap();
+    fs::write(target.join("templates/BACKLOG_template.md"), "# backlog\n").unwrap();
+    fs::write(target.join("src/routes/api.py"), "def h(): pass\n").unwrap();
+
+    let target_str = target.to_string_lossy().into_owned();
+    let _stdout = run_rust(&["map", &target_str]);
+
+    let map_content = fs::read_to_string(target.join("docs/AGENT_MAP.yaml"))
+        .expect("Rust map did not write docs/AGENT_MAP.yaml");
+
+    assert!(
+        !map_content.contains("frontend:"),
+        "kit-managed templates/ leaked into a frontend surface (OA-02 regression):\n{map_content}"
+    );
+    assert!(
+        !map_content.contains("BACKLOG_template.md"),
+        "kit-managed templates/BACKLOG_template.md appeared in ANY surface (OA-02 regression):\n{map_content}"
+    );
+    // Sanity: the fixture's real product code (routes_handlers) still maps —
+    // proves the exclude-list only removes kit-managed roots, not everything.
+    assert!(
+        map_content.contains("routes_handlers:") && map_content.contains("src/routes/api.py"),
+        "exclude-list over-blocked real product surfaces:\n{map_content}"
+    );
+}
+
+/// Acceptance #3 (audit `:130`) — nested/monorepo packages (`sim/`, `tools/`,
+/// `migrations/`, and a nested Rust sub-package) still produce their expected
+/// surfaces. Regression this guards: stack-detection or surface-scan being
+/// root-only and missing sub-package source.
+#[test]
+fn oa02_monorepo_nested_packages_mapped() {
+    let tmp = TempFixture::new("oa02-monorepo");
+    let target = tmp.path().join("monorepo-fixture");
+    fs::create_dir_all(target.join("migrations")).unwrap();
+    fs::create_dir_all(target.join("packages/core/src")).unwrap();
+    fs::write(target.join("migrations/0001_init.sql"), "-- init\n").unwrap();
+    fs::write(target.join("packages/core/Cargo.toml"), "[package]\nname = \"core\"\nversion = \"0.1.0\"\n").unwrap();
+    fs::write(target.join("packages/core/src/lib.rs"), "pub fn hi() {}\n").unwrap();
+
+    let target_str = target.to_string_lossy().into_owned();
+    let _stdout = run_rust(&["map", &target_str]);
+
+    let map_content = fs::read_to_string(target.join("docs/AGENT_MAP.yaml"))
+        .expect("Rust map did not write docs/AGENT_MAP.yaml");
+
+    assert!(
+        map_content.contains("migrations:"),
+        "nested migrations/ dir not detected as a migrations surface:\n{map_content}"
+    );
+    let rust_entries = agent_map_surface_entries(&map_content, "rust_src")
+        .unwrap_or_else(|| panic!("nested Cargo.toml sub-package did not trigger rust_src surface:\n{map_content}"));
+    assert!(
+        rust_entries.iter().any(|e| e.ends_with("packages/core/src/lib.rs")),
+        "rust_src surface missing the nested sub-package's src/lib.rs (entries: {rust_entries:?})"
+    );
 }

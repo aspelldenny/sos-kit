@@ -17,7 +17,7 @@
 | ID | Sev | Finding | Hướng xử lý đề nghị |
 |---|---|---|---|
 | OA-01 | 🔴 | `doctor lane-check` yêu cầu `Lane`, template và routing hiện dùng `Tầng` | Chọn một taxonomy canonical hoặc định nghĩa mapping; thêm end-to-end contract test |
-| OA-02 | 🔴 | `sos map` có thể map chính asset của kit nhưng bỏ sót source thật; `validate-map` vẫn PASS | Tách scan trước/asset install sau; thêm coverage/completeness state và stack-aware scanner |
+| OA-02 | 🔴 → ✅ Rust-only (P077c5, 2026-07-22) | `sos map` có thể map chính asset của kit nhưng bỏ sót source thật; `validate-map` vẫn PASS | FIXED trong `bootstrap/sos-rs` (`map.rs`): stack-aware scanner + `KIT_MANAGED_ROOTS` exclude-list + 3-verdict status. `bin/sos.sh` (Bash) CHƯA sửa — giữ nguyên bug by design, defer tới P077e cutover. Xem `docs/plans/P077c-decomposition.md` P077c5 + `docs/discoveries/P077c5.md`. |
 | OA-03 | 🟠 | `ship` cho dirty tree qua preflight rồi chạy `git add -A` | Block dirty tree mặc định hoặc bắt scoped worktree/allowlist explicit |
 | OA-04 | 🟠 | docs-sync engine có khả năng tốt nhưng config dogfood để toàn bộ mapping trống | Điền `rules/cross_doc/count_check/doc_structure`; thêm config-semantic gate |
 | OA-05 | 🟡 | Current `sos adopt` là Claude-heavy bundle, không phải runtime-neutral adoption | Hoàn thành portable core → adapters; thêm `--runtime`/profile và domain-scoped plan |
@@ -128,6 +128,32 @@ cảm giác map đã đáng tin hơn thực tế.
    - Rust crate phải map `src/main.rs` hoặc `src/**`.
    - Kit-managed `templates/` không được tự biến thành product frontend.
    - Repo có `sim/`, `tools/`, `migrations/`, nested packages phải có expected surfaces.
+
+### Trạng thái xử lý (P077c5, 2026-07-22)
+
+**✅ FIXED trong Rust `bootstrap/sos-rs` (`crates/sos-cli/src/commands/map.rs`), Rust-only.**
+Cả 5 upgrade-direction ở trên đã làm, khớp thứ tự:
+1. Không survey-before-install (restructure nặng hơn) — dùng **static exclude-list**
+   (`KIT_MANAGED_ROOTS`: `templates`/`phieu`/`scripts`/`hooks`/`.claude`, verified khớp
+   `adopt.rs`'s copy targets) áp trong `scan_surface` — giải cả standalone map lẫn
+   map-within-adopt bằng MỘT cơ chế.
+2. Stack-aware scanner: `STACK_MARKERS` detect Cargo.toml/pyproject.toml,setup.py,
+   requirements.txt/package.json/go.mod/Package.swift bất kỳ đâu trong tree (monorepo-aware,
+   unbounded depth) → emit `rust_src`/`python_src`/`node_src`/`go_src`/`swift_src` surface.
+3. 3-verdict: `status: draft_needs_review` → `PATH_VALID`/`COVERAGE_UNKNOWN`/
+   `COVERAGE_REVIEWED`; fresh scan luôn `coverage_unknown`, KHÔNG dùng làm routing authority.
+4. (đã làm ở #3)
+5. 3 acceptance fixture hard-fail (`oa02_rust_crate_maps_src_main`,
+   `oa02_templates_excluded_from_frontend`, `oa02_monorepo_nested_packages_mapped`) trong
+   `crates/sos-cli/tests/parity.rs` — negative-test verified (sabotage → fail loud → revert).
+
+**⚠️ `bin/sos.sh` (Bash) CHƯA sửa** — giữ nguyên bug OA-02 by design (P077c invariant:
+Bash canonical KHÔNG đổi trong suốt P077c; fix Bash, nếu cần, defer tới P077e cutover
+decision — KHÔNG phải Architect tự quyết, cần Chủ nhà xác nhận thời điểm). Người dùng
+hiện tại của `bin/sos.sh` (MVP, exposure hẹp) vẫn gặp OA-02 cho tới cutover.
+
+Chi tiết: `docs/plans/P077c-decomposition.md` (P077c5 status line) +
+`docs/discoveries/P077c5.md` + `docs/ticket/done/P077c5-oa02-scanner-fix.md`.
 
 ---
 
