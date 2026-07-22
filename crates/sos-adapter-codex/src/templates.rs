@@ -688,17 +688,49 @@ fn guard_approval_gate_sh() -> String {
 # themselves (docs/ticket/P<NNN>-*.md) are ALWAYS allowed through this guard --
 # drafting/amending the ticket doesn't require its own prior approval.
 #
-# Self-bootstrap exemption (P078d2a #5, coupled hard with #6 below): when the
-# state file does not exist yet, a patch that creates ONLY
+# State-file-alone exemption (P078d2a #5 create-when-missing; P078e Task 1
+# extends it to create-OR-update): a patch that touches ONLY
 # .sos-state/ticket-state.env (and touches NO other path) is allowed through --
 # otherwise there is no way to ever initialize the state file (chicken-egg
-# deadlock at fresh install). This exemption is SAFE ONLY because the #6
-# all-path check below sees every path in the patch: an attacker cannot smuggle
-# a second path (.env, src/**, a forged approved_version) alongside
-# ticket-state.env in the same patch -- the moment a second path is present,
-# the set is no longer "exactly ticket-state.env alone" and this guard falls
-# through to the normal fail-CLOSED BLOCK. Do NOT loosen this to "contains"
-# semantics -- it must stay "IS EXACTLY the one path."
+# deadlock at fresh install, P078d2a #5) NOR to ever write a legitimate
+# approval-transition update afterwards (the V1->V2 deadlock P079 round-2
+# found: bootstrap creates version=V1/approved_version=empty, then the very
+# FIRST legit approval write -- version=V2, approved_version=V2 -- was BLOCKed
+# by the version-match check below, because writing the approval record is
+# itself gated on the record already existing). This exemption is SAFE only
+# because of TWO layers together:
+#
+#   (1) actor-check (P078e Task 1, NEW -- mirrors `orchestrator-guard.sh`'s
+#       `[ -f ".sos-state/worker-active" ] && continue` pattern): the
+#       exemption fires ONLY when NEITHER `.sos-state/worker-active` NOR
+#       `.sos-state/architect-active` is present. Those markers are set only
+#       while a worker/architect subagent turn is in flight (SubagentStart/
+#       Stop hooks, `templates.rs` orchestrator config). Approval authority
+#       belongs to the owner/orchestrator (core/STATE.md "Mutation
+#       authority") -- the actor-check keeps the exemption from ever firing
+#       while the SAME agent under review (worker) is the one holding the
+#       apply_patch pen, which would otherwise let it self-approve its own
+#       ticket version. If either marker is set, this guard falls through to
+#       the normal fail-CLOSED / version-match checks below -- a
+#       worker/architect-authored write to ticket-state.env gets NO special
+#       treatment.
+#
+#   (2) the #6 all-path check below, which sees every path in the patch: an
+#       attacker cannot smuggle a second path (.env, src/**, a forged
+#       approved_version alongside a code change) in the same patch as
+#       ticket-state.env -- the moment a second path is present, the set is
+#       no longer "exactly ticket-state.env alone" and this guard falls
+#       through to the normal fail-CLOSED BLOCK. Do NOT loosen this to
+#       "contains" semantics -- it must stay "IS EXACTLY the one path."
+#
+# Codex caveat (BOTH layers are best-effort on Codex, unlike Claude): Codex
+# in-subagent PreToolUse enforcement is a known gap (E5/#4, d2b honest-MISSING
+# declaration) -- a worker subagent's apply_patch call may not even route
+# through this hook in-session on Codex. The actor-check above is correct
+# and complete on Claude (subagent hooks fire reliably there); on Codex it is
+# defense-in-depth only -- the real backstop for approval-record integrity on
+# Codex is human-review-at-the-git-commit-boundary, NOT this in-session gate.
+# Do NOT claim full self-approve protection on Codex.
 
 set -euo pipefail
 
@@ -749,14 +781,30 @@ done
 [ ${#NON_TICKET_PATHS[@]} -eq 0 ] && exit 0
 
 STATE_FILE=".sos-state/ticket-state.env"
+
+# Actor-check (P078e Task 1, mirror orchestrator-guard.sh's
+# `[ -f ".sos-state/worker-active" ] && continue`): the state-file-alone
+# exemption below is safe ONLY when neither subagent marker is present --
+# i.e. only the orchestrator/main-thread is the one writing.
+ACTOR_IS_MAIN_THREAD=1
+[ -f ".sos-state/worker-active" ] && ACTOR_IS_MAIN_THREAD=0
+[ -f ".sos-state/architect-active" ] && ACTOR_IS_MAIN_THREAD=0
+
+# State-file-alone exemption (#5 create-when-missing, P078e-extended to
+# create+update): allow ONLY if (a) the entire non-ticket path set is
+# exactly {.sos-state/ticket-state.env} -- one element, that exact value
+# (checked via the #6 all-path list above) -- AND (b) the actor-check
+# passed. Fires regardless of whether the state file currently exists
+# (bootstrap) or already exists (approval transition, the V1->V2 deadlock
+# fix). Any other path present, or either marker set, falls through to the
+# normal fail-CLOSED / version-match checks below.
+if [ "$ACTOR_IS_MAIN_THREAD" -eq 1 ] \
+    && [ ${#NON_TICKET_PATHS[@]} -eq 1 ] \
+    && [ "${NON_TICKET_PATHS[0]}" = "$STATE_FILE" ]; then
+    exit 0
+fi
+
 if [ ! -f "$STATE_FILE" ]; then
-    # Self-bootstrap exemption (#5): allow ONLY if the entire non-ticket path
-    # set is exactly {.sos-state/ticket-state.env} -- one element, that exact
-    # value. Any other path present (checked via the #6 all-path list above)
-    # falls through to fail-CLOSED BLOCK below.
-    if [ ${#NON_TICKET_PATHS[@]} -eq 1 ] && [ "${NON_TICKET_PATHS[0]}" = "$STATE_FILE" ]; then
-        exit 0
-    fi
     echo "BLOCKED: approval-gate found no $STATE_FILE -- treating as UNAPPROVED, fail-CLOSED." >&2
     exit 2
 fi

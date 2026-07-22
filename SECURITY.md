@@ -128,6 +128,31 @@ normal fail-CLOSED BLOCK, not the bootstrap ALLOW. A rendered skeleton state fil
 install time so most fresh installs never reach the missing-file branch at all; its non-clobber
 safety reuses the pre-existing `sos-install::engine` checksum/manifest logic — no engine change.
 
+**Approval-transition deadlock fix + actor-check (P078e Task 1, 2026-07-23).** P079 round-2
+live-dogfood found the #5 exemption above only covered *create* — once the state file existed
+(post-bootstrap, `version=V1, approved_version=empty`), the very first legitimate approval write
+(`version=V2, approved_version=V2`) was BLOCKed by the version-match check, a circular deadlock
+(the write that grants approval is itself gated on approval already existing). Fixed: the
+state-file-alone exemption now covers create **or** update, gated on a new **actor-check** —
+`.sos-state/worker-active` and `.sos-state/architect-active` must both be absent (mirrors
+`orchestrator-guard.sh`'s `[ -f ".sos-state/worker-active" ] && continue` pattern) — so only the
+owner/orchestrator main-thread can exercise the exemption; a worker/architect subagent turn gets
+no special treatment and still falls through to the ordinary version-match BLOCK. The multi-path
+all-path check (#6 above) is unchanged and still blocks any patch bundling `ticket-state.env`
+with a second path. Verified via mock-payload tests (round-2 repro ALLOW, worker/architect-marker
+self-approve BLOCK, pre-approval code-edit regression still BLOCK, bundle still BLOCK) plus a
+negative-test: removing the actor-check flips the self-approve-BLOCK test to ALLOW
+(`crates/sos-adapter-codex/src/lib.rs`, `docs/discoveries/P078e.md`).
+
+**Codex caveat — actor-check is defense-in-depth, not SOUND, on Codex.** The actor-check depends
+on the same `worker-active`/`architect-active` markers that gap-#6/P078d2b below documents as
+**not reliably set inside custom-role Codex subagents**. On Claude the check is correct and
+complete. On Codex, a worker subagent's `apply_patch` may not even route through this in-session
+hook — so approval-record integrity on Codex still rests on **human-review-at-the-git-commit
+boundary**, not this gate. `sos install` arming Git hooks by default (closing that boundary gap)
+is tracked separately as **P078f** (not yet shipped) — see
+`docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md`.
+
 **In-subagent role-envelope enforcement — MISSING, not PARTIAL (P078d2b, upstream
 `openai/codex#21753`).** All 5 guards above are `PreToolUse`/`UserPromptSubmit` hooks that fire
 on the **main thread**. On Codex 0.145.0, they do **not** fire inside a spawned **custom-role**
