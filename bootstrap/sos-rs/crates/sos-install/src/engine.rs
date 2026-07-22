@@ -1,0 +1,302 @@
+//! P077d2 — install engine (transaction plan / dry-run / non-clobber /
+//! rollback / apply), driven THUẦN qua the `sos-core` `Adapter` trait's
+//! `Plan` output. This module owns ZERO host-specific knowledge (`.claude`,
+//! `CLAUDE_*`, Codex, ...) — it only executes `ManagedOperation`s it's
+//! given (dep-direction: `sos-install` depends on `sos-core` only, same as
+//! `sos-adapter-claude`; the two never depend on each other).
+//!
+//! Transaction 7-step (`docs/PORTABILITY_ARCHITECTURE.md:109-117`), this
+//! engine implements step 1-4 + 6-7. Step 5 (tool-resolve) is a stub seam
+//! for P077d3 (OA-07) — see `resolve_tools()` below.
+
+use anyhow::{bail, Context, Result};
+use sha2::{Digest, Sha256};
+use sos_core::adapter::Plan;
+use sos_core::manifest::ManagedManifest;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+/// On-disk manifest artifact name, written at project root (P077d2 CHỐT —
+/// see `docs/PORTABILITY_ARCHITECTURE.md` "P077d2 status").
+pub const MANIFEST_FILE_NAME: &str = ".sos-manifest.toml";
+
+/// Non-clobber staging directory — mirrors `.sos-adopt-incoming` precedent
+/// (`crates/sos-cli/src/commands/adopt.rs`), but install has its own name
+/// since it's a distinct command/oracle.
+pub const INCOMING_DIR_NAME: &str = ".sos-install-incoming";
+
+/// sha256 hex digest of arbitrary bytes — same format used by `contract.rs`
+/// (`sos-cli`), kept plain-hex (no `sha256:` prefix) to match
+/// `ManagedManifest::content_hash`'s doc example (`manifest.rs` tests).
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+/// What the engine decided to do with one planned target, after resolving
+/// it against the current filesystem + prior manifest record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Decision {
+    /// Target absent — additive create.
+    Create,
+    /// Target present and its on-disk content ALREADY equals the desired
+    /// content (byte-for-byte) — a true no-op. Distinct from `Update`:
+    /// this is what makes re-running install idempotent (no fs write, no
+    /// manifest mutation) instead of harmlessly rewriting identical bytes
+    /// on every run.
+    NoOp,
+    /// Target present, on-disk content differs from desired, but its hash
+    /// matches the manifest's recorded content_hash (unmodified by the
+    /// user since last install) — overwrite permitted.
+    Update,
+    /// Target present, on-disk content differs from desired AND its hash
+    /// differs from recorded (user-customized) OR no manifest record
+    /// exists for it — NEVER overwrite; stage incoming copy instead.
+    Conflict,
+}
+
+/// A resolved target decision — pure data, no mutation has happened yet.
+/// `--dry-run` prints exactly this; `apply()` executes it.
+#[derive(Debug, Clone)]
+pub struct TargetDecision {
+    pub target_path: String,
+    pub decision: Decision,
+    pub content: String,
+    pub content_hash: String,
+}
+
+/// The on-disk `.sos-manifest.toml` shape — `[[managed]]` array-of-tables,
+/// each entry a `ManagedManifest` (d1 schema, untouched).
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OnDiskManifest {
+    #[serde(default)]
+    pub managed: Vec<ManagedManifest>,
+}
+
+pub fn manifest_path(project_root: &Path) -> PathBuf {
+    project_root.join(MANIFEST_FILE_NAME)
+}
+
+/// Load `.sos-manifest.toml` if present; absent = fresh project (empty).
+pub fn load_manifest(project_root: &Path) -> Result<OnDiskManifest> {
+    let path = manifest_path(project_root);
+    if !path.exists() {
+        return Ok(OnDiskManifest::default());
+    }
+    let content = fs::read_to_string(&path)
+        .with_context(|| format!("read {}", path.display()))?;
+    let parsed: OnDiskManifest =
+        toml::from_str(&content).with_context(|| format!("parse {}", path.display()))?;
+    Ok(parsed)
+}
+
+fn save_manifest(project_root: &Path, manifest: &OnDiskManifest) -> Result<()> {
+    let s = toml::to_string_pretty(manifest).context("serialize .sos-manifest.toml")?;
+    fs::write(manifest_path(project_root), s)
+        .with_context(|| format!("write {}", manifest_path(project_root).display()))
+}
+
+/// Resolve every `ManagedOperation` in `plan` against the current
+/// filesystem + `manifest` — NO mutation. Used by both `--dry-run` (print
+/// and stop) and `apply()` (resolve, then execute).
+pub fn decide_targets(
+    project_root: &Path,
+    plan: &Plan,
+    manifest: &OnDiskManifest,
+) -> Vec<TargetDecision> {
+    plan.operations
+        .iter()
+        .map(|op| {
+            let target = project_root.join(&op.target_path);
+            let content_hash = sha256_hex(op.content.as_bytes());
+            let decision = if !target.exists() {
+                Decision::Create
+            } else {
+                let existing_hash = fs::read(&target)
+                    .map(|bytes| sha256_hex(&bytes))
+                    .unwrap_or_default();
+                if existing_hash == content_hash {
+                    // Already the desired bytes — true no-op (idempotence).
+                    Decision::NoOp
+                } else {
+                    let recorded = manifest
+                        .managed
+                        .iter()
+                        .find(|m| m.target_path == op.target_path)
+                        .map(|m| m.content_hash.clone());
+                    if recorded.as_deref() == Some(existing_hash.as_str()) {
+                        Decision::Update
+                    } else {
+                        Decision::Conflict
+                    }
+                }
+            };
+            TargetDecision {
+                target_path: op.target_path.clone(),
+                decision,
+                content: op.content.clone(),
+                content_hash,
+            }
+        })
+        .collect()
+}
+
+/// `--dry-run`: compute + return the transaction plan. ZERO filesystem
+/// mutation — caller (CLI) prints it. Does not touch `.sos-manifest.toml`
+/// or `.sos-install-incoming`.
+pub fn dry_run(project_root: &Path, plan: &Plan) -> Result<Vec<TargetDecision>> {
+    let manifest = load_manifest(project_root)?;
+    Ok(decide_targets(project_root, plan, &manifest))
+}
+
+/// Report of a completed (successful) `apply()` transaction.
+#[derive(Debug, Default)]
+pub struct ApplyReport {
+    pub created: Vec<String>,
+    pub updated: Vec<String>,
+    pub conflicts: Vec<String>,
+    /// Targets already at desired content — zero mutation performed
+    /// (idempotence — re-running install must not rewrite unchanged bytes
+    /// or bump `.sos-manifest.toml`).
+    pub noop: Vec<String>,
+}
+
+/// Pre-mutation snapshot for one applied op — used to roll back to
+/// byte-identical pre-transaction state if a LATER op in the same
+/// transaction fails.
+struct RollbackEntry {
+    target_path: PathBuf,
+    /// `None` = target didn't exist before this op (CREATE) -> rollback
+    /// deletes it. `Some(bytes)` = target existed (UPDATE) -> rollback
+    /// restores the exact prior bytes.
+    prior_content: Option<Vec<u8>>,
+}
+
+/// Execute `plan` against `project_root`: resolve non-clobber decisions,
+/// mutate the filesystem, record `.sos-manifest.toml`. On ANY op failure,
+/// restores the filesystem to byte-identical pre-transaction state, does
+/// NOT commit the manifest, and returns `Err` (LOUD, non-zero exit at the
+/// CLI layer) — `core/POLICY.md` "Safe mutation" (backup+rollback,
+/// missing-gate-fail-visible).
+///
+/// Step 5 (tool-resolve) is intentionally NOT called here — see
+/// `resolve_tools()` below; the CLI wires it as a separate no-op step so
+/// this function stays pure transaction-execution.
+pub fn apply(
+    project_root: &Path,
+    plan: &Plan,
+    owner: &str,
+    source_version: &str,
+) -> Result<ApplyReport> {
+    let manifest = load_manifest(project_root)?;
+    let decisions = decide_targets(project_root, plan, &manifest);
+
+    let mut rollback_log: Vec<RollbackEntry> = Vec::new();
+    let mut report = ApplyReport::default();
+    let mut next_entries: Vec<ManagedManifest> = manifest.managed.clone();
+
+    let outcome: Result<()> = (|| {
+        for d in &decisions {
+            let target = project_root.join(&d.target_path);
+            match d.decision {
+                Decision::NoOp => {
+                    // Already correct — zero mutation, zero manifest
+                    // touch. This is what makes re-running install a true
+                    // no-op instead of harmlessly rewriting identical
+                    // bytes (and bumping rollback_ref) on every run.
+                    report.noop.push(d.target_path.clone());
+                    continue;
+                }
+                Decision::Conflict => {
+                    // Non-clobber: NEVER touch the existing target. Stage
+                    // the incoming (kit-side) content for manual merge —
+                    // mirrors `.sos-adopt-incoming` precedent.
+                    let incoming = project_root.join(INCOMING_DIR_NAME).join(&d.target_path);
+                    if let Some(parent) = incoming.parent() {
+                        fs::create_dir_all(parent).with_context(|| {
+                            format!("create incoming parent dir for {}", d.target_path)
+                        })?;
+                    }
+                    fs::write(&incoming, d.content.as_bytes())
+                        .with_context(|| format!("stage incoming copy for {}", d.target_path))?;
+                    report.conflicts.push(d.target_path.clone());
+                    continue; // no manifest entry mutation, nothing mutated to roll back
+                }
+                Decision::Create => {
+                    if let Some(parent) = target.parent() {
+                        fs::create_dir_all(parent)
+                            .with_context(|| format!("create parent dir for {}", d.target_path))?;
+                    }
+                    fs::write(&target, d.content.as_bytes())
+                        .with_context(|| format!("write {}", d.target_path))?;
+                    rollback_log.push(RollbackEntry {
+                        target_path: target.clone(),
+                        prior_content: None,
+                    });
+                    report.created.push(d.target_path.clone());
+                }
+                Decision::Update => {
+                    let prior = fs::read(&target)
+                        .with_context(|| format!("snapshot prior content of {}", d.target_path))?;
+                    fs::write(&target, d.content.as_bytes())
+                        .with_context(|| format!("overwrite {}", d.target_path))?;
+                    rollback_log.push(RollbackEntry {
+                        target_path: target.clone(),
+                        prior_content: Some(prior),
+                    });
+                    report.updated.push(d.target_path.clone());
+                }
+            }
+
+            let rollback_ref = match d.decision {
+                Decision::Update => Some(format!("pre-install:{}", d.content_hash)),
+                _ => None,
+            };
+            next_entries.retain(|m| m.target_path != d.target_path);
+            next_entries.push(ManagedManifest {
+                owner: owner.to_string(),
+                source_version: source_version.to_string(),
+                source_identity: d.target_path.clone(),
+                target_path: d.target_path.clone(),
+                content_hash: d.content_hash.clone(),
+                rollback_ref,
+            });
+        }
+        Ok(())
+    })();
+
+    match outcome {
+        Ok(()) => {
+            save_manifest(
+                project_root,
+                &OnDiskManifest {
+                    managed: next_entries,
+                },
+            )?;
+            Ok(report)
+        }
+        Err(e) => {
+            // Restore byte-identical pre-transaction state, reverse order.
+            for entry in rollback_log.iter().rev() {
+                match &entry.prior_content {
+                    None => {
+                        let _ = fs::remove_file(&entry.target_path);
+                    }
+                    Some(bytes) => {
+                        let _ = fs::write(&entry.target_path, bytes);
+                    }
+                }
+            }
+            bail!("install transaction failed and was rolled back: {e}")
+        }
+    }
+}
+
+/// SEAM P077d3 (OA-07): tool-manifest resolve — no-op until d3 fills it.
+/// Step 5 of the transaction 7-step
+/// (`docs/PORTABILITY_ARCHITECTURE.md:109-117`). d2 calls this at the
+/// correct position but asserts NOTHING about its result.
+pub fn resolve_tools() -> Vec<String> {
+    Vec::new()
+}

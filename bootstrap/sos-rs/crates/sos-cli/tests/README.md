@@ -421,3 +421,37 @@ each `sos` invocation from the test harness runs as an isolated child process
 — making the directory name collision-proof independent of clock resolution. No new
 crate dependency. Verified: `cargo test --workspace` run 20+ consecutive times under
 default parallel execution, 0 flaky (was ~10-25% flaky before the fix).
+
+## `sos install` — correctness oracle (P077d2, no Bash counterpart)
+
+Lives in `crates/sos-install/tests/install.rs` (a **different crate** from this
+directory's `parity.rs` — the install engine has no `bin/sos.sh` equivalent to freeze
+goldens against; `sos install` is a brand-new command, per
+`docs/plans/P077d-decomposition.md:9`). Oracle = 5 hard-fail correctness fixtures
+against a deterministic `MockAdapter` (implements `sos_core::adapter::Adapter` with a
+fixed `Plan` — proves the engine is correct **independent of which adapter drives it**,
+the entire point of the d1 trait abstraction; `sos-adapter-claude`'s render bodies stay
+stub and are NOT exercised here):
+
+1. **additive** — greenfield, ≥3 managed files → all CREATE, `.sos-manifest.toml` gets
+   1 entry/file, `rollback_ref=None`.
+2. **non-clobber** — two sub-cases: (a) pre-existing user-customized target (no manifest
+   record) → CONFLICT, original byte-unchanged, incoming staged to
+   `.sos-install-incoming/<path>` (mirrors `.sos-adopt-incoming`); (b) target unmodified
+   since a prior install (hash == recorded) + new kit content → UPDATE allowed.
+3. **rollback** — a 2nd op fails for REAL (its target's parent path is occupied by a
+   plain file, so `create_dir_all` genuinely errors — no artificial fail-injection hook
+   in the engine) → the 1st op's mutation is restored to byte-identical pre-transaction
+   content, `.sos-manifest.toml` is NOT committed, `apply()` returns `Err`.
+4. **idempotence** — running the exact same plan twice: 2nd run classifies every target
+   `Decision::NoOp` (on-disk bytes already == desired), zero fs rewrite, `.sos-manifest.toml`
+   byte-unchanged. (This required a 4th `Decision` variant, `NoOp`, distinct from
+   `Update` — see `engine.rs` doc comment for why a naive Create/Update/Conflict split
+   broke idempotence during d2 EXECUTE.)
+5. **dry-run** — greenfield `--dry-run`: plan printed (would-CREATE), directory tree
+   before/after identical, no `.sos-manifest.toml`, no `.sos-install-incoming/`.
+
+`TempFixture` collision-safe pattern (AtomicU64 counter, see previous section)
+replicated in this crate's own test file — no shared test-util crate exists yet across
+`sos-cli`/`sos-install` test binaries. Verified: `cargo test --workspace` run 20×
+in parallel (`xargs -P 20`), 0 flaky.

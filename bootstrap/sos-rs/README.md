@@ -17,8 +17,8 @@ crates/
 │                       # ZERO dep on any adapter/install/hooks/cli crate.
 ├── sos-cli              # composition root — binary `sos`. Deps: sos-core +
 │                       # sos-install + sos-adapter-claude + sos-hooks.
-├── sos-install          # install framework skeleton (transaction/dry-run/
-│                       # rollback/manifest) — logic lands in P077d.
+├── sos-install          # install ENGINE (transaction/dry-run/non-clobber/
+│                       # rollback/manifest) — LIVE, P077d2. Deps: sos-core.
 ├── sos-adapter-claude   # Claude Code adapter skeleton (detect/plan/render/
 │                       # verify/uninstall) — logic lands in P077d. Deps: sos-core.
 └── sos-hooks            # hooks framework skeleton — logic lands in P077d.
@@ -31,7 +31,7 @@ Dependency-direction gate (Tầng 1 — enforced two ways):
 **Deviation from target (`docs/PORTABILITY_ARCHITECTURE.md` lines 24-38)** — tracked, not yet fixed:
 1. Workspace root stays at `bootstrap/sos-rs/` (target: repo-root) — relocation is P077e.
 2. `sos-adapter-codex` not created (target lists it) — that's P078, out of scope here.
-3. `sos-install` / `sos-hooks` are still empty skeletons; `sos-adapter-claude` now implements the `Adapter` contract (stub bodies — see below). Real install-engine logic lands in P077d2.
+3. `sos-hooks` is still an empty skeleton (out of P077d2 scope); `sos-adapter-claude` implements the `Adapter` contract (stub bodies only — `plan()`/`render()` do not touch `.claude/**` for real, that's deferred past d2); `sos-install` now has a LIVE install engine (see below) — the remaining gap is real Claude asset rendering, not the engine.
 
 ### Adapter contract + managed-manifest schema (P077d1)
 
@@ -42,6 +42,18 @@ Dependency-direction gate (Tầng 1 — enforced two ways):
 - `crates/sos-adapter-claude/src/lib.rs` — `ClaudeAdapter` implements `Adapter` with **stub bodies only** (no fs mutation, no real rendering) — proves the trait is implementable end-to-end while keeping the dependency-direction gate exercised (adapter → core, one-way).
 - New tests: `crates/sos-core/tests/adapter_trait_shape.rs` (compile-level trait-bound proof), `crates/sos-core/src/manifest.rs` inline round-trip tests, `sos-adapter-claude`'s own trait-bound test. `crates/sos-core/tests/dep_direction.rs` re-verified green after the addition.
 - Install engine (transaction plan / dry-run / non-clobber / rollback / apply) and tool-manifest pinning (OA-07) are **out of scope** here — P077d2/P077d3.
+
+### Install engine (P077d2)
+
+`sos-install::engine` (`crates/sos-install/src/engine.rs`) implements the install transaction, driven **thuần qua the `Adapter` trait** — zero host-specific (`.claude`/`CLAUDE_*`/Codex) knowledge, same dep-direction discipline as `sos-adapter-claude`:
+
+- **Narrow d1 amendment** (Worker CHALLENGE Turn 1 O1.1, Architect ACCEPT Alt A): `ManagedOperation` (`sos-core/src/adapter.rs`) gained a `content: String` field — without it, `plan()` gave the engine paths+descriptions only, no bytes to write/hash/record. `Adapter`'s 5 methods and `ManagedManifest`'s 6 fields are unchanged.
+- **Non-clobber discrimination is 4-way** (`Decision::Create`/`NoOp`/`Update`/`Conflict`): absent → CREATE; on-disk already == desired bytes → NoOp (true idempotence, zero mutation, unlike naively re-writing identical bytes every run); on-disk differs from desired but its hash matches the manifest's recorded `content_hash` (unmodified since last install) → UPDATE allowed; differs + no hash match / no record (user-customized) → CONFLICT, staged to `.sos-install-incoming/<path>` (mirrors `.sos-adopt-incoming`, `commands/adopt.rs`), original left byte-untouched.
+- **Rollback** = snapshot-before-mutate: CREATE ops delete-on-fail, UPDATE ops restore the exact prior bytes captured before overwrite; `.sos-manifest.toml` is only written after the WHOLE transaction succeeds (never partially committed).
+- **Manifest artifact:** `.sos-manifest.toml` at project root, `[[managed]]` array-of-tables of `ManagedManifest` entries.
+- **Step 5 seam:** `resolve_tools()` is a stub no-op — `// SEAM P077d3` — P078/OA-07 fills it; d2 asserts nothing about its result.
+- **Oracle:** `crates/sos-install/tests/install.rs`, a deterministic `MockAdapter` + 5 hard-fail correctness fixtures (additive / non-clobber×2 / rollback / idempotence / dry-run) — **not** a Bash-parity fixture (`sos install` has no Bash counterpart).
+- **Wired command:** `sos install --runtime <auto|claude|codex> [--dry-run]` (`crates/sos-cli/src/commands/install.rs`) — `claude` constructs `ClaudeAdapter` (still d1-stub, so plan/render stay minimal/empty — real Claude asset rendering is deferred past d2); `codex` errors clearly ("not yet available, P078"). Fully additive alongside `install.sh`/`bin/sos.sh` (zero-touch, verified `git diff` empty).
 
 ## Build
 

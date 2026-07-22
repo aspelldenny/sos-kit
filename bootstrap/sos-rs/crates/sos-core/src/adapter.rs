@@ -40,10 +40,20 @@ pub struct Capabilities {
 /// A single managed operation an adapter's `plan()` wants to perform —
 /// e.g. write a file, register a hook, wire a tool. Kept minimal; the
 /// concrete operation vocabulary (and any fs mutation) is d2's job.
+///
+/// `content` (P077d2 narrow amendment — Worker CHALLENGE O1.1, Architect
+/// ACCEPT Alt A): the exact bytes this operation would write at
+/// `target_path`. Without this field the install ENGINE (P077d2) had no
+/// trait-pure way to obtain what to write/hash/record — `plan()` produced
+/// paths only, `render()` is a separate method with no link back to a
+/// `ManagedOperation`. This is a placeholder-type field addition ONLY;
+/// the `Adapter` trait's 5 methods and `ManagedManifest`'s 6 fields (the
+/// hard SHAPE, `core/POLICY.md`) are untouched.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ManagedOperation {
     pub description: String,
     pub target_path: String,
+    pub content: String,
 }
 
 /// Output of `plan()` — an ordered list of managed operations, not yet
