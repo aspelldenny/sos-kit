@@ -71,6 +71,10 @@ mkdir -p "$tgt/src/routes" "$tgt/src/models"
 echo "def h(): pass" > "$tgt/src/routes/api.py"
 echo "class M: pass" > "$tgt/src/models/user.py"
 run_isolated sos_map "$tgt" | normalize "$tgt" > "$OUT/map.golden"
+# P077c1 (additive): map's REAL work-product is the file it writes, not just
+# the 1-line stdout confirmation above. Freeze that file's content too, so
+# the parity harness isn't blind to scan-correctness (see Debate Log V2).
+cat "$tgt/docs/AGENT_MAP.yaml" | normalize "$tgt" > "$OUT/map.agent_map.golden"
 
 echo "== capturing sync (reuses adopt fixture as adopted-repo target) =="
 tgt="$WORK/sync-fixture"

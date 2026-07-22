@@ -10,9 +10,12 @@ verify against — additive only, `bin/sos.sh` itself is never edited here.
   fixture repos, normalizes non-deterministic bits, writes `golden/*.golden`.
 - `golden/*.golden` — committed, frozen reference output (normalized).
 - `parity.rs` — integration test: runs the Rust binary for the same 4 subcommands,
-  diffs vs `golden/*.golden`, prints "not yet parity" per command. **Informational
-  only in P077a — the test PASSES regardless of diff** (Rust doesn't implement these
-  subcommands yet). P077c flips one const to make this a hard-fail gate.
+  diffs vs `golden/*.golden`. **Per-command hard-fail (P077c1):** `PARITY_ENFORCED:
+  &[&str]` lists commands proven bug-for-bug identical to Bash (currently `["map"]`);
+  those get a dedicated hard-fail test. Commands NOT in the list stay
+  **informational** — `parity_skeleton_informational` prints "not yet parity" for
+  them but always passes (Rust doesn't implement them yet). Add a command's name to
+  `PARITY_ENFORCED` once its golden(s) match — no other harness rewrite needed.
 
 ## Reproducing the fixtures
 
@@ -45,6 +48,30 @@ non-deterministic content that would make a naive fixture flaky:
 `sos map`'s surface lists are already sorted at the source (`scan_files()` pipes
 through `sort`, `bin/sos.sh:296`) — no extra normalization needed there.
 
+## `sos map` — two-fixture oracle (P077c1)
+
+`sos_map` (`bin/sos.sh:279-352`) has TWO work-products, not one: it writes the real
+scanned surfaces to a **file** (`<target>/docs/AGENT_MAP.yaml`) and only echoes a
+1-line confirmation to **stdout**. `map.golden` (123b) freezes just that stdout line
+— it contains no surface data at all. A parity harness that only diffs stdout is
+therefore **blind to scan-correctness** (pattern-list, sort, OA-02 bug reproduction)
+— a false-green class this harness exists to prevent (found during Worker CHALLENGE
+Turn 1 on P077c1, see `docs/ticket/P077c1-rust-map-parity.md` Debate Log).
+
+P077c1 fixes this additively:
+- `capture.sh`'s `sos_map` branch now ALSO freezes the written file's content
+  (normalized the same way) to `golden/map.agent_map.golden`.
+- `parity.rs`'s `parity_map_enforced` test asserts BOTH `map.golden` (stdout) AND
+  `map.agent_map.golden` (file content) — either mismatch hard-fails.
+- The file content for this fixture has **zero non-deterministic bits** beyond the
+  already-sorted relative paths (no embedded target path, no date) — normalize is a
+  no-op pass-through, kept for consistency/future-proofing.
+
+Future commands whose real work-product is a file rather than stdout (c3 `new`
+generates files; c4 `adopt` writes onboarding files) should use this same two-fixture
+pattern rather than relying on stdout-only parity (flagged as a feed-forward note in
+`docs/plans/P077c-decomposition.md`).
+
 ## `sos sync` — the HEAD-pin caveat (CHALLENGE Turn 1, anchor #7)
 
 `sos_sync`'s classification (ADDED / UPDATED-take-newer / FLAGGED-customized) is not
@@ -70,6 +97,7 @@ file's blob hash matches ANY historical blob of the canonical path. This means:
 
 ## Flipping to hard-fail (P077c)
 
-`parity.rs` has a single `const HARD_FAIL: bool = false;` — P077c's job is to flip
-this to `true` once Rust implements `new`/`adopt`/`map`/`sync` to parity. No other
-harness rewrite should be needed.
+`parity.rs` used to have a single `const HARD_FAIL: bool = false;`. **P077c1 refactored
+this to a per-command set**, `const PARITY_ENFORCED: &[&str] = &["map"];` — add a
+command's name to enforce it once its golden(s) match; no other harness rewrite is
+needed (c2/c3/c4 reuse this mechanism for `sync`/`new`/`adopt`).
