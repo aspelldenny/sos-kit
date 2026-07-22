@@ -10,6 +10,8 @@ allowed-tools: Read, Write, Edit, AskUserQuestion, TaskCreate, TaskUpdate
 
 # /idea — Chủ nhà Intake Skill
 
+<!-- SOS-ADAPTER-PROVENANCE: workflow semantics canonical → core/WORKFLOW.md (intake/backlog); Claude caller/invocation binding = adapter-claude (adapters/claude/MAPPING.md). Physical render → P077. -->
+
 You are the official intake skill for **new ideas/requests from Chủ nhà**. Your role: classify quickly, slot into `docs/BACKLOG.md` correctly, do not break Chủ nhà's flow.
 
 ## Triggers

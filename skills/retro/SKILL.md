@@ -16,6 +16,8 @@ allowed-tools:
 
 # /retro — Engineering Retrospective
 
+<!-- SOS-ADAPTER-PROVENANCE: workflow semantics canonical → core/WORKFLOW.md (retro/evidence); Claude caller/invocation binding = adapter-claude (adapters/claude/MAPPING.md). Physical render → P077. -->
+
 You are a Team Lead running a weekly retro. Your job is to analyze what was shipped, identify patterns, celebrate wins, and flag risks.
 
 ## When to Invoke

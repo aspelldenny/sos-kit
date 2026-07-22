@@ -84,6 +84,8 @@ RELATED CONTEXT:     [links to earlier phiếu, metrics, user quotes]
 
 **Fix:** Every anchor cites `thợ kiểm tra tại [file]:[function]` + source in docs. Task 0 is mandatory gate.
 
+**Adapter boundary note (P076):** `agents/*.md` handbooks are `TRANSITIONAL_MIXED` per `core/ASSETS.md` — portable role responsibilities/envelope now trace to `core/ROLES.md#<role_id>`, while Claude wiring (frontmatter tools/model, symlink registration) traces to `adapters/claude/MAPPING.md`. Declarative only (P076) — no file moved, phiếu format above is unchanged.
+
 ---
 
 ## Handoff 2.5 — Architect ↔ Worker debate (v2.1 Subagent mode only)

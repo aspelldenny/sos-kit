@@ -29,8 +29,8 @@ This file classifies content ownership. It is not an install manifest or a list 
 
 | Source class | Portable part | Integration part | Migration owner |
 |---|---|---|---|
-| `agents/**` | Role responsibilities and envelopes | Capability declaration and execution metadata | P076-P078 |
-| `skills/**` | Workflow steps and decision rules | Invocation metadata and tool bindings | P076-P078 |
+| `agents/**` | Role responsibilities and envelopes | Capability declaration and execution metadata | P076-P078 — P076 DECLARED (Claude integration maintains its own artifact-mapping manifest; provenance marker added in body); physical render P077 |
+| `skills/**` | Workflow steps and decision rules | Invocation metadata and tool bindings | P076-P078 — P076 DECLARED (Claude integration maintains its own artifact-mapping manifest; provenance marker added in body); physical render P077 |
 | Existing workflow/layer/handoff/orchestration guides | Doctrine and evidence | Host-specific operation details | P076 |
 | `bin/sos.sh` | State, adoption and synchronization behavior | Host-directed skill delegation and wiring | P077 |
 | `bootstrap/sos-rs/**` | Typed command and state foundation | Transitional delegations and old ownership contract | P077 |

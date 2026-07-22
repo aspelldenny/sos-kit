@@ -42,6 +42,8 @@ sos-kit/
 ├── .sos-trust-baseline     # Committed sha256 snapshot of auto-exec surfaces (P073 trust gate). Rebaseline: `scripts/trust-gate.sh rebaseline` after any reviewed change.
 ├── .claude/
 │   └── commands/           # Slash command files (P041+: advisory-scan.md, security-review.md)
+├── adapters/
+│   └── claude/             # Claude adapter boundary (declarative, P076) — README.md + MAPPING.md trỏ artifact → core source ID; physical render P077. KHÔNG runtime binary.
 ├── CHANGELOG.md            # Release history — newest entry on top
 ├── INSTALL.md              # v2 install guide (5-min, with verify steps)
 ├── LICENSE

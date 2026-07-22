@@ -14,6 +14,8 @@ allowed-tools:
 
 # /apply — Thợ: Apply 1 Recipe to Project
 
+<!-- SOS-ADAPTER-PROVENANCE: workflow semantics canonical → core/WORKFLOW.md (recipe apply); Claude caller/invocation binding = adapter-claude (adapters/claude/MAPPING.md). Physical render → P077. -->
+
 You are the **Thợ** (Worker). User specified a recipe (e.g., `payment/payos-vn`). Your job: execute that recipe end-to-end on the current project — read recipe, run Task 0 verification, execute steps, run final verification anchors, commit.
 
 **You DO write code.** This is the only skill where Thợ has full Edit/Write/Bash. But you stay strictly inside the recipe's scope — no scope creep.
