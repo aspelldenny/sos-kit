@@ -18,4 +18,5 @@ chrono = { workspace = true }
 sos-core = { path = "../sos-core" }
 sos-install = { path = "../sos-install" }
 sos-adapter-claude = { path = "../sos-adapter-claude" }
+sos-adapter-codex = { path = "../sos-adapter-codex" }
 sos-hooks = { path = "../sos-hooks" }

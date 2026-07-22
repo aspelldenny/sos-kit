@@ -12,19 +12,19 @@
 
 use anyhow::{bail, Result};
 use sos_adapter_claude::ClaudeAdapter;
+use sos_adapter_codex::CodexAdapter;
 use sos_core::adapter::Adapter;
 use sos_install::engine::{self, Decision};
 use std::path::Path;
 
 const OWNER: &str = "sos-adapter-claude";
+const CODEX_OWNER: &str = "sos-adapter-codex";
 const SOURCE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn run(runtime: &str, dry_run: bool) -> Result<()> {
     match runtime {
         "auto" | "claude" => run_claude(dry_run),
-        "codex" => {
-            bail!("codex adapter not yet available (P078) — use --runtime claude for now");
-        }
+        "codex" => run_codex(dry_run),
         other => {
             bail!(
                 "unknown --runtime '{other}' — expected one of: auto, claude, codex \
@@ -68,6 +68,52 @@ fn run_claude(dry_run: bool) -> Result<()> {
 
     let report = engine::apply(project_root, &plan, OWNER, SOURCE_VERSION)?;
     println!("sos install --runtime claude:");
+    println!("  created:   {}", report.created.len());
+    println!("  updated:   {}", report.updated.len());
+    println!("  no-op:     {}", report.noop.len());
+    println!("  conflicts: {}", report.conflicts.len());
+    if !report.conflicts.is_empty() {
+        println!("  (conflicted targets staged under .sos-install-incoming/ — merge by hand)");
+    }
+    Ok(())
+}
+
+// P078b1 — Codex foundation. Mirrors `run_claude` 1:1: the install ENGINE
+// (`sos_install::engine`) is driven THUẦN qua the `Adapter` trait (takes
+// `&Plan`/`project_root` only, zero `Adapter`-typed parameter) — no engine
+// change was needed to wire Codex (Worker CHALLENGE Turn 1, anchor #12).
+// `CodexAdapter.plan()` is still a P078b1 stub (empty `Plan`, real
+// AGENTS.md/.codex/** rendering lands P078b2/b3), so `--dry-run` here
+// reports an empty plan — structurally correct, not a fake render.
+fn run_codex(dry_run: bool) -> Result<()> {
+    let adapter = CodexAdapter;
+    let capabilities = adapter.detect();
+    let plan = adapter.plan(&capabilities);
+
+    engine::resolve_tools()?;
+
+    let project_root = Path::new(".");
+
+    if dry_run {
+        let decisions = engine::dry_run(project_root, &plan)?;
+        println!("sos install --runtime codex --dry-run (ZERO mutation):");
+        if decisions.is_empty() {
+            println!("  (empty plan — CodexAdapter.plan() is still a b1 stub; real render lands P078b2/b3)");
+        }
+        for d in &decisions {
+            let verb = match d.decision {
+                Decision::Create => "would-CREATE",
+                Decision::Update => "would-UPDATE",
+                Decision::NoOp => "no-op (unchanged)",
+                Decision::Conflict => "would-CONFLICT (non-clobber, staged to .sos-install-incoming/)",
+            };
+            println!("  {verb}: {}", d.target_path);
+        }
+        return Ok(());
+    }
+
+    let report = engine::apply(project_root, &plan, CODEX_OWNER, SOURCE_VERSION)?;
+    println!("sos install --runtime codex:");
     println!("  created:   {}", report.created.len());
     println!("  updated:   {}", report.updated.len());
     println!("  no-op:     {}", report.noop.len());

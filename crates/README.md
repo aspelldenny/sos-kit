@@ -29,6 +29,8 @@ crates/
 │                       # Deps: sos-core.
 ├── sos-adapter-claude   # Claude Code adapter skeleton (detect/plan/render/
 │                       # verify/uninstall) — logic lands in P077d. Deps: sos-core.
+├── sos-adapter-codex    # Codex CLI adapter — foundation LIVE (P078b1): detect()/
+│                       # verify() real, render() deferred b2/b3. Deps: sos-core.
 └── sos-hooks            # hooks framework skeleton — logic lands in P077d.
 ```
 
@@ -38,7 +40,7 @@ Dependency-direction gate (Tầng 1 — enforced two ways):
 
 **Deviation from target (`docs/PORTABILITY_ARCHITECTURE.md` lines 24-38)** — status:
 1. ~~Workspace root stays at `bootstrap/sos-rs/` (target: repo-root)~~ — **RESOLVED P077f**: workspace now lives at repo-root, layout matches target.
-2. `sos-adapter-codex` not created (target lists it) — that's P078, out of scope here.
+2. ~~`sos-adapter-codex` not created~~ — **RESOLVED P078b1**: crate created, `detect()`/`verify()` live (foundation subsection below); real artifact rendering (`AGENTS.md`/`.codex/**`) still deferred to P078b2/b3.
 3. `sos-hooks` is still an empty skeleton (out of P077d2 scope); `sos-adapter-claude` implements the `Adapter` contract (stub bodies only — `plan()`/`render()` do not touch `.claude/**` for real, that's deferred past d2); `sos-install` now has a LIVE install engine (see below) — the remaining gap is real Claude asset rendering, not the engine.
 
 ### Adapter contract + managed-manifest schema (P077d1)
@@ -74,6 +76,18 @@ Fills d2's step-5 `resolve_tools()` seam (was a `Vec::new()` no-op stub) with a 
 - **No `sos doctor` subcommand exists** in `sos-cli` today — every `doctor` reference is `Command::new("doctor")` shelling to the EXTERNAL binary (`adopt.rs`/`new.rs` `verify-setup`). Fail-clear therefore surfaces via `sos tools status` + the step-5 install gate only — no subcommand was added that could collide with the real `doctor` binary's identity.
 - **Oracle:** `crates/sos-install/tests/tools.rs` — 3 fixture groups (manifest-pin-verify incl. sabotage-checksum-fails-loud, status-drift, doctor/step-5 fail-clear), fake-PATH stub-script harness (child-process-scoped `PATH` override, not global `env::set_var`, so parallel `#[test]` threads never race) — entirely synthetic, zero dependency on any real sister tool being installed.
 - **Live smoke evidence** (this dev machine, unmodified): `sos tools status` / `sos install --dry-run` both reproduce OA-07's exact finding — `doctor 0.1.1` vs pinned `0.1.3`, `inv-gate` MISSING, exit 1 — proving the gate genuinely fires on real drift, not just synthetic fixtures.
+
+### Codex adapter foundation (P078b1)
+
+`crates/sos-adapter-codex` (NEW, deps CHỈ `sos-core` — adapter→core one-way) — `CodexAdapter` implements the core `Adapter` trait. Decomposed from a single "Codex adapter" phiếu into 3 (foundation / declarative render / enforcement) — repo precedent (P077 a–f, P077d1–d3) favors decompose for large Rust builds with different risk profiles:
+
+- **`detect()`** — STRUCTURAL: static Codex CLI 0.145.0 facts (`docs/adapters/CODEX_ADAPTER_DISCOVERY_2026-07-22.md:32` — hooks/multi_agent stable, sandbox_mode read-only available, `apply_patch` model, shell-based reads) plus a best-effort `codex --version` probe. The probe is **fail-safe**: `codex` absent on PATH never panics or errors — `detect()` falls back to the static-only `Capabilities`, because the b1 structural oracle runs on a machine WITHOUT Codex installed (behavioral verification with a real Codex CLI is P079).
+- **`verify()`** — the machine surface of the **PARTIAL-declaration mechanism**: returns `Findings` with exactly 5 items, each carrying a `FindingStatus` (`Sound`/`Partial`/`Missing`, new — see below) — never `Sound` for a known gap (`core/ROLES.md` separation-invariant #5: capability absence must be explicit, an integration cannot simulate success with prose). The 5 gaps: per-role built-in tool allowlist (PARTIAL — enforced via PreToolUse-hook + prose instead of Claude's structural removal), repo-distributed slash commands (MISSING — replacement = repo skill), skill-level `allowed-tools` (PARTIAL — not mechanical), native ticket-version approval (MISSING — build via persisted marker + guard, P078b3), architect Read/Glob path interception (PARTIAL — Codex reads via shell, restriction must inspect command text; enforcement additionally not unbypassable — retain Git/CI backstops). Human-readable frozen twin: `adapters/codex/CAPABILITY.md` (seeded from this function).
+- **`plan()`/`render()`/`uninstall()`** — minimal-honest stubs (empty `Plan`/passthrough `Artifact`/empty `RemovalPlan`) — no artifact bytes are produced at b1; real rendering into `AGENTS.md`/`.codex/agents/*.toml`/`.agents/skills/*/SKILL.md`/`.codex/config.toml` is P078b2, the `.codex/hooks.json`/`.codex/rules/*.rules`/guard-script enforcement layer is P078b3.
+- **`FindingStatus` enum (additive, `sos-core/src/adapter.rs`)** — `Finding` previously had no oracle-strength field at all (only `target_path`/`message`); this is a **pure addition**, vocab matches `core/POLICY.md` "Oracle-first claims" (SOUND/PARTIAL/MISSING). `ClaudeAdapter` needed **no compile-fix** — it never constructs a `Finding`, only `Findings::default()`.
+- **Wired `sos-cli`** — `install --runtime codex` no longer bails "not yet available (P078)"; it constructs `CodexAdapter` and drives `sos_install::engine` exactly like the `claude` branch (engine takes `&Plan`/`project_root` only, zero `Adapter`-typed parameter — confirmed no engine change needed).
+- **Declarative docs** — `adapters/codex/{README,MAPPING,CAPABILITY}.md` (NEW), mirroring `adapters/claude/`'s declarative-boundary pattern (P076).
+- **Oracle: STRUCTURAL only** (Decision 5, `docs/ticket/P078b1-codex-adapter-foundation.md`) — `cargo build/test --workspace` green ×20 = 0 flaky; dep-direction guard green (new crate + enum introduce zero forbidden token into `sos-core/src/**`); `install --runtime codex --dry-run` reaches the identical engine code path as `--runtime claude` (the removed bail string is gone; full exit-0 is blocked on this dev machine only by an unrelated, pre-existing tool-manifest pin drift that identically affects `--runtime claude`, not a regression from this ticket). **Behavioral** verification (Codex CLI actually executing the rendered output correctly) is P079, out of scope here.
 
 ## Build
 

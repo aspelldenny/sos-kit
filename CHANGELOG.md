@@ -4,6 +4,15 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**[P078b1] ADD — Codex adapter foundation: crate + `detect()`/`verify()` + PARTIAL-declaration mechanism + CLI wire (2026-07-22):**
+- New `crates/sos-adapter-codex` (deps CHỈ `sos-core`, dep-direction preserved) — `CodexAdapter` implements the core `Adapter` trait. `detect()` is structural (static Codex 0.145.0 facts + fail-safe `codex --version` probe — absence never panics). `verify()` returns exactly 5 `Finding`s reporting Codex's known capability gaps (per-role tool allowlist / repo slash commands / skill allowed-tools / native ticket-approval / Read-Glob interception), each carrying an explicit oracle-strength status — never `Sound` for a gap (`core/ROLES.md` sep-inv #5). `plan()`/`render()`/`uninstall()` stay minimal-honest stubs — real rendering is P078b2/b3.
+- **`FindingStatus` enum** (`Sound`/`Partial`/`Missing`, additive) added to `crates/sos-core/src/adapter.rs` — `Finding` previously carried no oracle-strength field at all. Vocab matches `core/POLICY.md` "Oracle-first claims". `ClaudeAdapter` needed no compile-fix (never constructs a `Finding`).
+- Wired `sos-cli`: `install --runtime codex` no longer errors "not yet available (P078)" — constructs `CodexAdapter`, drives the same install engine as `--runtime claude` (zero engine change).
+- New `adapters/codex/{README,MAPPING,CAPABILITY}.md`, mirroring `adapters/claude/`'s declarative-boundary pattern (P076); `CAPABILITY.md` is the frozen human-readable twin of `verify()`'s 5-gap declaration.
+- **Additive, verified:** `git diff bin/sos.sh install.sh crates/sos-install/src/engine.rs` empty. `cargo build/test --workspace` green, ×20 = 0 flaky. Dep-direction guard green (`sos_core_stays_host_neutral`).
+- **Oracle boundary (structural, Decision 5):** verified without Codex CLI installed. Behavioral verification (Codex actually running the rendered output) is P079.
+- 3-phiếu decompose: this is 1/3 (foundation). P078b2 (declarative render: `AGENTS.md`/`.codex/agents/*.toml`/`.agents/skills/**`/`.codex/config.toml`) and P078b3 (enforcement: `.codex/hooks.json`/`.codex/rules/*.rules`/guard-script rewrite) follow.
+
 **[P078a] ADD — `core/STATE.md` portable serialization contract (2026-07-22):**
 - New `core/STATE.md`: canonical machine-readable format for ticket storage/schema, lifecycle state artifact, approval record, edit allowlist, review trigger map and blocked format — lifted from Codex Adapter Discovery Report's Core UNDER-SPECIFICATION list (`docs/adapters/CODEX_ADAPTER_DISCOVERY_2026-07-22.md:26-28`). 4 remaining items (tier-classifier owner, concurrent-ownership lock/worktree, publish-actor division, backlog serialization) deferred to follow-up P078a2.
 - Runtime-neutral (no host token — verified via grep), backward-compatible with existing Claude adapter behavior (state-file is an OPTIONAL projection; the ticket debate log stays authoritative per `core/WORKFLOW.md:49`). No semantics changed in `WORKFLOW.md`/`POLICY.md`/`ROLES.md`.

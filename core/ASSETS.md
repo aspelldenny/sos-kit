@@ -50,6 +50,8 @@ Integrations own only serialized representations:
 
 An adapter-owned artifact must identify the portable source or policy it represents. It must not become the only copy of a semantic rule.
 
+**Codex adapter (P078b1 — foundation live):** the same classes above apply to a second integration serializing this contract for Codex CLI into its own artifact set (an orchestrator entry file, subagent registration records, skill registration, runtime configuration, lifecycle event bindings, exec policy rules, enforcement scripts). Where that integration cannot represent a portable mechanism (e.g. no per-role built-in tool allowlist), the gap must be reported explicitly by its `verify()` implementation with a `Partial`/`Missing` status, not silently weakened.
+
 ## Generated assets
 
 Generated state includes installed registrations, local lifecycle state, trust snapshots, hook stubs and future managed manifests.
