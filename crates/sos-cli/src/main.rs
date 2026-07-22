@@ -93,6 +93,13 @@ enum Cmd {
         /// mutation.
         #[arg(long)]
         dry_run: bool,
+        /// Fail-closed (P078c opt-in): run the tool-manifest check BEFORE
+        /// rendering/writing any adapter file — abort (exit 1, nothing
+        /// written) on required-tool drift/missing, same as the pre-P078c
+        /// behavior. Default (flag unset): render first, report tool
+        /// drift loud + exit 3, never blocks the write.
+        #[arg(long)]
+        require_tools: bool,
     },
     /// P077d3 (OA-07) — tool-manifest pin/status. NEW command, additive
     /// alongside `install.sh`; no Bash counterpart.
@@ -134,7 +141,9 @@ fn main() -> anyhow::Result<()> {
             commands::new::run(&target, stack.as_deref(), pilot, force)
         }
         Cmd::Adopt { dir, stack } => commands::adopt::run(&dir, stack.as_deref()),
-        Cmd::Install { runtime, dry_run } => commands::install::run(&runtime, dry_run),
+        Cmd::Install { runtime, dry_run, require_tools } => {
+            commands::install::run(&runtime, dry_run, require_tools)
+        }
         Cmd::Tools { action } => match action {
             ToolsCmd::Status => commands::tools::run(),
         },
