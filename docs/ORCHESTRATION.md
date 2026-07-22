@@ -169,6 +169,22 @@ Architect sets `Tầng: 1` or `Tầng: 2` in the phiếu header during DRAFT. Or
 
 **Default when Architect uncertain:** `Tầng: 1`. Over-tier costs one extra CHALLENGE round-trip; under-tier risks shipping an architecturally wrong fix. Mirror of "default to Tầng 1" rule in DISCOVERY_PROTOCOL.md.
 
+## Phiếu decomposition heuristic (guidance, not a gate) (P085)
+
+*When the orchestrator is scoping a brief pre-DRAFT, these signals say "split this into N sub-phiếu" instead of writing one large phiếu. Judgment, not mechanical — §0.1 Luật 3 (WORKFLOW_V2.2.md:50-55). Only #1 has a gate.*
+
+**SPLIT when any of:**
+
+1. **Lane budget exceeded (mechanical, the only gate).** Phiếu > Normal 250 dòng / 5 anchor / 5 constraint → either split OR declare Guarded/Fast. This is the one criterion with a hard gate — see `docs/WORKFLOW_V2.2.md` §1 + `doctor lane-check`. The other four below are guidance for *when a Guarded-but-large phiếu should instead become N sub-phiếu*.
+2. **Incompatible oracles.** Two pass/fail axes that contradict inside one phiếu → split so each gate is self-consistent. VD P077c: c1-c4 assert parity `Rust == Bash` while c5 asserts correctness `Rust BEAT Bash` (fix a Bash bug) — one phiếu holding both = a gate that contradicts itself.
+3. **External-input blocker.** One part waits on data only an outside actor can supply (Codex probe / founder decision / real tool version) → split so the unblocked part ships now. VD P078d2 → d2a (guard multipath bootstrap, ships) + d2b (enforcement, waited on a `SubagentStart` probe result).
+4. **Security-surface isolation.** A security-critical slice needs concentrated CHALLENGE → split it out so the debate focuses. VD P078b3 (codex enforcement), P078d2a (guards).
+5. **Delivery/rollback clarity.** Each split = one independently revertible delivery unit — the one-ticket-one-delivery contract (`core/WORKFLOW.md:75-81`).
+
+**KEEP-WHOLE when:** one coherent oracle + one cohesive file + splitting would only create pointless merge-order pain. VD P078a (core-adapter-spec) stayed a single phiếu — one spec, one oracle, no gain from cutting.
+
+These are heuristics for the orchestrator's pre-DRAFT scoping call — judgment, not a mechanical gate (§0.1). Lane budget is the only hard gate; the rest guide when Guarded-but-large should instead become N sub-phiếu. Iterate freely as evidence accrues.
+
 ## Trigger phrases (orchestrator → subagent spawn prompt)
 
 The subagent files (`agents/architect.md`, `agents/worker.md`) parse the spawn prompt for these phrases to choose mode:
