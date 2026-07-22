@@ -21,11 +21,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use walkdir::WalkDir;
 
 /// Commands whose Rust impl has reached bug-for-bug parity with the Bash
 /// oracle. Add a name here once its golden(s) are proven to match — the rest
 /// of this harness (fixture build, normalize, assert) is already generic.
-const PARITY_ENFORCED: &[&str] = &["map", "sync"];
+const PARITY_ENFORCED: &[&str] = &["map", "sync", "new"];
 
 struct Case {
     name: &'static str,
@@ -67,6 +68,23 @@ fn run_rust_with_kit(args: &[&str], kit: &Path) -> String {
     let out = Command::new(bin)
         .args(args)
         .env("SOS_KIT_DIR", kit)
+        .output()
+        .unwrap_or_else(|e| panic!("failed to exec {bin}: {e}"));
+    let mut combined = String::from_utf8_lossy(&out.stdout).into_owned();
+    combined.push_str(&String::from_utf8_lossy(&out.stderr));
+    combined
+}
+
+/// Same as `run_rust_with_kit`, but ALSO forces `DOCTOR_BIN=/nonexistent/doctor`
+/// so `new`'s [4/4] verify-setup branch is deterministic regardless of whether
+/// `doctor` happens to be installed on the machine running the test suite
+/// (matches `capture.sh`'s `run_isolated_kit_doctor_absent`, P077c3).
+fn run_rust_with_kit_doctor_absent(args: &[&str], kit: &Path) -> String {
+    let bin = env!("CARGO_BIN_EXE_sos");
+    let out = Command::new(bin)
+        .args(args)
+        .env("SOS_KIT_DIR", kit)
+        .env("DOCTOR_BIN", "/nonexistent/doctor")
         .output()
         .unwrap_or_else(|e| panic!("failed to exec {bin}: {e}"));
     let mut combined = String::from_utf8_lossy(&out.stdout).into_owned();
@@ -159,6 +177,227 @@ fn build_sync_fixture() -> (TempFixture, PathBuf, PathBuf) {
     fs::write(target.join("scripts/current.sh"), "kit content\n").unwrap();
 
     (tmp, kit, target)
+}
+
+/// Build the exact same synthetic fake-kit `capture.sh`'s `build_fake_kit_new`
+/// builds (P077c3) — a plain directory tree (no git history needed, unlike
+/// `sync`'s fake-kit, since `new` only COPIES kit assets verbatim). Covers
+/// every "$K/..." path `sos_new` reads (bin/sos.sh:404-565).
+fn build_new_fixture() -> (TempFixture, PathBuf, PathBuf) {
+    let tmp = TempFixture::new("new");
+    let kit = tmp.path().join("new-fake-kit");
+    let target = tmp.path().join("new-fixture");
+
+    fs::create_dir_all(kit.join(".claude/agents")).unwrap();
+    fs::create_dir_all(kit.join(".claude/commands")).unwrap();
+    fs::create_dir_all(kit.join("agents")).unwrap();
+    fs::create_dir_all(kit.join("templates")).unwrap();
+    fs::create_dir_all(kit.join("scripts")).unwrap();
+    fs::create_dir_all(kit.join("phieu")).unwrap();
+    fs::create_dir_all(kit.join("hooks")).unwrap();
+    fs::create_dir_all(kit.join("skills/idea")).unwrap();
+    fs::create_dir_all(kit.join("skills/attic/dummy")).unwrap();
+
+    fs::write(kit.join(".claude/agents/worker.md"), "# fake worker agent\n").unwrap();
+    fs::write(kit.join(".claude/settings.json"), "{\"fake\":\"settings\"}\n").unwrap();
+    fs::write(kit.join(".claude/commands/idea.md"), "# fake idea command\n").unwrap();
+    fs::write(kit.join("agents/orchestrator.md"), "# fake orchestrator\n").unwrap();
+    fs::write(kit.join("templates/claude-settings.local.json"), "{\"fake\":\"local-settings\"}\n").unwrap();
+    fs::write(kit.join("templates/INVARIANTS-template.md"), "# INVARIANTS template\n").unwrap();
+    fs::write(kit.join("templates/BACKLOG_template.md"), "# BACKLOG template\n").unwrap();
+    fs::write(kit.join("skills/idea/SKILL.md"), "# fake idea skill\n").unwrap();
+    fs::write(kit.join("skills/attic/dummy/SKILL.md"), "# fake attic skill (must be SKIPPED by new)\n").unwrap();
+    fs::write(kit.join("phieu/README.md"), "fake phieu readme\n").unwrap();
+    fs::write(kit.join("hooks/pre-commit"), "fake-pre-commit\n").unwrap();
+    fs::write(kit.join("hooks/pre-push"), "fake-pre-push\n").unwrap();
+    fs::write(kit.join(".gitignore"), ".DS_Store\n").unwrap();
+
+    // install-hooks.sh must actually FUNCTION (new's [+] git step shells out
+    // to it) — reuse the REAL script from the real sos-kit checkout this test
+    // binary was built from (content never gen-hashed/frozen, path-only).
+    let real_install_hooks =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../scripts/install-hooks.sh");
+    fs::copy(&real_install_hooks, kit.join("scripts/install-hooks.sh"))
+        .unwrap_or_else(|e| panic!("copy install-hooks.sh from {:?}: {e}", real_install_hooks));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let p = kit.join("scripts/install-hooks.sh");
+        let mut perm = fs::metadata(&p).unwrap().permissions();
+        perm.set_mode(perm.mode() | 0o111);
+        fs::set_permissions(&p, perm).unwrap();
+    }
+
+    (tmp, kit, target)
+}
+
+/// GENERATED-authored files `sos_new` writes — content-hashed. Mirrors
+/// `capture.sh`'s `NEW_GEN_FILES`. Copied kit assets are NEVER in this list.
+const NEW_GEN_FILES: &[&str] = &[
+    ".mcp.json",
+    "docs/security/INVARIANTS.md",
+    "docs/AGENT_MAP.yaml",
+    "CLAUDE.md",
+    "docs/ARCHITECTURE.md",
+    "CHANGELOG.md",
+    "pyproject.toml",
+    ".docs-gate.toml",
+    ".sos-stack.toml",
+];
+
+fn strip_timestamp(s: &str) -> String {
+    // Full ISO-8601 timestamp -> <TIMESTAMP> (mirrors capture.sh's strip_timestamp,
+    // MUST run before any bare-date substitution to avoid a half-stripped
+    // "<DATE>T10:24:22Z" leaking through non-deterministic, P077c3 anchor #10).
+    // Operates on raw bytes (NOT &str slicing) — the ASCII pattern check never
+    // needs a valid UTF-8 boundary, but content around it (e.g. "—") does, and
+    // slicing a &str at an arbitrary byte offset panics on a non-boundary index
+    // even when the slice's content is irrelevant to the match.
+    let bytes = s.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if i + 20 <= bytes.len() && is_iso8601_at(&bytes[i..i + 20]) {
+            out.extend_from_slice(b"<TIMESTAMP>");
+            i += 20;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    // Safe: we only ever copy whole original bytes or substitute a pure-ASCII
+    // marker for a byte run we verified is pure ASCII digits/separators.
+    String::from_utf8(out).expect("strip_timestamp preserves UTF-8 validity")
+}
+
+fn strip_bare_date(s: &str) -> String {
+    // Bare "YYYY-MM-DD" (not already consumed by strip_timestamp) -> <DATE>,
+    // mirrors capture.sh normalize()'s date rule (e.g. CHANGELOG.md's
+    // `sos new`-generated entry date).
+    let bytes = s.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if i + 10 <= bytes.len() && is_bare_date_at(&bytes[i..i + 10]) {
+            out.extend_from_slice(b"<DATE>");
+            i += 10;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).expect("strip_bare_date preserves UTF-8 validity")
+}
+
+fn is_bare_date_at(b: &[u8]) -> bool {
+    if b.len() != 10 {
+        return false;
+    }
+    let digit = |i: usize| b[i].is_ascii_digit();
+    (0..4).all(digit) && b[4] == b'-' && (5..7).all(digit) && b[7] == b'-' && (8..10).all(digit)
+}
+
+fn is_iso8601_at(b: &[u8]) -> bool {
+    // "YYYY-MM-DDTHH:MM:SSZ" — 20 bytes, all-ASCII checked positions.
+    if b.len() != 20 {
+        return false;
+    }
+    let digit = |i: usize| b[i].is_ascii_digit();
+    (0..4).all(digit)
+        && b[4] == b'-'
+        && (5..7).all(digit)
+        && b[7] == b'-'
+        && (8..10).all(digit)
+        && b[10] == b'T'
+        && (11..13).all(digit)
+        && b[13] == b':'
+        && (14..16).all(digit)
+        && b[16] == b':'
+        && (17..19).all(digit)
+        && b[19] == b'Z'
+}
+
+/// Post-`new` path-shape manifest: every relpath under target, sorted,
+/// EXCLUDING `.git/` — no content. Mirrors `capture.sh`'s `freeze_new_tree`.
+fn build_new_tree_manifest(target: &Path) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for entry in WalkDir::new(target).into_iter().filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if path == target {
+            continue;
+        }
+        let rel = path.strip_prefix(target).unwrap().to_string_lossy().replace('\\', "/");
+        if rel.starts_with(".git") {
+            continue;
+        }
+        lines.push(rel);
+    }
+    lines.sort();
+    lines.join("\n")
+}
+
+/// Post-`new` content-hash manifest, GENERATED-authored files only. Mirrors
+/// `capture.sh`'s `freeze_new_gen`.
+fn build_new_gen_manifest(target: &Path, target_str: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for f in NEW_GEN_FILES {
+        let p = target.join(f);
+        if !p.is_file() {
+            continue;
+        }
+        let raw = fs::read_to_string(&p).unwrap_or_else(|e| panic!("read {}: {e}", p.display()));
+        let normalized = strip_bare_date(&strip_timestamp(&raw)).replace(target_str, "<TARGET>");
+        let hash = sha256_hex_of_bytes(normalized.as_bytes());
+        lines.push(format!("{f} {hash}"));
+    }
+    lines.sort();
+    lines.join("\n")
+}
+
+fn sha256_hex_of_bytes(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+#[test]
+fn parity_new_enforced() {
+    assert!(
+        PARITY_ENFORCED.contains(&"new"),
+        "this test only makes sense while new is in PARITY_ENFORCED"
+    );
+
+    let (_tmp, kit, target) = build_new_fixture();
+    let target_str = target.to_string_lossy().into_owned();
+    let kit_str = kit.to_string_lossy().into_owned();
+
+    let raw = run_rust_with_kit_doctor_absent(&["new", &target_str, "--stack", "python"], &kit);
+    let stdout_actual = normalize(&raw, &target_str).replace(&kit_str, "<SOS_KIT_DIR>");
+    let stdout_golden = read_golden("new.golden");
+    assert_eq!(
+        stdout_actual.trim(),
+        stdout_golden.trim(),
+        "new stdout mismatch vs new.golden (hard-fail — new is PARITY_ENFORCED). \
+         NOTE: captured with DOCTOR_BIN=/nonexistent/doctor — a mismatch may mean \
+         the doctor-absent skip branch didn't fire, not just a content regression."
+    );
+
+    let tree_actual = build_new_tree_manifest(&target);
+    let tree_golden = read_golden("new.tree.golden");
+    assert_eq!(
+        tree_actual.trim(),
+        tree_golden.trim(),
+        "new file-tree manifest mismatch vs new.tree.golden (hard-fail — new is PARITY_ENFORCED)"
+    );
+
+    let gen_actual = build_new_gen_manifest(&target, &target_str);
+    let gen_golden = read_golden("new.gen.golden");
+    assert_eq!(
+        gen_actual.trim(),
+        gen_golden.trim(),
+        "new gen-content manifest mismatch vs new.gen.golden (hard-fail — new is PARITY_ENFORCED)"
+    );
 }
 
 fn sha256_hex(path: &Path) -> String {

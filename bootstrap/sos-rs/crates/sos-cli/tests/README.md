@@ -12,7 +12,7 @@ verify against — additive only, `bin/sos.sh` itself is never edited here.
 - `parity.rs` — integration test: runs the Rust binary for the same 4 subcommands,
   diffs vs `golden/*.golden`. **Per-command hard-fail (P077c1):** `PARITY_ENFORCED:
   &[&str]` lists commands proven bug-for-bug identical to Bash (currently
-  `["map", "sync"]`); those get a dedicated hard-fail test. Commands NOT in the list stay
+  `["map", "sync", "new"]`); those get a dedicated hard-fail test. Commands NOT in the list stay
   **informational** — `parity_skeleton_informational` prints "not yet parity" for
   them but always passes (Rust doesn't implement them yet). Add a command's name to
   `PARITY_ENFORCED` once its golden(s) match — no other harness rewrite needed.
@@ -125,6 +125,82 @@ no CI currently wires `cargo test` for `bootstrap/sos-rs`. `sync.tree.golden` is
 SORTED at the freeze/assert layer specifically so it stays order-independent
 regardless of this risk — only the stdout golden is exposed to it.
 
+## `sos new` — synthetic fake-kit + doctor-absent (P077c3, three-fixture oracle)
+
+`sos_new`'s real work-product is neither its 1-line stdout confirmation NOR a single
+file — it's an entire freshly-bootstrapped repo tree, mixing COPIED kit assets
+(verbatim, identical-by-construction for both Bash and Rust since both read the same
+`$SOS_KIT_DIR`) with GENERATED-authored content (heredocs `sos_new` writes itself:
+`.mcp.json`, `docs/security/INVARIANTS.md`'s appended block, `docs/AGENT_MAP.yaml`
+stub, `CLAUDE.md`, `docs/ARCHITECTURE.md`, `CHANGELOG.md`, the stack manifest,
+`.docs-gate.toml`, `.sos-stack.toml`).
+
+**Why NOT hash the whole tree:** a full-content-hash fixture would (a) be large and
+(b) **couple this fixture to every future kit-asset content change** — worse than
+`sync`'s coupling risk, since `new` copies almost the entire kit. **Resolution:**
+3-layer fixture, split by what each layer can prove without over-coupling:
+
+- `new.golden` — stdout report only.
+- `new.tree.golden` — **path-shape manifest**: every relpath under the bootstrapped
+  target, sorted, **NO content**, excludes `.git/`. Proves Rust creates the exact
+  same file/dir SET as Bash (catches a missing/extra `cp`), without caring what's
+  inside a copied kit asset.
+- `new.gen.golden` — **content-hash manifest**, `<relpath> <sha256>` sorted, but
+  **ONLY for the GENERATED-authored files listed above** — copied kit assets are
+  deliberately excluded (tree-shape already covers them; hashing them would recouple
+  this fixture to unrelated kit content edits).
+
+**Synthetic fake-kit, simpler than `sync`'s:** `new` only COPIES kit assets
+verbatim — it never reads kit git history — so its fake-kit is a **plain directory
+tree** (`build_fake_kit_new()` / `capture.sh`'s function of the same name), no
+`git init` needed. It contains one minimal placeholder file per path `sos_new`
+reads, EXCEPT `scripts/install-hooks.sh`, which is copied from the REAL sos-kit
+checkout verbatim — that one script actually **runs** during `new`'s git-init step
+(`git config core.hooksPath` etc.), so it must be functional; its content is never
+gen-hashed or tree-differentiated by content, only by presence, so reusing the real
+script doesn't recreate kit-content-coupling.
+
+**Doctor-absent lever (CRITICAL finding, Worker CHALLENGE Turn 1):** the PREVIOUS
+`new.golden` (P077a) had been captured with a real `doctor` binary present on the
+capturing machine's `PATH` — its `[4/4]` block showed the full CONNECTED
+`[WIRED] J1..J6` boundary-check output. This was a **host artifact, not a design
+choice** — `sos_new`'s `[4/4]` step honors `DOCTOR_BIN` (default `doctor`) and only
+takes the skip branch (`⏭ doctor not found — skip verify-setup...`) when the binary
+can't be found. P077c3 **re-froze `new.golden`** by forcing
+`DOCTOR_BIN=/nonexistent/doctor` during capture (`run_isolated_kit_doctor_absent`),
+making the skip branch fire deterministically regardless of what's installed on
+whatever machine runs `capture.sh` or the test suite. The CONNECTED path (real
+`doctor` binary) is intentionally OUT of parity scope — it would need a pinned
+`doctor` version, a separate concern from `new`'s own copy/generate/dispatch logic.
+
+**Normalization gotchas found during P077c3 (load-bearing for future re-freezes):**
+
+- **Full ISO-8601 timestamps** — `sos_init_security`'s `.sos-stack.toml` embeds
+  `detected_at = "<ts>"` where `<ts>` is a FULL `date -u +%Y-%m-%dT%H:%M:%SZ`
+  timestamp (time-of-day included), not just a bare date. Applying the pre-existing
+  bare-date normalize rule FIRST left a half-stripped `<DATE>T14:23:01Z` — still
+  non-deterministic. Fix: `strip_timestamp()` (full ISO-8601 → `<TIMESTAMP>`) MUST
+  run **before** `normalize()`'s bare-date rule, both in `capture.sh` and in
+  `parity.rs`'s Rust-side equivalent (`strip_timestamp`/`strip_bare_date`).
+- **Locale-dependent `sort`** — a bare `sort` on macOS/Linux under a non-C locale can
+  order `"claude"` before `"INVARIANTS"` (case-insensitive-ish collation), which then
+  mismatches Rust's plain byte-order `Vec<String>::sort()`. Both `freeze_new_tree`
+  and `freeze_new_gen` in `capture.sh` now pin `LC_ALL=C sort` so the fixture is
+  locale-independent and matches Rust's byte-order sort exactly.
+- **Filesystem-enumeration-order TODO list** — same underlying issue as the
+  pre-existing `sort_todo_block` normalizer (see above), now also pinned to
+  `LC_ALL=C sort` inside the awk pipeline for the same locale reason. `new.rs`
+  itself sorts its TODO-file list directly (see module doc comment in `new.rs`) so
+  its raw output already matches the canonical (sorted) golden with no extra
+  harness-side reordering needed.
+
+**Negative tests (P077c3):** (1) sabotaged `new.rs` to skip copying `phieu/` →
+`parity_new_enforced` failed specifically on the **tree-manifest** assert (stdout
+unaffected). (2) sabotaged one authored heredoc (`CLAUDE.md`'s Rules section) →
+failed specifically on the **gen-content** assert (tree unaffected). Both reverted,
+re-green — proof the 3-layer split isn't redundant, each layer catches a distinct
+regression class.
+
 ## Flipping to hard-fail (P077c)
 
 `parity.rs` used to have a single `const HARD_FAIL: bool = false;`. **P077c1 refactored
@@ -132,4 +208,7 @@ this to a per-command set**, `const PARITY_ENFORCED: &[&str] = &["map"];` — ad
 command's name to enforce it once its golden(s) match; no other harness rewrite is
 needed. **P077c2 added `"sync"`** (now `&["map", "sync"]`) with its own dedicated
 `parity_sync_enforced` test (stdout + tree-manifest two-fixture assert, see above).
-c3/c4 reuse this same mechanism for `new`/`adopt`.
+**P077c3 added `"new"`** (now `&["map", "sync", "new"]`) with its own
+`parity_new_enforced` test (three-fixture assert: stdout + tree-shape + gen-content,
+see "`sos new` — synthetic fake-kit + doctor-absent" above). c4 reuses this same
+mechanism for `adopt`.

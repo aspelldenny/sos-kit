@@ -21,6 +21,17 @@
 #     points SOS_KIT_DIR at that instead — see tests/README.md "sos sync — synthetic
 #     fake-kit fixture" section. Two goldens: `sync.golden` (stdout report) and
 #     `sync.tree.golden` (post-sync file-manifest, sorted, order-independent).
+#   - `new` (P077c3 re-froze) also uses a SYNTHETIC minimal fake-kit — simpler than
+#     sync's (plain directory tree, no git history needed, since `new` only COPIES
+#     kit assets verbatim). Also forces `DOCTOR_BIN=/nonexistent/doctor` so [4/4]'s
+#     verify-setup branch is deterministic regardless of whether `doctor` happens to
+#     be installed on the machine running capture.sh (the PREVIOUS `new.golden` was
+#     accidentally captured on the CONNECTED-path — a host artifact, not intentional
+#     — see tests/README.md "sos new — synthetic fake-kit + doctor-absent" section).
+#     Three goldens: `new.golden` (stdout), `new.tree.golden` (path-shape manifest,
+#     sorted, no content, excludes `.git/`), `new.gen.golden` (content-hash manifest,
+#     GENERATED-authored files only — copied kit assets are tree-only, never hashed,
+#     to avoid kit-content-coupling).
 
 set -euo pipefail
 
@@ -36,6 +47,14 @@ normalize() {  # <target-abs-path> -> reads stdin, writes normalized stdout
       -e 's/[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}/<DATE>/g'
 }
 
+strip_timestamp() {  # reads stdin, writes stdout with full ISO-8601 timestamps
+  # (e.g. `sos_init_security`'s `.sos-stack.toml` `detected_at = "2026-07-22T14:23:01Z"`)
+  # collapsed to <TIMESTAMP>. MUST run BEFORE normalize()'s bare-date rule, else the
+  # date portion gets replaced but the time-of-day suffix (`T14:23:01Z`) leaks through
+  # non-deterministic (anchor #10, P077c3).
+  sed -e 's/[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}Z/<TIMESTAMP>/g'
+}
+
 sort_todo_block() {
   # `new`'s "Category C placeholders to fill (# TODO):" list is emitted via
   # `grep -rl` (filesystem order, not sorted) — sort just that block so the
@@ -43,9 +62,9 @@ sort_todo_block() {
   awk '
     /Category C placeholders to fill/ { print; in_block=1; next }
     in_block && /^    - / { buf[n++]=$0; next }
-    in_block && !/^    - / { for (i=0;i<n;i++) print buf[i] | "sort"; close("sort"); in_block=0 }
+    in_block && !/^    - / { for (i=0;i<n;i++) print buf[i] | "LC_ALL=C sort"; close("LC_ALL=C sort"); in_block=0 }
     { print }
-    END { if (in_block) for (i=0;i<n;i++) print buf[i] | "sort" }
+    END { if (in_block) for (i=0;i<n;i++) print buf[i] | "LC_ALL=C sort" }
   '
 }
 
@@ -68,6 +87,85 @@ run_isolated_kit() {  # <override-kit-dir> <fn-name> <args...>
     source "'"$KIT"'/bin/sos.sh"
     "$@"
   ' _ "$@"
+}
+
+run_isolated_kit_doctor_absent() {  # <override-kit-dir> <fn-name> <args...>
+  # Same as run_isolated_kit, but ALSO forces DOCTOR_BIN to a nonexistent path so
+  # [4/4]'s verify-setup branch is deterministic regardless of whether `doctor`
+  # happens to be installed on the machine running capture.sh (P077c3).
+  local override_kit="$1"; shift
+  bash -c '
+    export SOS_KIT_DIR="'"$override_kit"'"
+    export DOCTOR_BIN=/nonexistent/doctor
+    source "'"$KIT"'/bin/sos.sh"
+    "$@"
+  ' _ "$@"
+}
+
+build_fake_kit_new() {  # <fake-kit-dir> -> minimal plain-tree fake-kit for `new` (P077c3).
+  # Unlike sync's fake-kit (needs real git history as a provenance oracle), `new`
+  # only COPIES kit assets verbatim -- no git semantics needed, so this is a plain
+  # directory tree, no `git init`. Covers every "$K/..." path `sos_new` reads
+  # (bin/sos.sh:404-565).
+  local kit="$1"
+  mkdir -p "$kit"/.claude/agents "$kit"/.claude/commands "$kit"/agents \
+           "$kit"/templates "$kit"/scripts "$kit"/phieu "$kit"/hooks \
+           "$kit"/skills/idea "$kit"/skills/attic/dummy
+  echo "# fake worker agent"                          > "$kit/.claude/agents/worker.md"
+  echo '{"fake":"settings"}'                           > "$kit/.claude/settings.json"
+  echo "# fake idea command"                           > "$kit/.claude/commands/idea.md"
+  echo "# fake orchestrator"                           > "$kit/agents/orchestrator.md"
+  echo '{"fake":"local-settings"}'                      > "$kit/templates/claude-settings.local.json"
+  echo "# INVARIANTS template"                         > "$kit/templates/INVARIANTS-template.md"
+  echo "# BACKLOG template"                            > "$kit/templates/BACKLOG_template.md"
+  echo "# fake idea skill"                             > "$kit/skills/idea/SKILL.md"
+  echo "# fake attic skill (must be SKIPPED by new)"   > "$kit/skills/attic/dummy/SKILL.md"
+  echo "fake phieu readme"                             > "$kit/phieu/README.md"
+  echo "fake-pre-commit"                                > "$kit/hooks/pre-commit"
+  echo "fake-pre-push"                                  > "$kit/hooks/pre-push"
+  echo ".DS_Store"                                      > "$kit/.gitignore"
+  # install-hooks.sh must actually FUNCTION -- `new`'s [+] git step shells out to
+  # it (git config core.hooksPath etc). Reuse the REAL script: its content is
+  # never gen-hashed/frozen (path-only, tree-golden), so this is not
+  # kit-content-coupling -- only functional correctness of the fixture.
+  cp "$KIT/scripts/install-hooks.sh" "$kit/scripts/install-hooks.sh"
+  chmod +x "$kit/scripts/install-hooks.sh"
+}
+
+# GENERATED-authored files `sos_new` writes (bin/sos.sh Category C + defaults) --
+# content-hashed into new.gen.golden. Copied kit assets are NEVER in this list
+# (tree-shape only, kit-content-coupling guard -- see tests/README.md).
+NEW_GEN_FILES=(
+  ".mcp.json"
+  "docs/security/INVARIANTS.md"
+  "docs/AGENT_MAP.yaml"
+  "CLAUDE.md"
+  "docs/ARCHITECTURE.md"
+  "CHANGELOG.md"
+  "pyproject.toml"
+  ".docs-gate.toml"
+  ".sos-stack.toml"
+)
+
+freeze_new_tree() {  # <target-dir> -> sorted path-shape manifest, no content, excludes .git/
+  # LC_ALL=C: byte-value sort, locale-independent (a locale-aware `sort` on
+  # macOS/Linux can order e.g. "claude" before "INVARIANTS" case-insensitively,
+  # which then mismatches Rust's plain byte-order `Vec<String>::sort()` — this
+  # bit us during P077c3 EXECUTE, fixed by pinning both sides to byte-order).
+  local tgt="$1"
+  find "$tgt" -not -path '*/.git*' | sed "s#^${tgt}/\{0,1\}##" | sed '/^$/d' | LC_ALL=C sort
+}
+
+freeze_new_gen() {  # <target-dir> -> sorted "<relpath> <sha256>" manifest, GENERATED-authored only
+  local tgt="$1" f
+  {
+    for f in "${NEW_GEN_FILES[@]}"; do
+      [[ -f "$tgt/$f" ]] || continue
+      local hash
+      hash="$(cat "$tgt/$f" | strip_timestamp | normalize "$tgt" | sha256_of_stdin)"
+      echo "$f $hash"
+    done
+  } | LC_ALL=C sort
 }
 
 build_fake_kit() {  # <fake-kit-dir> -> git init + 2-commit history, minimal spine
@@ -116,6 +214,14 @@ sha256_of() {  # <path> -> sha256 hex (portable across macOS/Linux)
   fi
 }
 
+sha256_of_stdin() {  # reads stdin -> sha256 hex (portable across macOS/Linux)
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    shasum -a 256 | awk '{print $1}'
+  fi
+}
+
 freeze_sync_tree() {  # <target-dir> -> writes sorted "<verb> <relpath> <sha256>" manifest to stdout
   local tgt="$1" f rel
   {
@@ -131,9 +237,14 @@ freeze_sync_tree() {  # <target-dir> -> writes sorted "<verb> <relpath> <sha256>
   } | sort
 }
 
-echo "== capturing new =="
+echo "== capturing new (synthetic fake-kit + doctor-absent, P077c3 re-froze) =="
+fake_kit_new="$WORK/new-fake-kit"
+build_fake_kit_new "$fake_kit_new"
 tgt="$WORK/new-fixture"
-run_isolated sos_new "$tgt" --stack python | normalize "$tgt" | sort_todo_block > "$OUT/new.golden"
+run_isolated_kit_doctor_absent "$fake_kit_new" sos_new "$tgt" --stack python \
+  | strip_timestamp | normalize "$tgt" | sed "s#${fake_kit_new}#<SOS_KIT_DIR>#g" | sort_todo_block > "$OUT/new.golden"
+freeze_new_tree "$tgt" > "$OUT/new.tree.golden"
+freeze_new_gen "$tgt" > "$OUT/new.gen.golden"
 
 echo "== capturing adopt =="
 tgt="$WORK/adopt-fixture"

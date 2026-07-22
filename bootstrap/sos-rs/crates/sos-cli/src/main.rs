@@ -58,6 +58,20 @@ enum Cmd {
         /// Adopted repo dir to sync spine files into.
         target: String,
     },
+    /// Bootstrap a NEW repo from sos-kit golden (greenfield) — bug-for-bug
+    /// parity with `bin/sos.sh` sos_new (see P077c3).
+    New {
+        /// Target directory to bootstrap into.
+        target: String,
+        #[arg(long)]
+        stack: Option<String>,
+        /// Declared but unused, bug-for-bug (bin/sos.sh:368 parses `--pilot` and
+        /// never reads the variable again).
+        #[arg(long)]
+        pilot: bool,
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -80,5 +94,8 @@ fn main() -> anyhow::Result<()> {
         Cmd::Status => commands::status::run(),
         Cmd::Map { target } => commands::map::run(&target),
         Cmd::Sync { target } => commands::sync::run(&target),
+        Cmd::New { target, stack, pilot, force } => {
+            commands::new::run(&target, stack.as_deref(), pilot, force)
+        }
     }
 }
