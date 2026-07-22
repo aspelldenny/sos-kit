@@ -50,6 +50,8 @@ Tầng is defined by **CONSEQUENCE, single-source in `docs/LAYERS.md` §2-tier**
 Phiếu missing `Tầng:` field → reject, re-spawn Architect with "set Tầng per LAYERS.md".
 Worker may escalate Tầng 2 → Tầng 1 mid-EXECUTE; you may NEVER demote Tầng 1 → Tầng 2. **LOC is not a Tầng signal — never downgrade because the diff looks small.**
 
+**Phiếu decomposition (pre-DRAFT scoping):** when a brief is large, see `docs/ORCHESTRATION.md` "Phiếu decomposition heuristic" for the 5 split signals (incompatible oracles / external-input blocker / security-surface isolation / delivery clarity / lane budget). Guidance, not a gate — only lane budget (§1) blocks.
+
 ## Lane budget pre-CHALLENGE gate (v2.2 §1)
 
 Before spawning Worker CHALLENGE, run lane budget check:
