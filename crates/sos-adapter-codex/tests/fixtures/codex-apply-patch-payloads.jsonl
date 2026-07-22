@@ -1,0 +1,4 @@
+{"hook_event_name":"PreToolUse","permission_mode":"bypassPermissions","cwd":"/tmp/codex-hook-capture.Ur7gwW","tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\n*** Add File: foo.txt\n+hello\n*** End Patch"},"tool_use_id":"exec-add"}
+{"hook_event_name":"PreToolUse","permission_mode":"bypassPermissions","cwd":"/tmp/codex-hook-capture.Ur7gwW","tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\n*** Update File: foo.txt\n@@\n-hello\n+hello world\n*** End Patch"},"tool_use_id":"exec-upd"}
+{"hook_event_name":"PreToolUse","permission_mode":"bypassPermissions","cwd":"/tmp/codex-hook-capture.Ur7gwW","tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\n*** Delete File: foo.txt\n*** End Patch"},"tool_use_id":"exec-del"}
+{"hook_event_name":"PreToolUse","permission_mode":"bypassPermissions","cwd":"/tmp/codex-hook-capture.Ur7gwW","tool_name":"Bash","tool_input":{"command":"sed -n \"1p\" read-target.txt"},"tool_use_id":"exec-read"}

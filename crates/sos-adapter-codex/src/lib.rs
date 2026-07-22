@@ -236,17 +236,11 @@ mod tests {
     // (Decision 6, checked separately by the Regression gate: `git
     // status` must show no `.codex/`/`AGENTS.md`/`.agents/` in this repo).
 
-    #[test]
-    fn plan_renders_exactly_ten_artifacts() {
-        let adapter = CodexAdapter;
-        let capabilities = adapter.detect();
-        let plan = adapter.plan(&capabilities);
-        assert_eq!(
-            plan.operations.len(),
-            10,
-            "plan() must render exactly 10 declarative artifacts (Decision 4: 4 skills, no init)"
-        );
-    }
+    // NOTE: P078b3 extends the fixed set from 10 -> 17 (7 enforcement
+    // artifacts added, Context table E1-E7). See
+    // `plan_renders_seventeen_artifacts` below for the current count
+    // assertion — kept as ONE test, not duplicated, per Decision 5 "count
+    // test tracks" note.
 
     #[test]
     fn render_is_per_asset_and_pure() {
@@ -399,4 +393,373 @@ mod tests {
     // zero `std::fs`/`std::path::Path::new("core"` reads — every
     // `content_for`/`target_path_for` arm is a pure string literal/match.
     // See `docs/discoveries/P078b2.md` for the citation.
+
+    // ── P078b3 structural oracle (enforcement artifacts, Decision 5) ────
+    // Runs on ANY machine, no `codex` binary required.
+
+    #[test]
+    fn plan_renders_seventeen_artifacts() {
+        // 10 (b2) + 7 (b3 enforcement: hooks.json, rules, 5 guards).
+        let adapter = CodexAdapter;
+        let capabilities = adapter.detect();
+        let plan = adapter.plan(&capabilities);
+        assert_eq!(
+            plan.operations.len(),
+            17,
+            "plan() must render 10 (b2) + 7 (b3 enforcement) = 17 artifacts"
+        );
+    }
+
+    #[test]
+    fn hooks_json_is_valid_json_with_expected_events() {
+        let rendered = rendered_map();
+        let content = rendered.get(".codex/hooks.json").unwrap();
+        let value: serde_json::Value =
+            serde_json::from_str(content).expect("hooks.json must be valid JSON");
+        let hooks = value.get("hooks").expect("hooks.json must have a `hooks` key");
+        for event in [
+            "SessionStart",
+            "UserPromptSubmit",
+            "SubagentStart",
+            "SubagentStop",
+            "PreToolUse",
+            "Stop",
+        ] {
+            assert!(hooks.get(event).is_some(), "hooks.json missing event `{event}`");
+        }
+        assert!(content.contains("scripts/codex/architect-guard.sh"));
+        assert!(content.contains("scripts/codex/orchestrator-guard.sh"));
+        assert!(content.contains("scripts/codex/block-env-edit.sh"));
+        assert!(content.contains("scripts/codex/approval-gate.sh"));
+        assert!(content.contains("scripts/codex/idea-smell.sh"));
+    }
+
+    #[test]
+    fn enforcement_artifacts_carry_partial_honest_note() {
+        let rendered = rendered_map();
+        let hooks = rendered.get(".codex/hooks.json").unwrap();
+        assert!(hooks.contains("bypassable"), "hooks.json must declare bypassable honestly");
+
+        let architect_guard = rendered.get("scripts/codex/architect-guard.sh").unwrap();
+        assert!(architect_guard.contains("PARTIAL"));
+        assert!(architect_guard.contains("fail-CLOSED") || architect_guard.contains("fail-closed"));
+
+        let rules = rendered.get(".codex/rules/exec-policy.rules").unwrap();
+        assert!(rules.contains("PARTIAL"));
+        assert!(rules.contains("prefix_rule"));
+    }
+
+    #[cfg(unix)]
+    mod mock_payload_oracle {
+        //! Core oracle (Decision 5): feed REAL/derived Codex apply_patch+Bash
+        //! stdin payloads to each rendered guard script and assert the
+        //! block(exit 2)/allow(exit 0) outcome. `#[cfg(unix)]`-gated (anchor
+        //! #11) — mirrors the existing precedent in
+        //! `crates/sos-install/tests/tools.rs` / `crates/sos-cli/tests/parity.rs`
+        //! for bash-exec tests; content-pattern assertions above stay
+        //! cross-platform.
+        use super::*;
+        use std::fs;
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::PathBuf;
+        use std::process::{Command, Stdio};
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+        /// The 4 REAL Codex hook payloads (ground-truth, P078b3 Debate Log Turn
+        /// 2) — captured live from Codex CLI gpt-5.6 by Sếp, NOT invented.
+        const REAL_FIXTURES: &str =
+            include_str!("../tests/fixtures/codex-apply-patch-payloads.jsonl");
+
+        fn real_fixture_line(idx: usize) -> &'static str {
+            REAL_FIXTURES.lines().nth(idx).expect("fixture line must exist")
+        }
+
+        /// Renders `identity`'s guard script into a throwaway temp dir, feeds
+        /// `stdin_json` on stdin, and returns the exit code. `setup` may
+        /// pre-create marker files / state files in the temp dir before the
+        /// guard runs (mirrors the real `.sos-state/` convention).
+        fn run_guard(identity: &str, stdin_json: &str, setup: impl FnOnce(&PathBuf)) -> i32 {
+            let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+            let dir = std::env::temp_dir().join(format!(
+                "sos-codex-guard-test-{}-{}-{}",
+                std::process::id(),
+                n,
+                identity
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            setup(&dir);
+
+            let script_path = dir.join("guard.sh");
+            fs::write(&script_path, templates::content_for(identity)).unwrap();
+            let mut perms = fs::metadata(&script_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&script_path, perms).unwrap();
+
+            let mut child = Command::new("bash")
+                .arg(&script_path)
+                .current_dir(&dir)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .expect("spawn bash guard");
+            child
+                .stdin
+                .as_mut()
+                .unwrap()
+                .write_all(stdin_json.as_bytes())
+                .unwrap();
+            let status = child.wait().expect("wait on guard process");
+            let _ = fs::remove_dir_all(&dir);
+            status.code().unwrap_or(-1)
+        }
+
+        fn no_setup(_dir: &PathBuf) {}
+
+        fn with_architect_active(dir: &PathBuf) {
+            fs::create_dir_all(dir.join(".sos-state")).unwrap();
+            fs::write(dir.join(".sos-state/architect-active"), "").unwrap();
+        }
+
+        fn with_worker_active(dir: &PathBuf) {
+            fs::create_dir_all(dir.join(".sos-state")).unwrap();
+            fs::write(dir.join(".sos-state/worker-active"), "").unwrap();
+        }
+
+        fn synthetic_apply_patch(action: &str, path: &str) -> String {
+            format!(
+                r#"{{"hook_event_name":"PreToolUse","permission_mode":"bypassPermissions","cwd":"/tmp/x","tool_name":"apply_patch","tool_input":{{"command":"*** Begin Patch\n*** {action} File: {path}\n+x\n*** End Patch"}},"tool_use_id":"t"}}"#
+            )
+        }
+
+        fn synthetic_bash(command_note: &str) -> String {
+            format!(
+                r#"{{"hook_event_name":"PreToolUse","permission_mode":"bypassPermissions","cwd":"/tmp/x","tool_name":"Bash","tool_input":{{"command":"{command_note}"}},"tool_use_id":"t"}}"#
+            )
+        }
+
+        #[test]
+        fn architect_guard_allows_when_marker_absent() {
+            // No architect-active marker -> allow anything, even the real
+            // apply_patch(Add) fixture line.
+            let code = run_guard(
+                templates::GUARD_ARCHITECT,
+                real_fixture_line(0),
+                no_setup,
+            );
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn architect_guard_blocks_apply_patch_on_non_ticket_file_real_fixture() {
+            // Real fixture line 0 (Add File: foo.txt) — architect-active,
+            // foo.txt is not a phiếu file -> BLOCK.
+            let code = run_guard(
+                templates::GUARD_ARCHITECT,
+                real_fixture_line(0),
+                with_architect_active,
+            );
+            assert_eq!(code, 2);
+        }
+
+        #[test]
+        fn architect_guard_blocks_apply_patch_update_and_delete_real_fixture() {
+            // Real fixture lines 1 (Update) and 2 (Delete) — same envelope,
+            // same non-ticket path -> BLOCK.
+            for idx in [1usize, 2] {
+                let code = run_guard(
+                    templates::GUARD_ARCHITECT,
+                    real_fixture_line(idx),
+                    with_architect_active,
+                );
+                assert_eq!(code, 2, "fixture line {idx} must BLOCK");
+            }
+        }
+
+        #[test]
+        fn architect_guard_allows_apply_patch_on_ticket_file() {
+            let payload = synthetic_apply_patch("Add", "docs/ticket/P099-example.md");
+            let code = run_guard(templates::GUARD_ARCHITECT, &payload, with_architect_active);
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn architect_guard_fails_closed_on_unparseable_apply_patch() {
+            let payload = r#"{"hook_event_name":"PreToolUse","tool_name":"apply_patch","tool_input":{"command":"not a real patch at all"},"tool_use_id":"t"}"#;
+            let code = run_guard(templates::GUARD_ARCHITECT, payload, with_architect_active);
+            assert_eq!(code, 2, "unparseable apply_patch must fail-CLOSED");
+        }
+
+        #[test]
+        fn architect_guard_allows_real_bash_read_fixture_non_src() {
+            // Real fixture line 3: Bash `sed -n "1p" read-target.txt` -- does
+            // not touch src/ -> ALLOW even with architect-active.
+            let code = run_guard(
+                templates::GUARD_ARCHITECT,
+                real_fixture_line(3),
+                with_architect_active,
+            );
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn architect_guard_blocks_bash_read_on_src() {
+            let payload = synthetic_bash("rg TODO crates/sos-core/src/lib.rs");
+            let code = run_guard(templates::GUARD_ARCHITECT, &payload, with_architect_active);
+            assert_eq!(code, 2);
+        }
+
+        #[test]
+        fn architect_guard_allows_bash_read_on_docs() {
+            let payload = synthetic_bash("rg TODO docs/BACKLOG.md");
+            let code = run_guard(templates::GUARD_ARCHITECT, &payload, with_architect_active);
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn orchestrator_guard_blocks_product_source_without_worker_marker() {
+            let payload = synthetic_apply_patch("Add", "src/main.rs");
+            let code = run_guard(templates::GUARD_ORCHESTRATOR, &payload, no_setup);
+            assert_eq!(code, 2);
+        }
+
+        #[test]
+        fn orchestrator_guard_allows_product_source_with_worker_marker() {
+            let payload = synthetic_apply_patch("Add", "src/main.rs");
+            let code = run_guard(templates::GUARD_ORCHESTRATOR, &payload, with_worker_active);
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn orchestrator_guard_allows_docs_without_marker() {
+            let payload = synthetic_apply_patch("Update", "docs/DISCOVERIES.md");
+            let code = run_guard(templates::GUARD_ORCHESTRATOR, &payload, no_setup);
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn orchestrator_guard_fails_closed_on_unparseable() {
+            let payload = r#"{"tool_name":"apply_patch","tool_input":{"command":"garbage"},"tool_use_id":"t"}"#;
+            let code = run_guard(templates::GUARD_ORCHESTRATOR, payload, no_setup);
+            assert_eq!(code, 2);
+        }
+
+        #[test]
+        fn block_env_edit_blocks_dotenv() {
+            let payload = synthetic_apply_patch("Update", ".env");
+            let code = run_guard(templates::GUARD_BLOCK_ENV, &payload, no_setup);
+            assert_eq!(code, 2);
+        }
+
+        #[test]
+        fn block_env_edit_allows_dotenv_example() {
+            let payload = synthetic_apply_patch("Update", ".env.example");
+            let code = run_guard(templates::GUARD_BLOCK_ENV, &payload, no_setup);
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn block_env_edit_allows_unrelated_file() {
+            let payload = synthetic_apply_patch("Add", "src/config.rs");
+            let code = run_guard(templates::GUARD_BLOCK_ENV, &payload, no_setup);
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn approval_gate_blocks_on_version_mismatch() {
+            let payload = synthetic_apply_patch("Update", "src/main.rs");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, |dir| {
+                fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                fs::write(
+                    dir.join(".sos-state/ticket-state.env"),
+                    "version=V2\napproved_version=V1\n",
+                )
+                .unwrap();
+            });
+            assert_eq!(code, 2);
+        }
+
+        #[test]
+        fn approval_gate_allows_on_version_match() {
+            let payload = synthetic_apply_patch("Update", "src/main.rs");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, |dir| {
+                fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                fs::write(
+                    dir.join(".sos-state/ticket-state.env"),
+                    "version=V2\napproved_version=V2\n",
+                )
+                .unwrap();
+            });
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn approval_gate_fails_closed_when_state_file_missing() {
+            let payload = synthetic_apply_patch("Update", "src/main.rs");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, no_setup);
+            assert_eq!(code, 2);
+        }
+
+        #[test]
+        fn approval_gate_allows_editing_ticket_file_regardless_of_state() {
+            let payload = synthetic_apply_patch("Update", "docs/ticket/P078b3-x.md");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, no_setup);
+            assert_eq!(code, 0);
+        }
+
+        #[test]
+        fn all_guard_scripts_are_bash_syntax_clean() {
+            for identity in [
+                templates::GUARD_ARCHITECT,
+                templates::GUARD_ORCHESTRATOR,
+                templates::GUARD_BLOCK_ENV,
+                templates::GUARD_APPROVAL_GATE,
+                templates::GUARD_IDEA_SMELL,
+            ] {
+                let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+                let dir = std::env::temp_dir()
+                    .join(format!("sos-codex-guard-syntax-{}-{}-{}", std::process::id(), n, identity));
+                fs::create_dir_all(&dir).unwrap();
+                let script_path = dir.join("guard.sh");
+                fs::write(&script_path, templates::content_for(identity)).unwrap();
+                let status = Command::new("bash")
+                    .arg("-n")
+                    .arg(&script_path)
+                    .status()
+                    .expect("run bash -n");
+                assert!(status.success(), "{identity} failed `bash -n` syntax check");
+                let _ = fs::remove_dir_all(&dir);
+            }
+        }
+
+        #[test]
+        fn idea_smell_guard_detects_smell_phrase() {
+            let payload = r#"{"prompt":"anh nghĩ ra một ý tưởng mới"}"#;
+            // Not exit-code gated (idea-smell always exits 0) — assert stdout instead.
+            let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+            let dir = std::env::temp_dir()
+                .join(format!("sos-codex-idea-smell-{}-{}", std::process::id(), n));
+            fs::create_dir_all(&dir).unwrap();
+            let script_path = dir.join("guard.sh");
+            fs::write(&script_path, templates::content_for(templates::GUARD_IDEA_SMELL)).unwrap();
+            let mut perms = fs::metadata(&script_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&script_path, perms).unwrap();
+            let mut child = Command::new("bash")
+                .arg(&script_path)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap();
+            child.stdin.as_mut().unwrap().write_all(payload.as_bytes()).unwrap();
+            let output = child.wait_with_output().unwrap();
+            assert!(output.status.success());
+            assert!(String::from_utf8_lossy(&output.stdout).contains("Idea-smell"));
+            let _ = fs::remove_dir_all(&dir);
+        }
+    }
 }

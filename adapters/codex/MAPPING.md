@@ -18,9 +18,9 @@
 | `.agents/skills/apply/SKILL.md` | ADAPTER_OWNED | portable body → core skill semantics; `caller:` = adapter part | P078b2 DONE |
 | `.agents/skills/forge/SKILL.md` | ADAPTER_OWNED | portable body → core skill semantics; `caller:` = adapter part | P078b2 DONE |
 | `.codex/config.toml` | ADAPTER_OWNED | lifecycle/tool config binding → `core/POLICY.md` (authority/scope), `core/ASSETS.md` (MCP registration) | P078b2 DONE |
-| `.codex/hooks.json` | ADAPTER_OWNED | lifecycle event bindings → `core/POLICY.md` (enforcement), `core/WORKFLOW.md` (state gates) | P078b3 |
-| `.codex/rules/*.rules` | ADAPTER_OWNED | exec policy (Starlark) → `core/POLICY.md` (authority/scope, outside-sandbox commands) | P078b3 |
-| `scripts/codex/*` (rewritten guards) | ADAPTER_OWNED | policy intent → `core/POLICY.md`; host event payload/binding (apply_patch shape, shell-cmd inspection) = adapter part | P078b3 |
+| `.codex/hooks.json` | ADAPTER_OWNED | lifecycle event bindings → `core/POLICY.md` (enforcement), `core/WORKFLOW.md` (state gates) | P078b3 DONE |
+| `.codex/rules/*.rules` | ADAPTER_OWNED | exec policy (Starlark) → `core/POLICY.md` (authority/scope, outside-sandbox commands) | P078b3 DONE |
+| `scripts/codex/*` (rewritten guards) | ADAPTER_OWNED | policy intent → `core/POLICY.md`; host event payload/binding (apply_patch shape, shell-cmd inspection) = adapter part | P078b3 DONE |
 
 ## Foundation coverage (P078b1 — code, not artifact rendering)
 
@@ -48,3 +48,31 @@
 Every future-artifact row above has a non-empty core source ID (`core/ASSETS.md` line 51
 requirement). No row references `adapters/` from `core/` — dependency direction stays one-way
 (adapter → core), enforced by `crates/sos-core/tests/dep_direction.rs`.
+
+## Enforcement coverage (P078b3 — 7 enforcement artifacts, structural + mock-payload oracle)
+
+**b3 = the LAST piece of P078b. P078b (b1+b2+b3) is DONE.**
+
+Ground-truth apply_patch envelope confirmed live against Codex CLI (gpt-5.6, P078b3 Debate
+Log Turn 2): `{"tool_name":"apply_patch","tool_input":{"command":"<V4A patch>"},...}`, patch
+body = `*** Begin Patch\n*** Add|Update|Delete File: <path>\n...*** End Patch` with embedded
+newlines escaped as literal `\n`. Fixture committed:
+`crates/sos-adapter-codex/tests/fixtures/codex-apply-patch-payloads.jsonl` (4 real payloads).
+
+| Concern | Covered by |
+|---|---|
+| 7 enforcement artifacts, crate-embedded template | `crates/sos-adapter-codex/src/templates.rs` (`HOOKS_JSON`/`RULES_EXEC_POLICY`/5× `GUARD_*` identities) |
+| apply_patch path extraction (fail-CLOSED) | `grep -oE '\*\*\* (Add\|Update\|Delete\|Move) File: [^\\"]+'` on the raw hook stdin JSON line — every guard BLOCKs (exit 2) if this yields no path, inverting the Claude fail-open precedent |
+| Architect envelope (write-allowlist + shell-read heuristic) | `scripts/codex/architect-guard.sh` — apply_patch write-allowlist `P[0-9]*-*.md`; Bash-read heuristic on `src/`/`.rs`/vision-doc substrings (PARTIAL, gap #5) |
+| Orchestrator envelope (product-source gate) | `scripts/codex/orchestrator-guard.sh` — blocks apply_patch product-source writes unless `.sos-state/worker-active` present |
+| Secret guard | `scripts/codex/block-env-edit.sh` — blocks apply_patch on `.env*` except `.env.example` |
+| Approval gate (Codex native gap #4, guard-BUILT) | `scripts/codex/approval-gate.sh` — reads `.sos-state/ticket-state.env` projection (`version`/`approved_version`), read-compares ONLY, never mutates; fail-CLOSED when state file missing |
+| Idea-smell intake pointer | `scripts/codex/idea-smell.sh` — UserPromptSubmit regex reminder (`core/WORKFLOW.md` intake) |
+| Mechanical exec policy | `.codex/rules/exec-policy.rules` — Starlark `prefix_rule` force-push/destructive-command deny; PR-merge-sentinel gate DEFERRED (semantic, external `claude-hooks` binary — Git/CI backstop retained) |
+| Mock-payload structural oracle (block/allow correctness) | `crates/sos-adapter-codex/src/lib.rs` `mock_payload_oracle` test module — feeds real + path-substituted-real fixture payloads to each rendered guard, asserts exit-code block(2)/allow(0); `#[cfg(unix)]`-gated (bash-exec), content-pattern assertions stay cross-platform |
+| PARTIAL-honest (3-surface) | `.codex/hooks.json` `_partial_note` field, every guard-script header, this MAPPING.md, `CAPABILITY.md`, `SECURITY.md` all state: bypassable (untrusted repo / disabled hooks / obfuscated command) → Git/CI backstop retained |
+| Additive, not committed to sos-kit | `.codex/`/`scripts/codex/` never appear in `git status` of this repo — render only targets a project via `install --runtime codex` |
+
+**Behavioral verification (Codex CLI actually enforcing these hooks/rules at runtime) is
+OUT OF SCOPE — deferred to P079.** b3's oracle is structural: artifact validity + guard
+parse-correctness against ground-truth payload shape, not a live Codex dogfood run.
