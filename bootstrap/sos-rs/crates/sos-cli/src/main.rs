@@ -94,6 +94,20 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
     },
+    /// P077d3 (OA-07) — tool-manifest pin/status. NEW command, additive
+    /// alongside `install.sh`; no Bash counterpart.
+    Tools {
+        #[command(subcommand)]
+        action: ToolsCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum ToolsCmd {
+    /// Report expected-vs-installed sister-tool version per
+    /// `tool-manifest.toml`. Exit 1 if any REQUIRED tool is
+    /// missing/older/unparseable; optional drift = warn only, exit 0.
+    Status,
 }
 
 #[derive(Subcommand)]
@@ -121,5 +135,8 @@ fn main() -> anyhow::Result<()> {
         }
         Cmd::Adopt { dir, stack } => commands::adopt::run(&dir, stack.as_deref()),
         Cmd::Install { runtime, dry_run } => commands::install::run(&runtime, dry_run),
+        Cmd::Tools { action } => match action {
+            ToolsCmd::Status => commands::tools::run(),
+        },
     }
 }

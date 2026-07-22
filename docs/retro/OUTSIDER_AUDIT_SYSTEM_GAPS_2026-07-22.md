@@ -301,6 +301,19 @@ corruption/tampering của asset đã chọn, không bảo đảm reproducible v
 - Upgrade atomic, có previous-version rollback.
 - Sau cùng mới đánh giá signature/provenance mạnh hơn checksum cùng trust domain.
 
+### Status update (P077d3, 2026-07-22) — RESOLVED trong Rust path
+
+`tool-manifest.toml` (kit root) + `sos_install::tools::{check_tools, gate_required}` core +
+`sos tools status` + install step-5 gate SHIPPED — pin version+asset+checksum cho đúng 10 tool
+(6 required/4 optional), fail-closed cho required (Drift/Missing/Unparseable), reproduce ĐÚNG
+evidence audit này live (doctor 0.1.1 vs pinned 0.1.3, inv-gate MISSING, exit 1). Checksum hiện
+là honest `TODO` placeholder (chưa có prebuilt asset hash cho pin shape mới — real fill = P081).
+Atomic upgrade + previous-version rollback (bullet 4 trên) **CHƯA làm** — đó là P081 tương lai,
+d3 chỉ verify-only. `install.sh`/`bin/sos.sh` (Bash legacy path) vẫn dùng `releases/latest`
+unpinned nguyên trạng tới khi P077e cutover Rust binary thành canonical — OA-07 coi như đóng
+CHO Rust path, Bash path còn hở tới cutover. Chi tiết: `docs/discoveries/P077d3.md`,
+`CHANGELOG.md` `[P077d3]`.
+
 ---
 
 ## OA-08 🟠 — guards là discipline guard, chưa phải complete sandbox
