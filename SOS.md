@@ -11,8 +11,9 @@ SOS is a role-separated operating system for a human owner working with software
 | Ticket lifecycle and state transitions | `core/WORKFLOW.md` |
 | Authority, evidence, scope and safety policy | `core/POLICY.md` |
 | Asset ownership and migration state | `core/ASSETS.md` |
+| Machine-readable serialization of tickets, state, approval and review | `core/STATE.md` |
 
-The files above define semantics. A host integration may map capabilities and render files, but it must not redefine roles, transitions or authority.
+The files above define semantics. `core/STATE.md` governs serialization only — where it and `core/WORKFLOW.md`, `core/POLICY.md` or `core/ROLES.md` could conflict, those three govern and `STATE.md` must be corrected. A host integration may map capabilities and render files, but it must not redefine roles, transitions or authority.
 
 ## Conflict resolution
 

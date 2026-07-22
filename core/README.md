@@ -21,7 +21,8 @@ The command is the composition root. It selects integrations, resolves capabilit
 - workflow states, transitions and gates;
 - authority, evidence, scope and safety rules;
 - portable asset ownership;
-- vocabulary consumed by renderers and policy engines.
+- vocabulary consumed by renderers and policy engines;
+- canonical serialization formats for shared tickets, state, approval, edit-scope, review triggers and blocked records (`STATE.md`).
 
 ## What does not belong here
 
