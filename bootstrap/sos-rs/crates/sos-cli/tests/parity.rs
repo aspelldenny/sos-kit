@@ -110,6 +110,22 @@ fn normalize(raw: &str, target: &str) -> String {
 /// A throwaway directory under the OS temp dir, removed on drop — no new
 /// crate dependency needed (std::env::temp_dir + pid/nanos for uniqueness,
 /// same idea as `mktemp -d` used by capture.sh).
+///
+/// P077c6 NOTE — pid+nanos alone is NOT collision-proof: all tests in one
+/// `cargo test` binary run as THREADS in a single process (same `pid`), and
+/// this machine's `SystemTime::now()` clock resolution is far coarser than
+/// 1ns (measured: ~97.5% of back-to-back calls return an IDENTICAL nanos
+/// value). Two parallel tests (e.g. `parity_new_enforced` and the nested
+/// `build_new_fixture()` call inside `parity_adopt_enforced`) could sample
+/// the same nanos and collide on the exact same dir path — whichever
+/// `TempFixture` dropped first then `remove_dir_all`'d the OTHER test's
+/// still-in-use fixture out from under it (root cause of the content-flaky
+/// `parity_adopt_enforced` failures pinned in Debate Log Turn 2 / DIAGNOSE).
+/// A process-wide monotonic counter makes the key collision-proof
+/// independent of clock resolution — no two `TempFixture`s can ever resolve
+/// to the same path, regardless of timing.
+static TEMP_FIXTURE_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 struct TempFixture(PathBuf);
 
 impl TempFixture {
@@ -118,7 +134,11 @@ impl TempFixture {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!("sos-parity-{name}-{}-{nanos}", std::process::id()));
+        let counter = TEMP_FIXTURE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "sos-parity-{name}-{}-{nanos}-{counter}",
+            std::process::id()
+        ));
         fs::create_dir_all(&dir).unwrap();
         TempFixture(dir)
     }

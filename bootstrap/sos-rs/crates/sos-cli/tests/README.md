@@ -376,3 +376,48 @@ a clear panic message; reverted, all 8 `parity.rs` tests green again.
 **`adopt.rs` needed ZERO code change** (Task 4) — `run_map_subcommand` re-invokes the
 compiled `sos` binary's `map` subcommand as a subprocess, so it inherits the exclude-list
 and 3-verdict fix automatically once `map.rs` has them.
+
+## `TempFixture` content-nondeterminism under parallel `cargo test` (P077c6)
+
+`cargo test --workspace` was flaky ~10-25% under default parallel execution:
+`parity_adopt_enforced` intermittently failed with a **content** mismatch (`same set of
+lines? False`) — the actual stdout was missing every spine copy-if-absent entry
+(`.claude/agents/worker.md`, `scripts/install-hooks.sh`, `phieu/README.md`, etc.) while
+GENERATED-only entries (`.mcp.json`, `docs/security/INVARIANTS.md`, ...) still appeared.
+This was reported and investigated as a possible line-*order* problem (V1 premise); that
+premise was **RUT LAI** (retracted) after CHALLENGE — 28 sequential single-process runs
+never reproduced an order-only mismatch, and a full assertion diff showed the mismatch
+was genuinely about missing content, not reordered lines. (This does NOT mean the
+earlier P077c2 finding about Bash's unsorted `find`-enumeration order was wrong — that
+finding stands; this is an unrelated bug.)
+
+**Root cause:** `TempFixture::new` (the throwaway-dir helper every `build_*_fixture` uses)
+keyed its directory name on `process::id() + SystemTime::now().as_nanos()` only. Two
+facts made that non-unique in practice:
+1. Every test function in one `cargo test` binary runs as a **thread inside a single
+   process** — `process::id()` is identical across every parallel test.
+2. This measured machine's `SystemTime::now()` clock resolution is far coarser than 1ns
+   — a tight sequential loop of 200,000 calls returned an *identical* nanos value
+   195,032 times.
+
+Under real parallel thread execution, two independent `build_new_fixture()` calls (one
+from `parity_new_enforced`, one nested inside `parity_adopt_enforced`'s
+`build_adopt_fixture()`) could sample the same nanos value and collide on the exact same
+`TempFixture` directory path. Both `TempFixture` instances then believed they owned that
+directory; whichever one's `Drop` (`fs::remove_dir_all`) ran first wiped the fixture out
+from under the OTHER test while it was still mid-flight (confirmed live via
+instrumentation: the kit's spine files existed immediately before invoking `sos adopt`,
+and were gone immediately after — with the colliding test's `Drop` firing in between).
+
+H1 (fixture-copy race against the real repo's `install-hooks.sh`), H2 (cwd/symlink
+resolution race), H3 (fixture-build-not-finished race), and H5 (production
+`adopt`/`new`/`sync` global-state race) were all explicitly measured and **ruled out** —
+each `sos` invocation from the test harness runs as an isolated child process
+(`Command::new(bin).output()`), so no production code needed to change. This was a
+**pure test-harness fixture race**, not a `bin/sos.sh`/`src/commands/*.rs` bug.
+
+**Fix:** `TempFixture::new` now also mixes in a process-wide monotonic
+`AtomicU64` counter (`fetch_add(1, Relaxed)`) — `sos-parity-{name}-{pid}-{nanos}-{counter}`
+— making the directory name collision-proof independent of clock resolution. No new
+crate dependency. Verified: `cargo test --workspace` run 20+ consecutive times under
+default parallel execution, 0 flaky (was ~10-25% flaky before the fix).
