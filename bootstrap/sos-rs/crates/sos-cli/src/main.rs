@@ -82,6 +82,18 @@ enum Cmd {
         #[arg(long)]
         stack: Option<String>,
     },
+    /// P077d2 — install engine: transaction plan / dry-run / non-clobber /
+    /// rollback / apply. NEW command, additive alongside `install.sh`
+    /// (zero-touch); no Bash counterpart.
+    Install {
+        /// Target runtime adapter: auto | claude | codex.
+        #[arg(long, default_value = "auto")]
+        runtime: String,
+        /// Compute + print the transaction plan only — ZERO filesystem
+        /// mutation.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -108,5 +120,6 @@ fn main() -> anyhow::Result<()> {
             commands::new::run(&target, stack.as_deref(), pilot, force)
         }
         Cmd::Adopt { dir, stack } => commands::adopt::run(&dir, stack.as_deref()),
+        Cmd::Install { runtime, dry_run } => commands::install::run(&runtime, dry_run),
     }
 }

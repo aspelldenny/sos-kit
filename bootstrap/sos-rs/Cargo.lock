@@ -454,7 +454,11 @@ dependencies = [
 name = "sos-install"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "serde",
+ "sha2",
  "sos-core",
+ "toml",
 ]
 
 [[package]]
