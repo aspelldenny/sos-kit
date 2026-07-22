@@ -45,6 +45,13 @@ enum Cmd {
     },
     /// Show .sos/state.toml summary.
     Status,
+    /// Scan an EXISTING repo → draft AGENT_MAP with REAL surfaces (bug-for-bug
+    /// parity with `bin/sos.sh` map — see P077c1; OA-02 fix is P077c5).
+    Map {
+        /// Target directory to scan (defaults to ".").
+        #[arg(default_value = ".")]
+        target: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -65,5 +72,6 @@ fn main() -> anyhow::Result<()> {
         },
         Cmd::Launch { skip, reason } => commands::launch::run(skip, reason),
         Cmd::Status => commands::status::run(),
+        Cmd::Map { target } => commands::map::run(&target),
     }
 }

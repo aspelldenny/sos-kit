@@ -53,6 +53,20 @@ Identical to bash MVP — see `cat ../../bin/sos.sh` or `sos help`.
 - **Rust port** matches DNA of `ship`/`guard`/`vps`/`docs-gate` (4 sister tools), gets cargo-installable, faster startup, type-safe state machine.
 - **Ownership (updated P077a):** the Rust workspace is being lifted INTO `sos-kit` itself (`docs/PORTABILITY_ARCHITECTURE.md`, `docs/plans/P077-decomposition.md`) — it does NOT move to a separate repo. `bin/sos.sh` stays canonical through P077a–P077d (Rust is developed alongside it, verified against a frozen Bash golden oracle — see `crates/sos-cli/tests/README.md`). Only P077e (the decomposition's final, founder-confirmed sub-phiếu) cuts over the Rust binary to canonical and updates the repo's "not a runtime binary source" contract in root `CLAUDE.md`.
 
+## Command parity status (P077c)
+
+`bin/sos.sh` is canonical; `crates/sos-cli/tests/parity.rs` diffs the Rust binary against a
+frozen Bash golden oracle (`tests/golden/*.golden`, see `tests/golden/capture.sh` +
+`tests/README.md`). A command enters `PARITY_ENFORCED` (hard-fail on mismatch) only once its
+Rust impl is proven bug-for-bug identical to Bash.
+
+| Command | Status |
+|---|---|
+| `map` | **Parity (hard-fail, stdout + file)** — P077c1. Diffs both the 1-line stdout confirmation (`map.golden`) AND the real work-product it writes, `<target>/docs/AGENT_MAP.yaml` (`map.agent_map.golden`, added P077c1 — the stdout-only oracle was blind to scan-correctness). Bug-for-bug: no generic `src/*.rs` surface (OA-02), fixed in P077c5. |
+| `sync` | Informational (pending P077c2) |
+| `new` | Informational (pending P077c3) |
+| `adopt` | Informational (pending P077c4) |
+
 ## TODO before parity
 
 - [ ] `sos init` — interactive 3-question wizard (currently delegates to /init skill)
