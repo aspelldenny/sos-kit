@@ -85,6 +85,26 @@ The baseline diff in `git diff .sos-trust-baseline` shows exactly which surfaces
 
 ---
 
+## Codex adapter enforcement (rendered to target, PARTIAL)
+
+P078b3 rewrote 5 `PreToolUse`/`UserPromptSubmit` guard scripts (`scripts/codex/*`) plus
+`.codex/hooks.json` and `.codex/rules/exec-policy.rules`, crate-embedded in
+`crates/sos-adapter-codex/src/templates.rs`. These are **rendered to a target project** via
+`sos install --runtime codex` — they are NOT part of this repo's own auto-exec surface and are
+NOT covered by `.sos-trust-baseline` (that baseline only tracks bytes that actually exist and
+auto-run inside `sos-kit` itself; `.codex/`/`scripts/codex/` never land in this repo's tree,
+per Decision 6, `docs/ticket/P078b3-codex-enforcement.md`).
+
+Honest 3-surface statement (kept consistent across `verify()`, `adapters/codex/CAPABILITY.md`,
+and this section): the rendered guards are **bypassable** — Codex only runs project hooks for
+TRUSTED repos, non-managed hooks need explicit `/hooks` trust, and a user can disable hooks
+entirely. **Git/CI backstops (branch protection, PR review-trigger map) are retained as the
+real security boundary** for every project that adopts the Codex adapter — the hook layer is
+fast-feedback only, never claimed as unbypassable. The guards also invert Claude's fail-open
+default for unparseable input: an `apply_patch` payload whose patch body doesn't match Codex's
+`*** Add/Update/Delete/Move File:` marker BLOCKs (fail-CLOSED), because an unparsed Codex patch
+could otherwise write anywhere silently.
+
 ## Reporting a vulnerability
 
 If you discover a security issue in SOS Kit:
