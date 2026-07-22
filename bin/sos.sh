@@ -277,6 +277,10 @@ STUB
 }
 
 sos_map() {
+  # DORMANT post-P077e cutover: dispatcher no longer calls this directly — `map` now execs the
+  # Rust `sos` binary (bin/sos.sh dispatcher, `_sos_rust_bin`). NOTE: `sos_adopt`/`sos_new` above
+  # still call this Bash fn INTERNALLY (sos_map "$target" for stub/scan) — keep it callable, only
+  # the TOP-LEVEL `map` dispatch arm was cut over. Retained for rollback safety. Delete at P077f/P081.
   # sos map [target-dir] — scan an EXISTING repo → draft AGENT_MAP with REAL surfaces.
   # SOUND half (auto): real dirs/files of THIS repo, coarse-grouped by directory pattern.
   # PARTIAL half (human): load_bearing + blast left NEEDS_JUDGMENT. Does NOT copy the tarot
@@ -353,6 +357,9 @@ TAIL
 }
 
 sos_new() {
+  # DORMANT post-P077e cutover: dispatcher no longer calls this — `new` now execs the Rust
+  # `sos` binary (bin/sos.sh dispatcher, `_sos_rust_bin`). Retained (not deleted) for
+  # git-revert rollback safety + as a live oracle for parity tests. Delete at P077f/P081.
   # sos new <target-dir> --stack <python|rust|ts> [--pilot]
   # Bootstrap a NEW repo from sos-kit golden (the scale foundation).
   # Doctrine: docs/BOOTSTRAP_AUTOMATION_DRAFT.md §7.
@@ -604,6 +611,9 @@ EOF
 }
 
 sos_adopt() {
+  # DORMANT post-P077e cutover: dispatcher no longer calls this — `adopt` now execs the Rust
+  # `sos` binary (bin/sos.sh dispatcher, `_sos_rust_bin`). Retained (not deleted) for
+  # git-revert rollback safety + as a live oracle for parity tests. Delete at P077f/P081.
   # sos adopt <existing-repo-dir> [--stack <python|rust|ts>]
   # Retrofit the sos-kit spine into an EXISTING repo (brownfield half of the platform).
   # Opposite discipline to `sos new`: RESPECTS what's already there.
@@ -971,6 +981,9 @@ EOF
 }
 
 sos_sync() {
+  # DORMANT post-P077e cutover: dispatcher no longer calls this — `sync` now execs the Rust
+  # `sos` binary (bin/sos.sh dispatcher, `_sos_rust_bin`). Retained (not deleted) for
+  # git-revert rollback safety + as a live oracle for parity tests. Delete at P077f/P081.
   # sos sync <adopted-repo-dir>
   # KIT-LAG cure (P067): re-sync sos-kit spine into a repo adopted from an OLDER kit version.
   #   take-newer the spine files the repo HASN'T customized · flag genuinely-customized ones.
@@ -1268,15 +1281,55 @@ sos_status() {
   cat .sos/state.toml
 }
 
+# ---- Rust `sos` binary resolver (P077e cutover) ----
+# Resolve the canonical Rust `sos` binary for the 6 heavy subcommands
+# (new/adopt/sync/map/install/tools). fail-LOUD precedence — NEVER falls back
+# to the dormant Bash sos_<cmd> functions (Bash `map` still carries bug OA-02;
+# a silent fallback would ship that bug back to users). MUST NOT resolve via
+# `command -v sos` — install.sh installs THIS launcher itself as `sos` on
+# PATH, so `command -v sos` would recurse into this very script.
+_sos_workspace_root() {
+  printf '%s\n' "${SOS_KIT_DIR}/bootstrap/sos-rs"
+}
+
+_sos_rust_bin() {
+  # 1. Explicit override (dev/CI/testing)
+  if [ -n "${SOS_RUST_BIN:-}" ] && [ -x "${SOS_RUST_BIN}" ]; then
+    printf '%s\n' "${SOS_RUST_BIN}"; return 0
+  fi
+  # 2. Known build outputs (honor CARGO_TARGET_DIR redirect, then workspace-local target/)
+  local ws candidates c
+  ws="$(_sos_workspace_root)"
+  candidates="${CARGO_TARGET_DIR:-}/release/sos ${CARGO_TARGET_DIR:-}/debug/sos ${ws}/target/release/sos ${ws}/target/debug/sos"
+  for c in $candidates; do
+    [ -x "$c" ] && { printf '%s\n' "$c"; return 0; }
+  done
+  # 3. Build-on-demand fallback (dev/dogfood: cargo present). Prints binary path on success.
+  if command -v cargo >/dev/null 2>&1; then
+    (cd "$ws" && cargo build --quiet --bin sos) >&2 || return 1
+    for c in $candidates; do [ -x "$c" ] && { printf '%s\n' "$c"; return 0; }; done
+  fi
+  return 1
+}
+
 # Dispatcher
 sos() {
   local cmd="${1:-help}"
   shift || true
   case "$cmd" in
-    new)         sos_new "$@" ;;
-    adopt)       sos_adopt "$@" ;;
-    sync)        sos_sync "$@" ;;
-    map)         sos_map "$@" ;;
+    new|adopt|sync|map|install|tools)
+      # 6 heavy subcommands — Rust `sos` binary canonical since P077e cutover.
+      # new/adopt/sync/map: previously Bash (sos_<cmd> now DORMANT, see below).
+      # install/tools: NEW — never had a Bash counterpart (P077d2/d3, Rust-only).
+      local _bin
+      _bin="$(_sos_rust_bin)" || {
+        echo "sos: Rust binary 'sos' not found — cutover requires it (P077e)." >&2
+        echo "  Fix: build in $(_sos_workspace_root) (\`cargo build --bin sos\`) or set SOS_RUST_BIN=/path/to/sos." >&2
+        echo "  (Heavy commands no longer fall back to Bash — the Bash 'map' still carries bug OA-02.)" >&2
+        return 127
+      }
+      exec "$_bin" "$cmd" "$@"
+      ;;
     init)        sos_init "$@" ;;
     blueprint)   sos_blueprint "$@" ;;
     contract)    sos_contract "$@" ;;
