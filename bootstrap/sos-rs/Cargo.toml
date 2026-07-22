@@ -1,3 +1,9 @@
+[workspace]
+# Transitional scaffold (P077a) — root stays at bootstrap/sos-rs/, NOT repo-root.
+# Relocating to repo-root + carving crates (sos-core/sos-cli/adapter) is P077b/P077e.
+members = ["."]
+resolver = "2"
+
 [package]
 name = "sos"
 version = "0.1.0"
