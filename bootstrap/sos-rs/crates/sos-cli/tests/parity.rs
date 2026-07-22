@@ -25,7 +25,7 @@ use std::process::Command;
 /// Commands whose Rust impl has reached bug-for-bug parity with the Bash
 /// oracle. Add a name here once its golden(s) are proven to match — the rest
 /// of this harness (fixture build, normalize, assert) is already generic.
-const PARITY_ENFORCED: &[&str] = &["map"];
+const PARITY_ENFORCED: &[&str] = &["map", "sync"];
 
 struct Case {
     name: &'static str,
@@ -53,6 +53,20 @@ fn run_rust(args: &[&str]) -> String {
     let bin = env!("CARGO_BIN_EXE_sos");
     let out = Command::new(bin)
         .args(args)
+        .output()
+        .unwrap_or_else(|e| panic!("failed to exec {bin}: {e}"));
+    let mut combined = String::from_utf8_lossy(&out.stdout).into_owned();
+    combined.push_str(&String::from_utf8_lossy(&out.stderr));
+    combined
+}
+
+/// Same as `run_rust`, but with `SOS_KIT_DIR` set — needed for `sync`, whose
+/// provenance oracle is read from that env var (bug-for-bug w/ Bash's `$K`).
+fn run_rust_with_kit(args: &[&str], kit: &Path) -> String {
+    let bin = env!("CARGO_BIN_EXE_sos");
+    let out = Command::new(bin)
+        .args(args)
+        .env("SOS_KIT_DIR", kit)
         .output()
         .unwrap_or_else(|e| panic!("failed to exec {bin}: {e}"));
     let mut combined = String::from_utf8_lossy(&out.stdout).into_owned();
@@ -93,6 +107,127 @@ impl Drop for TempFixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+fn run_git(args: &[&str], cwd: &Path) {
+    let status = Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .status()
+        .unwrap_or_else(|e| panic!("failed to exec git {:?}: {e}", args));
+    assert!(status.success(), "git {:?} failed in {:?}", args, cwd);
+}
+
+/// Build the exact same synthetic fake-kit git repo + target that
+/// `capture.sh`'s `build_fake_kit`/`build_sync_target` build (P077c2) — a
+/// self-contained git history (v1 -> v2 commits) with zero dependency on
+/// real sos-kit HEAD, exercising all 4 `sync` outcomes.
+fn build_sync_fixture() -> (TempFixture, PathBuf, PathBuf) {
+    let tmp = TempFixture::new("sync");
+    let kit = tmp.path().join("sync-fake-kit");
+    let target = tmp.path().join("sync-fixture");
+
+    fs::create_dir_all(kit.join("scripts")).unwrap();
+    fs::create_dir_all(kit.join("phieu")).unwrap();
+    fs::create_dir_all(kit.join("templates")).unwrap();
+    fs::create_dir_all(kit.join(".claude/agents")).unwrap();
+    fs::create_dir_all(kit.join(".claude/commands")).unwrap();
+    fs::create_dir_all(kit.join("skills/demo")).unwrap();
+    fs::create_dir_all(kit.join("agents")).unwrap();
+
+    run_git(&["init", "-q"], &kit);
+    run_git(&["config", "user.email", "sos-kit-fixture@example.com"], &kit);
+    run_git(&["config", "user.name", "sos-kit fixture"], &kit);
+
+    fs::write(kit.join("scripts/updated.sh"), "kit content v1\n").unwrap();
+    fs::write(kit.join("scripts/added.sh"), "kit content\n").unwrap();
+    fs::write(kit.join("scripts/flagged.sh"), "kit content\n").unwrap();
+    fs::write(kit.join("scripts/current.sh"), "kit content\n").unwrap();
+    fs::write(kit.join("skills/demo/SKILL.md"), "# demo skill\n").unwrap();
+    fs::write(kit.join("agents/demo.md"), "# demo agent\n").unwrap();
+    run_git(&["add", "-A"], &kit);
+    run_git(&["commit", "-q", "-m", "v1"], &kit);
+
+    fs::write(kit.join("scripts/updated.sh"), "kit content v2\n").unwrap();
+    run_git(&["add", "-A"], &kit);
+    run_git(&["commit", "-q", "-m", "v2"], &kit);
+
+    fs::create_dir_all(target.join("scripts")).unwrap();
+    fs::create_dir_all(target.join(".claude/agents")).unwrap();
+    fs::write(target.join("scripts/updated.sh"), "kit content v1\n").unwrap();
+    fs::write(target.join("scripts/flagged.sh"), "custom content, never seen by kit\n").unwrap();
+    fs::write(target.join("scripts/current.sh"), "kit content\n").unwrap();
+
+    (tmp, kit, target)
+}
+
+fn sha256_hex(path: &Path) -> String {
+    use sha2::{Digest, Sha256};
+    let bytes = fs::read(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+/// Post-sync tree-manifest: `<verb> <relpath> <sha256>`, sorted — mirrors
+/// `capture.sh`'s `freeze_sync_tree`. Order-independent by construction.
+fn build_tree_manifest(target: &Path) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for (rel, verb) in [
+        ("scripts/added.sh", "ADDED"),
+        (".claude/agents/demo.md", "ADDED"),
+        (".claude/skills/demo/SKILL.md", "ADDED"),
+    ] {
+        let p = target.join(rel);
+        if p.is_file() {
+            lines.push(format!("{verb} {rel} {}", sha256_hex(&p)));
+        }
+    }
+    let updated = target.join("scripts/updated.sh");
+    if updated.is_file() {
+        lines.push(format!("UPDATED scripts/updated.sh {}", sha256_hex(&updated)));
+    }
+    let incoming = target.join(".sos-sync-incoming/scripts/flagged.sh");
+    if incoming.is_file() {
+        lines.push(format!(
+            "INCOMING .sos-sync-incoming/scripts/flagged.sh {}",
+            sha256_hex(&incoming)
+        ));
+    }
+    lines.sort();
+    lines.join("\n")
+}
+
+#[test]
+fn parity_sync_enforced() {
+    assert!(
+        PARITY_ENFORCED.contains(&"sync"),
+        "this test only makes sense while sync is in PARITY_ENFORCED"
+    );
+
+    let (_tmp, kit, target) = build_sync_fixture();
+    let target_str = target.to_string_lossy().into_owned();
+    let kit_str = kit.to_string_lossy().into_owned();
+
+    let raw = run_rust_with_kit(&["sync", &target_str], &kit);
+    let stdout_actual = normalize(&raw, &target_str).replace(&kit_str, "<SOS_KIT_DIR>");
+    let stdout_golden = read_golden("sync.golden");
+    assert_eq!(
+        stdout_actual.trim(),
+        stdout_golden.trim(),
+        "sync stdout mismatch vs sync.golden (hard-fail — sync is PARITY_ENFORCED). \
+         NOTE: Bash's spine `find` is UNSORTED (Debate Log Turn 1 finding) — a mismatch \
+         here may be a traversal-order divergence, not just a logic bug; check ordering \
+         before assuming a content regression."
+    );
+
+    let tree_actual = build_tree_manifest(&target);
+    let tree_golden = read_golden("sync.tree.golden");
+    assert_eq!(
+        tree_actual.trim(),
+        tree_golden.trim(),
+        "sync file-tree manifest mismatch vs sync.tree.golden (hard-fail — sync is PARITY_ENFORCED)"
+    );
 }
 
 /// Build the same fixture `capture.sh` uses for `map` (routes/ + models/

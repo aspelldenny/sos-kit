@@ -6,3 +6,4 @@ pub mod recipe;
 pub mod launch;
 pub mod status;
 pub mod map;
+pub mod sync;

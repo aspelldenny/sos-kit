@@ -2,11 +2,13 @@ sos sync — re-sync spine into '<TARGET>'  (take-newer unmodified, flag customi
   provenance oracle: <SOS_KIT_DIR> git history
 
 === sos sync report ===
-ADDED (absent -> copied): 0
-    (none)
-UPDATED (take-newer, unmodified stale): 0
-    (none)
-FLAGGED (repo-customized -> .sos-sync-incoming, merge by hand): 0
-    (none)
-ALREADY-CURRENT: 58
+ADDED (absent -> copied): 3
+    + scripts/added.sh
+    + .claude/agents/demo.md
+    + .claude/skills/demo/SKILL.md
+UPDATED (take-newer, unmodified stale): 1
+    ^ scripts/updated.sh
+FLAGGED (repo-customized -> .sos-sync-incoming, merge by hand): 1
+    ~ scripts/flagged.sh
+ALREADY-CURRENT: 1
 Identity files (CLAUDE.md/BACKLOG/.docs-gate.toml/INVARIANTS/AGENT_MAP) untouched by design.

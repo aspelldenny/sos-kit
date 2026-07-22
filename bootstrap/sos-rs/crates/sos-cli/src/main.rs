@@ -52,6 +52,12 @@ enum Cmd {
         #[arg(default_value = ".")]
         target: String,
     },
+    /// Re-sync sos-kit spine into an adopted repo (KIT-LAG cure, P067) —
+    /// bug-for-bug parity with `bin/sos.sh` sos_sync (see P077c2).
+    Sync {
+        /// Adopted repo dir to sync spine files into.
+        target: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -73,5 +79,6 @@ fn main() -> anyhow::Result<()> {
         Cmd::Launch { skip, reason } => commands::launch::run(skip, reason),
         Cmd::Status => commands::status::run(),
         Cmd::Map { target } => commands::map::run(&target),
+        Cmd::Sync { target } => commands::sync::run(&target),
     }
 }

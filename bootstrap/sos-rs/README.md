@@ -63,7 +63,7 @@ Rust impl is proven bug-for-bug identical to Bash.
 | Command | Status |
 |---|---|
 | `map` | **Parity (hard-fail, stdout + file)** — P077c1. Diffs both the 1-line stdout confirmation (`map.golden`) AND the real work-product it writes, `<target>/docs/AGENT_MAP.yaml` (`map.agent_map.golden`, added P077c1 — the stdout-only oracle was blind to scan-correctness). Bug-for-bug: no generic `src/*.rs` surface (OA-02), fixed in P077c5. |
-| `sync` | Informational (pending P077c2) |
+| `sync` | **Parity (hard-fail, stdout + file-tree)** — P077c2. Diffs the stdout report (`sync.golden`, re-froze against a synthetic self-contained fake-kit — no real sos-kit HEAD dependency) AND a sorted post-sync file-tree manifest (`sync.tree.golden`, new — `<verb> <relpath> <sha256>` for every ADDED/UPDATED/INCOMING path). Provenance oracle (`_blob_in_history`) replicated via `git` shell-out (no git2 dep). Traversal NOT sorted (matches Bash's unsorted `find` — see `tests/README.md`). |
 | `new` | Informational (pending P077c3) |
 | `adopt` | Informational (pending P077c4) |
 

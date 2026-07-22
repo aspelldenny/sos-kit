@@ -11,8 +11,8 @@ verify against — additive only, `bin/sos.sh` itself is never edited here.
 - `golden/*.golden` — committed, frozen reference output (normalized).
 - `parity.rs` — integration test: runs the Rust binary for the same 4 subcommands,
   diffs vs `golden/*.golden`. **Per-command hard-fail (P077c1):** `PARITY_ENFORCED:
-  &[&str]` lists commands proven bug-for-bug identical to Bash (currently `["map"]`);
-  those get a dedicated hard-fail test. Commands NOT in the list stay
+  &[&str]` lists commands proven bug-for-bug identical to Bash (currently
+  `["map", "sync"]`); those get a dedicated hard-fail test. Commands NOT in the list stay
   **informational** — `parity_skeleton_informational` prints "not yet parity" for
   them but always passes (Rust doesn't implement them yet). Add a command's name to
   `PARITY_ENFORCED` once its golden(s) match — no other harness rewrite needed.
@@ -72,32 +72,64 @@ generates files; c4 `adopt` writes onboarding files) should use this same two-fi
 pattern rather than relying on stdout-only parity (flagged as a feed-forward note in
 `docs/plans/P077c-decomposition.md`).
 
-## `sos sync` — the HEAD-pin caveat (CHALLENGE Turn 1, anchor #7)
+## `sos sync` — synthetic fake-kit fixture (P077c2, two-fixture oracle)
 
-`sos_sync`'s classification (ADDED / UPDATED-take-newer / FLAGGED-customized) is not
-just cosmetic-nondeterministic — it is **semantically** dependent on sos-kit's own
-git history. `_blob_in_history()` (`bin/sos.sh:992-999`) walks
-`git -C "$SOS_KIT_DIR" rev-list --all -- <path>` and checks whether the destination
-file's blob hash matches ANY historical blob of the canonical path. This means:
+`sos_sync`'s classification (ADDED / UPDATED-take-newer / FLAGGED-customized) is
+**semantically** dependent on the kit's own git history — `_blob_in_history()`
+(`bin/sos.sh:992-999`) walks `git -C "$SOS_KIT_DIR" rev-list --all -- <path>` and
+checks whether the destination file's blob hash matches ANY historical blob of the
+canonical path.
 
-- The `sync.golden` fixture in this repo was frozen against **sos-kit HEAD
-  `d370c82f85a8458e6e23c7208a81054f20d4fba4`** (pre-P077a commit).
-- Re-running `capture.sh` against a *later* sos-kit HEAD is only guaranteed to
-  reproduce `sync.golden` byte-for-byte if the specific spine files exercised by the
-  fixture (currently: whatever `bin/sos.sh` copies for a fresh `sos adopt --stack
-  python` — see `capture.sh`'s `sync` section) have not themselves changed history in
-  a way that flips a file between "unmodified stale" and "customized". For THIS
-  fixture (empty adopt target, all-current sync), the risk is low (0 added/updated/
-  flagged, 58 already-current) — but any future re-freeze of `sync.golden` MUST
-  record the sos-kit HEAD sha alongside it, not just the fixture-repo state.
-- **Do not** treat a future diff in `sync.golden` alone as a Rust-parity regression
-  without first checking whether sos-kit's own history moved out from under the
-  fixture. P077c (hard-fail cutover) should re-verify/re-pin this before flipping
-  `HARD_FAIL`.
+**P077a's original `sync.golden` pinned to real sos-kit HEAD** (a 0-change,
+all-already-current scenario against a fresh `sos adopt` target) — this had two
+problems, found during P077c2 CHALLENGE (Debate Log Turn 1): (1) it was **stdout-only
+and 0-change**, exercising none of the ADDED/UPDATED/FLAGGED file-side-effect logic
+(same false-green class OA-02 that P077c1 already fixed for `map`); (2) it drifted
+every time sos-kit's own history advanced (real-HEAD-pin).
+
+**P077c2 re-froze `sync.golden` against a SYNTHETIC self-contained fake-kit** instead
+— `capture.sh`'s `build_fake_kit()` does a real `git init` + 2 commits (blob
+`v1` → `v2` for one spine file) inside a throwaway dir, and `SOS_KIT_DIR` is pointed
+at that fake-kit (NOT real sos-kit) when capturing/testing `sync`. This:
+
+- **Eliminates the real-HEAD dependency entirely** — the fixture's own git history is
+  frozen and self-contained; re-running `capture.sh` reproduces byte-identical output
+  regardless of what commit real sos-kit is at. Verified: 2 independent captures on
+  2026-07-22 produced byte-identical `sync.golden` + `sync.tree.golden`.
+- **Exercises all 4 outcomes** in one deterministic scenario: `scripts/added.sh`
+  (absent at target → ADDED), `scripts/updated.sh` (target has the fake-kit's
+  historical `v1` blob, HEAD is `v2` → UPDATED take-newer), `scripts/flagged.sh`
+  (target content matches no historical blob → FLAGGED into
+  `.sos-sync-incoming/`), `scripts/current.sh` (target byte-identical to fake-kit
+  HEAD → ALREADY-CURRENT). Also touches the `agents/*.md` → `.claude/agents/` and
+  `skills/**/SKILL.md` → `.claude/skills/` walk branches (all ADDED), so the fixture
+  isn't limited to the `scripts/` root.
+- **Two-fixture oracle** (same pattern as `map`, applied to sync's real work-product
+  = files on disk, not just the stdout summary): `sync.golden` freezes stdout;
+  `sync.tree.golden` (new, P077c2) freezes a SORTED manifest of every mutated path
+  (`<verb> <relpath> <sha256>`, verb ∈ `ADDED`/`UPDATED`/`INCOMING`) — this is what
+  actually verifies file placement + content (e.g. that `.sos-sync-incoming/<rel>`
+  really contains the kit's source bytes), which stdout counts alone cannot prove.
+  `parity.rs`'s `parity_sync_enforced` hard-fails on either mismatch.
+
+**Traversal-order finding (Debate Log Turn 1, load-bearing for future re-freezes):**
+Bash's spine `find` (`bin/sos.sh:1030-1031,1043-1044`) is **UNSORTED** — it returns
+raw filesystem directory-entry (creation) order, unlike `map`'s Bash `scan_files()`
+which explicitly pipes through `sort`. This means `sync.golden`'s ADDED/UPDATED/
+FLAGGED line order is filesystem-enumeration-order dependent, not alphabetical.
+Rust's `sync.rs` therefore does **NOT** sort its walk (unlike `map.rs`'s
+`hits.sort()`) — it preserves raw `WalkDir`/`read_dir` order to match. This held
+bit-exact on the same machine (macOS/APFS) for the committed fixture; cross-platform
+(e.g. a future Linux CI runner) order-match is unverified but not yet load-bearing —
+no CI currently wires `cargo test` for `bootstrap/sos-rs`. `sync.tree.golden` is
+SORTED at the freeze/assert layer specifically so it stays order-independent
+regardless of this risk — only the stdout golden is exposed to it.
 
 ## Flipping to hard-fail (P077c)
 
 `parity.rs` used to have a single `const HARD_FAIL: bool = false;`. **P077c1 refactored
 this to a per-command set**, `const PARITY_ENFORCED: &[&str] = &["map"];` — add a
 command's name to enforce it once its golden(s) match; no other harness rewrite is
-needed (c2/c3/c4 reuse this mechanism for `sync`/`new`/`adopt`).
+needed. **P077c2 added `"sync"`** (now `&["map", "sync"]`) with its own dedicated
+`parity_sync_enforced` test (stdout + tree-manifest two-fixture assert, see above).
+c3/c4 reuse this same mechanism for `new`/`adopt`.
