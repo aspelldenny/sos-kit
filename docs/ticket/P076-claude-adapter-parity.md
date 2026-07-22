@@ -110,9 +110,9 @@ Physical file-move + render defer P077 (renderer `sos-adapter-claude::render()` 
 **Status:** ⏳ AWAITING ARCHITECT RESPONSE
 
 ### Final consensus
-- Phiếu version: V<N>
-- Total turns: <count>
-- Approved by Chủ nhà: [date] — code execution may begin
+- Phiếu version: V1 (no revision needed)
+- Total turns: 1 (Worker CHALLENGE — accepted, no objections; 1 non-blocking completeness note re: `.mcp.json` row, folded into EXECUTE)
+- Approved by Chủ nhà: 2026-07-22 (ESCALATE GATE (B) declarative confirmed) — EXECUTE completed same session, commit `404450b`
 
 ---
 
