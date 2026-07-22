@@ -6,6 +6,9 @@
 >
 > **Pre-2026-05 entries:** archived to `docs/archive/DISCOVERIES_pre-2026-05.md`. Migration date: 2026-05-02 (P038).
 
+## 2026-07-22 — P082: Lane-field template drift fix (OA-01)
+`phieu/TICKET_TEMPLATE.md` had `**Tầng:**` but no `**Lane:**` field, so every phiếu born from it exited 2 (missing field) on `doctor lane-check` — the pre-CHALLENGE lane budget gate was blind on all canonical phiếu. Added the field (bare `Normal` token) + `scripts/lane-check-contract.sh` (degraded warn-skip) wired as sub-check `3f` in pre-commit `[3/8]` (no new phase). Oracle-verified pre-fix exit 2 → post-fix exit 0 (181 lines/3 anchors/2 constraints, well under Normal budget — no F1/F2 needed). Full report: `docs/discoveries/P082.md`.
+
 ## 2026-07-20 — P075: Portable SOS Core extracted
 Six neutral contract files now own roles, workflow, policy and asset classes. Capability vocabulary replaces host tool names; one ticket must reach verified remote delivery before the next executes. Zero runtime-token oracle passes. Full report: `docs/discoveries/P075.md`.
 

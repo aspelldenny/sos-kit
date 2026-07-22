@@ -164,6 +164,9 @@ on the default branch remain allowed (kit maintenance, README fixes, doctrine ed
   patterns. If absent, falls back to the full extension-union and **blocks** (greenfield
   commits on main are the primary failure target — ket P020 live failure).
 
+**`[3/8]` sub-check `3f` — lane-check-contract** (`scripts/lane-check-contract.sh`) — P082:
+Runs `doctor lane-check --ticket phieu/TICKET_TEMPLATE.md` whenever `phieu/TICKET_TEMPLATE.md` is staged, guarding against the template silently losing its `**Lane:**` field (OA-01 regression). Exit-code mapping: `doctor` exit 2 (missing/unparseable field) → **FAIL LOUD**; exit 1 (over Normal budget) → WARN, does not block; exit 0 → OK. `doctor` absent from PATH → degraded **warn-skip** (`exit 0`), fresh-env friendly — this is NOT a security gate, so it does not fail-closed. Does not add a new phase — stays a sub-check inside `[3/8]`.
+
 **`[7/8]` block-env-commit** (`scripts/block-env-commit.sh`) — P052:
 Blocks staging any `.env*` file so a secret-bearing env file cannot enter git history
 (irreversible). Matches on **basename** across the full staged path — so `config/.env.docker`

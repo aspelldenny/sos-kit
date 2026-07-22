@@ -10,6 +10,7 @@
 > **Loại:** Feature / Bugfix / Prompt-only / Hotfix
 > **Ưu tiên:** P0 / P1 / P2
 > **Tầng:** 1 (móng — sai thì LAN hoặc KHÔNG-đảo: kiến trúc/API/schema/auth/privacy/security/payment/INV-LOCAL → AUTO Tầng 1 dù nhỏ) | 2 (lặt vặt — sai thì cục bộ + sửa được, no móng). Định nghĩa: `docs/LAYERS.md` §2-tier. **LOC KHÔNG quyết Tầng.**
+> **Lane:** Normal — trục NGÂN SÁCH (khác Tầng = trục hậu quả). Normal ≤250 dòng/≤5 anchor/≤5 constraint · Guarded no-cap · Fast ≤100 dòng (no-architect). Def: `docs/WORKFLOW_V2.2.md` §1. Architect override token per-phiếu. **Token PHẢI trần `Normal`|`Guarded`|`Fast`** — KHÔNG angle-bracket/placeholder (`doctor` regex `**Lane:** (Normal|Guarded|Fast)` fail parse → exit 2). Tầng=debate flow, Lane=size cap — 2 trục độc lập.
 > **Ảnh hưởng:** [main files affected]
 > **Dependency:** [which phiếu must finish first, or "None"]
 
