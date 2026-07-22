@@ -1,6 +1,7 @@
 # P077c decomposition — Rust `new/adopt/map/sync` → parity + OA-02 fix
 
 > **Status:** P077c1 SHIPPED (2026-07-22, branch `P077c-rust-parity-impl`, not yet merged). `docs/ticket/P077c1-rust-map-parity.md` (V2 — file-output parity gap ACCEPTED Turn 1).
+> **Status:** P077c2 SHIPPED (2026-07-22, branch `P077c2-rust-sync-parity`, not yet merged). `docs/ticket/P077c2-rust-sync-parity.md` (V1 accepted, no revision — CHALLENGE found `sync.golden` re-froze from real-HEAD-pin 0-change to a synthetic self-contained fake-kit fixture exercising all 4 outcomes; new `sync.tree.golden` two-fixture oracle; Bash's unsorted spine `find` replicated bug-for-bug in Rust, NOT sorted like `map`). Feed-forward for c3/c4: reuse the synthetic-self-contained-fixture pattern whenever a command's golden would otherwise depend on real repo/kit state that isn't the command's own fixture.
 
 ## ⚠️ Feed-forward note for c2/c3/c4 — two-fixture oracle (from P077c1)
 
