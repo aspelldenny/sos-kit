@@ -117,6 +117,15 @@ phieu-done my-project P042-user-export
 **Filename:** `docs/ticket/P<NNN>-<slug>.md` (matches branch without the `<type>/` prefix)
 **Worktree:** `~/<project>-wt/P<NNN>-<slug>/`
 
+## Header fields — Tầng vs Lane (2 independent axes)
+
+Every phiếu header carries both `**Tầng:**` and `**Lane:**` — do not confuse them:
+
+- **`Tầng` (1/2)** = CONSEQUENCE axis → drives the **debate flow** (Tầng 1 → Worker CHALLENGE, Tầng 2 → skip straight to EXECUTE). Def: `docs/LAYERS.md` §2-tier.
+- **`Lane` (Normal/Guarded/Fast)** = BUDGET axis → caps phiếu **size** (Normal ≤250 lines/≤5 anchors/≤5 constraints · Guarded no-cap · Fast ≤100 lines, no-architect). Def: `docs/WORKFLOW_V2.2.md` §1.
+
+`Lane` must be a **bare token** — `Normal`, `Guarded`, or `Fast`, no angle brackets/placeholder — because `doctor lane-check --ticket <path>` parses it with a regex; an unparseable or missing field exits 2 (schema drift, see P082/OA-01). Template default is `Normal` (born-enforced; bump to `Guarded` deliberately when a phiếu is legitimately large).
+
 ## Gotchas
 
 - **Counter file is LOCAL per-machine, not committed.** If you clone fresh on a new machine, counter starts at 0 and may collide with existing IDs. Fix: `echo <N> > ~/my-project/.phieu-counter` to set manually (N = highest existing P-number + 1).

@@ -70,7 +70,7 @@ RELATED CONTEXT:     [links to earlier phiếu, metrics, user quotes]
 **Transport:** Chủ nhà copies phiếu file content from Claude Web session → pastes into the target project's `docs/ticket/P<NNN>-<slug>.md` (which was pre-created by `phieu <slug>` shell function on the Worker's machine).
 
 **Phiếu format** — required sections from TICKET_TEMPLATE.md:
-- Header (Loại, Ưu tiên, Ảnh hưởng, Dependency)
+- Header (Loại, Ưu tiên, **Tầng, Lane**, Ảnh hưởng, Dependency)
 - Context (Vấn đề, Giải pháp, Scope)
 - **Task 0 — Verification Anchors table** (Architect writes "⏳ TO VERIFY" — Thợ fills ✅/⚠️/❌)
 - Nhiệm vụ (per-task: File, Tìm, Thay bằng, Lưu ý)

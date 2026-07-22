@@ -21,7 +21,7 @@ What's inside:
   - `VISION_TEMPLATES/` — day-1 skeletons for `PROJECT.md`, `SOUL.md`, `CHARACTER.md`
 - `skills/` — Claude Code skills (5 LIVING — each declares a mechanical `caller:` in frontmatter; `skills/attic/` = 8 parked after the 2026-06-11 full dogfood, see `docs/retro/SKILLS_DOGFOOD_2026-06-11.md` + `docs/LAYERS.md` skills map)
 - `configs/` — `.ship.toml` templates per stack (nextjs, flask, rust, python)
-- `hooks/pre-commit` — git hook script (type-check + docs-gate)
+- `hooks/pre-commit` — git hook script (type-check + docs-gate). `[3/8]` section includes sub-check `3f` (`scripts/lane-check-contract.sh`, P082) — does NOT add a new phase, count stays `[8/8]`.
 - `integrations/` — CI snippets (GitHub Actions canary) + Telegram uptime monitor
 - `README.md` — entry point for new users
 
@@ -100,6 +100,7 @@ sos-kit/
 │   ├── block-env-edit.sh   # PreToolUse hook — block .env edits
 │   ├── idea-smell.sh       # UserPromptSubmit hook — regex idea-smell in Sếp message → inject /idea reminder (skills dogfood 2026-06-11)
 │   ├── block-unsafe-merge.sh  # PreToolUse hook — B+3 fail-closed shim → `claude-hooks block-unsafe-merge` binary (gates `gh pr merge <N>` without security APPROVE; binary absent = BLOCK LOUD) [P064]
+│   ├── lane-check-contract.sh  # pre-commit [3/8] sub-check 3f — OA-01 lane-field contract guard (runs `doctor lane-check` on phiếu/TICKET_TEMPLATE.md when staged; degraded warn-skip when `doctor` absent) [P082]
 │   ├── no-code-on-default.sh  # pre-commit [6/8] — block product code committed on default branch (force feature branch; agent-agnostic)
 │   ├── security-gate.sh, check-*.py, parsers/  # commit-time security gate + advisory lockfile parsers
 │   ├── session-start-banner.sh  # SessionStart hook — show BACKLOG on session open

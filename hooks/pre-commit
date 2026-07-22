@@ -199,6 +199,17 @@ if [ -n "$CODE_STAGED" ] && [ -n "$PHIEU_STAGED" ]; then
     fi
 fi
 
+# 3f. Lane-field contract (OA-01 regression guard — only when template staged)
+TEMPLATE_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^phieu/TICKET_TEMPLATE\.md$' || true)
+if [ -n "$TEMPLATE_STAGED" ] && [ -f "scripts/lane-check-contract.sh" ]; then
+    if bash scripts/lane-check-contract.sh; then
+        green "  ✅ Lane-field contract OK"
+    else
+        red "  ❌ Lane-field contract failed (OA-01 — template lost Lane field)"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+fi
+
 echo ""
 
 # ─────────────────────────────────────────────────────────────────────
