@@ -13,6 +13,8 @@ SOS Kit is a public distribution kit that **intentionally ships auto-exec surfac
 | `.mcp.json` | Claude Code session start | Declares MCP servers (local Rust binaries from related repos: ship, guard, vps, docs-gate) |
 | `bin/sos.sh` | User invokes `sos <cmd>` | CLI entrypoint delegating to subcommands |
 | `install.sh` | `curl <url> | sh` — primary installer | Sets up hooks, symlinks, and binary installations declared in this kit |
+| `scripts/npm-postinstall.sh` | `npm install` (postinstall hook, P081b Stage 2) | Downloads `install.sh` from the PINNED tag `v0.1.0` (not `main`), verifies its sha256 against `scripts/install-sh.sha256` shipped in the npm package, then runs it — fail-CLOSED on mismatch or download failure |
+| `bin/sos-npm` | User invokes `sos` after `npm install -g @aspelldenny/sos-kit` | Thin delegate to the `$BIN_DIR/sos` wrapper install.sh writes; if that wrapper is absent (postinstall skipped/failed) prints setup guidance and exits non-zero instead of half-dispatching |
 | `phieu/phieu.sh` | User sources in shell (`~/.zshrc`) | Shell functions: `phieu`, `phieu-init`, `phieu-done`, `phieu-list` |
 | `templates/setup-dev.sh` | Contributor runs manually | Developer environment setup for contributors |
 
@@ -46,6 +48,18 @@ Every file in this repo is readable. The hook chain is documented in `hooks/pre-
 
 **INV-TRUST-07: `sos` prebuilt binary is a separate distribution surface, sidecar-isolated (P081 Stage 1)**
 Since P081, `install.sh` also fetches a prebuilt `sos-<triple>` binary (built + published by `.github/workflows/release.yml` on each `v*` tag push) and installs it to a `sos-bin` sidecar — deliberately NOT at the same path as the generated `sos` wrapper (which stays a 2-line bash dispatcher, see `bin/sos.sh` dispatch contract). The wrapper exports `SOS_RUST_BIN` pointing at that sidecar using `: "${SOS_RUST_BIN:=...}"` — a shell default-assignment that never overrides an already-set value, so a user's own `export SOS_RUST_BIN=/path/to/sos` always wins. Same fail-CLOSED checksum verification as INV-TRUST-06 applies to this binary.
+
+### npm distribution surface (P081b Stage 2) — pin-tag + pin-sha256, no forked logic
+
+`@aspelldenny/sos-kit` (npm) is a THIN wrapper — it does not reimplement any fetch/verify logic. Its threat model:
+
+1. **Pin TAG, not `main`.** `scripts/npm-postinstall.sh` always downloads `install.sh` from `https://raw.githubusercontent.com/aspelldenny/sos-kit/v0.1.0/install.sh` — a fixed release tag baked into the script at package-publish time, never `main`/`HEAD`. A compromised `main` branch cannot retroactively poison an already-published npm version.
+2. **Pin sha256 of `install.sh` itself.** The npm package ships `scripts/install-sh.sha256` (the sha256 of `install.sh` AS IT EXISTED at tag `v0.1.0`, computed by the Worker at phiếu time — `git show v0.1.0:install.sh | shasum -a 256`). After downloading, `npm-postinstall.sh` recomputes the hash of the fetched file and string-compares — **mismatch aborts (`exit 1`) before executing anything.** This closes the gap a naive "curl a script from a tag and run it" pattern leaves open (a compromised GitHub raw-content CDN, or a tag ref that moved after the npm package was published).
+3. **`install.sh` itself is unmodified** by npm distribution — it's the SAME script, SAME checksum-verified binary fetches (INV-TRUST-05/06 above) as the curl path. npm is a delivery mechanism, not a second code path.
+4. **`--ignore-scripts` fail-safe, not fail-silent.** If postinstall never runs (CI policy, corporate proxy blocking scripts, explicit `--ignore-scripts`), the installed `sos` command (`bin/sos-npm`) detects the missing wrapper and prints an explicit fallback (`npx --package=@aspelldenny/sos-kit sos-kit-setup`) + exits non-zero — it never silently half-dispatches with a broken toolset.
+5. **`bin/sos-npm` + `scripts/npm-postinstall.sh` are auto-exec surfaces** — tracked in `.sos-trust-baseline` (rebaseline required on any change) same as every other surface in the table above.
+
+**Not covered by this mechanism:** npm registry account compromise (an attacker who could `npm publish` a malicious version would bake in a different pinned tag/hash — same trust boundary as any npm package; mitigated by the maintainer controlling both the GitHub org and the npm scope). `npm publish` itself is a manual, out-of-band step (never run by CI or an agent) — see BACKLOG for the publish gate.
 
 ---
 

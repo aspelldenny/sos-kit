@@ -17,6 +17,16 @@ Downloads the FULL kit toolset as prebuilt binaries (`doctor`, `claude-hooks`, `
 
 > ⚠ **Windows caveat (P081 Stage 1 scope):** the sister tools ship win-x64 builds, but the kit's own `sos` binary release only covers `aarch64-apple-darwin` (tested) + `x86_64-unknown-linux-gnu` (build-only) so far — Windows was intentionally dropped from Stage 1 (`.github/workflows/release.yml`). On Windows, the `sos` fetch step in `install.sh` will fail-closed (ABORT) until a Windows target is added. Workaround meanwhile: build `sos` yourself (dev path below) and set `SOS_RUST_BIN=/path/to/sos.exe`.
 
+**Alternative Step 0 — npm (P081 Stage 2, macOS/Linux only):**
+
+```bash
+npm install -g @aspelldenny/sos-kit
+```
+
+> ⚠ **Not yet published** — `npm install` above returns 404 until Sếp/Quản đốc runs `npm publish --access public` (scoped package requires the flag). The mechanism is built and dogfooded (P081b) — this note will be removed once the package is live.
+
+Same end result as the curl path in one command: npm's `postinstall` downloads `install.sh` from the pinned release tag `v0.1.0` (NOT `main` — supply-chain), verifies its sha256 against a hash shipped inside the npm package, and only then runs it (fail-CLOSED on any mismatch or download failure — install aborts, nothing half-installed). It does not fork any install logic — `install.sh` stays the single source of truth for the 10 sister tools + `sos-bin` + wrapper. If you (or CI) run `npm install --ignore-scripts`, nothing downloads automatically — the `sos` command shipped by the package will print a fallback command (`npx --package=@aspelldenny/sos-kit sos-kit-setup`) instead of failing silently.
+
 **Then pick by repo state** — one command does the whole install below (copy + born-wire + validate):
 
 | Your repo is… | Command | What it does |

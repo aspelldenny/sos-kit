@@ -220,6 +220,14 @@ curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh
 
 Downloads prebuilt binaries (`doctor`, `claude-hooks`, `docs-gate`, `ship`, `advisory-inbox`, `inv-gate`, `guard`, `vps`, `doc-rotate`, `advisory-cron`, plus the kit's own `sos`) into `~/.local/bin`, clones the kit to `~/sos-kit`, and puts `sos` on PATH. Then run `sos adopt .` (existing repo) or `sos new <dir> --stack <python|rust|ts>` (new repo). See [`INSTALL.md`](./INSTALL.md) for the full 5-minute walkthrough with verify steps, and [`docs/SETUP.md`](./docs/SETUP.md) for per-tool detail.
 
+**Or via npm (macOS/Linux, same result — not yet published, see note in `INSTALL.md`):**
+
+```bash
+npm install -g @aspelldenny/sos-kit
+```
+
+`postinstall` downloads `install.sh` from the pinned release tag (not `main`), verifies its sha256 against a hash shipped inside the package, then runs it — fail-CLOSED, no forked install logic. `npm install --ignore-scripts` skips the auto-run; the installed `sos` command then prints a fallback (`npx --package=@aspelldenny/sos-kit sos-kit-setup`) instead of half-installing silently.
+
 ### Dev path (hacking the Rust tools themselves)
 
 If you're developing `sos` or the sister CLIs rather than just using them, you need the Rust toolchain (`rustup`) instead of the prebuilt binaries:

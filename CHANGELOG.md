@@ -6,6 +6,33 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**[P081b] Distribution — Stage 2 npm wrapper (2026-07-23):**
+- Added `package.json` (`@aspelldenny/sos-kit`, `0.1.0` — synced to `crates/sos-cli`
+  Cargo.toml + tag `v0.1.0`): thin package, `bin.sos` → `bin/sos-npm`,
+  `bin.sos-kit-setup` → `scripts/npm-postinstall.sh` (manual fallback), `os:
+  [darwin, linux]` (no Windows), `files` whitelist (no forked install logic
+  shipped as JS).
+- Added `scripts/npm-postinstall.sh`: downloads `install.sh` from PINNED tag
+  `v0.1.0` (not `main`), verifies its sha256 against `scripts/install-sh.sha256`
+  (shipped in the package, computed from `git show v0.1.0:install.sh`) —
+  fail-CLOSED on mismatch/download failure, then runs it. `install.sh` itself
+  unchanged — single source of truth for the 10 sister tools + `sos-bin` +
+  wrapper.
+- Added `bin/sos-npm`: thin delegate to the `$BIN_DIR/sos` wrapper install.sh
+  writes; missing (postinstall skipped via `--ignore-scripts`, or failed) →
+  prints setup guidance + exits non-zero instead of half-dispatching.
+- `.sos-trust-baseline` rebaselined (+`bin/sos-npm`; `scripts/npm-postinstall.sh`
+  covered by existing `scripts/*.sh` glob); `scripts/trust-gate.sh`
+  `SURFACE_GLOBS` gained `bin/sos-npm`.
+- Nghiệm thu (isolated prefix, zero touch to real machine): `npm pack` →
+  install rc=0, 10 tools + `sos-bin` + wrapper present, `sos tools status`
+  rc=0, `sos-bin --version` → `0.1.0`, checksum-tamper → abort exit 1,
+  `--ignore-scripts` → clean no-op + `sos-kit-setup` fallback verified
+  end-to-end. Docs: `INSTALL.md`, `README.md`, `SECURITY.md` (new npm
+  threat-model subsection). **NOT published** — `npm publish --access public`
+  is a manual Sếp/Quản đốc step (BACKLOG Park), same discipline as the
+  `v0.1.0` tag push. Full report: `docs/discoveries/P081b.md`.
+
 **[P081] Distribution — Stage 1 release pipeline + checksum + curl|sh (2026-07-23):**
 - Added `.github/workflows/release.yml`: tag `v*` → build `sos` binary for
   `aarch64-apple-darwin` (tested target) + `x86_64-unknown-linux-gnu`

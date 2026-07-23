@@ -38,6 +38,7 @@ SURFACE_GLOBS=(
     ".claude/settings.json"
     ".mcp.json"
     "bin/sos.sh"
+    "bin/sos-npm"
     "hooks/pre-commit"
     "hooks/pre-push"
     "scripts/*.sh"
