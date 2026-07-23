@@ -1076,6 +1076,194 @@ mod tests {
             );
         }
 
+        // ── P078h Task 1/2 -- marked-actor advance-block (gap #3) + path
+        // normalize (gap #4). P079 round-3 §B4 + "Additional usability
+        // observation" (docs/adapters/P079-ROUND3-FINDINGS-2026-07-23.md).
+
+        /// Variant of `run_guard` that lets the caller build the payload
+        /// from the guard's ACTUAL (canonicalized) working directory --
+        /// needed for the absolute-path-normalize tests below, where the
+        /// synthetic apply_patch path must literally be
+        /// `"$REPO_ROOT/.sos-state/ticket-state.env"` and REPO_ROOT is only
+        /// known once the throwaway temp dir exists (the guard falls back
+        /// to `pwd` for REPO_ROOT since the temp dir is not a git repo).
+        fn run_guard_dynamic(
+            identity: &str,
+            setup: impl FnOnce(&PathBuf),
+            build_payload: impl FnOnce(&PathBuf) -> String,
+        ) -> i32 {
+            let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+            let dir = std::env::temp_dir().join(format!(
+                "sos-codex-guard-test-dyn-{}-{}-{}",
+                std::process::id(),
+                n,
+                identity
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            setup(&dir);
+            let canon = fs::canonicalize(&dir).unwrap();
+            let stdin_json = build_payload(&canon);
+
+            let script_path = dir.join("guard.sh");
+            fs::write(&script_path, templates::content_for(identity)).unwrap();
+            let mut perms = fs::metadata(&script_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&script_path, perms).unwrap();
+
+            let mut child = Command::new("bash")
+                .arg(&script_path)
+                .current_dir(&dir)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .expect("spawn bash guard");
+            child
+                .stdin
+                .as_mut()
+                .unwrap()
+                .write_all(stdin_json.as_bytes())
+                .unwrap();
+            let status = child.wait().expect("wait on guard process");
+            let _ = fs::remove_dir_all(&dir);
+            status.code().unwrap_or(-1)
+        }
+
+        fn synthetic_apply_patch_abs(action: &str, root: &PathBuf, rel_path: &str) -> String {
+            synthetic_apply_patch(action, &format!("{}/{}", root.display(), rel_path))
+        }
+
+        #[test]
+        fn approval_gate_blocks_worker_advance_of_already_approved_version() {
+            // Gap #3 core oracle (P079 round-3 §B4 live repro): state is
+            // ALREADY approved V3/V3, worker-active marker present, patch
+            // updates ONLY ticket-state.env (the V4/V4 advance write).
+            // Pre-fix this ALLOWED (exit 0) because the fall-through
+            // version-match check compared PRE-patch state (V3==V3,
+            // "already approved") and let it through -- version-match was
+            // an escape hatch for a marked actor's self-approve-advance.
+            // Post-fix: the early-BLOCK fires before any version-compare.
+            let payload = synthetic_apply_patch("Update", ".sos-state/ticket-state.env");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, |dir| {
+                fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                fs::write(dir.join(".sos-state/ticket-state.env"), state_env("V3", "V3")).unwrap();
+                fs::write(dir.join(".sos-state/worker-active"), "").unwrap();
+            });
+            assert_eq!(
+                code, 2,
+                "worker-active advance of an already-approved version (V3/V3 -> V4/V4 write) must BLOCK, not fall through to version-match"
+            );
+        }
+
+        #[test]
+        fn approval_gate_blocks_architect_advance_of_already_approved_version() {
+            // Symmetric architect-marker variant of the gap #3 core oracle.
+            let payload = synthetic_apply_patch("Update", ".sos-state/ticket-state.env");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, |dir| {
+                fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                fs::write(dir.join(".sos-state/ticket-state.env"), state_env("V3", "V3")).unwrap();
+                fs::write(dir.join(".sos-state/architect-active"), "").unwrap();
+            });
+            assert_eq!(
+                code, 2,
+                "architect-active advance of an already-approved version must BLOCK"
+            );
+        }
+
+        #[test]
+        fn approval_gate_blocks_worker_bootstrap_create_of_state_file() {
+            // "Any-write" coverage: marked actor + CREATE (state file
+            // missing) must also BLOCK, not just update/advance.
+            let payload = synthetic_apply_patch("Add", ".sos-state/ticket-state.env");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, with_worker_active);
+            assert_eq!(
+                code, 2,
+                "worker-active CREATE of ticket-state.env must BLOCK"
+            );
+        }
+
+        #[test]
+        fn approval_gate_allows_main_thread_relative_path_state_alone_no_regress() {
+            // P078e deadlock-fix no-regress control: BOTH markers absent,
+            // unapproved V1/empty state, update-only relative-path write to
+            // ticket-state.env -> ALLOW. (Mirrors the existing
+            // `approval_gate_allows_v1_to_v2_transition_when_main_thread_round2_repro`
+            // test -- restated here beside the gap #3/#4 matrix for clarity.)
+            let payload = synthetic_apply_patch("Update", ".sos-state/ticket-state.env");
+            let code = run_guard(templates::GUARD_APPROVAL_GATE, &payload, |dir| {
+                fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                fs::write(dir.join(".sos-state/ticket-state.env"), state_env("V1", "")).unwrap();
+            });
+            assert_eq!(code, 0, "main-thread relative-path state-alone write must ALLOW (no-regress)");
+        }
+
+        #[test]
+        fn approval_gate_normalizes_absolute_path_main_thread_allow() {
+            // Gap #4 oracle: main-thread (no marker), unapproved V1/empty
+            // state, update-only write to ticket-state.env addressed via an
+            // ABSOLUTE repo-root path instead of the relative form. Must be
+            // normalized to the relative form and treated IDENTICALLY to
+            // the relative-path case above -> ALLOW. Pre-fix this
+            // false-blocked (exact-string compare never matched an absolute
+            // path) -- this is the negative-test anchor for Task 2: revert
+            // the normalize step and this flips ALLOW -> BLOCK.
+            let code = run_guard_dynamic(
+                templates::GUARD_APPROVAL_GATE,
+                |dir| {
+                    fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                    fs::write(dir.join(".sos-state/ticket-state.env"), state_env("V1", "")).unwrap();
+                },
+                |root| synthetic_apply_patch_abs("Update", root, ".sos-state/ticket-state.env"),
+            );
+            assert_eq!(
+                code, 0,
+                "absolute repo-root patch path to ticket-state.env must normalize to relative and ALLOW on main-thread, same as the relative-path form"
+            );
+        }
+
+        #[test]
+        fn approval_gate_normalizes_absolute_path_worker_active_blocks() {
+            // Gap #4 + gap #3 combined: same absolute-path shape as above,
+            // but with worker-active set and an already-approved V3/V3
+            // state -- normalize must still resolve the path to exactly
+            // STATE_FILE so the gap #3 early-BLOCK fires (marked actor
+            // never gets a normalize-driven escape either).
+            let code = run_guard_dynamic(
+                templates::GUARD_APPROVAL_GATE,
+                |dir| {
+                    fs::create_dir_all(dir.join(".sos-state")).unwrap();
+                    fs::write(dir.join(".sos-state/ticket-state.env"), state_env("V3", "V3")).unwrap();
+                    fs::write(dir.join(".sos-state/worker-active"), "").unwrap();
+                },
+                |root| synthetic_apply_patch_abs("Update", root, ".sos-state/ticket-state.env"),
+            );
+            assert_eq!(
+                code, 2,
+                "absolute repo-root patch path to ticket-state.env with worker-active must still BLOCK after normalize"
+            );
+        }
+
+        #[test]
+        fn approval_gate_blocks_bundle_absolute_state_path_plus_code_no_regress() {
+            // d2a multi-path no-regress with normalize present: bundling an
+            // ABSOLUTE ticket-state.env path with a code path in one patch
+            // must still BLOCK (the exemption only ever fires for
+            // ticket-state.env ALONE; normalize doesn't collapse a 2-path
+            // patch down to 1).
+            let code = run_guard_dynamic(
+                templates::GUARD_APPROVAL_GATE,
+                no_setup,
+                |root| {
+                    let abs_state = format!("{}/.sos-state/ticket-state.env", root.display());
+                    synthetic_apply_patch_multi("Update", &abs_state, "Add", "src/evil.rs")
+                },
+            );
+            assert_eq!(
+                code, 2,
+                "bundle of absolute-path ticket-state.env + code path must BLOCK even after normalize"
+            );
+        }
+
         #[test]
         fn all_guard_scripts_are_bash_syntax_clean() {
             for identity in [

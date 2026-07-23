@@ -153,6 +153,42 @@ boundary**, not this gate. `sos install` rendering + arming real Git hooks by de
 that boundary gap) is tracked separately as **P078f + P078g — SHIPPED (2026-07-23)**, see below and
 `docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md` / `docs/adapters/P079-ROUND3-FINDINGS-2026-07-23.md`.
 
+**Actor-check advance-block + path-normalize (P078h, 2026-07-23) — closes the P078e self-approve
+hole.** P079 round-3 live-dogfood (`docs/adapters/P079-ROUND3-FINDINGS-2026-07-23.md` §B4) found
+that P078e's actor-check only stopped *removing* the state-file-alone exemption for a marked
+actor — it still fell through to the ordinary version-match check below, which compares only
+**pre-patch** state. Starting from an already-approved `version=V3, approved_version=V3`, a
+worker with `.sos-state/worker-active` present could write `version=V4, approved_version=V4` and
+the version-match check saw `V3 == V3` (already approved) and let it through: a self-approve
+**advance** hole, not a self-approve **create** hole. Fixed: a marked actor
+(`.sos-state/worker-active` **or** `.sos-state/architect-active` present) is now BLOCKed outright
+for **any** write that touches `.sos-state/ticket-state.env` — create, update, or advance — with
+NO fall-through to version-match. Version-match is no longer an escape hatch for a marked actor
+under any circumstance; only the main-thread (both markers absent) reaches the version-match
+checks at all. A second, independent fix in the same phiếu normalizes a repo-root-absolute
+`apply_patch` path to its relative form (stripping a literal `$REPO_ROOT/` prefix, computed via
+the same `git rev-parse --show-toplevel || pwd` REPO_ROOT already used elsewhere in the guard)
+**before** both the state-file-allow compare and the multi-path all-path check consume it — P079
+round-3's "Additional usability observation" found the previous exact-relative-string compare
+false-blocked a legitimate main-thread approval write whose patch happened to carry an absolute
+path. The normalize step is deliberately conservative: it is a plain string-prefix strip, not a
+`realpath`/symlink resolution, so any path that ends up still containing `..` after the strip (or
+was never under `REPO_ROOT` to begin with) is left as-is and therefore can never equal the exact
+state-file string — an unresolved/foreign-looking path always falls through to fail-CLOSED rather
+than being trusted. Verified via mock-payload tests (worker/architect-marker advance-of-approved
+BLOCK, marked-actor create BLOCK, main-thread relative-path no-regress ALLOW, absolute-path
+normalize ALLOW on main-thread / BLOCK when marked, bundle-with-absolute-path no-regress BLOCK)
+plus two negative-tests: reverting the early-BLOCK flips the advance-of-approved test from
+BLOCK back to ALLOW; reverting the normalize step flips the absolute-path main-thread test from
+ALLOW back to false-BLOCK (`crates/sos-adapter-codex/src/lib.rs`, `docs/discoveries/P078h.md`).
+**Codex caveat unchanged from P078e:** this fix strengthens the guard's LOGIC, it does not change
+WHETHER the guard fires inside a real Codex custom-role subagent — that gap (`worker-active`/
+`architect-active` markers absent on Codex 0.145.0, upstream `openai/codex#21753`) is still open
+and out of scope here. The advance-block fix is SOUND on Claude (in-subagent hooks fire reliably)
+and for the manual-marker Codex repro path; on a real Codex custom-role subagent spawn it remains
+best-effort/inactive, same as the rest of the actor-check — the Git backstop (P078f/P078g arming)
+and human-review-at-commit remain the real boundary on Codex.
+
 **In-subagent role-envelope enforcement — MISSING, not PARTIAL (P078d2b, upstream
 `openai/codex#21753`).** All 5 guards above are `PreToolUse`/`UserPromptSubmit` hooks that fire
 on the **main thread**. On Codex 0.145.0, they do **not** fire inside a spawned **custom-role**
