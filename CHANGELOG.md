@@ -4,6 +4,13 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**[P080x] FIX (SECURITY) — Dev `[8/8]` hook `hooks/pre-commit`: `[6/8]` no-code-on-default + `[7/8]` block-env now fail-CLOSED on missing guard script (closes P080 round-1 gap D1, 2026-07-23):**
+- **Gap closed:** P078i's fail-CLOSED fix only shipped in the `sos install` backstop hook (`crates/sos-install/src/templates/backstop-pre-commit.sh`); the dev `[8/8]` hook that `sos new` copies (`hooks/pre-commit`) still had the old fail-OPEN else-branches for these 2 phases — live-verified `exit 0` when the guard was deleted and a real `.env` was committed.
+- **Fix:** `hooks/pre-commit` `[6/8]`/`[7/8]` else-branches now `red` + `FAIL_COUNT++` on missing guard script (commit blocked) instead of `⏭ skip` (commit silently allowed). Scoped to exactly the 2 invariants P078i's backstop covers; `[1-5]`/`[8]` untouched (deferred, see phase-decision table in phiếu). Phase count `[8/8]` unchanged.
+- Verified via pristine fixture (no seeding beyond guards + hook): missing-guard `.env` commit BLOCKED exit 1, missing-guard code-on-default commit BLOCKED exit 1, both-guards clean commit exit 0 (negative control), both-guards `.env` commit still BLOCKED exit 1 (regression), 2-directional revert/restore test.
+- Docs: `SECURITY.md` (new section), `docs/SETUP.md` `[6/8]`/`[7/8]` descriptions, `CLAUDE.md` scripts list.
+- Full report: `docs/discoveries/P080x.md`.
+
 **[P080] Dual-runtime brownfield dogfood — FAIL, 1 gap found (2026-07-23):**
 - Ran the `[Thợ-local]` half of the P080 test matrix (Nhóm A fresh-dual incl.
   A2-reverse + A5-uninstall, Nhóm B brownfield, Nhóm D regression incl.

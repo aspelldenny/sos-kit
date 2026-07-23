@@ -159,6 +159,10 @@ on the default branch remain allowed (kit maintenance, README fixes, doctrine ed
 - **Pattern derivation**: the gate reads `.sos-stack.toml` `type` to derive file-extension
   patterns. If absent, falls back to the full extension-union and **blocks** (greenfield
   commits on main are the primary failure target — ket P020 live failure).
+- **fail-CLOSED if `scripts/no-code-on-default.sh` is missing** (P080x — ports P078i backstop
+  semantics into the dev `[8/8]` hook): the hook's own else-branch now prints a loud `❌` and
+  bumps `FAIL_COUNT` (commit blocked), instead of the old `⏭ skip` (commit silently allowed).
+  A missing security-invariant guard must never mean "no check happened."
 
 **`[3/8]` sub-check `3f` — lane-check-contract** (`scripts/lane-check-contract.sh`) — P082:
 Runs `doctor lane-check --ticket phieu/TICKET_TEMPLATE.md` whenever `phieu/TICKET_TEMPLATE.md` is staged, guarding against the template silently losing its `**Lane:**` field (OA-01 regression). Exit-code mapping: `doctor` exit 2 (missing/unparseable field) → **FAIL LOUD**; exit 1 (over Normal budget) → WARN, does not block; exit 0 → OK. `doctor` absent from PATH → degraded **warn-skip** (`exit 0`), fresh-env friendly — this is NOT a security gate, so it does not fail-closed. Does not add a new phase — stays a sub-check inside `[3/8]`.
@@ -176,6 +180,11 @@ exception. Agent-agnostic git-level backstop to the Claude-only PreToolUse `bloc
   a `.env*`; the gate runs live in the kit (near-no-op by absence of any tracked `.env*`).
 - **Override** (rare, intentional, you accept the irreversible leak): `touch .sos-state/allow-env-commit`
   before commit, `rm` after. Do NOT use `--no-verify`.
+- **fail-CLOSED if `scripts/block-env-commit.sh` is missing** (P080x — same fix as `[6/8]`
+  above, ports P078i backstop semantics into the dev `[8/8]` hook): missing guard → loud `❌`
+  + `FAIL_COUNT` bump (commit blocked), not the old `⏭ skip` (commit silently allowed). This
+  closes the round-1 P080 dogfood gap D1 (live-verified: deleting the guard used to let a real
+  `.env` commit through with exit 0).
 
 **`[8/8]` trust-gate** (`scripts/trust-gate.sh`) — P073:
 Provides content-integrity for auto-exec surfaces (hooks, scripts, `.mcp.json`, `.claude/settings.json`, `install.sh`, `phieu/phieu.sh`, `templates/setup-dev.sh`). Two checks in one phase:

@@ -21,7 +21,7 @@ What's inside:
   - `VISION_TEMPLATES/` — day-1 skeletons for `PROJECT.md`, `SOUL.md`, `CHARACTER.md`
 - `skills/` — Claude Code skills (5 LIVING — each declares a mechanical `caller:` in frontmatter; `skills/attic/` = 8 parked after the 2026-06-11 full dogfood, see `docs/retro/SKILLS_DOGFOOD_2026-06-11.md` + `docs/LAYERS.md` skills map)
 - `configs/` — `.ship.toml` templates per stack (nextjs, flask, rust, python)
-- `hooks/pre-commit` — git hook script (type-check + docs-gate). `[3/8]` section includes sub-check `3f` (`scripts/lane-check-contract.sh`, P082) — does NOT add a new phase, count stays `[8/8]`.
+- `hooks/pre-commit` — git hook script (type-check + docs-gate). `[3/8]` section includes sub-check `3f` (`scripts/lane-check-contract.sh`, P082) — does NOT add a new phase, count stays `[8/8]`. `[6/8]` no-code-on-default + `[7/8]` block-env are fail-CLOSED when their guard script is missing (P080x — ports P078i backstop semantics into the dev hook; missing guard = commit BLOCKED, not silently allowed). `[1-5]`/`[8]` stay warn-skip on missing script (non-security or deferred, see phase-decision table in `docs/ticket/done/P080x-hook-fail-open-parity.md`).
 - `integrations/` — CI snippets (GitHub Actions canary) + Telegram uptime monitor
 - `README.md` — entry point for new users
 
