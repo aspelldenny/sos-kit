@@ -6,6 +6,17 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**`sos help` polish + `--version`/`-V` fix (2026-07-23):**
+- `bin/sos.sh`: `sos help` rewritten into a modern-CLI facade (Install/Update, Quick start,
+  grouped Commands, Env, docs/repo/npm pointers) — dynamic version header via
+  `_sos_version_probe` (checks already-built binaries only, no build-on-demand, so `help`
+  stays instant; falls back to "dev").
+- Fixed BACKLOG open item: `sos --version`/`sos -V` now forwards to the Rust binary
+  (`_sos_rust_bin`, build-on-demand precedence preserved) instead of printing the bash
+  help text. Missing binary → clear stderr message + exit 1.
+- Unknown-command path now prints to stderr + a `sos help` pointer before dumping help,
+  exit code unchanged (1).
+
 **Recipe Tier-0 harvest — nextauth + payos SDK rewrite (2026-07-23):**
 - Added `recipes/auth/nextauth-google-credentials.md` — NextAuth v4 Google OAuth +
   Credentials (JWT strategy), mined from tarot `src/lib/auth.ts` (verified @cd16a86).

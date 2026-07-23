@@ -19,36 +19,81 @@ set -euo pipefail
 
 SOS_KIT_DIR="${SOS_KIT_DIR:-$(dirname "$(realpath "${BASH_SOURCE[0]:-$0}")")/..}"
 
+# _sos_version_probe — best-effort version string for the help header. Does NOT build
+# (no cargo invocation) — only checks already-built binaries, so `sos help`/`sos` stay
+# instant. Falls back to "dev" when no built binary is found (source checkout, no build yet).
+_sos_version_probe() {
+  local bin="" ws candidates c
+  if [ -n "${SOS_RUST_BIN:-}" ] && [ -x "${SOS_RUST_BIN}" ]; then
+    bin="${SOS_RUST_BIN}"
+  else
+    ws="${SOS_KIT_DIR}"
+    candidates="${CARGO_TARGET_DIR:-}/release/sos ${CARGO_TARGET_DIR:-}/debug/sos ${ws}/target/release/sos ${ws}/target/debug/sos"
+    for c in $candidates; do
+      [ -x "$c" ] && { bin="$c"; break; }
+    done
+  fi
+  if [ -n "$bin" ]; then
+    "$bin" --version 2>/dev/null | awk '{print $NF}' || echo "dev"
+  else
+    echo "dev"
+  fi
+}
+
 sos_help() {
-  cat <<'EOF'
-sos — 0→1 bootstrap for SOS Kit
+  local ver; ver="$(_sos_version_probe)"
+  cat <<EOF
+sos ${ver} — Solo Operating System for one-person software teams
 
-Usage:
-  sos new <dir> --stack <python|rust|ts>   Bootstrap a NEW (empty) repo from golden (freeze + skeleton + validate)
-  sos adopt <dir> [--stack ...]            Retrofit spine into an EXISTING repo (additive + non-clobber + report)
-  sos sync <dir>                           Re-sync spine into an ADOPTED repo (KIT-LAG cure: take-newer unmodified, flag customized)
-  sos map [dir]                            Scan repo → draft AGENT_MAP with REAL surfaces (sound) + load_bearing/blast TODO (you)
-  sos init                     Phase 0 — vision capture (Chủ nhà)
-  sos init security            Bootstrap stack detection — write .sos-stack.toml (foundation for advisory-scan / security-review)
-  sos blueprint                Phase 1 — pick stack + recipes (Chủ nhà → Kiến trúc sư)
-  sos contract                 Phase 2 — lock P000-genesis.md (Kiến trúc sư)
-  sos apply <category>/<name>  Phase 3 — apply 1 recipe (Thợ)
-  sos apply --all              Apply all recipes from P000-genesis.md in order
-  sos recipe new <category>/<name>   Forge new recipe (Kiến trúc sư)
-  sos launch                   Phase N+1 — launch gate (Chủ nhà)
-  sos status                   Show .sos/state.toml summary
-  sos help                     This help
+INSTALL / UPDATE
 
-State: .sos/state.toml
-Genesis phiếu: docs/ticket/P000-genesis.md
-Recipe library: $SOS_KIT_DIR/recipes/
+  Install (curl):  curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh
+  Install (npm):   npm install -g sos-kit
+  Update:          git -C ~/sos-kit pull && npm update -g sos-kit
+
+QUICK START
+
+  sos new <dir> --stack <python|rust|ts>   Bootstrap a NEW (empty) repo from golden (spine + skeleton + git init + hooks + validate)
+  sos adopt <dir>                          Retrofit spine into an EXISTING repo (additive + non-clobber + born-wire + report)
+  sos install --runtime codex              Render/refresh the adapter for a runtime (claude|codex|...)
+  sos apply <category>/<name>              Apply 1 battle-tested recipe (Thợ)
+
+COMMANDS
+
+  Bootstrap:
+    sos new <dir> --stack <python|rust|ts>   Bootstrap a NEW (empty) repo from golden
+    sos adopt <dir> [--stack ...]            Retrofit spine into an EXISTING repo
+    sos sync <dir>                           Re-sync spine into an ADOPTED repo (KIT-LAG cure)
+    sos map [dir]                            Scan repo → draft AGENT_MAP with REAL surfaces
+
+  Workflow:
+    sos init                     Phase 0 — vision capture (Chủ nhà)
+    sos init security            Bootstrap stack detection → .sos-stack.toml (advisory-scan / security-review)
+    sos blueprint                Phase 1 — pick stack + recipes (Chủ nhà → Kiến trúc sư)
+    sos contract                 Phase 2 — lock P000-genesis.md (Kiến trúc sư)
+    sos apply <category>/<name>  Phase 3 — apply 1 recipe (Thợ)
+    sos apply --all              Apply all recipes from P000-genesis.md in order
+    sos recipe new <category>/<name>   Forge new recipe (Kiến trúc sư)
+    sos launch                   Phase N+1 — launch gate (Chủ nhà)
+    sos status                   Show .sos/state.toml summary
+
+  Tools:
+    sos install --runtime <name>   Render/refresh the runtime adapter (claude|codex|...)
+    sos tools <subcommand>         Sister-tool management (see: sos tools help)
+
+  Help:
+    sos help | --help | -h       This help
+    sos --version | -V           Print version
 
 Env:
   SOS_KIT_DIR    Path to sos-kit checkout (default: dir of this script's parent).
-  DOCTOR_BIN     Path to the `doctor` binary used by `sos new`'s verify-setup gate
-                 (default: `doctor` on PATH; set this to point at a local build).
+  SOS_RUST_BIN   Path to the Rust \`sos\` binary (overrides auto-resolve/build; always takes precedence).
+  DOCTOR_BIN     Path to the \`doctor\` binary used by \`sos new\`'s verify-setup gate
+                 (default: \`doctor\` on PATH; set this to point at a local build).
 
-For deeper docs: cat $SOS_KIT_DIR/docs/GENESIS.md
+Docs:      cat \$SOS_KIT_DIR/docs/GENESIS.md · \$SOS_KIT_DIR/INSTALL.md
+Repo:      https://github.com/aspelldenny/sos-kit
+Package:   https://www.npmjs.com/package/sos-kit
 EOF
 }
 
@@ -1339,7 +1384,21 @@ sos() {
     launch)      sos_launch "$@" ;;
     status)      sos_status "$@" ;;
     help|--help|-h) sos_help ;;
-    *) echo "Unknown command: $cmd"; sos_help; return 1 ;;
+    --version|-V)
+      local _bin
+      if _bin="$(_sos_rust_bin)"; then
+        exec "$_bin" --version
+      else
+        echo "sos (bash launcher, Rust binary not installed — run install per \`sos help\`)" >&2
+        return 1
+      fi
+      ;;
+    *)
+      echo "Unknown command: $cmd" >&2
+      echo "Run 'sos help' to see available commands." >&2
+      sos_help
+      return 1
+      ;;
   esac
 }
 
