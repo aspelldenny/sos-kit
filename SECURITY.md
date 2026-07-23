@@ -215,7 +215,7 @@ activates** the Git hook backstop as part of a successful install — it no
 longer just points `core.hooksPath` at a directory and hopes something is
 there.
 
-**Gap history (read chronologically — the boundary went through 2 fixes):**
+**Gap history (read chronologically — the boundary went through 3 fixes; see also P078i below for the 3rd):**
 - **P078f (2026-07-23, `d35f462`)** added the arming step (`core.hooksPath` +
   F09 hijack-guard) but assumed `hooks/pre-commit`/`hooks/pre-push` were
   already on disk from adapter rendering. They weren't — **neither runtime's
@@ -279,6 +279,66 @@ refuse-when-absent (`arm_git_hooks` called with nothing rendered → `Err`,
 `hooks/pre-commit` preserved verbatim), plus all 5 P078f tests still green
 (`.bak` rename, non-clobber abort, non-git warn-skip, idempotent re-install).
 See `docs/discoveries/P078g.md` and `docs/discoveries/P078f.md`.
+
+## `sos install`'s rendered `hooks/pre-commit` is a self-contained backstop, not the dev [8/8] hook (P078i, 2026-07-23)
+
+**Gap closed (P079 round-4 `docs/adapters/P079-ROUND4-FINDINGS-2026-07-23.md`,
+Test A3/A4 FAIL — "structural-oracle-gap lần 3"):** P078g (above) correctly
+renders + arms `hooks/pre-commit`/`hooks/pre-push`, but the content it was
+rendering was the **kit's own dev `[8/8]` hook** — the one designed for `sos
+new` dev projects, which delegates every phase to `scripts/*.sh` + the
+`docs-gate` binary and **fail-OPENs** when a delegated script is absent
+(`echo "... missing — run scripts/install-hooks.sh after bootstrap"` then
+falls through, no `exit`). A fresh `sos install` into a brownfield repo never
+renders that `scripts/` tree, so both required probes (`.env` block, no-code-
+on-default) silently passed on real commits — a false-armed backstop, worse
+than none (round-4 A3/A4: `ENV_COMMITTED=yes`, `CODE_COMMITTED=yes`).
+
+**Fix — the install path now renders a DIFFERENT, purpose-built, minimal
+`hooks/pre-commit`:**
+- New template `crates/sos-install/src/templates/backstop-pre-commit.sh`,
+  embedded via `include_str!` (`EMBEDDED_BACKSTOP_PRE_COMMIT`,
+  `crates/sos-install/src/engine.rs`). It enforces **exactly 2 invariants**:
+  `.env*` secret-file block and no-code-on-default — nothing else. No
+  docs-gate/trust-gate/type-check/security-gate phases.
+- **fail-CLOSED, the opposite of the round-4 bug:** each phase first checks
+  its delegated guard script exists (`[ ! -f scripts/<x>.sh ]`) — if absent,
+  `exit 1` with a `BLOCKED:` message. There is no "missing → allowed" path.
+- **Closure by co-rendering:** the SAME `render_embedded_hooks()` call that
+  writes `hooks/pre-commit` also writes `scripts/block-env-commit.sh` +
+  `scripts/no-code-on-default.sh` (embedded verbatim from the kit's own
+  `scripts/` — single-source, `EMBEDDED_BLOCK_ENV`/`EMBEDDED_NO_CODE_DEFAULT`),
+  so a fresh install's render output is a fully closed dependency set: the
+  hook it wrote never references a script it didn't also write. All 3 (+
+  `hooks/pre-push`) are chmod +x immediately after write.
+- **`sos new` (dev projects) is UNCHANGED** — it still copies the real
+  `hooks/pre-commit` dev `[8/8]` + the full `scripts/` tree at runtime
+  (`crates/sos-cli/src/commands/new.rs:312`, `copy_tree`), a code path that
+  never calls `engine::apply()`/`render_embedded_hooks()`. `hooks/pre-push`
+  is unaffected by this fix (self-contained, advisory-only, no delegated
+  scripts — no dependency-closure risk).
+
+**Structural-oracle-gap lần 3 — now closed with a dependency-closure
+assertion.** P078f's fixture seeded hook *content* into the synthetic `Plan`
+(missed "install never renders the hook at all"); P078g's fixture seeded
+`scripts/block-env-commit.sh` directly (missed "install renders a hook that
+references a script install itself never writes"). P078i's test
+(`pristine_install_renders_closed_dependency_set_and_blocks_real_env_and_code_commits`,
+`crates/sos-install/tests/install.rs`) runs against a **git repo with ZERO
+seeding** (no `hooks/`, no `scripts/` ahead of time), then greps the rendered
+`hooks/pre-commit` for every `scripts/*.sh` reference and asserts each one
+exists among the artifacts that same install run produced — closing the
+recursive gap (render X while X still needs unrendered Y) mechanically
+instead of by convention.
+
+**Verified:** real `git commit` of a real `.env` → BLOCKED; real product
+code committed on the default branch → BLOCKED; clean docs-only commit →
+still passes (negative control); a **fail-closed drift test**
+(`pristine_install_backstop_fails_closed_when_guard_script_is_absent`)
+deletes a just-rendered guard and re-confirms the next `.env` commit is
+STILL blocked, not silently allowed. `cargo test -p sos-install`: 19/19 pass
+(17 pre-existing + 2 new pristine-oracle tests), `cargo test --workspace`
+green. See `docs/discoveries/P078i.md`.
 
 ## Install: tool-version drift (OA-07) is workflow-safety, not a trust boundary (P078c)
 
