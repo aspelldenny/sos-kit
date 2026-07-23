@@ -474,6 +474,178 @@ fn hook_arming_is_idempotent_on_second_install() {
     );
 }
 
+// ---------------------------------------------------------------------
+// P078g — fresh-install-no-seed oracle. Fixes the structural-oracle-gap
+// left by P078f (all hook-arming tests above seed `hooks/pre-commit` +
+// `hooks/pre-push` INTO the synthetic `MockAdapter` plan — they never
+// exercise the real (Plan has NO hook ops at all) render path, which is
+// exactly what let round-3 Test A2 slip through: `core.hooksPath` got
+// armed while `hooks/` stayed empty). These tests use a Plan with ZERO
+// hook-related ops — hooks must appear purely from `render_embedded_hooks`
+// inside `engine::apply()`.
+// ---------------------------------------------------------------------
+
+fn repo_root_hook_bytes(name: &str) -> Vec<u8> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("../../hooks/{name}"));
+    fs::read(&path).unwrap_or_else(|_| panic!("kit source {} must exist", path.display()))
+}
+
+fn block_env_commit_script_bytes() -> Vec<u8> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/block-env-commit.sh");
+    fs::read(&path).unwrap_or_else(|_| panic!("kit source {} must exist", path.display()))
+}
+
+fn git_commit(root: &Path, args: &[&str]) -> std::process::Output {
+    git_in(root, args)
+}
+
+fn configure_git_identity(root: &Path) {
+    let out = git_in(root, &["config", "--local", "user.email", "p078g-test@example.com"]);
+    assert!(out.status.success());
+    let out = git_in(root, &["config", "--local", "user.name", "P078g Test"]);
+    assert!(out.status.success());
+}
+
+/// Empty plan — no adapter op touches `hooks/` at all. This is the "fresh
+/// install, nothing seeds hooks" shape a real `ClaudeAdapter`/`CodexAdapter`
+/// plan produces today (Worker CHALLENGE Turn 1 Anchor #3: neither runtime's
+/// `plan()` renders git hook scripts).
+fn empty_plan() -> Plan {
+    let adapter = MockAdapter { ops: vec![] };
+    adapter.plan(&adapter.detect())
+}
+
+#[test]
+fn install_renders_real_hook_scripts_from_embedded_kit_source_fresh_no_seed() {
+    let fixture = TempFixture::new("p078g-render-fresh");
+    let root = fixture.path();
+    git_init(root);
+
+    let plan = empty_plan();
+    engine::apply(root, &plan, OWNER, SRC_VERSION).expect("apply must succeed with an empty plan");
+
+    let pre_commit = fs::read(root.join("hooks/pre-commit")).expect("hooks/pre-commit must exist");
+    let pre_push = fs::read(root.join("hooks/pre-push")).expect("hooks/pre-push must exist");
+    assert_eq!(pre_commit, repo_root_hook_bytes("pre-commit"), "rendered content must byte-match kit source");
+    assert_eq!(pre_push, repo_root_hook_bytes("pre-push"), "rendered content must byte-match kit source");
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for h in ["hooks/pre-commit", "hooks/pre-push"] {
+            let meta = fs::metadata(root.join(h)).unwrap();
+            assert!(meta.permissions().mode() & 0o111 != 0, "{h} must be executable after render+arm");
+        }
+    }
+
+    assert_eq!(
+        git_config_get_test(root, "core.hooksPath").as_deref(),
+        Some("hooks"),
+        "core.hooksPath must be armed only AFTER real hook scripts are on disk"
+    );
+}
+
+#[test]
+fn install_end_to_end_blocks_a_real_env_commit_after_fresh_install() {
+    let fixture = TempFixture::new("p078g-e2e-block");
+    let root = fixture.path();
+    git_init(root);
+    configure_git_identity(root);
+
+    // Seed only the ONE sub-script `hooks/pre-commit` needs to genuinely
+    // block a `.env` commit ([7/8] block-env-commit) — the other 7 phases
+    // gracefully WARN-skip when their scripts are absent (by design, see
+    // hooks/pre-commit comments), so this stays a real "does the armed
+    // backstop actually run and block" oracle without dragging in the full
+    // security-gate/docs-gate machinery (too heavy for a unit test, and
+    // unrelated to what P078g fixes).
+    fs::create_dir_all(root.join("scripts")).unwrap();
+    fs::write(root.join("scripts/block-env-commit.sh"), block_env_commit_script_bytes()).unwrap();
+
+    let plan = empty_plan();
+    engine::apply(root, &plan, OWNER, SRC_VERSION).expect("apply must succeed");
+    assert_eq!(git_config_get_test(root, "core.hooksPath").as_deref(), Some("hooks"));
+
+    // Negative control FIRST — the same armed hook chain must PASS a clean
+    // commit (guard isn't just always-red).
+    fs::write(root.join("README.md"), "hello\n").unwrap();
+    let add = git_in(root, &["add", "README.md"]);
+    assert!(add.status.success());
+    let clean_commit = git_commit(root, &["commit", "-m", "clean commit"]);
+    assert!(
+        clean_commit.status.success(),
+        "a clean commit must NOT be blocked by the armed hook chain: {}",
+        String::from_utf8_lossy(&clean_commit.stderr)
+    );
+
+    // Real block: stage a `.env` and commit it for real — the armed
+    // `core.hooksPath` must make git actually RUN `hooks/pre-commit`,
+    // which must actually BLOCK it (exit != 0), not just "file exists".
+    fs::write(root.join(".env"), "SECRET=leaked\n").unwrap();
+    let add = git_in(root, &["add", ".env"]);
+    assert!(add.status.success());
+    let blocked = git_commit(root, &["commit", "-m", "should be blocked"]);
+    assert!(
+        !blocked.status.success(),
+        "committing a real .env must be BLOCKED by the now-armed hook chain (exit != 0)"
+    );
+    assert!(
+        String::from_utf8_lossy(&blocked.stderr).contains("BLOCKED")
+            || String::from_utf8_lossy(&blocked.stdout).contains("BLOCKED"),
+        "block-env-commit.sh must have actually run and printed its BLOCKED message"
+    );
+
+    // And the .env must NOT have been committed.
+    let log = git_in(root, &["log", "--oneline"]);
+    let log_text = String::from_utf8_lossy(&log.stdout);
+    assert!(!log_text.contains("should be blocked"), ".env commit must not have landed in history");
+}
+
+#[test]
+fn arm_git_hooks_refuses_to_arm_when_hook_scripts_are_absent() {
+    let fixture = TempFixture::new("p078g-refuse-absent");
+    let root = fixture.path();
+    git_init(root);
+    // Deliberately do NOT render anything — call the arm step in isolation
+    // to prove Constraint 2 (fail-loud > false-armed) holds even if a
+    // future caller ever invokes it without rendering first.
+    let result = engine::arm_git_hooks(root);
+    assert!(
+        result.is_err(),
+        "arm_git_hooks must refuse (Err) when hooks/pre-commit and hooks/pre-push are absent"
+    );
+    assert_eq!(
+        git_config_get_test(root, "core.hooksPath"),
+        None,
+        "core.hooksPath must NOT be set when hook scripts are absent — never false-arm"
+    );
+}
+
+#[test]
+fn render_embedded_hooks_non_clobber_preserves_customized_hook_content() {
+    let fixture = TempFixture::new("p078g-render-non-clobber");
+    let root = fixture.path();
+    git_init(root);
+
+    fs::create_dir_all(root.join("hooks")).unwrap();
+    fs::write(root.join("hooks/pre-commit"), "#!/bin/sh\necho USER CUSTOM HOOK\n").unwrap();
+
+    let plan = empty_plan();
+    engine::apply(root, &plan, OWNER, SRC_VERSION).expect("apply must succeed");
+
+    let content = fs::read_to_string(root.join("hooks/pre-commit")).unwrap();
+    assert_eq!(
+        content, "#!/bin/sh\necho USER CUSTOM HOOK\n",
+        "render must NOT clobber a pre-existing customized hooks/pre-commit"
+    );
+    // pre-push wasn't customized — it must still get rendered from kit source.
+    assert_eq!(fs::read(root.join("hooks/pre-push")).unwrap(), repo_root_hook_bytes("pre-push"));
+
+    // Still arms — the custom file exists + is chmod'd executable, which
+    // satisfies the "never arm empty" check even though content differs.
+    assert_eq!(git_config_get_test(root, "core.hooksPath").as_deref(), Some("hooks"));
+}
+
 fn dir_entries_sorted(root: &Path) -> Vec<String> {
     if !root.exists() {
         return Vec::new();

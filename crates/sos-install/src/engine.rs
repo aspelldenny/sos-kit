@@ -276,6 +276,14 @@ pub fn apply(
                     managed: next_entries,
                 },
             )?;
+            // P078g — render the embedded `hooks/pre-commit` +
+            // `hooks/pre-push` scripts BEFORE arming, so `core.hooksPath`
+            // never points at an empty dir (fixes P078f's arm-empty gap —
+            // round-3 Test A2/A3/A4). Runs on the success path, same as
+            // `arm_git_hooks` below (see its comment for the no-rollback
+            // rationale — this is boundary-activation, not part of the
+            // file-write transaction).
+            render_embedded_hooks(project_root)?;
             // P078f — arm Git hooks (core.hooksPath + F09 hijack-guard),
             // ported from `scripts/install-hooks.sh`. Runs ONLY on the
             // success path, after the manifest is committed — hook-arming
@@ -320,7 +328,14 @@ pub fn apply(
 /// triggers TTY confirm / non-TTY abort (fail-closed) BEFORE anything is
 /// mutated; idempotent re-runs (hooksPath already == "hooks", Constraint
 /// 6) never trip the guard.
-fn arm_git_hooks(project_root: &Path) -> Result<()> {
+///
+/// P078g: also NEVER arms `core.hooksPath` when `hooks/pre-commit` /
+/// `hooks/pre-push` are absent or non-executable in `project_root` (see
+/// `hooks_present_and_executable`) — fail-loud (`Err`) beats a false-armed
+/// empty backstop (Constraint 2). `pub` (not module-private) so the
+/// install-smoke test can exercise this guard directly, isolated from the
+/// render step (`render_embedded_hooks` normally runs first in `apply()`).
+pub fn arm_git_hooks(project_root: &Path) -> Result<()> {
     if !is_git_repo(project_root) {
         eprintln!(
             "⚠️  {} is not a git repo — skipping hook arming (core.hooksPath, chmod, hooks/ backstop)",
@@ -366,6 +381,21 @@ fn arm_git_hooks(project_root: &Path) -> Result<()> {
                 );
             }
         }
+    }
+
+    // Step 2.5 (P078g) — never arm an empty hooksPath. Kit source is
+    // embedded at compile time so this should never fire in practice —
+    // this defends against future desync (e.g. a caller invoking
+    // `arm_git_hooks` directly without having rendered first).
+    if !hooks_present_and_executable(project_root) {
+        eprintln!(
+            "❌ hook scripts not rendered — refusing to arm empty hooksPath; boundary NOT active"
+        );
+        bail!(
+            "hooks/pre-commit or hooks/pre-push missing/non-executable in {} — refusing to set \
+             core.hooksPath (would arm an empty backstop, false-security)",
+            project_root.display()
+        );
     }
 
     // Step 3 — activate tracked hooks/.
@@ -441,6 +471,78 @@ fn git_config_set(project_root: &Path, key: &str, value: &str) -> Result<()> {
         );
     }
     Ok(())
+}
+
+/// P078g — kit-source `hooks/pre-commit` + `hooks/pre-push`, baked into the
+/// `sos-install` binary at COMPILE time. `sos install` runs standalone in an
+/// arbitrary target repo — it has no `SOS_KIT_DIR` (unlike `new`/`adopt`/
+/// `sync`, Worker CHALLENGE Turn 1 Anchor #4 confirmed 0 hits), so the
+/// `new.rs:315-322` runtime-copy-from-kit-root pattern doesn't apply here.
+/// `include_str!` is the self-contained route, and it's trivially symmetric
+/// across both runtimes because it renders in the engine's own `apply()`
+/// path (not per-adapter `plan()` — `ClaudeAdapter::plan()` is currently a
+/// total stub, see Discovery P078g).
+const EMBEDDED_PRE_COMMIT: &str = include_str!("../../../hooks/pre-commit");
+const EMBEDDED_PRE_PUSH: &str = include_str!("../../../hooks/pre-push");
+
+/// Render the embedded hook scripts into `project_root/hooks/` — MUST run
+/// before `arm_git_hooks()` (Constraint 3: render-before-arm) so the
+/// backstop scripts exist before `core.hooksPath` is ever pointed at them.
+/// Fixes P078f's arm-empty gap (round-3 Test A2: `core.hooksPath` got set
+/// but `hooks/pre-commit`/`hooks/pre-push` never existed on disk).
+///
+/// Non-clobber: if a target already holds content DIFFERENT from the
+/// embedded script (an adopter customized their own hook), it is left
+/// untouched (warn only) — this extends F09's non-clobber philosophy
+/// (round-3 A5) to the render step, not just the hooksPath guard.
+fn render_embedded_hooks(project_root: &Path) -> Result<()> {
+    for (rel, content) in [
+        ("hooks/pre-commit", EMBEDDED_PRE_COMMIT),
+        ("hooks/pre-push", EMBEDDED_PRE_PUSH),
+    ] {
+        let target = project_root.join(rel);
+        if target.exists() {
+            let existing = fs::read(&target).unwrap_or_default();
+            if existing == content.as_bytes() {
+                continue; // already correct — no-op (idempotence)
+            }
+            eprintln!(
+                "⚠️  {rel} already exists with different content — leaving it untouched \
+                 (non-clobber; sos-kit's own hook script was NOT written here)"
+            );
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("create parent dir for {rel}"))?;
+        }
+        fs::write(&target, content.as_bytes())
+            .with_context(|| format!("render embedded hook script {rel}"))?;
+    }
+    Ok(())
+}
+
+/// P078g — Constraint 2 (fail-loud > false-armed): `true` only if BOTH
+/// `hooks/pre-commit` and `hooks/pre-push` exist as regular files AND (on
+/// Unix) are executable. Called right before `arm_git_hooks()` sets
+/// `core.hooksPath` — if this returns `false`, the caller MUST refuse to
+/// arm rather than point `core.hooksPath` at an empty/non-executable dir.
+fn hooks_present_and_executable(project_root: &Path) -> bool {
+    for h in ["hooks/pre-commit", "hooks/pre-push"] {
+        let p = project_root.join(h);
+        if !p.is_file() {
+            return false;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            match fs::metadata(&p) {
+                Ok(meta) if meta.permissions().mode() & 0o111 != 0 => {}
+                _ => return false,
+            }
+        }
+    }
+    true
 }
 
 /// P077d3 (OA-07): tool-manifest resolve — step 5 of the transaction
