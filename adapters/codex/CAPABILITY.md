@@ -93,10 +93,27 @@ so a real `.env` commit and a real code-on-default commit both went through unbl
 `core.hooksPath` being set. **P078g closed that gap**: `sos install --runtime codex` now renders
 `hooks/pre-commit`/`hooks/pre-push` from compile-time-embedded kit source BEFORE arming, and
 `arm_git_hooks()` refuses to set `core.hooksPath` at all if the scripts are absent/non-executable
-(never-arm-empty). Verified end-to-end: a real `git commit` of a real `.env` after `sos install`
-is now genuinely blocked (not just "hooksPath is set") — see `docs/discoveries/P078g.md`,
-`SECURITY.md` "`sos install`: Git hooks are RENDERED + armed-by-default", and
-`docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md` / `P079-ROUND3-FINDINGS-2026-07-23.md`.
+(never-arm-empty). **Correction (P079 round-4 found P078g's "genuinely blocked" claim above was
+only true when the delegated scripts happened to be present):** P078g rendered the kit's own dev
+`[8/8]` `hooks/pre-commit` — the one built for `sos new` dev checkouts, which delegates every
+phase to `scripts/*.sh` and **fail-OPENs** (prints "... missing" then falls through, no `exit`)
+when a delegated script is absent. A fresh `sos install --runtime codex` into a brownfield repo
+never renders that `scripts/` tree, so both required probes silently passed on real commits
+(round-4 Test A3/A4 FAIL: `ENV_COMMITTED=yes`, `CODE_COMMITTED=yes`) — the false-armed backstop
+this whole gap-#4/#2 thread was trying to close. **P078i (2026-07-23) closes it for real:** the
+install path now renders a DIFFERENT, purpose-built, minimal `hooks/pre-commit`
+(`crates/sos-install/src/templates/backstop-pre-commit.sh`) enforcing ONLY the 2 invariants
+(`.env` block + no-code-on-default), **fail-CLOSED** (missing guard → `exit 1`, never "allowed"),
+with its 2 delegated guard scripts (`scripts/block-env-commit.sh`, `scripts/no-code-on-default.sh`,
+embedded verbatim, single-source) co-rendered in the SAME step so the install output is a closed
+dependency set. `sos new` dev projects are unaffected (still get the real `[8/8]` hook via a
+separate `copy_tree` code path). Verified end-to-end against a git repo with **zero pre-seeding**:
+a real `.env` commit and a real product-code-on-default commit are both genuinely BLOCKED, and a
+fail-closed drift test (deleting a just-rendered guard) confirms the next commit is still blocked,
+not silently allowed. See `docs/discoveries/P078i.md`, `SECURITY.md`
+"`sos install`'s rendered `hooks/pre-commit` is a self-contained backstop, not the dev [8/8] hook",
+and `docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md` / `P079-ROUND3-FINDINGS-2026-07-23.md` /
+`P079-ROUND4-FINDINGS-2026-07-23.md`.
 
 **P078h (advance-block + path-normalize, 2026-07-23) — closes the P078e self-approve advance
 hole.** P079 round-3 live-dogfood (`docs/adapters/P079-ROUND3-FINDINGS-2026-07-23.md` §B4) found

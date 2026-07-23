@@ -495,6 +495,21 @@ fn block_env_commit_script_bytes() -> Vec<u8> {
     fs::read(&path).unwrap_or_else(|_| panic!("kit source {} must exist", path.display()))
 }
 
+fn no_code_on_default_script_bytes() -> Vec<u8> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/no-code-on-default.sh");
+    fs::read(&path).unwrap_or_else(|_| panic!("kit source {} must exist", path.display()))
+}
+
+/// P078i — the backstop `hooks/pre-commit` template is embedded from
+/// `crates/sos-install/src/templates/backstop-pre-commit.sh`, NOT from the
+/// kit-root dev `[8/8]` `hooks/pre-commit` anymore (that one is now
+/// `sos new`-only). Read the same source `include_str!` embeds so this
+/// test's expectation can never drift from the embedded content.
+fn backstop_pre_commit_template_bytes() -> Vec<u8> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/templates/backstop-pre-commit.sh");
+    fs::read(&path).unwrap_or_else(|_| panic!("kit source {} must exist", path.display()))
+}
+
 fn git_commit(root: &Path, args: &[&str]) -> std::process::Output {
     git_in(root, args)
 }
@@ -524,15 +539,36 @@ fn install_renders_real_hook_scripts_from_embedded_kit_source_fresh_no_seed() {
     let plan = empty_plan();
     engine::apply(root, &plan, OWNER, SRC_VERSION).expect("apply must succeed with an empty plan");
 
+    // P078i: `hooks/pre-commit` on the INSTALL path is now the minimal
+    // backstop template (not the dev [8/8] kit-root hook) — its 2
+    // delegated guard scripts must render alongside it (dependency-closure).
     let pre_commit = fs::read(root.join("hooks/pre-commit")).expect("hooks/pre-commit must exist");
     let pre_push = fs::read(root.join("hooks/pre-push")).expect("hooks/pre-push must exist");
-    assert_eq!(pre_commit, repo_root_hook_bytes("pre-commit"), "rendered content must byte-match kit source");
+    let block_env = fs::read(root.join("scripts/block-env-commit.sh")).expect("scripts/block-env-commit.sh must exist");
+    let no_code_default =
+        fs::read(root.join("scripts/no-code-on-default.sh")).expect("scripts/no-code-on-default.sh must exist");
+    assert_eq!(
+        pre_commit,
+        backstop_pre_commit_template_bytes(),
+        "rendered hooks/pre-commit must byte-match the minimal backstop template, not the dev [8/8] hook"
+    );
     assert_eq!(pre_push, repo_root_hook_bytes("pre-push"), "rendered content must byte-match kit source");
+    assert_eq!(block_env, block_env_commit_script_bytes(), "rendered guard must byte-match kit source");
+    assert_eq!(
+        no_code_default,
+        no_code_on_default_script_bytes(),
+        "rendered guard must byte-match kit source"
+    );
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        for h in ["hooks/pre-commit", "hooks/pre-push"] {
+        for h in [
+            "hooks/pre-commit",
+            "hooks/pre-push",
+            "scripts/block-env-commit.sh",
+            "scripts/no-code-on-default.sh",
+        ] {
             let meta = fs::metadata(root.join(h)).unwrap();
             assert!(meta.permissions().mode() & 0o111 != 0, "{h} must be executable after render+arm");
         }
@@ -552,13 +588,11 @@ fn install_end_to_end_blocks_a_real_env_commit_after_fresh_install() {
     git_init(root);
     configure_git_identity(root);
 
-    // Seed only the ONE sub-script `hooks/pre-commit` needs to genuinely
-    // block a `.env` commit ([7/8] block-env-commit) — the other 7 phases
-    // gracefully WARN-skip when their scripts are absent (by design, see
-    // hooks/pre-commit comments), so this stays a real "does the armed
-    // backstop actually run and block" oracle without dragging in the full
-    // security-gate/docs-gate machinery (too heavy for a unit test, and
-    // unrelated to what P078g fixes).
+    // P078i: `render_embedded_hooks()` now renders the minimal backstop
+    // `hooks/pre-commit` AND both of its delegated guards automatically —
+    // this pre-seed is now redundant (same bytes get written either way)
+    // but kept harmless (non-clobber: identical content = no-op) so this
+    // test still documents "block-env-commit really runs and blocks".
     fs::create_dir_all(root.join("scripts")).unwrap();
     fs::write(root.join("scripts/block-env-commit.sh"), block_env_commit_script_bytes()).unwrap();
 
@@ -644,6 +678,221 @@ fn render_embedded_hooks_non_clobber_preserves_customized_hook_content() {
     // Still arms — the custom file exists + is chmod'd executable, which
     // satisfies the "never arm empty" check even though content differs.
     assert_eq!(git_config_get_test(root, "core.hooksPath").as_deref(), Some("hooks"));
+}
+
+// ---------------------------------------------------------------------
+// P078i — pristine-repo backstop oracle. Closes the "structural-oracle-gap
+// lần 3" (round-4 findings, `docs/adapters/P079-ROUND4-FINDINGS-2026-07-23.md`
+// gap #1): every prior fixture in this file seeds at least ONE of the
+// scripts the hook delegates to, so none of them could have caught "install
+// renders a hook that references a script install never rendered." These
+// tests run `engine::apply()` against a git repo with ZERO scripts/ or
+// hooks/ seeded ahead of time — the render step itself must produce a
+// fully closed, fail-CLOSED set.
+// ---------------------------------------------------------------------
+
+/// Manual scan for `scripts/<name>.sh` references in rendered hook content
+/// — no regex dep in this crate (Cargo.toml has none), so this is a plain
+/// substring scan rather than a proper regex extraction. Good enough for
+/// the dependency-closure assertion: it only needs to find candidate refs,
+/// not to be a general-purpose parser.
+fn extract_scripts_refs(content: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let bytes = content.as_bytes();
+    let mut i = 0;
+    while let Some(rel) = content[i..].find("scripts/") {
+        let start = i + rel;
+        let mut end = start;
+        while end < bytes.len() {
+            let c = bytes[end] as char;
+            if c.is_ascii_alphanumeric() || c == '/' || c == '-' || c == '_' || c == '.' {
+                end += 1;
+            } else {
+                break;
+            }
+        }
+        let token = &content[start..end];
+        if token.ends_with(".sh") {
+            out.push(token.to_string());
+        }
+        i = end.max(start + 1);
+        if i >= content.len() {
+            break;
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+#[test]
+fn extract_scripts_refs_finds_both_backstop_dependencies() {
+    let content = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/templates/backstop-pre-commit.sh"),
+    )
+    .unwrap();
+    let refs = extract_scripts_refs(&content);
+    assert_eq!(
+        refs,
+        vec![
+            "scripts/block-env-commit.sh".to_string(),
+            "scripts/no-code-on-default.sh".to_string(),
+        ]
+    );
+}
+
+/// Not-a-full-scripts-tooling assertion: the backstop must NOT reference
+/// docs-gate/trust-gate/inv-gate/python (Constraint 4 — closure must not
+/// pull in dev [8/8] tooling install never renders).
+#[test]
+fn backstop_template_does_not_reference_dev_only_tooling() {
+    let content = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/templates/backstop-pre-commit.sh"),
+    )
+    .unwrap();
+    for forbidden in ["docs-gate", "trust-gate", "inv-gate", "python", "install-hooks.sh"] {
+        assert!(
+            !content.contains(forbidden),
+            "backstop template must not reference dev-only tooling '{forbidden}'"
+        );
+    }
+}
+
+#[test]
+fn pristine_install_renders_closed_dependency_set_and_blocks_real_env_and_code_commits() {
+    let fixture = TempFixture::new("p078i-pristine");
+    let root = fixture.path();
+    git_init(root);
+    // Force a deterministic default-branch name (init.defaultBranch varies
+    // by machine/git version) so `no-code-on-default.sh`'s local-branch
+    // fallback resolves the same way everywhere this test runs.
+    assert!(git_in(root, &["symbolic-ref", "HEAD", "refs/heads/main"]).status.success());
+    configure_git_identity(root);
+
+    // Initial commit — establishes `main` as a real, resolvable branch
+    // (no-code-on-default.sh's DEFAULT fallback needs `refs/heads/main` to
+    // exist; a branch with zero commits isn't a real ref yet).
+    fs::write(root.join("README.md"), "pristine\n").unwrap();
+    assert!(git_in(root, &["add", "README.md"]).status.success());
+    assert!(git_commit(root, &["commit", "-m", "initial"]).status.success());
+
+    // PRISTINE — zero seed. Nothing under hooks/ or scripts/ exists before
+    // this call.
+    assert!(!root.join("hooks").exists());
+    assert!(!root.join("scripts").exists());
+
+    let plan = empty_plan();
+    engine::apply(root, &plan, OWNER, SRC_VERSION).expect("apply must succeed against a pristine repo");
+
+    // --- render + executable ---
+    let pre_commit_content =
+        fs::read_to_string(root.join("hooks/pre-commit")).expect("hooks/pre-commit must be rendered");
+    for f in ["hooks/pre-commit", "scripts/block-env-commit.sh", "scripts/no-code-on-default.sh"] {
+        let p = root.join(f);
+        assert!(p.is_file(), "{f} must be rendered by a pristine install");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let meta = fs::metadata(&p).unwrap();
+            assert!(meta.permissions().mode() & 0o111 != 0, "{f} must be executable");
+        }
+    }
+
+    // --- DEPENDENCY-CLOSURE ASSERTION ---
+    // Every scripts/*.sh reference the rendered hook makes must exist among
+    // the artifacts install itself just rendered — no ref to a script
+    // install never wrote.
+    let refs = extract_scripts_refs(&pre_commit_content);
+    assert!(!refs.is_empty(), "pre-commit must reference at least one delegated guard script");
+    for r in &refs {
+        assert!(
+            root.join(r).is_file(),
+            "dependency-closure violated: hooks/pre-commit references '{r}' but install did not render it"
+        );
+    }
+    for forbidden in ["docs-gate", "trust-gate", "inv-gate", "python"] {
+        assert!(
+            !pre_commit_content.contains(forbidden),
+            "rendered backstop must not pull in dev-only tooling '{forbidden}'"
+        );
+    }
+
+    assert_eq!(git_config_get_test(root, "core.hooksPath").as_deref(), Some("hooks"));
+
+    // --- negative control: clean docs-only commit must PASS ---
+    fs::write(root.join("NOTES.md"), "clean\n").unwrap();
+    assert!(git_in(root, &["add", "NOTES.md"]).status.success());
+    let clean = git_commit(root, &["commit", "-m", "clean docs commit"]);
+    assert!(
+        clean.status.success(),
+        "a clean commit must not be blocked by the pristine-rendered backstop: {}",
+        String::from_utf8_lossy(&clean.stderr)
+    );
+
+    // --- real .env commit must be BLOCKED (round-4 A3, now fixed) ---
+    fs::write(root.join(".env"), "SECRET=leaked\n").unwrap();
+    assert!(git_in(root, &["add", "-f", ".env"]).status.success());
+    let env_commit = git_commit(root, &["commit", "-m", "should be blocked (.env)"]);
+    assert!(
+        !env_commit.status.success(),
+        "committing a real .env on a pristine backstop install must be BLOCKED"
+    );
+    assert!(git_in(root, &["restore", "--staged", ".env"]).status.success());
+    let _ = fs::remove_file(root.join(".env"));
+
+    // --- real product code on default branch must be BLOCKED (round-4 A4, now fixed) ---
+    fs::write(root.join("src_probe.rs"), "fn main() {}\n").unwrap();
+    assert!(git_in(root, &["add", "src_probe.rs"]).status.success());
+    let code_commit = git_commit(root, &["commit", "-m", "should be blocked (code on default)"]);
+    assert!(
+        !code_commit.status.success(),
+        "committing real product code on the default branch must be BLOCKED on a pristine backstop install"
+    );
+    assert!(git_in(root, &["restore", "--staged", "src_probe.rs"]).status.success());
+
+    // Neither offending commit landed in history.
+    let log = git_in(root, &["log", "--oneline"]);
+    let log_text = String::from_utf8_lossy(&log.stdout);
+    assert!(!log_text.contains("should be blocked"), "no BLOCKED attempt may have landed in history");
+}
+
+#[test]
+fn pristine_install_backstop_fails_closed_when_guard_script_is_absent() {
+    let fixture = TempFixture::new("p078i-fail-closed");
+    let root = fixture.path();
+    git_init(root);
+    assert!(git_in(root, &["symbolic-ref", "HEAD", "refs/heads/main"]).status.success());
+    configure_git_identity(root);
+    fs::write(root.join("README.md"), "pristine\n").unwrap();
+    assert!(git_in(root, &["add", "README.md"]).status.success());
+    assert!(git_commit(root, &["commit", "-m", "initial"]).status.success());
+
+    let plan = empty_plan();
+    engine::apply(root, &plan, OWNER, SRC_VERSION).expect("apply must succeed");
+    assert_eq!(git_config_get_test(root, "core.hooksPath").as_deref(), Some("hooks"));
+
+    // Delete a required guard AFTER install rendered it — simulates drift
+    // (e.g. a `.gitignore`'d scripts/ dir, or a user deleting it by hand).
+    fs::remove_file(root.join("scripts/block-env-commit.sh"))
+        .expect("must be able to delete the just-rendered guard for this fail-closed probe");
+
+    fs::write(root.join(".env"), "SECRET=leaked\n").unwrap();
+    assert!(git_in(root, &["add", "-f", ".env"]).status.success());
+    let result = git_commit(root, &["commit", "-m", "should still be blocked"]);
+    assert!(
+        !result.status.success(),
+        "backstop MUST fail-CLOSED (BLOCK) when a required guard script is missing — \
+         'missing -> commit allowed' is exactly the round-4 A3/A4 bug this phiếu closes"
+    );
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(
+        combined.contains("BLOCKED"),
+        "fail-closed guard-missing path must print a BLOCKED message, not silently exit: {combined}"
+    );
 }
 
 fn dir_entries_sorted(root: &Path) -> Vec<String> {

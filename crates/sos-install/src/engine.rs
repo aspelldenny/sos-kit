@@ -473,23 +473,55 @@ fn git_config_set(project_root: &Path, key: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
-/// P078g — kit-source `hooks/pre-commit` + `hooks/pre-push`, baked into the
-/// `sos-install` binary at COMPILE time. `sos install` runs standalone in an
-/// arbitrary target repo — it has no `SOS_KIT_DIR` (unlike `new`/`adopt`/
-/// `sync`, Worker CHALLENGE Turn 1 Anchor #4 confirmed 0 hits), so the
-/// `new.rs:315-322` runtime-copy-from-kit-root pattern doesn't apply here.
-/// `include_str!` is the self-contained route, and it's trivially symmetric
-/// across both runtimes because it renders in the engine's own `apply()`
-/// path (not per-adapter `plan()` — `ClaudeAdapter::plan()` is currently a
-/// total stub, see Discovery P078g).
-const EMBEDDED_PRE_COMMIT: &str = include_str!("../../../hooks/pre-commit");
+/// P078g — kit-source `hooks/pre-push`, baked into the `sos-install` binary
+/// at COMPILE time. `sos install` runs standalone in an arbitrary target
+/// repo — it has no `SOS_KIT_DIR` (unlike `new`/`adopt`/`sync`, Worker
+/// CHALLENGE Turn 1 Anchor #4 confirmed 0 hits), so the `new.rs:315-322`
+/// runtime-copy-from-kit-root pattern doesn't apply here. `include_str!` is
+/// the self-contained route, and it's trivially symmetric across both
+/// runtimes because it renders in the engine's own `apply()` path (not
+/// per-adapter `plan()` — `ClaudeAdapter::plan()` is currently a total
+/// stub, see Discovery P078g).
+///
+/// `pre-push` is advisory-only (never hard-blocks non-interactively — see
+/// `hooks/pre-push` header) and has ZERO delegated scripts (self-contained,
+/// unlike the dev `[8/8]` `pre-commit`), so it carries no dependency-closure
+/// risk and is rendered as-is for both `sos new` (dev, via `new.rs`
+/// `copy_tree`) and `sos install` (this path). P078i (below) does NOT touch
+/// it — see Discovery P078i.
 const EMBEDDED_PRE_PUSH: &str = include_str!("../../../hooks/pre-push");
 
-/// Render the embedded hook scripts into `project_root/hooks/` — MUST run
-/// before `arm_git_hooks()` (Constraint 3: render-before-arm) so the
-/// backstop scripts exist before `core.hooksPath` is ever pointed at them.
-/// Fixes P078f's arm-empty gap (round-3 Test A2: `core.hooksPath` got set
-/// but `hooks/pre-commit`/`hooks/pre-push` never existed on disk).
+/// P078i — minimal, purpose-built backstop `pre-commit` + its 2 delegated
+/// guard scripts, embedded verbatim for the INSTALL path only (`sos
+/// install`, brownfield/adopted repos). Distinct from the dev `[8/8]`
+/// `hooks/pre-commit` at the kit repo root (that one is rendered ONLY by
+/// `sos new`, via `crates/sos-cli/src/commands/new.rs:312`'s runtime
+/// `copy_tree` of the full `scripts/` tree — a different code path with
+/// zero overlap, confirmed Worker CHALLENGE Turn 1 anchor #5/Final
+/// consensus). The dev hook's `[6/8]`/`[7/8]` phases fail-OPEN when their
+/// delegated scripts are absent (round-4 A3/A4: `.env` and code-on-default
+/// commits silently allowed on a brownfield install that never got the
+/// full `scripts/` tree) — this backstop enforces the SAME 2 invariants but
+/// fail-CLOSED, and embeds its own 2 dependencies so the install path's
+/// render output is a fully closed set (dependency-closure oracle, see
+/// `docs/discoveries/P078i.md`).
+const EMBEDDED_BACKSTOP_PRE_COMMIT: &str = include_str!("templates/backstop-pre-commit.sh");
+const EMBEDDED_BLOCK_ENV: &str = include_str!("../../../scripts/block-env-commit.sh");
+const EMBEDDED_NO_CODE_DEFAULT: &str = include_str!("../../../scripts/no-code-on-default.sh");
+
+/// Render the embedded hook scripts into `project_root/hooks/` (+ their
+/// delegated guards into `project_root/scripts/`) — MUST run before
+/// `arm_git_hooks()` (Constraint 3: render-before-arm) so the backstop
+/// scripts exist before `core.hooksPath` is ever pointed at them. Fixes
+/// P078f's arm-empty gap (round-3 Test A2: `core.hooksPath` got set but
+/// `hooks/pre-commit`/`hooks/pre-push` never existed on disk).
+///
+/// P078i: `hooks/pre-commit` now renders the minimal backstop template
+/// (NOT the dev `[8/8]` hook — round-4 A3/A4 fixed by closing the
+/// dependency gap those 2 phases fail-open on), and its 2 delegated guard
+/// scripts (`scripts/block-env-commit.sh`, `scripts/no-code-on-default.sh`)
+/// are rendered alongside it so the install path never produces a hook
+/// that references a script it didn't also create.
 ///
 /// Non-clobber: if a target already holds content DIFFERENT from the
 /// embedded script (an adopter customized their own hook), it is left
@@ -497,8 +529,10 @@ const EMBEDDED_PRE_PUSH: &str = include_str!("../../../hooks/pre-push");
 /// (round-3 A5) to the render step, not just the hooksPath guard.
 fn render_embedded_hooks(project_root: &Path) -> Result<()> {
     for (rel, content) in [
-        ("hooks/pre-commit", EMBEDDED_PRE_COMMIT),
+        ("hooks/pre-commit", EMBEDDED_BACKSTOP_PRE_COMMIT),
         ("hooks/pre-push", EMBEDDED_PRE_PUSH),
+        ("scripts/block-env-commit.sh", EMBEDDED_BLOCK_ENV),
+        ("scripts/no-code-on-default.sh", EMBEDDED_NO_CODE_DEFAULT),
     ] {
         let target = project_root.join(rel);
         if target.exists() {
@@ -518,6 +552,11 @@ fn render_embedded_hooks(project_root: &Path) -> Result<()> {
         }
         fs::write(&target, content.as_bytes())
             .with_context(|| format!("render embedded hook script {rel}"))?;
+        // P078i: all 4 rendered artifacts (backstop pre-commit, pre-push,
+        // + the 2 delegated guard scripts) get +x here so a fresh render
+        // is immediately executable without depending on `arm_git_hooks`'s
+        // narrower chmod (which only covers hooks/pre-commit + hooks/pre-push).
+        chmod_x_if_exists(&target);
     }
     Ok(())
 }
