@@ -67,7 +67,7 @@ Each stage belongs to exactly one layer. Crossing layers without a handoff is th
 | **[docs-gate](https://github.com/aspelldenny/docs-gate)** | 5.2MB | Enforce documentation compliance before every commit |
 | **[guard](https://github.com/aspelldenny/guard)** | 1.9MB | Pre-deploy infrastructure gate — catch schema drift, env sync, canary mismatch before they hit production |
 | **[vps](https://github.com/aspelldenny/vps)** | 1.2MB | Production ops — status, logs, restart, metrics for Docker Compose projects over SSH |
-| **sos** (in `crates/`, relocated from `bootstrap/sos-rs/` P077f) | (planned) | 0→1 bootstrap — `sos new <dir> --stack <python\|rust\|ts>` (greenfield: freeze spine + skeleton + `doctor verify-setup` validate) · `sos adopt <dir>` (brownfield: retrofit spine into an EXISTING repo, additive + non-clobber + report) · `sos map [dir]` (scan repo → draft AGENT_MAP with real surfaces: sound framework + human-set load_bearing/blast) · `sos init` / `sos init security` / `blueprint` / `contract` / `apply` / `launch`. Bash MVP at `bin/sos.sh`. See [`docs/GENESIS.md`](./docs/GENESIS.md) + [`docs/BOOTSTRAP_AUTOMATION_DRAFT.md`](./docs/BOOTSTRAP_AUTOMATION_DRAFT.md) §7–§8. |
+| **sos** (Rust workspace in `crates/` at repo-root, P077f — v0.1.0 released P081) | ~few MB | 0→1 bootstrap — `sos new <dir> --stack <python\|rust\|ts>` (greenfield: freeze spine + skeleton + `doctor verify-setup` validate) · `sos adopt <dir>` (brownfield: retrofit spine into an EXISTING repo, additive + non-clobber + report) · `sos sync <dir>` (re-sync spine into an adopted repo) · `sos map [dir]` (scan repo → draft AGENT_MAP with real surfaces: sound framework + human-set load_bearing/blast) — these heavy subcommands dispatch to the Rust binary; `sos init` / `sos init security` / `blueprint` / `contract` / `apply` / `recipe new` / `launch` / `status` stay Bash guidance commands in `bin/sos.sh` until P078 renders them per-runtime. See [`docs/GENESIS.md`](./docs/GENESIS.md) + [`docs/SETUP.md`](./docs/SETUP.md) for the install path (`curl -fsSL .../install.sh \| sh`). |
 
 After `sos init security` writes `.sos-stack.toml`, run `/advisory-scan` in Claude Code to invoke the Trinh sát (advisory-watch specialist subagent — P041). It surfaces GHSA + vendor advisories that match your stack's resolved dep versions into `docs/security/advisory-inbox.md`. Chủ nhà reviews each row and marks `dismissed` or creates a follow-on phiếu to patch. See [`docs/SETUP.md`](./docs/SETUP.md) "Security pipeline" section.
 
@@ -212,28 +212,32 @@ The 2-3 minute protocol is in [`phieu/RELAY_PROTOCOL.md`](./phieu/RELAY_PROTOCOL
 
 ## Install
 
-For the v2 subagent envelope (recommended), see [`INSTALL.md`](./INSTALL.md) — 5-minute install with verify steps.
+**The 1-command path (recommended, no Rust toolchain needed):**
 
-For Rust CLIs and global skills:
+```bash
+curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh
+```
 
-### Prerequisites
-- Rust toolchain (`rustup`)
-- `gh` CLI (for PR creation)
-- Claude Code v2.1+ (for subagents + SessionStart hook)
+Downloads prebuilt binaries (`doctor`, `claude-hooks`, `docs-gate`, `ship`, `advisory-inbox`, `inv-gate`, `guard`, `vps`, `doc-rotate`, `advisory-cron`, plus the kit's own `sos`) into `~/.local/bin`, clones the kit to `~/sos-kit`, and puts `sos` on PATH. Then run `sos adopt .` (existing repo) or `sos new <dir> --stack <python|rust|ts>` (new repo). See [`INSTALL.md`](./INSTALL.md) for the full 5-minute walkthrough with verify steps, and [`docs/SETUP.md`](./docs/SETUP.md) for per-tool detail.
 
-### Ship CLI
+### Dev path (hacking the Rust tools themselves)
+
+If you're developing `sos` or the sister CLIs rather than just using them, you need the Rust toolchain (`rustup`) instead of the prebuilt binaries:
+
 ```bash
 git clone https://github.com/aspelldenny/ship.git
 cd ship && cargo install --path .
-```
 
-### docs-gate / guard / vps
-```bash
 git clone https://github.com/aspelldenny/docs-gate.git && (cd docs-gate && cargo install --path .)
 git clone https://github.com/aspelldenny/guard.git && (cd guard && cargo install --path .)
 git clone https://github.com/aspelldenny/vps.git && (cd vps && cargo install --path .)
 vps init                  # generate ~/.vps.toml with your SSH + project paths
+
+# sos itself — Rust workspace lives at THIS repo's root (Cargo.toml + crates/)
+cd sos-kit && cargo build --bin sos   # or: cargo install --path crates/sos-cli
 ```
+
+Also needs: `gh` CLI (for PR creation), Claude Code v2.1+ (for subagents + SessionStart hook).
 
 ### Skills (global)
 
@@ -389,28 +393,35 @@ Each step is single-layer. Handoffs between them are formatted (see [`docs/HANDO
 sos-kit/
 ├── README.md                   # This file — entry point
 ├── INSTALL.md                  # v2 install guide (5-min, with verify)
-├── CLAUDE.md                   # Contributor guide for Claude Code
-├── .claude/                    # v2 subagent envelope (project-local)
-│   ├── agents/
-│   │   ├── architect.md        # Kiến trúc sư subagent (Read/Write/Glob, no Bash/Grep/Edit)
-│   │   └── worker.md           # Thợ subagent (full code tools, no vision docs)
-│   ├── skills/
-│   │   └── idea/SKILL.md       # /idea intake skill (Chủ nhà tier)
-│   └── settings.json           # Hooks: SessionStart banner + PreToolUse architect-guard
-├── agents/                     # Global role definitions (orchestrator + layer subagents)
-│   ├── orchestrator.md         # Condensed orchestrator handbook
+├── CLAUDE.md                   # Contributor guide for Claude Code (full repo tree lives there)
+├── SOS.md                      # Portable operating contract entrypoint (P075) — canonical map to core/*.md
+├── SECURITY.md                 # Threat model, invariants, trust anchor
+├── tool-manifest.toml          # Sister-tool version pins + sha256 checksums, consumed by install.sh
+├── install.sh                  # 1-command installer (prebuilt binaries + sos-bin sidecar, no Rust needed)
+├── .claude/                    # v2 subagent envelope — agents/ + skills/ are SYMLINKS into the dirs below
+│   ├── agents/                 # → ../agents/{architect,worker,advisory-watch,boundary-check}.md
+│   ├── skills/                 # → ../skills/{idea,init,forge,apply,retro}
+│   └── settings.json           # Hooks: SessionStart banner + PreToolUse guards
+├── agents/                     # Role definitions (source of the symlinks above)
+│   ├── orchestrator.md         # Quản đốc handbook (main-session)
 │   ├── architect.md
-│   └── worker.md
+│   ├── worker.md
+│   ├── advisory-watch.md       # Trinh sát specialist (GHSA/CVE scan)
+│   └── boundary-check.md       # Giám sát specialist (5-INV PR review)
 ├── bin/
-│   └── sos.sh                  # CLI entrypoint — delegates to subcommands
-├── Cargo.toml                  # Rust workspace root (relocated from bootstrap/sos-rs/ P077f)
-├── crates/                     # Rust CLI source — sos-cli/sos-core/sos-install/sos-adapter-claude/sos-hooks
+│   └── sos.sh                  # Thin launcher — 6 heavy subcommands exec the Rust binary, 7 guidance commands stay Bash
+├── Cargo.toml                  # Rust workspace root (repo-root since P077f)
+├── crates/                     # Rust CLI source — sos-cli/sos-core/sos-install/sos-adapter-claude/sos-adapter-codex/sos-hooks
+├── core/                       # Portable semantic core (P075) — ROLES/WORKFLOW/POLICY/ASSETS/STATE
+├── adapters/
+│   └── claude/                 # Claude adapter boundary (declarative — README.md + MAPPING.md)
 ├── docs/
 │   ├── PHILOSOPHY.md           # 6 principles
 │   ├── LAYERS.md               # 3-role model (Chủ nhà / Kiến trúc sư / Thợ)
 │   ├── HANDOFF.md              # Inter-layer handoff protocols
 │   ├── COMPARISON.md           # SOS Kit vs gstack
-│   └── SETUP.md                # Detailed install guide
+│   ├── SETUP.md                # Detailed install guide
+│   └── archive/                # Rotated CHANGELOG/DISCOVERIES history (docs-size cap)
 ├── phieu/                      # Ticket workflow — spine connecting Kiến trúc sư ↔ Thợ
 │   ├── README.md               # Setup + philosophy
 │   ├── TICKET_TEMPLATE.md      # Phiếu format with Task 0 Verification Anchors
@@ -424,20 +435,13 @@ sos-kit/
 ├── recipes/                    # DNA snippets — patterns /apply consumes (AI fallback, payment, etc.)
 │   ├── ai/multi-model-fallback.md
 │   └── payment/payos-vn.md
-├── skills/                     # Global Claude Code skills (one per layer+responsibility, 13 total)
-│   ├── init/SKILL.md           # Chủ nhà — 0→1 vision capture
+├── skills/                     # 5 LIVING skills (each declares a mechanical `caller:`) + attic/
 │   ├── idea/SKILL.md           # Chủ nhà — intake ideas into BACKLOG
-│   ├── insight/SKILL.md        # Chủ nhà — distill raw research → vision docs
-│   ├── route/SKILL.md          # Chủ nhà — classify inbound
-│   ├── decide/SKILL.md         # Chủ nhà — trade-off triage
-│   ├── plan/SKILL.md           # Kiến trúc sư — write phiếu (docs-only)
+│   ├── init/SKILL.md           # Chủ nhà — 0→1 vision capture
 │   ├── forge/SKILL.md          # Kiến trúc sư — research + write new recipe
-│   ├── verify/SKILL.md         # Thợ — Task 0 grep-first
 │   ├── apply/SKILL.md          # Thợ — apply 1 recipe from recipes/
-│   ├── review/SKILL.md         # Thợ — code review
-│   ├── qa/SKILL.md             # Thợ — QA verification
-│   ├── ship/SKILL.md           # Thợ — release pipeline
-│   └── retro/SKILL.md          # Thợ — retrospective
+│   ├── retro/SKILL.md          # Thợ — retrospective
+│   └── attic/                  # 8 parked skills (no mechanical caller) — see attic/README.md
 ├── templates/
 │   └── BACKLOG_template.md     # BACKLOG.md skeleton (Active / Next / Open / Park)
 ├── configs/                    # .ship.toml examples per stack
@@ -446,7 +450,7 @@ sos-kit/
 │   ├── rust.toml
 │   └── python.toml
 ├── hooks/
-│   └── pre-commit              # type-check + docs-gate + (v2) BACKLOG + Discovery enforcement
+│   └── pre-commit              # 8-phase chain: type-check + docs-gate + BACKLOG/Discovery + no-code-on-default + block-env + trust-gate
 ├── scripts/
 │   ├── architect-guard.sh      # PreToolUse hook — block code reads when architect active
 │   └── session-start-banner.sh # SessionStart hook — show BACKLOG on session open

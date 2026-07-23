@@ -65,7 +65,7 @@ doctor lane-check --ticket docs/ticket/P<NNN>-<slug>.md
 # exit 2 = ticket missing lane field → reject, re-spawn Architect
 ```
 
-**If `doctor` binary not yet built** (nhịp 3 chưa xong B): degraded mode — manually count phiếu dòng + anchor, compare to lane budgets in WORKFLOW_V2.2.md §1. Narrate to Chủ nhà "lane budget unenforced — doctor pending". KHÔNG tự lừa "ship A+C is có v2.2".
+**If `doctor` not on PATH** (fresh install without `install.sh`): degraded mode — manually count phiếu dòng + anchor, compare to lane budgets in WORKFLOW_V2.2.md §1. Narrate to Chủ nhà "lane budget unenforced — doctor missing". KHÔNG tự lừa "ship A+C is có v2.2".
 
 ## Boundary-check rubric injection (v2.2 §8 — canary 2 finding)
 

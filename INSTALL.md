@@ -15,6 +15,8 @@ curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh
 
 Downloads the FULL kit toolset as prebuilt binaries (`doctor`, `claude-hooks`, `docs-gate`, `ship`, `advisory-inbox`, `inv-gate`, `guard`, `vps`, `doc-rotate`, `advisory-cron` — 10 tools, mac-arm64/linux-x64/win-x64 from each repo's GitHub Releases) into `~/.local/bin`, plus the kit's own `sos` binary (route A, P081 Stage 1) into a `sos-bin` sidecar so the `sos` wrapper dispatches without needing Rust/cargo installed. Clones the kit to `~/sos-kit` and puts `sos` on PATH. Fail-closed: a failed download or checksum mismatch aborts. (Developers hacking the Rust tools: `templates/setup-dev.sh` is the cargo path. Override the prebuilt binary with `export SOS_RUST_BIN=/path/to/your/sos` — always takes precedence.)
 
+> ⚠ **Windows caveat (P081 Stage 1 scope):** the sister tools ship win-x64 builds, but the kit's own `sos` binary release only covers `aarch64-apple-darwin` (tested) + `x86_64-unknown-linux-gnu` (build-only) so far — Windows was intentionally dropped from Stage 1 (`.github/workflows/release.yml`). On Windows, the `sos` fetch step in `install.sh` will fail-closed (ABORT) until a Windows target is added. Workaround meanwhile: build `sos` yourself (dev path below) and set `SOS_RUST_BIN=/path/to/sos.exe`.
+
 **Then pick by repo state** — one command does the whole install below (copy + born-wire + validate):
 
 | Your repo is… | Command | What it does |
@@ -209,7 +211,7 @@ mkdir -p docs/security
 if [ -d docs ] && [ $(find docs -name "*.md" | wc -l) -gt 10 ]; then
   [ ! -f docs/AGENT_MAP.yaml ] && cp ~/sos-kit/configs/AGENT_MAP.example.yaml docs/AGENT_MAP.yaml
   echo "⚠ docs/AGENT_MAP.yaml created — EDIT fill in real surfaces before next phiếu"
-  echo "⚠ Validator: doctor validate-map (run pre-commit). Build doctor binary (cụm B pending)."
+  echo "⚠ Validator: doctor validate-map (run pre-commit). doctor ships via install.sh — no build needed."
 fi
 ```
 
@@ -239,27 +241,21 @@ bash scripts/install-hooks.sh   # preferred over raw `git config core.hooksPath 
 
 **Bypass khi cần** (rare): `git commit --no-verify`. NOT recommended cho normal flow.
 
-### 3.6. doctor binary (v2.2 §7 — pending cụm B build)
+### 3.6. doctor binary (v2.2 §7 gates — SHIPPED, v0.1.1+)
 
-`doctor` binary cung cấp 5 MVP subcmd cho v2.2 gates:
+`doctor` binary cung cấp MVP subcmd cho v2.2 gates (built + distributed via `install.sh` and the sister-tool pipeline — no manual cargo build needed for end users):
 
 ```bash
 doctor lane-check       # §1 lane budget
 doctor validate-map     # §4 AGENT_MAP path/anchor
 doctor rotate-check     # §6 dòng cap DISCOVERIES/CHANGELOG
 doctor runtime-scan     # Sub-mech F token leak
+doctor verify-setup     # sos new post-bootstrap gate
 ```
 
-**Status (2026-05-28):** doctor binary CHƯA build (cụm B pending). Trong khoảng này:
-- Lane budget unenforced — manually count phiếu dòng + anchor vs v2.2 §1 budgets.
-- validate-map skip — map có thể drift, đề cao manual review pre-commit.
-- rotate-check skip — manual rotate khi >1000 dòng.
-- runtime-scan skip — manual grep `.git/config` token leak định kỳ.
+`install.sh` fetches the prebuilt `doctor` binary into `~/.local/bin` (required, fail-CLOSED — see Step 0 above). `.mcp.json` already registers it (`"doctor": { "command": "doctor", "args": ["serve"] }`, PATH-resolved).
 
-**Quản đốc PHẢI narrate "v2.2 doctrine ship, doctor binary pending" cho Sếp KHÔNG tự lừa.**
-v2.2 chỉ có răng đủ khi doctor binary cài xong (cụm B nhịp 3).
-
-Khi cụm B ship: `cargo install --path ~/doctor` + thêm `.mcp.json` entry `"doctor": { "command": "~/.cargo/bin/doctor", "args": ["serve"] }`.
+**Dev path** (building `doctor` from its own repo source instead of using the prebuilt binary): `cargo install --path ~/doctor`.
 
 ### 4. Update CLAUDE.md (project root)
 

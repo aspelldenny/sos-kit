@@ -2,7 +2,9 @@
 
 ## Quick Start (5 minutes)
 
-### 1. Install Rust tools
+> **Fastest path — no Rust toolchain needed:** `curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh` downloads prebuilt binaries for all 10 tools (`ship`/`docs-gate`/`guard`/`vps`/`doctor`/`claude-hooks`/`advisory-inbox`/`inv-gate`/`doc-rotate`/`advisory-cron`) + the kit's own `sos` binary, clones the kit, and puts `sos` on PATH. See [`../INSTALL.md`](../INSTALL.md) for the full walkthrough. **The steps below are the `cargo install --path` dev path** — use them only if you're hacking on the Rust tool sources themselves; skip straight to step 2 otherwise.
+
+### 1. Install Rust tools (dev path — building from source)
 
 ```bash
 # Ship CLI — release pipeline

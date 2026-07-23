@@ -27,7 +27,7 @@ What's inside:
 
 ## What this repo is NOT
 
-- **Runtime monorepo (as of P077e, relocated to repo-root P077f).** This repo now contains the canonical runtime source for the `sos` CLI — a Rust workspace at repo-root (`Cargo.toml` + `crates/`: `sos-cli`/`sos-core`/`sos-install`/`sos-adapter-claude`/`sos-hooks`). The 6 heavy `sos` subcommands (`new`/`adopt`/`sync`/`map`/`install`/`tools`) dispatch to this binary; `bin/sos.sh` is a thin launcher that keeps only the 7 Claude-flavored guidance commands (`init`/`blueprint`/`contract`/`apply`/`recipe`/`launch`/`status`) in Bash until P078 renders them per-runtime. The **sister** CLIs (`ship`, `docs-gate`, `guard`, `vps`) STILL live in their own repos (`~/ship` etc.) — this repo references + version-pins them via `tool-manifest.toml`, it does not vendor their source.
+- **Runtime monorepo (as of P077e, relocated to repo-root P077f).** This repo now contains the canonical runtime source for the `sos` CLI — a Rust workspace at repo-root (`Cargo.toml` + `crates/`: `sos-cli`/`sos-core`/`sos-install`/`sos-adapter-claude`/`sos-adapter-codex`/`sos-hooks`). The 6 heavy `sos` subcommands (`new`/`adopt`/`sync`/`map`/`install`/`tools`) dispatch to this binary; `bin/sos.sh` is a thin launcher that keeps only the 7 Claude-flavored guidance commands (`init`/`blueprint`/`contract`/`apply`/`recipe`/`launch`/`status`) in Bash until P078 renders them per-runtime. The **sister** CLIs (`ship`, `docs-gate`, `guard`, `vps`) STILL live in their own repos (`~/ship` etc.) — this repo references + version-pins them via `tool-manifest.toml`, it does not vendor their source.
 - **Not a boilerplate project scaffolder.** `recipes/` provides battle-tested **patterns** (DNA snippets, decision rationale) that `/apply` consumes — but the kit doesn't generate full app templates from a blank directory. SOS Kit picks up after "code is ready," not "project is empty."
 - **Not a planning methodology.** Use your own (Shape Up, Vibecode, whatever). SOS Kit picks up after "code is ready."
 - **Not a place for experimental features.** If a skill or config hasn't been used on a real project for ≥2 weeks, don't add it here.
@@ -39,6 +39,8 @@ sos-kit/
 ├── README.md               # User-facing entry point — MUST reflect reality
 ├── CLAUDE.md               # This file — for Claude Code contributors
 ├── SECURITY.md             # Threat model, invariants, trust anchor, rebaseline workflow (P073)
+├── SOS.md                  # Portable operating contract entrypoint (P075) — canonical map to core/*.md
+├── tool-manifest.toml      # Sister-tool version pins + sha256 checksums (P071/P081) consumed by install.sh
 ├── .sos-trust-baseline     # Committed sha256 snapshot of auto-exec surfaces (P073 trust gate). Rebaseline: `scripts/trust-gate.sh rebaseline` after any reviewed change.
 ├── .claude/
 │   └── commands/           # Slash command files (P041+: advisory-scan.md, security-review.md)
@@ -70,7 +72,7 @@ sos-kit/
 │   ├── POLICY.md           # Authority, evidence, scope and safety policy
 │   ├── ASSETS.md           # Asset ownership and migration state
 │   └── STATE.md            # Portable serialization contract (P078a) — ticket storage/schema, lifecycle state artifact, approval record, edit allowlist, review trigger map, blocked format
-├── crates/                 # Canonical Rust workspace for the `sos` binary (P077e cutover, relocated from bootstrap/sos-rs/ P077f) — sos-cli/sos-core/sos-install/sos-adapter-claude/sos-hooks. See crates/README.md.
+├── crates/                 # Canonical Rust workspace for the `sos` binary (P077e cutover, relocated from bootstrap/sos-rs/ P077f) — sos-cli/sos-core/sos-install/sos-adapter-claude/sos-adapter-codex/sos-hooks. See crates/README.md.
 ├── docs/
 │   ├── BACKLOG.md          # Live sprint tracker — surfaced by SessionStart hook
 │   ├── COMPARISON.md       # SOS Kit vs gstack
@@ -106,7 +108,7 @@ sos-kit/
 │       └── payos-vn.md
 ├── scripts/                # SessionStart + PreToolUse hooks + security gate
 │   ├── architect-guard.sh  # PreToolUse hook — block code reads when architect active
-│   ├── block-env-commit.sh    # pre-commit [7/7] — block .env* secret-file commits (allow .env.example); git-level backstop to P046 PreToolUse guard
+│   ├── block-env-commit.sh    # pre-commit [7/8] — block .env* secret-file commits (allow .env.example); git-level backstop to P046 PreToolUse guard
 │   ├── block-env-edit.sh   # PreToolUse hook — block .env edits
 │   ├── idea-smell.sh       # UserPromptSubmit hook — regex idea-smell in Sếp message → inject /idea reminder (skills dogfood 2026-06-11)
 │   ├── block-unsafe-merge.sh  # PreToolUse hook — B+3 fail-closed shim → `claude-hooks block-unsafe-merge` binary (gates `gh pr merge <N>` without security APPROVE; binary absent = BLOCK LOUD) [P064]
