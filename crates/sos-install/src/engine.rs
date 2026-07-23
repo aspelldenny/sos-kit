@@ -14,7 +14,9 @@ use sha2::{Digest, Sha256};
 use sos_core::adapter::Plan;
 use sos_core::manifest::ManagedManifest;
 use std::fs;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// On-disk manifest artifact name, written at project root (P077d2 CHỐT —
 /// see `docs/PORTABILITY_ARCHITECTURE.md` "P077d2 status").
@@ -274,6 +276,14 @@ pub fn apply(
                     managed: next_entries,
                 },
             )?;
+            // P078f — arm Git hooks (core.hooksPath + F09 hijack-guard),
+            // ported from `scripts/install-hooks.sh`. Runs ONLY on the
+            // success path, after the manifest is committed — hook-arming
+            // failure (F09 abort) does NOT roll back the just-written
+            // render/manifest (arming is a separate boundary-activation
+            // step, not part of the file-write transaction; the render
+            // itself already succeeded and stays on disk either way).
+            arm_git_hooks(project_root)?;
             Ok(report)
         }
         Err(e) => {
@@ -291,6 +301,146 @@ pub fn apply(
             bail!("install transaction failed and was rolled back: {e}")
         }
     }
+}
+
+/// P078f — Git hook arming (`core.hooksPath` + F09 hijack-guard). Engine-
+/// native port of `scripts/install-hooks.sh` (Worker CHALLENGE Turn 1
+/// anchor #3 enumerated exactly 4 steps, no hidden 5th): chmod tracked
+/// hooks, F09 guard, `git config --local core.hooksPath hooks`, rename
+/// any stale `.git/hooks/*` to `*.pre-hookspath.bak`. Engine-native (not
+/// shelling out to `install-hooks.sh`) per Constraint 1 / P059-P072
+/// precedent — `sos install` must behave identically without a Bash
+/// interpreter available (Windows Git Bash absence risk); `chmod` is done
+/// via Rust std Unix perms (`#[cfg(unix)]`, no-op elsewhere) and `git
+/// config`/`git rev-parse` are invoked via `git` itself (cross-platform by
+/// construction — the tool being configured is assumed present).
+///
+/// Non-git-repo → warn-skip (install still succeeds, Constraint 4).
+/// Non-clobber (Constraint 2/3): a pre-existing DIFFERENT `core.hooksPath`
+/// triggers TTY confirm / non-TTY abort (fail-closed) BEFORE anything is
+/// mutated; idempotent re-runs (hooksPath already == "hooks", Constraint
+/// 6) never trip the guard.
+fn arm_git_hooks(project_root: &Path) -> Result<()> {
+    if !is_git_repo(project_root) {
+        eprintln!(
+            "⚠️  {} is not a git repo — skipping hook arming (core.hooksPath, chmod, hooks/ backstop)",
+            project_root.display()
+        );
+        return Ok(());
+    }
+
+    // Step 1 — chmod +x tracked hooks. Git silently ignores non-executable
+    // hooks, so this is load-bearing on Unix; no-op on Windows.
+    chmod_x_if_exists(&project_root.join("hooks/pre-commit"));
+    chmod_x_if_exists(&project_root.join("hooks/pre-push"));
+
+    // Step 2 — F09 hijack-guard: don't silently redirect an adopter's own
+    // hook chain. Fires only when hooksPath is set AND != "hooks" (our own
+    // prior value never re-triggers — Constraint 6 idempotence).
+    if let Some(existing_hp) = git_config_get(project_root, "core.hooksPath") {
+        if existing_hp != "hooks" {
+            let proceed = if std::io::stdin().is_terminal() {
+                eprintln!(
+                    "⚠️  core.hooksPath is already set to '{existing_hp}' (this repo's own hook chain)."
+                );
+                eprintln!(
+                    "    Pointing it at sos-kit's hooks/ would REDIRECT every hook lookup, silently"
+                );
+                eprintln!(
+                    "    disabling your existing hooks. sos-kit's hooks/ may not contain them."
+                );
+                eprint!("    Override core.hooksPath -> hooks/ anyway? [y/N] ");
+                use std::io::Write;
+                let _ = std::io::stderr().flush();
+                let mut ans = String::new();
+                let _ = std::io::stdin().read_line(&mut ans);
+                matches!(ans.trim(), "y" | "Y")
+            } else {
+                false
+            };
+            if !proceed {
+                bail!(
+                    "core.hooksPath already set to '{existing_hp}'; refusing to clobber \
+                     (non-interactive install won't silently override) — run \
+                     scripts/install-hooks.sh manually or `git config --local --unset core.hooksPath` first"
+                );
+            }
+        }
+    }
+
+    // Step 3 — activate tracked hooks/.
+    git_config_set(project_root, "core.hooksPath", "hooks")?;
+
+    // Step 4 — retire stale `.git/hooks/*` copies (rename, never delete —
+    // escape hatch for the adopter to recover their old hook chain).
+    for h in ["pre-commit", "pre-push"] {
+        let existing_hook = project_root.join(".git/hooks").join(h);
+        if existing_hook.is_file() {
+            let backup = project_root
+                .join(".git/hooks")
+                .join(format!("{h}.pre-hookspath.bak"));
+            let _ = fs::rename(&existing_hook, &backup);
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn chmod_x_if_exists(p: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(meta) = fs::metadata(p) {
+        let mut perm = meta.permissions();
+        let mode = perm.mode() | 0o111;
+        perm.set_mode(mode);
+        let _ = fs::set_permissions(p, perm);
+    }
+}
+#[cfg(not(unix))]
+fn chmod_x_if_exists(_p: &Path) {}
+
+fn is_git_repo(project_root: &Path) -> bool {
+    Command::new("git")
+        .arg("-C")
+        .arg(project_root)
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+fn git_config_get(project_root: &Path, key: &str) -> Option<String> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(project_root)
+        .args(["config", "--local", key])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+fn git_config_set(project_root: &Path, key: &str, value: &str) -> Result<()> {
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(project_root)
+        .args(["config", "--local", key, value])
+        .output()
+        .with_context(|| format!("run git config --local {key} {value}"))?;
+    if !out.status.success() {
+        bail!(
+            "git config --local {key} {value} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    Ok(())
 }
 
 /// P077d3 (OA-07): tool-manifest resolve — step 5 of the transaction

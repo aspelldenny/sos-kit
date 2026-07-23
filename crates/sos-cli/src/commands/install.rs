@@ -125,6 +125,12 @@ fn run_adapter(
         return Ok(());
     }
 
+    // P078f — `engine::apply()` now also arms Git hooks (core.hooksPath +
+    // F09 hijack-guard) on success. `run_adapter` is the ONE shared
+    // call-site for both `run_claude`/`run_codex` (Worker CHALLENGE Turn 1
+    // anchor #2) — arming lives in the engine's core-path, so it runs
+    // identically for `--runtime claude` and `--runtime codex` with no
+    // per-runtime branch needed here (Task 3 = confirm-only, no-op).
     let report = engine::apply(project_root, &plan, owner, SOURCE_VERSION)?;
     println!("sos install --runtime {runtime_label}:");
     println!("  created:   {}", report.created.len());

@@ -150,7 +150,7 @@ on the same `worker-active`/`architect-active` markers that gap-#6/P078d2b below
 complete. On Codex, a worker subagent's `apply_patch` may not even route through this in-session
 hook — so approval-record integrity on Codex still rests on **human-review-at-the-git-commit
 boundary**, not this gate. `sos install` arming Git hooks by default (closing that boundary gap)
-is tracked separately as **P078f** (not yet shipped) — see
+is tracked separately as **P078f — SHIPPED (2026-07-23)**, see below and
 `docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md`.
 
 **In-subagent role-envelope enforcement — MISSING, not PARTIAL (P078d2b, upstream
@@ -170,6 +170,43 @@ The `SubagentStart`/`SubagentStop` marker hooks in `.codex/hooks.json` are retai
 (they still fire for DEFAULT subagents and would activate for custom roles if upstream `#21753`
 is fixed) but are explicitly NOT relied upon for this or any other capability claim — see
 `CodexAdapter::verify()` Finding #6 and `adapters/codex/CAPABILITY.md` §6.
+
+## `sos install`: Git hook arming is armed-by-default (P078f, 2026-07-23)
+
+`sos install --runtime {claude,codex}` (the Rust `sos-install` engine,
+`crates/sos-install/src/engine.rs`) now **activates** the Git hook backstop as
+part of a successful install, not just renders `hooks/pre-commit`/`hooks/pre-push`
+to disk. This closes the gap referenced above (P079 round-2): a rendered-but-inactive
+hook is not a boundary.
+
+**What `apply()` does on success (engine-native port of `scripts/install-hooks.sh`,
+not a shell-out — Windows Git Bash may be absent):**
+1. `chmod +x hooks/pre-commit` (+ `hooks/pre-push` if present) — Git silently ignores
+   non-executable hooks.
+2. **F09 hijack-guard:** if `git config --local core.hooksPath` is already set to
+   something OTHER than `hooks` (the adopter has their own hook chain), a TTY session
+   prompts `[y/N]` (default N); a non-TTY session (CI, piped install) **ABORTs** the
+   install rather than silently overriding it. This never fires on our own prior
+   value — repeat installs are idempotent.
+3. `git config --local core.hooksPath hooks`.
+4. Any pre-existing `.git/hooks/{pre-commit,pre-push}` is **renamed** (never deleted)
+   to `*.pre-hookspath.bak` — an escape hatch for the adopter to recover their prior
+   hook.
+
+A target that isn't a git repository at all → warn-skip, install still succeeds
+(non-git installs, e.g. scaffolding-only use, are not blocked).
+
+**Symmetric for both runtimes:** `crates/sos-cli/src/commands/install.rs`'s
+`run_adapter()` is the single shared call-site for `--runtime claude` and
+`--runtime codex` — both call the same `engine::apply()`, so hook arming is
+identical for either adapter; there is no runtime-specific branch that could
+silently skip it for one of them.
+
+**Verified:** `crates/sos-install/tests/install.rs` runs the full arming flow
+against a real temp `git init` repo (not just filesystem writes) — asserts
+`core.hooksPath`, chmod, `.bak` rename with content preserved, non-clobber abort
+(negative-tested against a foreign `core.hooksPath`), non-git warn-skip, and
+idempotent re-install. See `docs/discoveries/P078f.md`.
 
 ## Install: tool-version drift (OA-07) is workflow-safety, not a trust boundary (P078c)
 

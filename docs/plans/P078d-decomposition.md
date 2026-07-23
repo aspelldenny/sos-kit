@@ -1,6 +1,6 @@
 # P078d decomposition — post-P079-dogfood fixes (Codex adapter render/enforcement)
 
-> **Status:** P078d1 DRAFTED (2026-07-22) — startup-schema fixes. **P078d2 SPLIT → d2a DRAFTED (2026-07-22) + d2b DEFER (needs SubagentStart probe).** **Round-2 usability → P078e (approval deadlock + actor-check) + P078f (install arm-hooks) — SPLIT 2026-07-23 per P078e Worker CHALLENGE O2.1.**
+> **Status:** P078d1 DRAFTED (2026-07-22) — startup-schema fixes. **P078d2 SPLIT → d2a DRAFTED (2026-07-22) + d2b DEFER (needs SubagentStart probe).** **Round-2 usability → P078e (approval deadlock + actor-check, SHIPPED `dd4594d`) + P078f (install arm-hooks) — SPLIT 2026-07-23 per P078e Worker CHALLENGE O2.1. P078f SHIPPED 2026-07-23 (engine-native `arm_git_hooks()` in `crates/sos-install/src/engine.rs`, symmetric claude+codex, install-smoke temp-git oracle green) — see `docs/discoveries/P078f.md`.**
 > **Parent:** P078 Codex native adapter (Active sprint) + `docs/adapters/P079-CODEX-DOGFOOD-FINDINGS-2026-07-22.md` (live-dogfood fix spec).
 > **Depends:** P078b1/b2/b3 SHIPPED (Codex adapter foundation + render + enforcement); P079 dogfood RAN and produced 7 real bugs against `crates/sos-adapter-codex/src/templates.rs`.
 
