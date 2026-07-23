@@ -149,9 +149,9 @@ on the same `worker-active`/`architect-active` markers that gap-#6/P078d2b below
 **not reliably set inside custom-role Codex subagents**. On Claude the check is correct and
 complete. On Codex, a worker subagent's `apply_patch` may not even route through this in-session
 hook — so approval-record integrity on Codex still rests on **human-review-at-the-git-commit
-boundary**, not this gate. `sos install` arming Git hooks by default (closing that boundary gap)
-is tracked separately as **P078f — SHIPPED (2026-07-23)**, see below and
-`docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md`.
+boundary**, not this gate. `sos install` rendering + arming real Git hooks by default (closing
+that boundary gap) is tracked separately as **P078f + P078g — SHIPPED (2026-07-23)**, see below and
+`docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md` / `docs/adapters/P079-ROUND3-FINDINGS-2026-07-23.md`.
 
 **In-subagent role-envelope enforcement — MISSING, not PARTIAL (P078d2b, upstream
 `openai/codex#21753`).** All 5 guards above are `PreToolUse`/`UserPromptSubmit` hooks that fire
@@ -171,23 +171,48 @@ The `SubagentStart`/`SubagentStop` marker hooks in `.codex/hooks.json` are retai
 is fixed) but are explicitly NOT relied upon for this or any other capability claim — see
 `CodexAdapter::verify()` Finding #6 and `adapters/codex/CAPABILITY.md` §6.
 
-## `sos install`: Git hook arming is armed-by-default (P078f, 2026-07-23)
+## `sos install`: Git hooks are RENDERED + armed-by-default (P078f + P078g, 2026-07-23)
 
 `sos install --runtime {claude,codex}` (the Rust `sos-install` engine,
-`crates/sos-install/src/engine.rs`) now **activates** the Git hook backstop as
-part of a successful install, not just renders `hooks/pre-commit`/`hooks/pre-push`
-to disk. This closes the gap referenced above (P079 round-2): a rendered-but-inactive
-hook is not a boundary.
+`crates/sos-install/src/engine.rs`) now **renders the real hook scripts AND
+activates** the Git hook backstop as part of a successful install — it no
+longer just points `core.hooksPath` at a directory and hopes something is
+there.
 
-**What `apply()` does on success (engine-native port of `scripts/install-hooks.sh`,
-not a shell-out — Windows Git Bash may be absent):**
-1. `chmod +x hooks/pre-commit` (+ `hooks/pre-push` if present) — Git silently ignores
+**Gap history (read chronologically — the boundary went through 2 fixes):**
+- **P078f (2026-07-23, `d35f462`)** added the arming step (`core.hooksPath` +
+  F09 hijack-guard) but assumed `hooks/pre-commit`/`hooks/pre-push` were
+  already on disk from adapter rendering. They weren't — **neither runtime's
+  adapter `plan()` ever rendered git hook scripts** (P079 round-3, Test A2/A3/A4
+  FAIL). Result: `core.hooksPath` got armed pointing at an EMPTY `hooks/` dir —
+  looked active, blocked nothing. A real `.env` commit (A3) and a real
+  code-on-default commit (A4) both went through.
+- **P078g (2026-07-23, this fix)** closes that gap: `render_embedded_hooks()`
+  now writes `hooks/pre-commit` + `hooks/pre-push` from **compile-time
+  `include_str!`** of the kit-source scripts (baked into the `sos-install`
+  binary — `sos install` has no `SOS_KIT_DIR`, it runs standalone in an
+  arbitrary target repo, unlike `new`/`adopt`/`sync`), run in `apply()`'s
+  success path immediately BEFORE `arm_git_hooks()`. And `arm_git_hooks()`
+  itself is hardened to **never arm empty**: a new `hooks_present_and_executable()`
+  check runs right before `git config --local core.hooksPath hooks` — if
+  either script is absent/non-executable, arming is refused (`Err`, loud
+  stderr) instead of silently pointing at nothing.
+
+**What `apply()` does on success (engine-native, not a shell-out to
+`scripts/install-hooks.sh` — Windows Git Bash may be absent):**
+0. **(P078g) Render** `hooks/pre-commit` + `hooks/pre-push` from embedded kit
+   source into the target repo. Non-clobber: a pre-existing hook file with
+   DIFFERENT content (adopter customized it) is left untouched (warn only).
+1. `chmod +x hooks/pre-commit` (+ `hooks/pre-push`) — Git silently ignores
    non-executable hooks.
 2. **F09 hijack-guard:** if `git config --local core.hooksPath` is already set to
    something OTHER than `hooks` (the adopter has their own hook chain), a TTY session
    prompts `[y/N]` (default N); a non-TTY session (CI, piped install) **ABORTs** the
    install rather than silently overriding it. This never fires on our own prior
    value — repeat installs are idempotent.
+2.5. **(P078g) Never-arm-empty guard:** if `hooks/pre-commit`/`hooks/pre-push`
+   are absent or non-executable at this point, arming is refused loudly
+   instead of proceeding.
 3. `git config --local core.hooksPath hooks`.
 4. Any pre-existing `.git/hooks/{pre-commit,pre-push}` is **renamed** (never deleted)
    to `*.pre-hookspath.bak` — an escape hatch for the adopter to recover their prior
@@ -198,15 +223,26 @@ A target that isn't a git repository at all → warn-skip, install still succeed
 
 **Symmetric for both runtimes:** `crates/sos-cli/src/commands/install.rs`'s
 `run_adapter()` is the single shared call-site for `--runtime claude` and
-`--runtime codex` — both call the same `engine::apply()`, so hook arming is
+`--runtime codex` — both call the same `engine::apply()`, so render+arm is
 identical for either adapter; there is no runtime-specific branch that could
-silently skip it for one of them.
+silently skip it for one of them. Known asymmetry, pre-existing and
+out-of-scope for P078g: `ClaudeAdapter::plan()` is a total stub (renders 0
+assets today) — this is unrelated to hook arming, which happens at the
+engine level regardless of adapter plan content.
 
-**Verified:** `crates/sos-install/tests/install.rs` runs the full arming flow
-against a real temp `git init` repo (not just filesystem writes) — asserts
-`core.hooksPath`, chmod, `.bak` rename with content preserved, non-clobber abort
-(negative-tested against a foreign `core.hooksPath`), non-git warn-skip, and
-idempotent re-install. See `docs/discoveries/P078f.md`.
+**Verified:** `crates/sos-install/tests/install.rs` runs the full render+arm
+flow against a real temp `git init` repo with a **fresh-no-seed** `Plan`
+(zero hook-related ops — P078f's own 5 tests seeded hook content into the
+synthetic `Plan`, which is exactly why they didn't catch the P078g gap).
+Assertions: rendered content byte-matches kit source, chmod, `core.hooksPath`
+armed only AFTER files exist, a **real `git commit` of a real `.env`** is
+genuinely blocked (the armed hook chain runs `scripts/block-env-commit.sh`
+for real, not just "file exists" — a clean commit is the negative control),
+refuse-when-absent (`arm_git_hooks` called with nothing rendered → `Err`,
+`core.hooksPath` stays unset), render non-clobber (pre-existing customized
+`hooks/pre-commit` preserved verbatim), plus all 5 P078f tests still green
+(`.bak` rename, non-clobber abort, non-git warn-skip, idempotent re-install).
+See `docs/discoveries/P078g.md` and `docs/discoveries/P078f.md`.
 
 ## Install: tool-version drift (OA-07) is workflow-safety, not a trust boundary (P078c)
 

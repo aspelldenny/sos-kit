@@ -84,12 +84,19 @@ inside custom-role Codex subagents (`openai/codex#21753`). On Claude the check i
 complete (subagent hooks fire reliably). On Codex, a worker subagent's own `apply_patch` may not
 even route through this in-session hook at all — so the actor-check is defense-in-depth only,
 not the real backstop. The actual guarantee for approval-record integrity on Codex remains
-**human-review-at-the-git-commit-boundary** — and that boundary is now armed-by-default: Gap #2
-(`sos install` arming Git hooks by default) **SHIPPED as P078f (2026-07-23)** — `sos install
---runtime codex` now activates `core.hooksPath=hooks` (plus F09 hijack-guard, chmod, stale-hook
-`.bak` rename) on every successful install, so the Git pre-commit/pre-push backstop this document
-relies on throughout is no longer "rendered but off by default". See `SECURITY.md` "`sos install`:
-Git hook arming" and `docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md`.
+**human-review-at-the-git-commit-boundary** — and that boundary is now genuinely armed by default:
+Gap #2 (`sos install` rendering + arming Git hooks by default) **SHIPPED as P078f + P078g
+(2026-07-23)**. P078f (`d35f462`) added the arming step (`core.hooksPath=hooks` + F09
+hijack-guard, chmod, stale-hook `.bak` rename), but P079 round-3 (Test A2/A3/A4 FAIL) found it
+armed an EMPTY `hooks/` dir — neither runtime's adapter `plan()` ever rendered the hook scripts,
+so a real `.env` commit and a real code-on-default commit both went through unblocked despite
+`core.hooksPath` being set. **P078g closed that gap**: `sos install --runtime codex` now renders
+`hooks/pre-commit`/`hooks/pre-push` from compile-time-embedded kit source BEFORE arming, and
+`arm_git_hooks()` refuses to set `core.hooksPath` at all if the scripts are absent/non-executable
+(never-arm-empty). Verified end-to-end: a real `git commit` of a real `.env` after `sos install`
+is now genuinely blocked (not just "hooksPath is set") — see `docs/discoveries/P078g.md`,
+`SECURITY.md` "`sos install`: Git hooks are RENDERED + armed-by-default", and
+`docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md` / `P079-ROUND3-FINDINGS-2026-07-23.md`.
 
 ## 5. Architect Read/Glob path interception — PARTIAL
 
