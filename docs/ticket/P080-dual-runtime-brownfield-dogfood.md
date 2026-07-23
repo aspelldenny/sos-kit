@@ -144,22 +144,24 @@ Chạy lại các test key round-5 trên fixture dual-install (đảm bảo dual
 ### Automated (Thợ-local)
 - [x] `cargo build --release` clean (cached, 0.11s); dual render 2 chiều: (`sos new` Claude → `install --runtime codex`) VÀ (`install --runtime codex` → `sos adopt` Claude) cùng repo → exit + hook-active ghi rõ (A2 PASS + A2-rev PASS, non-symmetric hook-winner documented).
 - [x] Nhóm A (gồm A2-rev PASS, A5 N/A-not-FAIL) + B (B1-B4 PASS) + D (D1 **FAIL**, D2 PASS, D3 PASS-proxy, D4 PASS) chạy trong fixture scratchpad, mọi item có output verbatim trong `docs/adapters/P080-FINDINGS-2026-07-23.md`.
+- [x] **ROUND-2 (post P080x @ 1821dca):** D1 re-verified PASS (missing block-env-commit.sh + missing no-code-on-default.sh both fail-CLOSED, exit 1; negative control clean-commit-feature-branch exit 0). A2 + B1 re-smoked, no regression. See "ROUND-2 RE-RUN" section in findings doc.
 
 ### Manual Testing ([Sếp+Codex])
-- [ ] Task 3 (cross-runtime state) qua `codex exec` thật — C1/C2/C3 PENDING, chưa chạy round này.
-- [ ] E2 Linux — DEFERRED, không có Linux env round này (per phiếu, không block P080 round-1 report).
+- [x] Task 3 (cross-runtime state) qua `codex exec` thật (0.145.0) — C1/C2/C3 **PASS**. C1: main-thread `apply_patch`, hooks fire ×2 "PreToolUse Completed", file created. C2: `.sos-state/worker-active` marker present → "PreToolUse Blocked" (correct BLOCK), state unchanged V2/V2. C3: no marker, main-thread advance → "PreToolUse Completed", V3/V3, Claude-side re-read agrees. Caveats logged: (a) sandbox default read-only needs `--sandbox workspace-write`; (b) hook enforcement is trust-gated — untrusted repo = silent no-fire, must verify "hook: PreToolUse ..." line before trusting verdict; (c) `trusted_hash` is content-based, clonable between same-template fixtures.
+- [x] E2 Linux — **DEFERRED per Sếp decision 2026-07-23** (không phải environment gap nữa — quyết định chủ động: làm gọn macOS trước, Windows-cài-Linux sau).
 
 ### Regression
-- [x] Nhóm D: P079 round-5 key tests **KHÔNG hoàn toàn xanh** trên fixture dual-install — D1 phát hiện regression thật (dev `[8/8]` hook fail-open khi thiếu script, P078i fix chỉ áp cho Codex backstop hook). D2-D4 xanh.
+- [x] Nhóm D: P079 round-5 key tests round-1 **KHÔNG hoàn toàn xanh** trên fixture dual-install — D1 phát hiện regression thật (dev `[8/8]` hook fail-open khi thiếu script). D2-D4 xanh round-1. **Round-2: D1 re-run PASS sau P080x fix, no new regression from the fix itself.**
 
 ### PASS/FAIL rule
-- [x] **FAIL: D1 (HIGH)** = mở `P080x-hook-fail-open-parity` gap ticket (Tầng 1, Debate) — port fail-closed pattern (Codex backstop hook) vào dev `[8/8]` hook's `[6/8]`/`[7/8]` phases. A5 = N/A không tính FAIL (honest stub, no CLI). **P081 GIỮ gated** tới khi P080x đóng + re-run round-2 xanh + Task 3/E2 xong.
+- [x] Round-1 **FAIL: D1 (HIGH)** → mở `P080x-hook-fail-open-parity` gap ticket (Tầng 1, Debate, MERGED @ 1821dca) — port fail-closed pattern (Codex backstop hook) vào dev `[8/8]` hook's `[6/8]`/`[7/8]` phases. A5 = N/A không tính FAIL (honest stub, no CLI).
+- [x] **ROUND-2 VERDICT: PASS. P080 DONE.** D1 fixed + reverified, Task 3 real `codex exec` PASS (C1/C2/C3), E2 formally DEFERRED (owner decision, not a gap). **P081 (distribution) UNGATED.**
 
 ### Docs Gate
-- [x] `CHANGELOG.md` — entry P080 (verdict FAIL + P080x gap ticket cần mở).
-- [x] `docs/BACKLOG.md` — tick `[P080]` với verdict, cập nhật resume pointer (P081 vẫn gated).
-- [ ] `adapters/codex/CAPABILITY.md` — N/A round này (gap là ở dev hook Claude-side, không phải Codex capability caveat mới; sẽ note khi P080x đóng nếu cần).
+- [x] `CHANGELOG.md` — entry P080 round-2 (verdict PASS, Task 3 real-codex PASS, E2 deferred, P081 ungated).
+- [x] `docs/BACKLOG.md` — tick `[x]` P080 với verdict round-2, resume pointer → P081 distribution UNGATED.
+- [ ] `adapters/codex/CAPABILITY.md` — N/A (Task 3 caveats are operational dogfood notes, not new capability gaps; already captured in findings doc).
 
 ### Discovery Report
-- [x] `docs/discoveries/P080.md` — anchor #1-7 CORRECT + 1 anchor mới (uninstall stub) ghi rõ, dual-install non-clobber kết luận, hook-thắng ở A2-rev (order-dependent), uninstall-dual N/A + sync-dual PASS, gap ticket P080x-hook-fail-open-parity mở, cross-platform note (E1 partial vì D1 FAIL, E2 DEFERRED).
+- [x] `docs/discoveries/P080.md` — anchor #1-7 CORRECT + 1 anchor mới (uninstall stub) ghi rõ, dual-install non-clobber kết luận, hook-thắng ở A2-rev (order-dependent), uninstall-dual N/A + sync-dual PASS, gap ticket P080x-hook-fail-open-parity mở → MERGED, cross-platform note (E1 partial vì D1 FAIL round-1, E2 DEFERRED). Round-2 append: D1 fix verified, Task 3 real-codex PASS + 3 operational caveats, verdict PASS, P081 ungated.
 - [x] Append 1-line index vào `docs/DISCOVERIES.md`.

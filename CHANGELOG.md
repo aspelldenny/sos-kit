@@ -4,6 +4,27 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**[P080] Dual-runtime brownfield dogfood — ROUND-2 PASS, P080 DONE, P081 UNGATED (2026-07-23):**
+- Re-ran D1 on a pristine fixture post P080x merge (`1821dca`): missing
+  `block-env-commit.sh` + real `.env` staged → BLOCKED exit 1; missing
+  `no-code-on-default.sh` + product code staged → BLOCKED exit 1; negative
+  control (both guards present, clean commit, feature branch) → exit 0. Gap
+  closed, no new regression. Smoke-reran A2 (dual render) + B1 (brownfield
+  non-clobber) — unchanged, no regression.
+- **Task 3 (cross-runtime state, real `codex exec` 0.145.0) — PASS.** C1
+  (main-thread `apply_patch` write) → hooks fire, patch completed. C2
+  (`.sos-state/worker-active` marker present, Codex attempts advance) →
+  `PreToolUse Blocked`, state unchanged (correct). C3 (no marker, main-thread
+  advance) → completed, Claude-side re-read agrees. 3 operational caveats
+  logged (sandbox default read-only needs `--sandbox workspace-write`; hook
+  enforcement is trust-gated and fails SILENTLY on untrusted repos — must
+  verify the `"hook: PreToolUse ..."` line before trusting a verdict;
+  `trusted_hash` is content-based, clonable across same-template fixtures).
+- E2 (Linux) formally **DEFERRED per Sếp decision** — not a gap, an
+  intentional scope choice (macOS first, Windows-Linux dual-runtime later).
+- **P081 (distribution) UNGATED.**
+- Full report (round-2 section): `docs/adapters/P080-FINDINGS-2026-07-23.md`.
+
 **[P080x] FIX (SECURITY) — Dev `[8/8]` hook `hooks/pre-commit`: `[6/8]` no-code-on-default + `[7/8]` block-env now fail-CLOSED on missing guard script (closes P080 round-1 gap D1, 2026-07-23):**
 - **Gap closed:** P078i's fail-CLOSED fix only shipped in the `sos install` backstop hook (`crates/sos-install/src/templates/backstop-pre-commit.sh`); the dev `[8/8]` hook that `sos new` copies (`hooks/pre-commit`) still had the old fail-OPEN else-branches for these 2 phases — live-verified `exit 0` when the guard was deleted and a real `.env` was committed.
 - **Fix:** `hooks/pre-commit` `[6/8]`/`[7/8]` else-branches now `red` + `FAIL_COUNT++` on missing guard script (commit blocked) instead of `⏭ skip` (commit silently allowed). Scoped to exactly the 2 invariants P078i's backstop covers; `[1-5]`/`[8]` untouched (deferred, see phase-decision table in phiếu). Phase count `[8/8]` unchanged.
