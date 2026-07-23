@@ -710,10 +710,12 @@ fn guard_approval_gate_sh() -> String {
 #       authority") -- the actor-check keeps the exemption from ever firing
 #       while the SAME agent under review (worker) is the one holding the
 #       apply_patch pen, which would otherwise let it self-approve its own
-#       ticket version. If either marker is set, this guard falls through to
-#       the normal fail-CLOSED / version-match checks below -- a
+#       ticket version. If either marker is set, this guard now BLOCKS the
+#       write outright (P078h Task 1, gap #3 fix, below) -- a
 #       worker/architect-authored write to ticket-state.env gets NO special
-#       treatment.
+#       treatment, and NO fall-through to the version-match check (that
+#       fall-through used to let an already-approved version self-advance,
+#       e.g. V3/V3 -> V4/V4).
 #
 #   (2) the #6 all-path check below, which sees every path in the patch: an
 #       attacker cannot smuggle a second path (.env, src/**, a forged
@@ -769,13 +771,33 @@ done <<< "$PATCH_PATHS"
 # Ticket files are always allowed individually; build the set of paths that
 # still need an approval check. If nothing remains, every path in this patch
 # was a ticket file -- allow.
+#
+# Path-normalize (P078h Task 2, gap #4): apply_patch path headers are
+# sometimes repo-root-absolute instead of relative (Codex prompt-shape
+# dependent, P079 round-3 "Additional usability observation"), which used to
+# false-block against the exact-relative-string STATE_FILE compare below.
+# Normalize HERE -- the single site both the state-file-allow exemption and
+# the multi-path count below consume -- by stripping a literal "$REPO_ROOT/"
+# prefix. Conservative on purpose: this is a plain string-prefix strip, NOT a
+# realpath/symlink resolution, so a path that is absolute but NOT under
+# REPO_ROOT (or that still contains "..") is left exactly as-is, which means
+# it can never equal STATE_FILE below and therefore can never win the
+# exemption -- an unresolved/foreign-looking path always falls through to
+# fail-CLOSED rather than being trusted.
 NON_TICKET_PATHS=()
 for RAW_PATH in "${ALL_PATHS[@]}"; do
     [ -z "$RAW_PATH" ] && continue
     case "$(basename "$RAW_PATH")" in
         P[0-9]*-*.md) continue ;;   # editing/drafting the ticket itself never needs its own approval
     esac
-    NON_TICKET_PATHS+=("$RAW_PATH")
+    NORM_PATH="$RAW_PATH"
+    case "$RAW_PATH" in
+        "$REPO_ROOT"/*) NORM_PATH="${RAW_PATH#"$REPO_ROOT"/}" ;;
+    esac
+    case "$NORM_PATH" in
+        *..*) NORM_PATH="$RAW_PATH" ;;   # path-trick guard: never trust a normalized form containing ".."
+    esac
+    NON_TICKET_PATHS+=("$NORM_PATH")
 done
 
 [ ${#NON_TICKET_PATHS[@]} -eq 0 ] && exit 0
@@ -789,6 +811,25 @@ STATE_FILE=".sos-state/ticket-state.env"
 ACTOR_IS_MAIN_THREAD=1
 [ -f ".sos-state/worker-active" ] && ACTOR_IS_MAIN_THREAD=0
 [ -f ".sos-state/architect-active" ] && ACTOR_IS_MAIN_THREAD=0
+
+# Marked-actor early-BLOCK (P078h Task 1, gap #3): a marked actor (worker or
+# architect subagent marker present) is rejected OUTRIGHT for ANY write that
+# touches STATE_FILE -- create, update, or advance -- with NO fall-through to
+# the version-match check further below. P079 round-3 §B4 found that merely
+# removing the state-file-alone exemption for a marked actor was NOT enough:
+# the fall-through version-match check only compares PRE-PATCH state, so an
+# already-approved version (e.g. V3/V3) satisfied `APPROVED == VERSION` and
+# was allowed to advance to V4/V4 -- a self-approve hole. Version-match must
+# never be an escape hatch for a marked actor; only main-thread writes reach
+# the checks below.
+if [ "$ACTOR_IS_MAIN_THREAD" -eq 0 ]; then
+    for CHECK_PATH in "${NON_TICKET_PATHS[@]}"; do
+        if [ "$CHECK_PATH" = "$STATE_FILE" ]; then
+            echo "BLOCKED: control-plane write by marked actor: blocked (.sos-state/worker-active or .sos-state/architect-active present while $STATE_FILE is touched -- no version-match escape hatch)." >&2
+            exit 2
+        fi
+    done
+fi
 
 # State-file-alone exemption (#5 create-when-missing, P078e-extended to
 # create+update): allow ONLY if (a) the entire non-ticket path set is

@@ -91,6 +91,34 @@ not the real backstop. The actual guarantee for approval-record integrity on Cod
 relies on throughout is no longer "rendered but off by default". See `SECURITY.md` "`sos install`:
 Git hook arming" and `docs/adapters/P079-ROUND2-FINDINGS-2026-07-23.md`.
 
+**P078h (advance-block + path-normalize, 2026-07-23) — closes the P078e self-approve advance
+hole.** P079 round-3 live-dogfood (`docs/adapters/P079-ROUND3-FINDINGS-2026-07-23.md` §B4) found
+that P078e's actor-check only removed the exemption for a marked actor — it still FELL THROUGH to
+the ordinary version-match check, which compares pre-patch state only. Starting from an
+already-approved `version=V3, approved_version=V3`, a worker with `.sos-state/worker-active`
+present could still write `version=V4, approved_version=V4`: the version-match check saw
+`V3 == V3` (already approved) and let it through. This is a distinct hole from the one P078e
+closed — P078e stopped self-approve **create/first-approval**; this let a marked actor
+self-approve an **advance**. Fix: a marked actor is now BLOCKed outright for ANY write touching
+`.sos-state/ticket-state.env` — create, update, or advance — with no fall-through to
+version-match at all. Version-match is reached only when both markers are absent (main-thread).
+A second fix in the same phiếu normalizes a repo-root-absolute `apply_patch` path to relative
+(strip a literal `$REPO_ROOT/` prefix, using the guard's existing `REPO_ROOT` variable) BEFORE
+both the state-file-allow compare and the multi-path check consume it, closing a false-block P079
+round-3 found ("Additional usability observation" — an absolute patch path to the state file was
+wrongly rejected even from the main thread). The normalize step is conservative: it never resolves
+symlinks or `..`, so a path outside `REPO_ROOT` (or one that still contains `..` after the strip)
+is left unmatched — treated as foreign, never granted the exemption.
+
+**Codex caveat (unchanged from P078e — still best-effort, not SOUND, on Codex):** this fix
+strengthens the guard's decision logic; it does not change whether the guard fires inside a real
+Codex custom-role subagent spawn. `worker-active`/`architect-active` markers remain absent on
+Codex 0.145.0 (gap #6 below, `openai/codex#21753`), so on a real Codex subagent spawn the
+advance-block is inactive the same way the rest of the actor-check is — this fix is SOUND on
+Claude (in-subagent hooks fire reliably) and for the manual-marker Codex repro path used in P079
+round-3's live test. Do not claim full self-approve protection on Codex; the Git backstop
+(`sos install` arming, P078f/P078g) and human-review-at-commit remain the real boundary there.
+
 ## 5. Architect Read/Glob path interception — PARTIAL
 
 **What's missing:** Codex has no Read/Glob-equivalent tool call to intercept — file reads happen
