@@ -442,7 +442,10 @@ sos-kit/
 │   └── phieu.sh                # Shell function: phieu / phieu-list / phieu-done / phieu-init
 ├── recipes/                    # DNA snippets — patterns /apply consumes (AI fallback, auth, payment, etc.)
 │   ├── ai/multi-model-fallback.md
+│   ├── ai/sse-streaming-keepalive.md
 │   ├── auth/nextauth-google-credentials.md
+│   ├── infra/rate-limit-inmemory.md
+│   ├── infra/pii-encryption.md
 │   └── payment/payos-vn.md
 ├── skills/                     # 5 LIVING skills (each declares a mechanical `caller:`) + attic/
 │   ├── idea/SKILL.md           # Chủ nhà — intake ideas into BACKLOG

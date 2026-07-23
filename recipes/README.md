@@ -79,6 +79,9 @@ Skill `/forge` dẫn Kiến trúc sư qua: nghiên cứu official docs → write
 - `payment/payos-vn` — Tích hợp PayOS VN (SDK official) với pre-charge + atomic deduct + VIP-qua-topup (DNA tarot)
 - `auth/nextauth-google-credentials` — NextAuth v4 Google OAuth + Credentials (email/password bcrypt), JWT strategy (DNA tarot)
 - `ai/multi-model-fallback` — Opus → Gemini → OpenRouter chain với timeout per-tier (DNA tarot)
+- `infra/rate-limit-inmemory` — Sliding-window rate limit theo IP (zero-dep `Map`) + login-attempt limiter, IP-spoofing-safe header priority (DNA tarot)
+- `infra/pii-encryption` — AES-256-GCM field encryption + queryable email hash (Node `crypto`, zero-dep) (DNA tarot)
+- `ai/sse-streaming-keepalive` — SSE idle-disconnect guard cho streaming routes trong lúc model reasoning im lặng (zero-dep) (DNA tarot)
 
 ### TODO (priority cao theo experience tarot)
 - `infra/docker-compose-postgres` — Postgres 16 self-host + Prisma init
