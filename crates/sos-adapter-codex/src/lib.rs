@@ -1133,6 +1133,69 @@ mod tests {
             synthetic_apply_patch(action, &format!("{}/{}", root.display(), rel_path))
         }
 
+        // --- P078j: symlink-alias fixture matrix (round-4 B4 gap #2) ---
+        //
+        // The tests above (`run_guard_dynamic`) already exercise the P078h
+        // lexical-strip normalize against an absolute-but-canonical path
+        // (`fs::canonicalize` gives the same physical path the guard's own
+        // `pwd`/`pwd -P` would produce, so there was never a mismatch to
+        // catch there). Round-4 B4's actual failure needs a candidate path
+        // that is spelled through a DIFFERENT, symlinked route than the
+        // guard's own canonical working directory -- e.g. macOS's `/tmp`
+        // (symlink) vs. `/private/tmp` (physical) prefix on `REPO_ROOT`.
+        //
+        // `run_guard_symlink` reproduces that shape directly (no dependency
+        // on any OS-specific mount): it creates a REAL directory and a
+        // SEPARATE symlink pointing at it, runs the guard with its cwd set
+        // to the REAL directory (so REPO_ROOT resolves canonically, exactly
+        // as `git rev-parse --show-toplevel`/`pwd -P` would), and lets the
+        // caller build the apply_patch payload using the ALIAS (symlink)
+        // path -- reproducing the exact real/alias split round-4 found.
+        fn run_guard_symlink(
+            identity: &str,
+            setup: impl FnOnce(&PathBuf),
+            build_payload: impl FnOnce(&PathBuf) -> String,
+        ) -> i32 {
+            let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+            let base = std::env::temp_dir().join(format!(
+                "sos-codex-guard-test-symlink-{}-{}-{}",
+                std::process::id(),
+                n,
+                identity
+            ));
+            let real_dir = base.join("real");
+            let alias_dir = base.join("alias");
+            fs::create_dir_all(&real_dir).unwrap();
+            std::os::unix::fs::symlink(&real_dir, &alias_dir).unwrap();
+
+            setup(&real_dir);
+            let stdin_json = build_payload(&alias_dir);
+
+            let script_path = real_dir.join("guard.sh");
+            fs::write(&script_path, templates::content_for(identity)).unwrap();
+            let mut perms = fs::metadata(&script_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&script_path, perms).unwrap();
+
+            let mut child = Command::new("bash")
+                .arg(&script_path)
+                .current_dir(&real_dir)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .expect("spawn bash guard");
+            child
+                .stdin
+                .as_mut()
+                .unwrap()
+                .write_all(stdin_json.as_bytes())
+                .unwrap();
+            let status = child.wait().expect("wait on guard process");
+            let _ = fs::remove_dir_all(&base);
+            status.code().unwrap_or(-1)
+        }
+
         #[test]
         fn approval_gate_blocks_worker_advance_of_already_approved_version() {
             // Gap #3 core oracle (P079 round-3 §B4 live repro): state is
@@ -1263,6 +1326,149 @@ mod tests {
                 "bundle of absolute-path ticket-state.env + code path must BLOCK even after normalize"
             );
         }
+
+        #[test]
+        fn approval_gate_symlink_alias_marked_actor_advance_blocks() {
+            // Gap B core (round-4 B4 :160-168): REPO_ROOT is the REAL
+            // (canonical) dir, worker-active is set, state is ALREADY
+            // approved V3/V3, and the patch path is spelled through the
+            // ALIAS (symlink) route -- exactly the macOS /tmp -> /private/tmp
+            // shape. Pre-fix (lexical strip only) this LEAKED (exit 0,
+            // forbidden V3/V3 -> V4/V4 self-advance). Post-fix: canonicalize
+            // makes the alias path resolve to STATE_FILE and the marked-actor
+            // early-BLOCK fires.
+            let code = run_guard_symlink(
+                templates::GUARD_APPROVAL_GATE,
+                |real_dir| {
+                    fs::create_dir_all(real_dir.join(".sos-state")).unwrap();
+                    fs::write(
+                        real_dir.join(".sos-state/ticket-state.env"),
+                        state_env("V3", "V3"),
+                    )
+                    .unwrap();
+                    fs::write(real_dir.join(".sos-state/worker-active"), "").unwrap();
+                },
+                |alias_root| {
+                    synthetic_apply_patch_abs("Update", alias_root, ".sos-state/ticket-state.env")
+                },
+            );
+            assert_eq!(
+                code, 2,
+                "marked-actor advance of an already-approved version via a symlink-alias path must BLOCK (round-4 B4 gap B, direction 1)"
+            );
+        }
+
+        #[test]
+        fn approval_gate_symlink_alias_main_thread_approval_allows() {
+            // Gap B main-thread direction (round-4 B4 :177-187): NO marker,
+            // unapproved V5/empty state, update-only write to
+            // ticket-state.env addressed via the ALIAS route. Pre-fix this
+            // false-BLOCKed (alias path never matched STATE_FILE, so it
+            // never won the state-file-alone exemption). Post-fix:
+            // canonicalize resolves it to STATE_FILE and the exemption fires
+            // -> ALLOW, same as the canonical/relative forms.
+            let code = run_guard_symlink(
+                templates::GUARD_APPROVAL_GATE,
+                |real_dir| {
+                    fs::create_dir_all(real_dir.join(".sos-state")).unwrap();
+                    fs::write(
+                        real_dir.join(".sos-state/ticket-state.env"),
+                        state_env("V5", ""),
+                    )
+                    .unwrap();
+                },
+                |alias_root| {
+                    synthetic_apply_patch_abs("Update", alias_root, ".sos-state/ticket-state.env")
+                },
+            );
+            assert_eq!(
+                code, 0,
+                "main-thread legit approval write via a symlink-alias path must ALLOW (round-4 B4 gap B, direction 2 -- false-block)"
+            );
+        }
+
+        #[test]
+        fn approval_gate_symlink_alias_bundle_no_regress_blocks() {
+            // d2a multi-path no-regress through the alias route, with the
+            // marked-actor early-BLOCK as the oracle: worker-active is set,
+            // state is ALREADY approved V3/V3 (which main-thread would be
+            // allowed to see as "already approved" and pass through -- this
+            // isolates the assertion to the marked-actor path so a positive
+            // result actually proves canonicalize resolved BOTH bundled
+            // alias paths correctly, matching one of them to STATE_FILE and
+            // firing the early-BLOCK -- not an incidental "state file
+            // missing" BLOCK). Canonicalize normalizes paths; it does not
+            // collapse a genuine 2-path patch into the 1-path exemption, nor
+            // does it give a marked actor a bundle-shaped escape hatch.
+            let code = run_guard_symlink(
+                templates::GUARD_APPROVAL_GATE,
+                |real_dir| {
+                    fs::create_dir_all(real_dir.join(".sos-state")).unwrap();
+                    fs::write(
+                        real_dir.join(".sos-state/ticket-state.env"),
+                        state_env("V3", "V3"),
+                    )
+                    .unwrap();
+                    fs::write(real_dir.join(".sos-state/worker-active"), "").unwrap();
+                    fs::create_dir_all(real_dir.join("src")).unwrap();
+                },
+                |alias_root| {
+                    let abs_state =
+                        format!("{}/.sos-state/ticket-state.env", alias_root.display());
+                    let abs_src = format!("{}/src/evil.rs", alias_root.display());
+                    synthetic_apply_patch_multi("Update", &abs_state, "Add", &abs_src)
+                },
+            );
+            assert_eq!(
+                code, 2,
+                "bundle of alias-path ticket-state.env + code path with worker-active must BLOCK even after canonicalize (multi-path no-regress)"
+            );
+        }
+
+        #[test]
+        fn approval_gate_path_trick_outside_repo_root_stays_fail_closed() {
+            // Fail-closed guard (P078h, preserved): a candidate path that
+            // canonicalizes to somewhere OUTSIDE REPO_ROOT entirely (a
+            // symlink -- or here, simply an unrelated directory -- that does
+            // NOT share the repo-root prefix even after resolution) must
+            // never win the state-file-alone exemption. It falls through to
+            // the normal fail-CLOSED checks below (here: state file missing
+            // under REPO_ROOT -> BLOCK).
+            let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+            let outside_dir = std::env::temp_dir().join(format!(
+                "sos-codex-guard-test-outside-{}-{}",
+                std::process::id(),
+                n
+            ));
+            fs::create_dir_all(outside_dir.join(".sos-state")).unwrap();
+            fs::write(
+                outside_dir.join(".sos-state/ticket-state.env"),
+                state_env("V1", "V1"),
+            )
+            .unwrap();
+
+            let code = run_guard(
+                templates::GUARD_APPROVAL_GATE,
+                &synthetic_apply_patch_abs("Update", &outside_dir, ".sos-state/ticket-state.env"),
+                no_setup,
+            );
+            let _ = fs::remove_dir_all(&outside_dir);
+            assert_eq!(
+                code, 2,
+                "a candidate path resolving outside REPO_ROOT must never win the exemption -- fail-closed"
+            );
+        }
+
+        // Canonical (/private/tmp-equivalent) and relative-path no-regress
+        // (nghiệm thu items 3-4) are already covered by the pre-existing
+        // suite: `approval_gate_normalizes_absolute_path_main_thread_allow` /
+        // `approval_gate_normalizes_absolute_path_worker_active_blocks`
+        // (canonical absolute path, via `run_guard_dynamic`'s
+        // `fs::canonicalize`) and
+        // `approval_gate_blocks_worker_advance_of_already_approved_version` /
+        // the relative-path main-thread-allow tests above (relative path).
+        // All pass unchanged after the Task 1 canonicalize upgrade -- see
+        // Discovery Report for the explicit re-run confirmation.
 
         #[test]
         fn all_guard_scripts_are_bash_syntax_clean() {

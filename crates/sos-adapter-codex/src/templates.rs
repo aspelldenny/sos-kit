@@ -747,6 +747,13 @@ INPUT_JSON=$(cat)
 # guard away from the project it's meant to protect).
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 cd "$REPO_ROOT" 2>/dev/null || true
+# Canonicalize REPO_ROOT itself (P078j, round-4 B4 gap #2 fix): resolves any
+# symlink component in the repo root (e.g. macOS /tmp -> /private/tmp) so it
+# can be compared against canonicalized candidate paths below on equal
+# footing. We already cd'd into REPO_ROOT above, so `pwd -P` (POSIX, no GNU
+# extensions -- portable to both macOS BSD and Linux) returns its physical
+# path. Falls back to the pre-canonicalize value if the cd above failed.
+REPO_ROOT=$(pwd -P 2>/dev/null || printf '%s' "$REPO_ROOT")
 
 TOOL_NAME=$(printf '%s' "$INPUT_JSON" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ "$TOOL_NAME" = "apply_patch" ] || exit 0
@@ -772,27 +779,61 @@ done <<< "$PATCH_PATHS"
 # still need an approval check. If nothing remains, every path in this patch
 # was a ticket file -- allow.
 #
-# Path-normalize (P078h Task 2, gap #4): apply_patch path headers are
-# sometimes repo-root-absolute instead of relative (Codex prompt-shape
-# dependent, P079 round-3 "Additional usability observation"), which used to
-# false-block against the exact-relative-string STATE_FILE compare below.
-# Normalize HERE -- the single site both the state-file-allow exemption and
-# the multi-path count below consume -- by stripping a literal "$REPO_ROOT/"
-# prefix. Conservative on purpose: this is a plain string-prefix strip, NOT a
-# realpath/symlink resolution, so a path that is absolute but NOT under
-# REPO_ROOT (or that still contains "..") is left exactly as-is, which means
-# it can never equal STATE_FILE below and therefore can never win the
-# exemption -- an unresolved/foreign-looking path always falls through to
-# fail-CLOSED rather than being trusted.
+# Path-normalize (P078h Task 2, gap #4; upgraded P078j, round-4 B4 gap #2):
+# apply_patch path headers are sometimes repo-root-absolute instead of
+# relative (Codex prompt-shape dependent, P079 round-3 "Additional usability
+# observation"), which used to false-block against the exact-relative-string
+# STATE_FILE compare below. Normalize HERE -- the single site both the
+# state-file-allow exemption and the multi-path count below consume.
+#
+# P078h shipped a plain literal-prefix strip of "$REPO_ROOT/", which is
+# lexical only -- it does not resolve a symlink in either the candidate path
+# or REPO_ROOT, so e.g. macOS's "/tmp" (a symlink to "/private/tmp") never
+# matched a canonical "$REPO_ROOT" of "/private/tmp/..." and the guard
+# treated the two as unrelated paths (round-4 B4: this let a marked-actor
+# advance LEAK through AND false-blocked a legitimate main-thread approval --
+# both failure directions, see lib.rs tests). P078j upgrades this to
+# canonicalize an absolute candidate path BEFORE the prefix-strip, so
+# "/tmp/x" and "/private/tmp/x" resolve to the same form and compare equal
+# against the now-also-canonicalized REPO_ROOT (canonicalized above).
+#
+# Portable, target-not-yet-existing-safe mechanism: resolve only the
+# DIRNAME via `cd ... && pwd -P` (POSIX, no GNU `readlink -f` / `realpath -m`
+# -- macOS BSD lacks both) and re-append the basename. This works even when
+# the candidate file itself does not exist yet on disk (e.g. the bootstrap
+# create of ticket-state.env, P078d2a #5/B1) -- a strict realpath on the full
+# path would fail there because only the leaf is missing, not the directory.
+#
+# Conservative fail-closed is preserved: if the dirname does not resolve
+# (directory itself doesn't exist / not cd-able), fall through to the RAW
+# path unchanged -- an unresolved path can never equal the canonical
+# "$REPO_ROOT/" prefix below and therefore can never win the exemption. Same
+# for a relative candidate path (no leading "/") -- left as-is, unaffected.
 NON_TICKET_PATHS=()
 for RAW_PATH in "${ALL_PATHS[@]}"; do
     [ -z "$RAW_PATH" ] && continue
     case "$(basename "$RAW_PATH")" in
         P[0-9]*-*.md) continue ;;   # editing/drafting the ticket itself never needs its own approval
     esac
-    NORM_PATH="$RAW_PATH"
+    CANON_PATH="$RAW_PATH"
     case "$RAW_PATH" in
-        "$REPO_ROOT"/*) NORM_PATH="${RAW_PATH#"$REPO_ROOT"/}" ;;
+        /*)
+            CAND_DIR=$(dirname "$RAW_PATH")
+            CAND_BASE=$(basename "$RAW_PATH")
+            # `|| true` is load-bearing under `set -e`: if the dirname does
+            # not exist, `cd` fails and (being a plain assignment statement,
+            # not inside an if/while) would otherwise abort the whole script
+            # -- we want a graceful empty RESOLVED_DIR (fail-closed
+            # fallthrough below) instead.
+            RESOLVED_DIR=$(cd "$CAND_DIR" 2>/dev/null && pwd -P) || true
+            if [ -n "$RESOLVED_DIR" ]; then
+                CANON_PATH="$RESOLVED_DIR/$CAND_BASE"
+            fi
+            ;;
+    esac
+    NORM_PATH="$CANON_PATH"
+    case "$CANON_PATH" in
+        "$REPO_ROOT"/*) NORM_PATH="${CANON_PATH#"$REPO_ROOT"/}" ;;
     esac
     case "$NORM_PATH" in
         *..*) NORM_PATH="$RAW_PATH" ;;   # path-trick guard: never trust a normalized form containing ".."

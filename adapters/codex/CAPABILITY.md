@@ -143,6 +143,21 @@ Claude (in-subagent hooks fire reliably) and for the manual-marker Codex repro p
 round-3's live test. Do not claim full self-approve protection on Codex; the Git backstop
 (`sos install` arming, P078f/P078g) and human-review-at-commit remain the real boundary there.
 
+**P078j (path canonicalize, 2026-07-23) — closes round-4's lexical-normalize gap.** P079 round-4
+(`docs/adapters/P079-ROUND4-FINDINGS-2026-07-23.md` §B4, gap #2) found the P078h normalize above was
+lexical only (a literal `$REPO_ROOT/` string-prefix strip), not filesystem-equivalent: macOS's
+`/tmp` → `/private/tmp` symlink meant an `apply_patch` path spelled via `/tmp/...` never matched a
+canonical `REPO_ROOT` of `/private/tmp/...`, breaking BOTH directions — a marked actor's forbidden
+advance leaked through the alias, and a legitimate main-thread approval via the alias was
+false-blocked. Fixed: both `REPO_ROOT` and every absolute candidate path are now canonicalized
+(symlink-resolved) before the compare — `REPO_ROOT` via `cd "$REPO_ROOT" && pwd -P`, each candidate
+via resolving its dirname only (`cd "$(dirname PATH)" && pwd -P`, re-appending the basename) so a
+not-yet-existing file (bootstrap-create case) still resolves correctly, portable to macOS BSD
+(no GNU `-m`/`-f` flags assumed). Fail-closed behavior is unchanged: an unresolvable dirname or a
+path canonicalizing outside `REPO_ROOT` is never granted the exemption. Does not alter the P078h
+early-BLOCK/exemption decision logic — only the path forms fed into it. See `SECURITY.md`
+"Path-matching upgraded to symlink-safe canonicalize" and `docs/discoveries/P078j.md`.
+
 ## 5. Architect Read/Glob path interception — PARTIAL
 
 **What's missing:** Codex has no Read/Glob-equivalent tool call to intercept — file reads happen
