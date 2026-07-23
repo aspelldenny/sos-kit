@@ -440,8 +440,9 @@ sos-kit/
 │   │   ├── SOUL_template.md
 │   │   └── CHARACTER_template.md
 │   └── phieu.sh                # Shell function: phieu / phieu-list / phieu-done / phieu-init
-├── recipes/                    # DNA snippets — patterns /apply consumes (AI fallback, payment, etc.)
+├── recipes/                    # DNA snippets — patterns /apply consumes (AI fallback, auth, payment, etc.)
 │   ├── ai/multi-model-fallback.md
+│   ├── auth/nextauth-google-credentials.md
 │   └── payment/payos-vn.md
 ├── skills/                     # 5 LIVING skills (each declares a mechanical `caller:`) + attic/
 │   ├── idea/SKILL.md           # Chủ nhà — intake ideas into BACKLOG

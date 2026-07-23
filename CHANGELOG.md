@@ -6,6 +6,23 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**Recipe Tier-0 harvest — nextauth + payos SDK rewrite (2026-07-23):**
+- Added `recipes/auth/nextauth-google-credentials.md` — NextAuth v4 Google OAuth +
+  Credentials (JWT strategy), mined from tarot `src/lib/auth.ts` (verified @cd16a86).
+  Real-code gotcha caught vs Architect's draft: without a DB adapter, `jwt()`'s `user`
+  param carries the OAuth provider's id (Google `sub`) on first sign-in, not the app's
+  DB id — `token.sub` must be re-resolved by email lookup and overwritten. Also fixed
+  `token.uid` → `token.sub` (NextAuth's real field).
+- Rewrote `recipes/payment/payos-vn.md` — raw-HMAC → official `@payos/node@2.0.5` SDK.
+  Real-code corrections vs draft: `new PayOS({clientId,apiKey,checksumKey})` is an
+  **object-arg constructor**, not positional args; bad-signature webhook returns
+  **400** (non-retriable), not 401; VIP grant is a separate `Subscription` model
+  (tier/status/currentPeriodStart/currentPeriodEnd), not a `vipUntil` column on `User`;
+  dropped an unverified `data.reference` field the draft assumed (tarot only ever
+  reads `.orderCode`). Both recipes carry a `## Forge verification` section with
+  anchors run live against `~/tarot` @cd16a86.
+- Updated `recipes/README.md` recipe index + root `README.md` recipes file tree.
+
 **[P081b] Distribution — Stage 2 npm wrapper (2026-07-23):**
 - Added `package.json` (`sos-kit`, `0.1.0` — synced to `crates/sos-cli`
   Cargo.toml + tag `v0.1.0`): thin package, `bin.sos` → `bin/sos-npm`,

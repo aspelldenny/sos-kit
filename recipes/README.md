@@ -76,14 +76,14 @@ Skill `/forge` dẫn Kiến trúc sư qua: nghiên cứu official docs → write
 ## Recipe đã có
 
 ### Stable (battle-tested)
-- `payment/payos-vn` — Tích hợp PayOS VN với pre-charge + atomic deduct (DNA tarot)
+- `payment/payos-vn` — Tích hợp PayOS VN (SDK official) với pre-charge + atomic deduct + VIP-qua-topup (DNA tarot)
+- `auth/nextauth-google-credentials` — NextAuth v4 Google OAuth + Credentials (email/password bcrypt), JWT strategy (DNA tarot)
 - `ai/multi-model-fallback` — Opus → Gemini → OpenRouter chain với timeout per-tier (DNA tarot)
 
 ### TODO (priority cao theo experience tarot)
 - `infra/docker-compose-postgres` — Postgres 16 self-host + Prisma init
 - `infra/docker-compose-nginx` — Nginx reverse proxy + Cloudflare cert
 - `infra/vps-bootstrap-ubuntu` — UFW + fail2ban + SSH hardening + certbot
-- `auth/nextauth-google-email` — NextAuth Google OAuth + Email magic link
 - `observability/sentry-nextjs` — Sentry SDK + source maps + tracing
 - `observability/umami-self-host` — Umami analytics docker
 - `observability/canary-github-actions` — Post-deploy health check workflow
