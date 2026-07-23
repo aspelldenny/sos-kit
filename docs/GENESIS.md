@@ -155,7 +155,7 @@ sos-kit/
 │   ├── init/SKILL.md            Phase 0 — Chủ nhà vision capture
 │   ├── apply/SKILL.md           Phase 3 — Thợ apply 1 recipe
 │   ├── forge/SKILL.md           Forge recipe mới — Kiến trúc sư
-│   └── plan/SKILL.md            (cập nhật) — plan mode interop
+│   └── plan/SKILL.md            (nay ở skills/attic/ — parked 2026-06-11) — plan mode interop
 ├── Cargo.toml                    Rust workspace root (P077f — relocated từ bootstrap/sos-rs/)
 └── crates/                       sos-cli/sos-core/sos-install/sos-adapter-claude/sos-adapter-codex/sos-hooks
 ```

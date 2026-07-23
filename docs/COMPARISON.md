@@ -8,7 +8,7 @@
 |---|---|---|
 | Author | aspelldenny | Garry Tan (YC CEO) |
 | Language | Rust (CLI) + markdown (skills) | Bun/TypeScript |
-| Binary size | 4 tools, ~12MB total | 58MB |
+| Binary size | 10 tools, prebuilt + sha256-verified | 58MB |
 | Approach | CLI tools + role-separated skills | 31 Markdown skills |
 | Role model | 3-role (Chủ nhà / Kiến trúc sư / Thợ) | Flat skill set |
 | Ticketing | Phiếu + worktree per ticket | None |
@@ -20,7 +20,7 @@
 | Health monitoring | ✅ Canary + Uptime (`guard` + `vps`) | ✅ Canary |
 | Cross-project learnings | ✅ JSONL (`ship learn`) | ✅ JSONL |
 | Docs enforcement | ✅ docs-gate (Rust, pre-commit) | ❌ Manual |
-| MCP server | ✅ 4 tools (ship, docs-gate, guard, vps) | ❌ No |
+| MCP server | ✅ ship, docs-gate, guard, vps, doctor (10 CLI tools total) | ❌ No |
 | Pre-commit hooks | ✅ | ❌ No |
 
 ## Where each fits

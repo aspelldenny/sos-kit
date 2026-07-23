@@ -1,6 +1,6 @@
 # Claude adapter boundary
 
-> Status (P076): **declarative boundary.** No file has moved. This doc + `MAPPING.md` declare ownership; physical extraction/render is P077.
+> Status (P076): **declarative boundary.** No file has moved. This doc + `MAPPING.md` declare ownership; physical extraction/render is a future ticket (P077 shipped the adapter framework instead; Claude physical render not yet scheduled — symlink install remains the mechanism).
 
 ## What this adapter owns
 
@@ -26,7 +26,7 @@ The boundary declared here is **declarative, not physical**:
 - Every Claude artifact keeps its current path (`.claude/**`, `agents/*.md`, `skills/*/SKILL.md`, `templates/claude-settings.local.json`, `.mcp.json`).
 - Each artifact is mapped to a stable core source ID in `MAPPING.md` — this is the "owner duy nhất" in declared (not moved) form.
 - `agents/*.md` and `skills/*/SKILL.md` bodies carry an inert HTML-comment provenance marker pointing at their `core/ROLES.md#<role_id>` (or core skill semantics) — frontmatter fields read by host tooling (`name`/`model`/`tools`/`caller`) are unchanged.
-- Physical file move and rendering (`sos-adapter-claude::render()`) are P077's responsibility (`PORTABILITY_ARCHITECTURE.md` lines 32, 144).
+- Physical file move and rendering (`sos-adapter-claude::render()`) are deferred to a future Claude-render ticket (P077 shipped the adapter framework; not yet scheduled) (`PORTABILITY_ARCHITECTURE.md` lines 32, 144).
 
 ## Semantic source of truth
 
