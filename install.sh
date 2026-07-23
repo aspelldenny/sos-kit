@@ -83,10 +83,16 @@ fi
 
 # ── 2. Prebuilt binaries ─────────────────────────────────────────────────────
 mkdir -p "$BIN_DIR"
-fetch_bin() {  # <bin> <required|optional> → 0 ok | 1 failed
+fetch_bin() {  # <bin> <required|optional> [repo] [dest-name] → 0 ok | 1 failed
+  # repo defaults to $bin (each sister tool = its own repo, same name). The
+  # kit's own `sos` binary is the exception: repo is sos-kit, asset name is
+  # sos-<triple>, and we install it to a SIDECAR dest-name (sos-bin) so it
+  # never collides with the bash wrapper written at $BIN_DIR/sos (step 4).
   bin="$1"
-  url="https://github.com/$GH_OWNER/$bin/releases/latest/download/${bin}-${TARGET}${EXT}"
-  dest="$BIN_DIR/${bin}${EXT}"
+  repo="${3:-$bin}"
+  dest_name="${4:-$bin}"
+  url="https://github.com/$GH_OWNER/$repo/releases/latest/download/${bin}-${TARGET}${EXT}"
+  dest="$BIN_DIR/${dest_name}${EXT}"
   echo "▶ $bin ← $url"
   if curl -fSL --proto '=https' --connect-timeout 30 --max-time 300 --progress-bar -o "${dest}.tmp" "$url"; then
     # ── Integrity verify: fetch .sha256, recompute, compare first field ──────
@@ -138,6 +144,15 @@ for bin in $OPTIONAL_BINARIES; do
   fi
 done
 
+# Prebuilt `sos` binary (P081 Stage 1, route A) — sidecar, NOT $BIN_DIR/sos
+# (that path is the bash wrapper written in step 4). Fail-CLOSED like the
+# other required binaries: missing download or checksum mismatch ABORTS.
+if ! fetch_bin "sos" required "sos-kit" "sos-bin"; then
+  echo "✗ Download FAILED for sos (prebuilt binary) — ABORTING (fail-closed: route A dispatch needs it)." >&2
+  echo "  Check: https://github.com/$GH_OWNER/sos-kit/releases" >&2
+  exit 1
+fi
+
 # ── 3. Kit checkout ──────────────────────────────────────────────────────────
 if [ -d "$KIT_DIR/.git" ]; then
   echo "▶ Kit already at $KIT_DIR — left untouched (update: git -C \"$KIT_DIR\" pull)"
@@ -152,6 +167,11 @@ fi
 # its own path, so we export it explicitly for the wrapper-call case.
 {
   printf '#!/bin/sh\n'
+  # Precedence-safe default (P081 route A): only set SOS_RUST_BIN if the
+  # user hasn't already exported one — `:=` never overrides an existing
+  # value, so a user's own `export SOS_RUST_BIN=/custom/sos` still wins.
+  printf ': "${SOS_RUST_BIN:=%s/sos-bin}"\n' "$BIN_DIR"
+  printf 'export SOS_RUST_BIN\n'
   printf 'SOS_KIT_DIR="%s" exec bash "%s/bin/sos.sh" "$@"\n' "$KIT_DIR" "$KIT_DIR"
 } > "$BIN_DIR/sos"
 chmod +x "$BIN_DIR/sos"
@@ -166,7 +186,7 @@ case ":$PATH:" in
 esac
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✓ sos-kit installed: $BINARIES + optional($OPTIONAL_BINARIES) + sos → $BIN_DIR"
+echo "✓ sos-kit installed: $BINARIES + optional($OPTIONAL_BINARIES) + sos-bin + sos → $BIN_DIR"
 echo ""
 echo "Next — pick by repo state:"
 echo "  existing repo:   cd <your-repo> && sos adopt ."

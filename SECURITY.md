@@ -39,10 +39,13 @@ Hooks and scripts operate on local files and git only. No hook makes an outbound
 Every file in this repo is readable. The hook chain is documented in `hooks/pre-commit` header. The permission allowlist in `.claude/settings.json` is committed and gated by the baseline. No obfuscation, no eval of remote content.
 
 **INV-TRUST-05: Install only does declared operations**
-`install.sh` only performs: symlinking `hooks/` via `core.hooksPath`, copying skill files, and installing declared binary releases (ship, docs-gate, guard, vps, inv-gate, claude-hooks). Each release is checksum-verified (P071 — Leg 2 of the hardening sprint). The install script does not fetch or execute arbitrary remote code beyond the declared binary URLs.
+`install.sh` only performs: symlinking `hooks/` via `core.hooksPath`, copying skill files, and installing declared binary releases (doctor, claude-hooks, docs-gate, ship, advisory-inbox, inv-gate, guard, vps, doc-rotate, advisory-cron — 10 sister tools — plus the kit's own `sos` binary as of P081 Stage 1). Each release is checksum-verified (P071 Leg 2 for sister tools; P081 for `sos` itself). The install script does not fetch or execute arbitrary remote code beyond the declared binary URLs.
 
-**INV-TRUST-06: Release binaries are checksum-verified (P071)**
-The `install.sh` verifies sha256 of each downloaded binary against a pinned checksum before execution. See `install.sh` for the verification block.
+**INV-TRUST-06: Release binaries are checksum-verified (P071, P081)**
+`install.sh` verifies sha256 of each downloaded binary against its published `.sha256` companion before installing it — fail-CLOSED: a mismatch or a missing checksum for a required binary aborts the whole install (`exit 1`), it never installs an unverified binary silently. See `install.sh`'s `fetch_bin()` for the verification block.
+
+**INV-TRUST-07: `sos` prebuilt binary is a separate distribution surface, sidecar-isolated (P081 Stage 1)**
+Since P081, `install.sh` also fetches a prebuilt `sos-<triple>` binary (built + published by `.github/workflows/release.yml` on each `v*` tag push) and installs it to a `sos-bin` sidecar — deliberately NOT at the same path as the generated `sos` wrapper (which stays a 2-line bash dispatcher, see `bin/sos.sh` dispatch contract). The wrapper exports `SOS_RUST_BIN` pointing at that sidecar using `: "${SOS_RUST_BIN:=...}"` — a shell default-assignment that never overrides an already-set value, so a user's own `export SOS_RUST_BIN=/path/to/sos` always wins. Same fail-CLOSED checksum verification as INV-TRUST-06 applies to this binary.
 
 ---
 
