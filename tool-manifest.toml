@@ -23,11 +23,12 @@
 # Re-fill when a tool cuts a new release meant to become the new floor.
 #
 # checksum = sha256 hex per platform, keyed to the pinned version's release
-# asset. E2 (Task 0 escape hatch): no prebuilt binary has been hashed
-# against THIS manifest shape yet — placeholder value below, filled with
-# "TODO-sha256-<tool>-P081" (not a real hash — do not use to verify
-# artifact integrity yet). Real checksum-fill is a P081 follow-up once a
-# release pipeline computes+publishes it for this pin format. install.sh's
+# asset. FILLED P081 Stage 1 (2026-07-23) — real sha256 fetched from each
+# sister repo's published GitHub Release asset digest at the pinned version
+# (`gh release view v<pin> --repo aspelldenny/<tool> --json assets`, digest
+# field, cross-checked against companion `.sha256` file where present).
+# Only exception: advisory-cron's Windows triple — kept as TODO + comment,
+# no asset exists there by design (compile_error! on Windows). install.sh's
 # EXISTING integrity check (fetch + recompute + compare a companion
 # `.sha256` file, P071) is unrelated and unaffected — it verifies the ASSET
 # CHOSEN, this manifest pins the VERSION+ASSET+CHECKSUM to select.
@@ -45,9 +46,9 @@ required = true
 "x86_64-pc-windows-msvc"   = "doctor-x86_64-pc-windows-msvc.exe"
 
 [tool.checksum]
-"aarch64-apple-darwin"     = "TODO-sha256-doctor-P081"
-"x86_64-unknown-linux-gnu" = "TODO-sha256-doctor-P081"
-"x86_64-pc-windows-msvc"   = "TODO-sha256-doctor-P081"
+"aarch64-apple-darwin"     = "40ae95aaa689de8301f29af243499e36b7518aad87f2bb09150734c421ca0bf5"
+"x86_64-unknown-linux-gnu" = "ba6a6cb1b9430d522cb0a1bc35cffa909adc3cbf8f4d9466504dd2ed3fd089dc"
+"x86_64-pc-windows-msvc"   = "39181898a95d7aa61e68c0e5b012647521aea3c11135f6af7dd623c2014e85d1"
 
 [[tool]]
 name     = "claude-hooks"
@@ -60,9 +61,9 @@ required = true
 "x86_64-pc-windows-msvc"   = "claude-hooks-x86_64-pc-windows-msvc.exe"
 
 [tool.checksum]
-"aarch64-apple-darwin"     = "TODO-sha256-claude-hooks-P081"
-"x86_64-unknown-linux-gnu" = "TODO-sha256-claude-hooks-P081"
-"x86_64-pc-windows-msvc"   = "TODO-sha256-claude-hooks-P081"
+"aarch64-apple-darwin"     = "56a7e8ede6894cd44eea5b130f48b0ef15c29210e9160b71338d8d767a565d6a"
+"x86_64-unknown-linux-gnu" = "a3c944ee9547a81757ec94d5b1ddafd6d7dd7e24aa07bcf4077345ae4d42c3da"
+"x86_64-pc-windows-msvc"   = "dd4250684388c4f201695fe2d2376e09c4f0d0003ed0046a0f3ef2bed98bd397"
 
 [[tool]]
 name     = "docs-gate"
@@ -75,9 +76,9 @@ required = true
 "x86_64-pc-windows-msvc"   = "docs-gate-x86_64-pc-windows-msvc.exe"
 
 [tool.checksum]
-"aarch64-apple-darwin"     = "TODO-sha256-docs-gate-P081"
-"x86_64-unknown-linux-gnu" = "TODO-sha256-docs-gate-P081"
-"x86_64-pc-windows-msvc"   = "TODO-sha256-docs-gate-P081"
+"aarch64-apple-darwin"     = "71a4b46fe8942c434424d53fb345493ad13eca770c162e21f3d2026c7f2f00e9"
+"x86_64-unknown-linux-gnu" = "724235a7a28b9f55b854c24f990986bedacb5e4f24428554b7da6b3ac8f09829"
+"x86_64-pc-windows-msvc"   = "ff92add899391e18fec07d1c881d5c5573560edaa6c5ae8aae0fff9b2c9153ab"
 
 [[tool]]
 name     = "ship"
@@ -90,9 +91,9 @@ required = true
 "x86_64-pc-windows-msvc"   = "ship-x86_64-pc-windows-msvc.exe"
 
 [tool.checksum]
-"aarch64-apple-darwin"     = "TODO-sha256-ship-P081"
-"x86_64-unknown-linux-gnu" = "TODO-sha256-ship-P081"
-"x86_64-pc-windows-msvc"   = "TODO-sha256-ship-P081"
+"aarch64-apple-darwin"     = "e37f88ca3af1c37d807479944192eaa8ddc013ecf21682498d6c607583a365e5"
+"x86_64-unknown-linux-gnu" = "96534ff07347841255f01bbee6c886590c7c5b8ae3d6720978a028a6fc10a255"
+"x86_64-pc-windows-msvc"   = "b5cc6b28025cf31933c10bf9de76eb414ce5b53eade6e49701df5658fb912d67"
 
 [[tool]]
 name     = "advisory-inbox"
@@ -105,9 +106,9 @@ required = true
 "x86_64-pc-windows-msvc"   = "advisory-inbox-x86_64-pc-windows-msvc.exe"
 
 [tool.checksum]
-"aarch64-apple-darwin"     = "TODO-sha256-advisory-inbox-P081"
-"x86_64-unknown-linux-gnu" = "TODO-sha256-advisory-inbox-P081"
-"x86_64-pc-windows-msvc"   = "TODO-sha256-advisory-inbox-P081"
+"aarch64-apple-darwin"     = "c357e6ee34e423fa64dd963ce4a0c3df56f8ead9203166c3a761b8710fa77acc"
+"x86_64-unknown-linux-gnu" = "9f03a3acf17849ff87c25d4717d409d48f6ac3ae8e3e81ac857eda9e6efd7dd7"
+"x86_64-pc-windows-msvc"   = "c57c13dbfac5a603342d3039150bbc4a1cc32985a8092af8ab7f9e83ebb90404"
 
 [[tool]]
 name     = "inv-gate"
@@ -120,9 +121,9 @@ required = true
 "x86_64-pc-windows-msvc"   = "inv-gate-x86_64-pc-windows-msvc.exe"
 
 [tool.checksum]
-"aarch64-apple-darwin"     = "TODO-sha256-inv-gate-P081"
-"x86_64-unknown-linux-gnu" = "TODO-sha256-inv-gate-P081"
-"x86_64-pc-windows-msvc"   = "TODO-sha256-inv-gate-P081"
+"aarch64-apple-darwin"     = "df6cec3490d5e570b4086e9448e600c063d04319a5c84ea56e5dd0a589456e5c"
+"x86_64-unknown-linux-gnu" = "f0dde4d20a30fed13bd78e8cb4bda73ed80324b2fcb4e3c66fa8c066b5cc7fec"
+"x86_64-pc-windows-msvc"   = "630448ff63d32325461e49e2462468369f6a8b542a3f19b52a2bd38955b557a4"
 
 # ── optional (4) — matches install.sh:48 OPTIONAL_BINARIES ─────────────────
 
@@ -137,9 +138,9 @@ required = false
 "x86_64-pc-windows-msvc"   = "guard-x86_64-pc-windows-msvc.exe"
 
 [tool.checksum]
-"aarch64-apple-darwin"     = "TODO-sha256-guard-P081"
-"x86_64-unknown-linux-gnu" = "TODO-sha256-guard-P081"
-"x86_64-pc-windows-msvc"   = "TODO-sha256-guard-P081"
+"aarch64-apple-darwin"     = "5fcf7949a940f2d6c3dbaeaaa324f3ff7bdc8ad298eca87b12294fa17a035835"
+"x86_64-unknown-linux-gnu" = "a2a90c3ca0c859b6f6b86fa21540b6b2cf30f4c4bf59e47ab40aa8a106e441bf"
+"x86_64-pc-windows-msvc"   = "6f56394287a984995d2b35b789abb689ba7841f078c9ca0930200b5932ab5359"
 
 [[tool]]
 name     = "vps"
@@ -152,9 +153,9 @@ required = false
 "x86_64-pc-windows-msvc"   = "vps-x86_64-pc-windows-msvc.exe"
 
 [tool.checksum]
-"aarch64-apple-darwin"     = "TODO-sha256-vps-P081"
-"x86_64-unknown-linux-gnu" = "TODO-sha256-vps-P081"
-"x86_64-pc-windows-msvc"   = "TODO-sha256-vps-P081"
+"aarch64-apple-darwin"     = "b1893ee3ef3294224950f6ffbb55a368775bca20a4b9cd49730d268ca0ea6f62"
+"x86_64-unknown-linux-gnu" = "2023cde217996bcadb07fe67a407b96b82e7d2a71032eef065fb931326d8cff4"
+"x86_64-pc-windows-msvc"   = "5b3c4bddc79cec376288ac1f438173f23be2406b8a66d636e8930837085ef391"
 
 [[tool]]
 name     = "doc-rotate"
@@ -167,9 +168,9 @@ required = false
 "x86_64-pc-windows-msvc"   = "doc-rotate-x86_64-pc-windows-msvc.exe"
 
 [tool.checksum]
-"aarch64-apple-darwin"     = "TODO-sha256-doc-rotate-P081"
-"x86_64-unknown-linux-gnu" = "TODO-sha256-doc-rotate-P081"
-"x86_64-pc-windows-msvc"   = "TODO-sha256-doc-rotate-P081"
+"aarch64-apple-darwin"     = "e357256b7012ffe7e2339d8044e376a6ca3e419695cb24865f4fa6d800772999"
+"x86_64-unknown-linux-gnu" = "fcc61d8055ee4bd8418c125358a1639eeff6817d1e0373c182d7bd20616483ca"
+"x86_64-pc-windows-msvc"   = "85446b5724816758f9051048c26f0eba783e07e172e6c9bb191652a3a2af9518"
 
 [[tool]]
 name     = "advisory-cron"
@@ -182,6 +183,6 @@ required = false
 "x86_64-pc-windows-msvc"   = "advisory-cron-x86_64-pc-windows-msvc.exe"
 
 [tool.checksum]
-"aarch64-apple-darwin"     = "TODO-sha256-advisory-cron-P081"
-"x86_64-unknown-linux-gnu" = "TODO-sha256-advisory-cron-P081"
-"x86_64-pc-windows-msvc"   = "TODO-sha256-advisory-cron-P081"
+"aarch64-apple-darwin"     = "530896ce955cde574d04a02ad2b0ae2eb7cbc1e4834101d97d5b426a4cec2ea1"
+"x86_64-unknown-linux-gnu" = "9a44f73d192cf0522d96c2fa06a5f96d93ae01b5cb6f82a45eb80b31a59a4df0"
+"x86_64-pc-windows-msvc"   = "TODO-sha256-advisory-cron-P081"  # no Windows asset published — compile_error! on Windows by design (see version comment above), install.sh already skips this triple for advisory-cron

@@ -6,6 +6,30 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**[P081] Distribution — Stage 1 release pipeline + checksum + curl|sh (2026-07-23):**
+- Added `.github/workflows/release.yml`: tag `v*` → build `sos` binary for
+  `aarch64-apple-darwin` (tested target) + `x86_64-unknown-linux-gnu`
+  (build-only, NOT dogfood-tested) → GitHub Release (draft→publish) with
+  `.sha256` companion per asset. Windows dropped from Stage 1 matrix.
+- Release tag axis clarified: binary version (`sos-cli` Cargo.toml,
+  `v0.1.0` first release) is a SEPARATE axis from doctrine version ("v2.3
+  forge" above) — do not conflate.
+- `tool-manifest.toml`: FULL checksum fill — all 10 sister tools' real
+  sha256 fetched from their published GitHub Release asset digests at the
+  pinned version. Only exception: `advisory-cron`'s Windows triple (no
+  asset published — `compile_error!` on Windows by design), kept as TODO
+  + comment.
+- `install.sh`: route A — fetches prebuilt `sos-<triple>` + `.sha256`
+  companion into sidecar `$BIN_DIR/sos-bin` (fail-CLOSED on
+  missing/mismatch), wrapper exports `SOS_RUST_BIN` with `:=` default
+  (user-set env still wins). `bin/sos.sh` dispatch contract untouched.
+- Docs: `SECURITY.md` (distribution auto-exec surface), `.sos-trust-baseline`
+  rebaselined, `INSTALL.md` (curl\|sh command + prose 9→10 tools, added
+  `inv-gate`), `docs/SETUP.md`, `README.md`.
+- Stage 2 (npm/pnpm wrapper + native plugins) PARKED in BACKLOG — gated on
+  Stage 1 running for real ≥1 release.
+- Full report: `docs/discoveries/P081.md`.
+
 **[P080] Dual-runtime brownfield dogfood — ROUND-2 PASS, P080 DONE, P081 UNGATED (2026-07-23):**
 - Re-ran D1 on a pristine fixture post P080x merge (`1821dca`): missing
   `block-env-commit.sh` + real `.env` staged → BLOCKED exit 1; missing
