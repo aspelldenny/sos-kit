@@ -189,6 +189,35 @@ and for the manual-marker Codex repro path; on a real Codex custom-role subagent
 best-effort/inactive, same as the rest of the actor-check — the Git backstop (P078f/P078g arming)
 and human-review-at-commit remain the real boundary on Codex.
 
+**Path-matching upgraded to symlink-safe canonicalize (P078j, 2026-07-23) — closes the round-4
+lexical-normalize gap.** P079 round-4 live-dogfood (`docs/adapters/P079-ROUND4-FINDINGS-2026-07-23.md`
+§B4, gap #2) found that P078h's normalize step above was a plain **lexical** string-prefix strip,
+not filesystem-equivalent: on macOS, `/tmp` is a symlink to `/private/tmp`, so a `git rev-parse
+--show-toplevel`-computed `REPO_ROOT` of `/private/tmp/proj` never matched an `apply_patch` path
+spelled `/tmp/proj/...` — the two strings simply didn't share a literal prefix even though they
+name the identical file. This broke **both directions**: a marked actor's forbidden advance
+(already-approved `V3/V3` → `V4/V4`) went through the `/tmp` alias because the early-BLOCK's
+path compare never matched `STATE_FILE`, **and** a legitimate main-thread approval write via the
+same alias was false-BLOCKed for the identical reason (never won the state-file-alone exemption).
+Fixed: **both** `REPO_ROOT` and every candidate `apply_patch` path are now canonicalized (symlink
+resolved) before the prefix-strip/compare — `REPO_ROOT` via `cd "$REPO_ROOT" && pwd -P` (already
+cd'd there), each absolute candidate via resolving its **dirname** only (`cd "$(dirname PATH)" &&
+pwd -P`, re-appending the basename) so a file that does not yet exist on disk (the bootstrap-create
+case, P078d2a #5/B1) still canonicalizes correctly — a strict `realpath`/`readlink -f` on the full
+path would fail there, and macOS's BSD `realpath`/`readlink` lack the GNU `-m`/`-f` flags this
+would otherwise need. **Conservative fail-closed is preserved, unchanged from P078h:** if the
+dirname does not resolve (directory doesn't exist / not `cd`-able), the raw path is used unchanged
+— it can never equal the canonical `$REPO_ROOT/` prefix and therefore can never win the exemption;
+a path that canonicalizes to somewhere outside `REPO_ROOT` entirely is likewise never exempted.
+This upgrade only changes what the two sides of the compare resolve TO — it does **not** alter the
+P078h early-BLOCK/exemption **decision logic** (marked-actor → BLOCK, main-thread-only → ALLOW
+stays exactly as P078h shipped it). Verified via a real symlink fixture matrix (marked-actor
+advance via alias → BLOCK, main-thread approval via alias → ALLOW, canonical/relative no-regress,
+bundle-via-alias no-regress BLOCK, path-trick-outside-repo-root fail-closed) plus a two-directional
+negative-test: reverting the canonicalize step flips BOTH the advance-BLOCK test to ALLOW (leak)
+AND the main-thread-ALLOW test to BLOCK (false-block) (`crates/sos-adapter-codex/src/lib.rs`,
+`docs/discoveries/P078j.md`). Codex in-subagent caveat is unchanged — same as P078h above.
+
 **In-subagent role-envelope enforcement — MISSING, not PARTIAL (P078d2b, upstream
 `openai/codex#21753`).** All 5 guards above are `PreToolUse`/`UserPromptSubmit` hooks that fire
 on the **main thread**. On Codex 0.145.0, they do **not** fire inside a spawned **custom-role**
