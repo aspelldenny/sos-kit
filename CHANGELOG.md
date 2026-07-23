@@ -4,6 +4,37 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**[P080] Dual-runtime brownfield dogfood — FAIL, 1 gap found (2026-07-23):**
+- Ran the `[Thợ-local]` half of the P080 test matrix (Nhóm A fresh-dual incl.
+  A2-reverse + A5-uninstall, Nhóm B brownfield, Nhóm D regression incl.
+  sync/map dual smoke) on fresh git fixtures (NOT the sos-kit checkout).
+  Nhóm C (cross-runtime state, real `codex exec`) and E2 (Linux) stay
+  `[Sếp+Codex]` PENDING per phiếu scope.
+- **Dual render co-exists cleanly** both orders (Claude `sos new`/`sos adopt`
+  + Codex `sos install --runtime codex`): non-clobber holds, `core.hooksPath`
+  arms exactly once, no cross-runtime file destruction, `sos sync`/`sos map`
+  smoke-clean on a dual-installed repo.
+- **D1 FAIL (HIGH):** the dev `[8/8]` `hooks/pre-commit` (rendered only by
+  `sos new`, Claude path) is fail-OPEN on `[6/8]` no-code-on-default and
+  `[7/8]` block-env-commit when their delegated scripts are missing — the
+  exact "round-4 A3/A4" bug the Codex-side backstop-minimal hook (P078i) was
+  supposed to have fixed. The fix only landed in the backstop hook, never
+  ported back to the dev hook. Proved live: remove
+  `scripts/block-env-commit.sh` + rebaseline trust-gate → a real `.env`
+  secret commits cleanly (exit 0). Recommend `P080x-hook-fail-open-parity`
+  (Tầng 1, Debate) to port the fail-closed pattern into the dev hook.
+- **A5 N/A (not FAIL):** `uninstall()`/`RemovalPlan` is an honest empty stub
+  on both adapters, with no `sos uninstall` CLI subcommand wired at all —
+  same known-gap class as `ClaudeAdapter::plan()` (anchor #5).
+- A4 caveat (not a FAIL): on a brand-new zero-commit repo,
+  `no-code-on-default.sh`'s `refs/heads/main` fallback resolution can't see
+  the not-yet-created branch ref → warns+allows on the very first commit.
+  Narrow window, pre-existing, worth a note in the same gap ticket.
+- **P081 distribution stays gated** until P080x closes and this round re-runs
+  green.
+- Full report: `docs/adapters/P080-FINDINGS-2026-07-23.md`. Discovery:
+  `docs/discoveries/P080.md`.
+
 **[P078j] FIX (SECURITY) — Codex adapter: guard path-matching upgraded from lexical strip to symlink-safe canonicalize — closes P079 round-4 B4 for real (2026-07-23):**
 - **Gap closed (P079 round-4 §B4, `docs/adapters/P079-ROUND4-FINDINGS-2026-07-23.md` `:149-191`, "New/remaining gaps" #2):** P078h's `apply_patch` path-normalize was a plain literal `$REPO_ROOT/` string-prefix strip, not filesystem-equivalent. On macOS `/tmp` is a symlink to `/private/tmp`; `git rev-parse --show-toplevel` returns the canonical `/private/tmp/...` form, so a patch path spelled `/tmp/...` never shared a literal prefix with `REPO_ROOT` even though it names the identical file. This broke BOTH directions: a marked actor's forbidden self-advance (`V3/V3` → `V4/V4`) LEAKED through the alias (early-BLOCK's path compare never matched `STATE_FILE`), and a legitimate main-thread approval write via the same alias was false-BLOCKed (never won the state-file-alone exemption).
 - **Fix:** `crates/sos-adapter-codex/src/templates.rs` (`guard_approval_gate_sh()`) now canonicalizes BOTH `REPO_ROOT` (`cd "$REPO_ROOT" && pwd -P`, already `cd`'d there) AND every absolute candidate patch path BEFORE the prefix-strip/compare — candidate canonicalize resolves the DIRNAME only (`cd "$(dirname PATH)" && pwd -P`, re-appending the basename), which stays correct for a file that does not yet exist on disk (bootstrap-create case, P078d2a #5/B1) and is portable to macOS BSD `pwd`/`cd` (no GNU `readlink -f`/`realpath -m` assumed). One normalize site, same two consumers as P078h (state-file-alone exemption + d2a multi-path all-path check). Does NOT alter the P078h early-BLOCK/exemption decision logic — only the path forms fed into it. Conservative fail-closed preserved: an unresolvable dirname or a path canonicalizing outside `REPO_ROOT` is never granted the exemption.
