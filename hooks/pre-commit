@@ -8,8 +8,8 @@
 #   3. v2-specific checks: BACKLOG.md, Discovery Report mandatory for new phiếu
 #   4. Security gate (INV-009 source + INV-010 runtime)
 #   5. Case-collision gate (path khác-case)
-#   6. No-code-on-default gate (P050 — force feature branch for product code)
-#   7. Block .env* secret-file commits (P052 — agent-agnostic backstop to P046 PreToolUse guard)
+#   6. No-code-on-default gate (P050 — force feature branch for product code; fail-CLOSED if guard script missing, P080x)
+#   7. Block .env* secret-file commits (P052 — agent-agnostic backstop to P046 PreToolUse guard; fail-CLOSED if guard script missing, P080x)
 #   8. Trust gate (auto-exec baseline-diff + hidden-unicode — P073, port thanhtra v1.2)
 #
 # Exit non-zero blocks commit. Use `git commit --no-verify` to bypass (not recommended).
@@ -267,7 +267,8 @@ if [ -f "scripts/no-code-on-default.sh" ]; then
         FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
 else
-    echo "  ⏭  scripts/no-code-on-default.sh missing — run scripts/install-hooks.sh after bootstrap"
+    red "  ❌ scripts/no-code-on-default.sh missing — cannot verify no product code on default (fail-CLOSED)"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 echo ""
@@ -287,7 +288,8 @@ if [ -f "scripts/block-env-commit.sh" ]; then
         FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
 else
-    echo "  ⏭  scripts/block-env-commit.sh missing — run scripts/install-hooks.sh after bootstrap"
+    red "  ❌ scripts/block-env-commit.sh missing — cannot verify .env* not staged (fail-CLOSED)"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
 fi
 
 echo ""

@@ -369,6 +369,33 @@ STILL blocked, not silently allowed. `cargo test -p sos-install`: 19/19 pass
 (17 pre-existing + 2 new pristine-oracle tests), `cargo test --workspace`
 green. See `docs/discoveries/P078i.md`.
 
+## Dev `[8/8]` hook (`hooks/pre-commit`, `sos new` path) — [6]/[7] ported to fail-CLOSED (P080x, 2026-07-23)
+
+**Gap closed (P080 round-1 dogfood, `docs/adapters/P080-FINDINGS-2026-07-23.md`, gap D1):**
+the fail-CLOSED fix above (P078i) only shipped in the `sos install` **backstop** hook
+(`crates/sos-install/src/templates/backstop-pre-commit.sh`). The dev `[8/8]` hook that `sos new`
+copies verbatim into a fresh checkout (`hooks/pre-commit` at repo root) still had the OLD
+fail-OPEN else-branches on `[6/8]` no-code-on-default and `[7/8]` block-env: guard script
+missing → `echo "⏭ ... missing"` and fall through, no `FAIL_COUNT` bump, no `exit`. Live-verified:
+deleting `scripts/block-env-commit.sh` then committing a real `.env` returned **exit 0**.
+
+**Fix — same fail-CLOSED semantics, scoped to exactly the 2 invariants the backstop covers:**
+`hooks/pre-commit` `[6/8]`/`[7/8]` else-branches now print a loud `❌` and bump `FAIL_COUNT`
+(blocking the commit via the hook's existing summary-exit logic) instead of `⏭ skip`. `[1-5]`/`[8]`
+are deliberately left as warn-skip — they are either non-security (type-check/docs-gate/BACKLOG/
+case-collision) or a security surface intentionally deferred (`[4/8]` security-gate, `[8/8]`
+trust-gate) to avoid bricking a fresh `sos new` checkout that hasn't run
+`scripts/install-hooks.sh` yet; tracked as a follow-up, not expanded in this fix. Phase count
+`[8/8]` unchanged — only the missing-script semantics of 2 phases.
+
+**Verified (pristine fixture, zero seed beyond the 2 guard scripts + this hook):** guard
+`block-env-commit.sh` deleted + real `.env` staged → BLOCKED exit 1 (round-1 regression: was exit
+0); guard `no-code-on-default.sh` deleted + product code staged on default → BLOCKED exit 1; both
+guards present + clean commit on feature branch → exit 0 (negative control, no false-block); both
+guards present + `.env` staged → still BLOCKED exit 1 (regression check, old behavior preserved);
+2-directional negative test (temporarily reverting the fix reproduces the round-1 exit-0 fail-open,
+restoring the fix reproduces exit-1 block). See `docs/discoveries/P080x.md`.
+
 ## Install: tool-version drift (OA-07) is workflow-safety, not a trust boundary (P078c)
 
 `sos install` reorders render vs. tool-manifest check (P078c): adapter files are written first,
