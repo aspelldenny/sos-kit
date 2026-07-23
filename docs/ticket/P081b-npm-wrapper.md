@@ -36,7 +36,7 @@ npm package **postinstall tải + chạy chính `install.sh` pinned tag `v0.1.0`
 | 3 | `install.sh` env override: `SOS_KIT_DIR` + `SOS_BIN_DIR` — dùng để cô lập prefix khi test | đọc `install.sh` | ✅ `[verified]` — `install.sh:18-19,24-25` `SOS_KIT_DIR`/`SOS_BIN_DIR` |
 | 4 | Release asset naming `sos-<triple>`+`.sha256`; chỉ mac-arm64 + linux-x64 (KHÔNG Windows) | đọc `install.sh` | ✅ `[verified]` — `install.sh:53-54` 2 triple; `:55-56` win triple resolve nhưng release KHÔNG build Win → fetch fail-closed trên Win (đã note INSTALL.md) |
 | 5 | `sos tools` Rust CLI CHỈ có `status`, KHÔNG `tools install` | Quản đốc verified `main.rs:113-118` | ✅ `[verified per Quản đốc]` — sister-tool fetch chỉ ở `install.sh`, KHÔNG trong `sos` binary. npm PHẢI qua install.sh, không thể gọi `sos tools install` |
-| 6 | Package name `@aspelldenny/sos-kit` (hoặc `sos-kit`) available trên npm registry | `npm view @aspelldenny/sos-kit` / `npm view sos-kit` | ⏳ `[needs Worker verify]` — Architect không chạy được npm; Worker check availability, nếu taken → đề xuất tên (khuyến nghị scoped `@aspelldenny/sos-kit` giảm nguy cơ collision) |
+| 6 | Package name `sos-kit` (hoặc `sos-kit`) available trên npm registry | `npm view sos-kit` / `npm view sos-kit` | ⏳ `[needs Worker verify]` — Architect không chạy được npm; Worker check availability, nếu taken → đề xuất tên (khuyến nghị scoped `sos-kit` giảm nguy cơ collision) |
 | 7 | Tag `v0.1.0` release LIVE + `install.sh` tại tag đó có route-A sos-bin | `gh release view v0.1.0 --repo aspelldenny/sos-kit`; `git show v0.1.0:install.sh \| grep sos-bin` | ⏳ `[needs Worker verify]` — pin postinstall vào TAG (không main); Worker xác nhận install.sh@v0.1.0 đã có sos-bin (Stage 1 merge trước hay sau tag?) |
 | 8 | `install.sh` trong `.sos-trust-baseline` (P073) — npm-postinstall.sh mới cũng là auto-exec → thêm baseline | `grep -n "install.sh" .sos-trust-baseline scripts/trust-gate.sh` | ✅ `[verified]` (install.sh) — `.sos-trust-baseline:6` + `scripts/trust-gate.sh:44`; new `scripts/npm-postinstall.sh` PHẢI add vào baseline surface |
 
@@ -51,7 +51,7 @@ Theo TICKET_TEMPLATE (Worker auto first-step trong worktree).
 
 ### Turn 1 — Worker Challenge
 **Anchor verification:**
-- #6: `npm view @aspelldenny/sos-kit` → 404 (available). `npm view sos-kit` → also 404 (available, but unscoped riskier for collision later). **Chốt: `@aspelldenny/sos-kit`** (scoped, per Architect recommendation) — publish sau này cần `--access public` (ghi vào Task 5/BACKLOG note).
+- #6: `npm view sos-kit` → 404 (available). `npm view sos-kit` → also 404 (available, but unscoped riskier for collision later). **Chốt: `sos-kit`** (scoped, per Architect recommendation) — publish sau này cần `--access public` (ghi vào Task 5/BACKLOG note).
 - #7 (blocking-check per instruction): `git show v0.1.0:install.sh | grep sos-bin` → **4 hits** (`fetch_bin "sos" required "sos-kit" "sos-bin"` line 150, sidecar comment line 89, `SOS_RUST_BIN` export line 173, final echo line 189) → **route-A sos-bin đã có tại tag v0.1.0, KHÔNG cần đổi pin.** Đồng thời `git diff v0.1.0 main -- install.sh` = NO DIFF → main hiện tại (`65bc6c6`) và tag v0.1.0 identical trên file này, không có drift risk. `sha256` của `install.sh@v0.1.0` computed: `63813f0dded8afb5f3ec2a3ad2abe9f02c757f9a19f1bf0ac3379c951f109a9a` — sẽ dùng làm pinned hash cho `scripts/install-sh.sha256` (Task 2).
 - Version sync: `crates/sos-cli/Cargo.toml` = `0.1.0`, tag `v0.1.0` → khớp `package.json` version `0.1.0` per plan.
 
@@ -69,7 +69,7 @@ Theo TICKET_TEMPLATE (Worker auto first-step trong worktree).
 
 ### Task 1 — `package.json` (mới, THIN)
 **File:** `package.json` (mới — anchor #1)
-- `name`: `@aspelldenny/sos-kit` (anchor #6 — Worker confirm available; taken → propose). `version`: **== tag == Cargo `sos-cli` version** (`0.1.0`; F13 mở rộng — Worker verify khớp `grep '^version' crates/sos-cli/Cargo.toml`).
+- `name`: `sos-kit` (anchor #6 — Worker confirm available; taken → propose). `version`: **== tag == Cargo `sos-cli` version** (`0.1.0`; F13 mở rộng — Worker verify khớp `grep '^version' crates/sos-cli/Cargo.toml`).
 - `bin`: `{ "sos": "bin/sos-npm" }` (wrapper trỏ `$BIN_DIR/sos` do postinstall tạo — xem Task 3).
 - `scripts.postinstall`: `"sh scripts/npm-postinstall.sh"`.
 - `os`: `["darwin","linux"]` (anchor #4 — KHÔNG Windows; npm cảnh báo/skip trên Win đúng reality install.sh). `files`: whitelist chỉ `scripts/npm-postinstall.sh` + `bin/sos-npm` + `install.sh`(pinned copy? — xem Task 2 decision).
@@ -90,7 +90,7 @@ Theo TICKET_TEMPLATE (Worker auto first-step trong worktree).
 - **Lưu ý:** KHÔNG duplicate dispatch — chỉ delegate sang wrapper canonical. Giữ 1 nguồn (route A).
 
 ### Task 4 — Docs + security (DOCS GATE Tầng 1)
-- `INSTALL.md` — thêm npm path song song curl|sh: `npm install -g @aspelldenny/sos-kit` (1 lệnh trọn bộ). Note macOS/Linux only + `--ignore-scripts` fallback.
+- `INSTALL.md` — thêm npm path song song curl|sh: `npm install -g sos-kit` (1 lệnh trọn bộ). Note macOS/Linux only + `--ignore-scripts` fallback.
 - `README.md` — install section thêm npm option.
 - `SECURITY.md` — npm supply-chain surface: pin-tag + pin-install.sh-sha256 + postinstall fail-CLOSED threat model.
 - `.sos-trust-baseline` — thêm `scripts/npm-postinstall.sh` (+`bin/sos-npm`) vào auto-exec surface → `scripts/trust-gate.sh rebaseline` post-review (anchor #8).

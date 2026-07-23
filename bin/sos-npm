@@ -1,5 +1,5 @@
 #!/bin/sh
-# bin/sos-npm — npm `bin` entry point for @aspelldenny/sos-kit (P081b, Stage 2).
+# bin/sos-npm — npm `bin` entry point for sos-kit (P081b, Stage 2).
 #
 # THIN delegate, NOT a second dispatch route: the real `sos` launcher is the
 # wrapper install.sh writes to $BIN_DIR/sos (default ~/.local/bin/sos), which
@@ -18,9 +18,9 @@ if [ ! -x "$TARGET" ]; then
   echo "  This npm package only ships a thin delegate — the real install runs via" >&2
   echo "  postinstall (skipped here, e.g. --ignore-scripts was used)." >&2
   echo "  Run it by hand:" >&2
-  echo "    npx --package=@aspelldenny/sos-kit sos-kit-setup" >&2
+  echo "    npx --package=sos-kit sos-kit-setup" >&2
   echo "  or locate this package and run its postinstall script directly:" >&2
-  echo "    sh \$(npm root -g)/@aspelldenny/sos-kit/scripts/npm-postinstall.sh" >&2
+  echo "    sh \$(npm root -g)/sos-kit/scripts/npm-postinstall.sh" >&2
   exit 1
 fi
 

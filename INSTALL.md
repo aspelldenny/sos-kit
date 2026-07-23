@@ -20,12 +20,12 @@ Downloads the FULL kit toolset as prebuilt binaries (`doctor`, `claude-hooks`, `
 **Alternative Step 0 — npm (P081 Stage 2, macOS/Linux only):**
 
 ```bash
-npm install -g @aspelldenny/sos-kit
+npm install -g sos-kit
 ```
 
 > ⚠ **Not yet published** — `npm install` above returns 404 until Sếp/Quản đốc runs `npm publish --access public` (scoped package requires the flag). The mechanism is built and dogfooded (P081b) — this note will be removed once the package is live.
 
-Same end result as the curl path in one command: npm's `postinstall` downloads `install.sh` from the pinned release tag `v0.1.0` (NOT `main` — supply-chain), verifies its sha256 against a hash shipped inside the npm package, and only then runs it (fail-CLOSED on any mismatch or download failure — install aborts, nothing half-installed). It does not fork any install logic — `install.sh` stays the single source of truth for the 10 sister tools + `sos-bin` + wrapper. If you (or CI) run `npm install --ignore-scripts`, nothing downloads automatically — the `sos` command shipped by the package will print a fallback command (`npx --package=@aspelldenny/sos-kit sos-kit-setup`) instead of failing silently.
+Same end result as the curl path in one command: npm's `postinstall` downloads `install.sh` from the pinned release tag `v0.1.0` (NOT `main` — supply-chain), verifies its sha256 against a hash shipped inside the npm package, and only then runs it (fail-CLOSED on any mismatch or download failure — install aborts, nothing half-installed). It does not fork any install logic — `install.sh` stays the single source of truth for the 10 sister tools + `sos-bin` + wrapper. If you (or CI) run `npm install --ignore-scripts`, nothing downloads automatically — the `sos` command shipped by the package will print a fallback command (`npx --package=sos-kit sos-kit-setup`) instead of failing silently.
 
 **Then pick by repo state** — one command does the whole install below (copy + born-wire + validate):
 

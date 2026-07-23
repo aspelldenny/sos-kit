@@ -1,5 +1,5 @@
 #!/bin/sh
-# scripts/npm-postinstall.sh — npm postinstall for @aspelldenny/sos-kit (P081b, Stage 2).
+# scripts/npm-postinstall.sh — npm postinstall for sos-kit (P081b, Stage 2).
 #
 # THIN: this script does NOT fork any fetch/verify logic. It only:
 #   1. downloads install.sh from a PINNED TAG (not `main` — supply-chain),
@@ -60,7 +60,7 @@ INSTALL_URL="https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${PIN_TAG}
 echo "▶ install.sh ← $INSTALL_URL"
 if ! curl -fsSL --proto '=https' --connect-timeout 30 --max-time 60 -o "$TMP_INSTALL" "$INSTALL_URL"; then
   echo "✗ Download FAILED for install.sh@${PIN_TAG} — ABORTING (fail-closed)." >&2
-  echo "  Run manually once network is available: npx --package=@aspelldenny/sos-kit sos-kit-setup" >&2
+  echo "  Run manually once network is available: npx --package=sos-kit sos-kit-setup" >&2
   echo "  or: sh $SCRIPT_DIR/npm-postinstall.sh" >&2
   exit 1
 fi
@@ -79,7 +79,7 @@ echo "▶ running install.sh (SOS_KIT_DIR=${SOS_KIT_DIR:-<default>} SOS_BIN_DIR=
 if ! sh "$TMP_INSTALL"; then
   echo "✗ install.sh FAILED — sos-kit install incomplete." >&2
   echo "  Retry manually: sh $SCRIPT_DIR/npm-postinstall.sh" >&2
-  echo "  or fallback setup: npx --package=@aspelldenny/sos-kit sos-kit-setup" >&2
+  echo "  or fallback setup: npx --package=sos-kit sos-kit-setup" >&2
   exit 1
 fi
 

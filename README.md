@@ -223,10 +223,10 @@ Downloads prebuilt binaries (`doctor`, `claude-hooks`, `docs-gate`, `ship`, `adv
 **Or via npm (macOS/Linux, same result — not yet published, see note in `INSTALL.md`):**
 
 ```bash
-npm install -g @aspelldenny/sos-kit
+npm install -g sos-kit
 ```
 
-`postinstall` downloads `install.sh` from the pinned release tag (not `main`), verifies its sha256 against a hash shipped inside the package, then runs it — fail-CLOSED, no forked install logic. `npm install --ignore-scripts` skips the auto-run; the installed `sos` command then prints a fallback (`npx --package=@aspelldenny/sos-kit sos-kit-setup`) instead of half-installing silently.
+`postinstall` downloads `install.sh` from the pinned release tag (not `main`), verifies its sha256 against a hash shipped inside the package, then runs it — fail-CLOSED, no forked install logic. `npm install --ignore-scripts` skips the auto-run; the installed `sos` command then prints a fallback (`npx --package=sos-kit sos-kit-setup`) instead of half-installing silently.
 
 ### Dev path (hacking the Rust tools themselves)
 

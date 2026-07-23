@@ -7,7 +7,7 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
 **[P081b] Distribution — Stage 2 npm wrapper (2026-07-23):**
-- Added `package.json` (`@aspelldenny/sos-kit`, `0.1.0` — synced to `crates/sos-cli`
+- Added `package.json` (`sos-kit`, `0.1.0` — synced to `crates/sos-cli`
   Cargo.toml + tag `v0.1.0`): thin package, `bin.sos` → `bin/sos-npm`,
   `bin.sos-kit-setup` → `scripts/npm-postinstall.sh` (manual fallback), `os:
   [darwin, linux]` (no Windows), `files` whitelist (no forked install logic

@@ -1,5 +1,5 @@
 {
-  "name": "@aspelldenny/sos-kit",
+  "name": "sos-kit",
   "version": "0.1.0",
   "description": "sos-kit — 1-command installer for the sos CLI + full sister toolset (doctor/ship/docs-gate/inv-gate/...). Postinstall fetches install.sh@v0.1.0 (pinned tag, sha256-verified, fail-CLOSED) and runs it.",
   "os": ["darwin", "linux"],
@@ -17,7 +17,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/aspelldenny/sos-kit"
+    "url": "git+https://github.com/aspelldenny/sos-kit.git"
   },
   "license": "MIT",
   "engines": {
