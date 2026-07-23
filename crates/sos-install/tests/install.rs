@@ -303,6 +303,177 @@ fn dry_run_computes_plan_with_zero_filesystem_mutation() {
     assert!(!root.join(".sos-install-incoming").exists(), "dry-run must not write .sos-install-incoming");
 }
 
+// ---------------------------------------------------------------------
+// P078f — Git hook arming (`core.hooksPath` + F09 hijack-guard) install-
+// smoke oracle. Runs `engine::apply()` against a REAL temp git repo (not
+// just filesystem writes) — asserts `core.hooksPath`, chmod, `.bak`
+// rename, non-clobber abort, non-git warn-skip, and idempotence (full
+// Nghiệm thu checklist, P078f phiếu).
+// ---------------------------------------------------------------------
+
+fn git_in(root: &Path, args: &[&str]) -> std::process::Output {
+    std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .output()
+        .expect("git command must spawn")
+}
+
+fn git_init(root: &Path) {
+    let out = git_in(root, &["init", "-q"]);
+    assert!(
+        out.status.success(),
+        "git init must succeed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+fn git_config_get_test(root: &Path, key: &str) -> Option<String> {
+    let out = git_in(root, &["config", "--local", key]);
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+fn hook_arming_plan() -> Plan {
+    let adapter = MockAdapter {
+        ops: vec![
+            op("hooks/pre-commit", "#!/usr/bin/env bash\necho pre-commit\n"),
+            op("hooks/pre-push", "#!/usr/bin/env bash\necho pre-push\n"),
+        ],
+    };
+    adapter.plan(&adapter.detect())
+}
+
+#[test]
+fn hook_arming_sets_hookspath_and_chmods_tracked_hooks_in_git_repo() {
+    let fixture = TempFixture::new("hook-arming-basic");
+    let root = fixture.path();
+    git_init(root);
+
+    let plan = hook_arming_plan();
+    let report =
+        engine::apply(root, &plan, OWNER, SRC_VERSION).expect("apply must succeed in a git repo");
+    assert_eq!(report.created.len(), 2);
+
+    assert_eq!(
+        git_config_get_test(root, "core.hooksPath").as_deref(),
+        Some("hooks"),
+        "core.hooksPath must be armed to 'hooks' after a successful install"
+    );
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for h in ["hooks/pre-commit", "hooks/pre-push"] {
+            let meta = fs::metadata(root.join(h)).unwrap_or_else(|_| panic!("{h} must exist"));
+            assert!(
+                meta.permissions().mode() & 0o111 != 0,
+                "{h} must be chmod +x after arming"
+            );
+        }
+    }
+}
+
+#[test]
+fn hook_arming_renames_stale_dot_git_hooks_to_bak_without_deleting() {
+    let fixture = TempFixture::new("hook-arming-bak");
+    let root = fixture.path();
+    git_init(root);
+
+    let stale_hook_path = root.join(".git/hooks/pre-commit");
+    fs::write(&stale_hook_path, "#!/bin/sh\necho stale\n").expect("seed stale .git/hooks/pre-commit");
+
+    let plan = hook_arming_plan();
+    engine::apply(root, &plan, OWNER, SRC_VERSION).expect("apply must succeed");
+
+    assert!(
+        !stale_hook_path.exists(),
+        "stale hook must be moved away, not left in place"
+    );
+    let backup = root.join(".git/hooks/pre-commit.pre-hookspath.bak");
+    let backed_up = fs::read_to_string(&backup).expect("backup file must exist with original content");
+    assert_eq!(
+        backed_up, "#!/bin/sh\necho stale\n",
+        "rename must preserve original content byte-for-byte"
+    );
+}
+
+#[test]
+fn hook_arming_non_clobber_aborts_on_foreign_hookspath_non_interactively() {
+    let fixture = TempFixture::new("hook-arming-non-clobber");
+    let root = fixture.path();
+    git_init(root);
+    let out = git_in(root, &["config", "--local", "core.hooksPath", "custom-dir"]);
+    assert!(out.status.success());
+
+    let plan = hook_arming_plan();
+    let result = engine::apply(root, &plan, OWNER, SRC_VERSION);
+
+    assert!(
+        result.is_err(),
+        "non-TTY install must ABORT rather than silently clobber a foreign core.hooksPath"
+    );
+    assert_eq!(
+        git_config_get_test(root, "core.hooksPath").as_deref(),
+        Some("custom-dir"),
+        "F09 guard must leave the foreign hooksPath untouched on abort"
+    );
+}
+
+#[test]
+fn hook_arming_non_git_dir_warns_and_still_succeeds() {
+    let fixture = TempFixture::new("hook-arming-non-git");
+    let root = fixture.path();
+    // Deliberately NOT git-init'd.
+
+    let plan = hook_arming_plan();
+    let report = engine::apply(root, &plan, OWNER, SRC_VERSION)
+        .expect("install in a non-git dir must still succeed (warn-skip, not fail)");
+    assert_eq!(
+        report.created.len(),
+        2,
+        "files must still be rendered even though hook arming is skipped"
+    );
+    assert!(
+        !root.join(".git").exists(),
+        "must not have created a .git dir as a side effect"
+    );
+}
+
+#[test]
+fn hook_arming_is_idempotent_on_second_install() {
+    let fixture = TempFixture::new("hook-arming-idempotent");
+    let root = fixture.path();
+    git_init(root);
+
+    let plan = hook_arming_plan();
+    engine::apply(root, &plan, OWNER, SRC_VERSION).expect("first install must succeed");
+    assert_eq!(
+        git_config_get_test(root, "core.hooksPath").as_deref(),
+        Some("hooks")
+    );
+
+    // Second run: our own prior value ("hooks") must NOT trip the F09
+    // guard (Constraint 6).
+    let second = engine::apply(root, &plan, OWNER, SRC_VERSION);
+    assert!(
+        second.is_ok(),
+        "re-running install must not abort — our own hooksPath value is idempotent, not foreign"
+    );
+    assert_eq!(
+        git_config_get_test(root, "core.hooksPath").as_deref(),
+        Some("hooks")
+    );
+}
+
 fn dir_entries_sorted(root: &Path) -> Vec<String> {
     if !root.exists() {
         return Vec::new();
