@@ -4,7 +4,38 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 **Older entries (P078b3 and earlier — v2.3 wave start through v2.1/v2.0/v1) archived to `docs/archive/CHANGELOG_pre-P078c.md`** on 2026-07-23 to keep this file under the 40k doc-size threshold.
 
-## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
+## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-24
+
+**[P087] Windows runtime bug-fix wave — `sos map` scanner dead + `trust-gate.sh` false-BLOCK (2026-07-24):**
+- **BUG 1 (`crates/sos-cli/src/commands/map.rs`):** `path_str` (native
+  separator, `\` on Windows) was fed straight into POSIX-style substring
+  match (`SURFACES[].path_substrs` like `"/routes/"`, `NOISE_EXCLUDE` like
+  `"/.git/"`) — never matched on Windows, so `sos map` neither excluded noise
+  dirs (`.git/`, `node_modules/`) nor detected any dir-pattern surface.
+  Fixed by forward-slash-normalizing `path_str` at both call sites
+  (`scan_surface`'s surface-match loop + `detect_present_stacks`) before
+  `.contains()`/`is_noise()`. `is_noise()` itself is `&str`-typed (no interior
+  fix possible without changing its signature — normalize at each caller
+  instead, both now do). Also added `display_out_path()` helper so the stdout
+  confirmation line renders forward-slash after the `target` arg (parity
+  golden expects `<TARGET>/docs/AGENT_MAP.yaml`) while keeping the `target`
+  substring itself byte-identical (the parity harness substring-replaces the
+  literal CLI arg with `<TARGET>` — blanket-normalizing the whole display
+  path would have broken that substitution on Windows).
+- **BUG 2 (`scripts/trust-gate.sh`):** GNU coreutils `sha256sum` on
+  Windows/Git Bash emits binary-mode hash lines (`HASH *PATH`, asterisk
+  prefix) while `.sos-trust-baseline` was seeded text-mode (`HASH  PATH`) on
+  POSIX — every line diffed regardless of actual content, false-BLOCKing the
+  first commit after `sos new` at hook `[8/8]`. Fixed inside `hash_file()`
+  (the single wrapper both the generate and compare branches call) by
+  piping its output through `awk '{ h=$1; sub(/^\*/, "", $2); print h"  "$2 }'`
+  — canonical `HASH  PATH` form, no-op on macOS `shasum` (already text-mode).
+  `.sos-trust-baseline` regenerated (`scripts/trust-gate.sh rebaseline`).
+- **Scope:** 3 remaining parity fails (`parity_new/adopt/sync_enforced`) plus
+  a newly-unmasked 4th (`parity_map_enforced`, now failing on a pure
+  golden-file CRLF checkout mismatch, not the stdout-path bug fixed here) are
+  all the same `.gitattributes`/CRLF class — deferred to P088 by design, not
+  touched here.
 
 **[P086] Seed `.sos-trust-baseline` in born-wire — fix first-commit deadlock (2026-07-24):**
 - Linux dogfood 2026-07-24 (finding L3, HIGH): a repo just `sos new`'d could not

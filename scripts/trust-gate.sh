@@ -84,14 +84,26 @@ else
     exit 1
 fi
 
-# Wrapper: compute sha256 of a single file → outputs "<hash>  <file>"
+# Wrapper: compute sha256 of a single file → outputs canonical "<hash>  <file>"
+# (two-space text-mode separator, no leading '*' on the path field).
+#
+# Platform note: GNU coreutils sha256sum on Windows/Git Bash defaults to
+# binary-mode output ("<hash> *<file>", single space + asterisk), while the
+# baseline is seeded on POSIX (text-mode "<hash>  <file>", two spaces). Left
+# unnormalized this made every hash-line diff on Windows regardless of actual
+# content (P087 BUG 2: false-BLOCK on `sos new`'s first commit hook [8/8]).
+# Normalizing here (the single call point used by BOTH the generate branch
+# and the compare branch, plus the raw-baseline-file `awk '{print $NF}'` read
+# for added/removed-surface detection — since a baseline WRITTEN via this
+# wrapper never contains '*' in the first place) covers all 3 read sites in
+# one place. No-op on macOS `shasum` output (already text-mode, no '*').
 hash_file() {
     local f="$1"
     if [ "$SHA_CMD" = "sha256sum" ]; then
         sha256sum "$f"
     else
         shasum -a 256 "$f"
-    fi
+    fi | awk '{ h=$1; sub(/^\*/, "", $2); print h"  "$2 }'
 }
 
 # ─────────────────────────────────────────────────────────────────────

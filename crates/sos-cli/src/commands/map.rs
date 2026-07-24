@@ -79,7 +79,9 @@ fn detect_present_stacks(target: &Path) -> HashSet<&'static str> {
         if is_kit_managed(rel) {
             continue;
         }
-        let path_str = path.to_string_lossy();
+        // Forward-slash normalize before any POSIX-style substring match
+        // (native `\` on Windows never matches "/xyz/" substrings — BUG 1).
+        let path_str = path.to_string_lossy().replace('\\', "/");
         if is_noise(&path_str) {
             continue;
         }
@@ -180,6 +182,8 @@ const NOISE_EXCLUDE: &[&str] = &[
     "/build/",
 ];
 
+/// `path_str` must be forward-slash-normalized (Windows native `\` breaks the
+/// POSIX-style substring match) — normalize at each call site before calling.
 fn is_noise(path_str: &str) -> bool {
     NOISE_EXCLUDE.iter().any(|n| path_str.contains(n))
 }
@@ -210,7 +214,9 @@ fn scan_surface(target: &Path, surface: &Surface) -> Vec<String> {
         if is_kit_managed(rel) {
             continue; // OA-02 Part 2: never scan kit-managed asset roots
         }
-        let path_str = path.to_string_lossy();
+        // Forward-slash normalize before any POSIX-style substring match
+        // (native `\` on Windows never matches "/xyz/" substrings — BUG 1).
+        let path_str = path.to_string_lossy().replace('\\', "/");
         if is_noise(&path_str) {
             continue;
         }
@@ -309,6 +315,22 @@ const TAIL: &str = "\nnever_default_read:\n  - docs/CHANGELOG.md\n  - docs/DISCO
 // NOT become a 4th verdict.
 const UNMAPPED_STUB: &str = "# AGENT_MAP — UNMAPPED DRAFT. status: coverage_unknown.\n";
 
+/// Render `out`'s display path for stdout with the `target` CLI arg
+/// preserved byte-for-byte (the parity test harness substring-replaces the
+/// literal `target` arg with `<TARGET>` — see tests/parity.rs `normalize()`;
+/// if we forward-slash the WHOLE display path first, that substring stops
+/// matching a native-backslash `target` on Windows) but the suffix AFTER
+/// `target` forced to forward-slash (parity golden expects `<TARGET>/docs/...`,
+/// not `<TARGET>\docs\...`).
+fn display_out_path(target: &str, out: &Path) -> String {
+    let out_str = out.to_string_lossy().replace('\\', "/");
+    let target_norm = target.replace('\\', "/");
+    match out_str.strip_prefix(&target_norm) {
+        Some(suffix) => format!("{target}{suffix}"),
+        None => out_str,
+    }
+}
+
 pub fn run(target: &str) -> Result<()> {
     let target_dir = Path::new(target);
     if !target_dir.is_dir() {
@@ -354,7 +376,7 @@ pub fn run(target: &str) -> Result<()> {
         fs::write(&out, UNMAPPED_STUB)?;
         println!(
             "  ⚠ sos map: no code surfaces detected → wrote coverage_unknown stub ({}). Fill by hand.",
-            out.display()
+            display_out_path(target, &out)
         );
         return Ok(());
     }
@@ -368,7 +390,7 @@ pub fn run(target: &str) -> Result<()> {
     println!(
         "  ✓ sos map: scanned {} → {} (coverage_unknown — set load_bearing + blast by hand)",
         target,
-        out.display()
+        display_out_path(target, &out)
     );
     Ok(())
 }
