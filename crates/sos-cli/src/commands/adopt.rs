@@ -154,8 +154,11 @@ fn jq_available() -> bool {
 /// skills-remap loop both apply (bin/sos.sh: `-not -path '*/__pycache__/*'
 /// -not -name '*.pyc' -not -name '.DS_Store'`).
 fn is_noise(path: &Path) -> bool {
-    let path_str = path.to_string_lossy();
-    if path_str.contains("/__pycache__/") {
+    // P088 Task 0 anchor #3 correction (Discovery Report): component-based
+    // check, NOT string-substring on `/` — `to_string_lossy()` uses the
+    // platform's native separator (`\` on Windows), so a `"/__pycache__/"`
+    // substring match silently never fires on Windows.
+    if path.components().any(|c| c.as_os_str() == "__pycache__") {
         return true;
     }
     if path.extension().and_then(|e| e.to_str()) == Some("pyc") {
@@ -282,8 +285,12 @@ fn adopt_skills(
     entries.sort_by(|a, b| a.path().cmp(b.path()));
     for entry in entries {
         let path = entry.path();
-        let path_str = path.to_string_lossy();
-        if path_str.contains("/attic/") || is_noise(path) {
+        // P088 Task 0 anchor #3 correction: component-based check (see
+        // `is_noise` comment above) — `"/attic/"` substring on
+        // `to_string_lossy()` never matched on Windows (native `\` separator),
+        // so `skills/attic/**` leaked into `.claude/skills/attic/**` on adopt.
+        let in_attic = path.components().any(|c| c.as_os_str() == "attic");
+        if in_attic || is_noise(path) {
             continue;
         }
         let rel_in_skills = match path.strip_prefix(&skills_dir) {
@@ -510,6 +517,14 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
         println!("✗ SOS_KIT_DIR ({kit_str}) is not sos-kit (no .claude/agents). Set SOS_KIT_DIR.");
         return Ok(());
     }
+    // P088 ITEM 2 (c) — same stub-check as `sos new` (crate::commands::new).
+    // adopt_item(".claude/agents"/".claude/commands") follows symlinks
+    // (adopt.rs:199-200) from the SOS_KIT_DIR source, same propagation risk.
+    // adopt_skills() itself sources from canonical `skills/` (no symlinks
+    // there — O1.1), so `.claude/skills/*` stubs in the kit checkout are NOT
+    // a risk via this path, but the shared helper still scans that subdir for
+    // completeness/reuse.
+    crate::commands::new::warn_symlink_stubs(&kit, "SOS_KIT_DIR (kit source)");
 
     println!("─────────────────────────────────────────");
     println!("sos adopt — retrofit spine into existing '{target}' (ADDITIVE + NON-CLOBBER)");
@@ -739,7 +754,13 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
     // brownfield repo that may have the user's own work-in-flight).
     if hooks_armed {
         for p in &added_paths {
-            let _ = Command::new("git").arg("add").arg(p).current_dir(&target_dir).status();
+            let _ = Command::new("git")
+                .arg("-c")
+                .arg("core.autocrlf=false")
+                .arg("add")
+                .arg(p)
+                .current_dir(&target_dir)
+                .status();
         }
         let rebaseline = Command::new("bash")
             .arg("scripts/trust-gate.sh")
@@ -749,6 +770,8 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
         match rebaseline {
             Ok(ro) if ro.status.success() => {
                 let _ = Command::new("git")
+                    .arg("-c")
+                    .arg("core.autocrlf=false")
                     .arg("add")
                     .arg(".sos-trust-baseline")
                     .current_dir(&target_dir)
@@ -823,9 +846,13 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
         }
     }
     println!();
+    // P088 Task 0 anchor #3 correction: build with `target` (the raw `&str`
+    // arg, forward-slash) rather than `incoming.display()` — `PathBuf::join`
+    // renders with the platform's native separator (`\` on Windows), which
+    // would print `<TARGET>\.sos-adopt-incoming/<path>` and mismatch the
+    // forward-slash golden.
     println!(
-        "Next: diff staged wiring  (git diff --no-index <existing> {}/<path>)  → merge by hand;",
-        incoming.display()
+        "Next: diff staged wiring  (git diff --no-index <existing> {target}/.sos-adopt-incoming/<path>)  → merge by hand;",
     );
     println!("      add MISSING docs; fill # TODO; then: doctor verify-setup --repo {target}");
     println!();

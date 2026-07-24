@@ -117,6 +117,79 @@ fn copy_tree(src: &Path, dst: &Path, deref: bool) -> Result<()> {
     Ok(())
 }
 
+/// P088 ITEM 2 (c) hybrid — mechanical net for the symlink-checkout gap:
+/// `.claude/agents/*`, `.claude/commands/*` (per-file symlinks — see `copy_tree`
+/// doc comment above) and `.claude/skills/*` (per-skill symlinks, `.claude/agents/
+/// -> agents/` convention mirror) are committed to git as mode 120000 symlinks.
+/// On a Windows checkout with `core.symlinks=false` (the Windows default without
+/// Developer Mode + `git config core.symlinks true`), git materializes each of
+/// these as a tiny **text file** containing the literal link target path (e.g.
+/// `../../skills/apply`, ~17-18 bytes) instead of resolving to real content.
+///
+/// This matters at TWO checkout locations (Debate Log Turn 1, O1.1):
+///   1. The `--kit`/`SOS_KIT_DIR` SOURCE checkout — `copy_tree(..., deref=true)`
+///      (this file, `.claude/agents` / `.claude/commands` copies) would then copy
+///      the stub text verbatim into every scaffolded project, silently.
+///   2. The scaffolded TARGET checkout itself, if a contributor inspects it
+///      directly on a `core.symlinks=false` machine.
+/// Both are checked by the two call sites in `cmd_new` below.
+///
+/// Heuristic (no reliable cross-platform "was this a git-symlink" check without
+/// re-reading `.git/index`): flag a path that is a plain FILE (not a real
+/// symlink, not a directory) whose content is short (<200 bytes), single-line,
+/// and looks like a relative path (no whitespace, starts with `.` or `/`).
+pub(crate) fn find_symlink_stubs(root: &Path) -> Vec<PathBuf> {
+    let mut stubs = Vec::new();
+    for sub in [".claude/agents", ".claude/commands", ".claude/skills"] {
+        let dir = root.join(sub);
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for e in entries.filter_map(|e| e.ok()) {
+            let p = e.path();
+            let is_real_symlink =
+                fs::symlink_metadata(&p).map(|m| m.file_type().is_symlink()).unwrap_or(false);
+            if is_real_symlink || p.is_dir() {
+                continue;
+            }
+            let Ok(meta) = fs::metadata(&p) else { continue };
+            if meta.len() == 0 || meta.len() >= 200 {
+                continue;
+            }
+            let Ok(content) = fs::read_to_string(&p) else { continue };
+            let trimmed = content.trim();
+            let looks_like_path = !trimmed.is_empty()
+                && !trimmed.contains(char::is_whitespace)
+                && (trimmed.starts_with("..") || trimmed.starts_with('/'))
+                && trimmed.lines().count() <= 1;
+            if looks_like_path {
+                stubs.push(p);
+            }
+        }
+    }
+    stubs
+}
+
+/// Print fix guidance if `find_symlink_stubs` found anything under `root`.
+/// Non-fatal (warn only) — matches "in ra fix" wording in phiếu Task 3 (c).
+pub(crate) fn warn_symlink_stubs(root: &Path, label: &str) {
+    let stubs = find_symlink_stubs(root);
+    if stubs.is_empty() {
+        return;
+    }
+    println!(
+        "  ⚠ {label}: {} dead symlink stub(s) detected (Windows core.symlinks=false checkout):",
+        stubs.len()
+    );
+    for s in &stubs {
+        println!("      - {}", s.display());
+    }
+    println!("      Fix: enable Windows Developer Mode, then:");
+    println!("        git config --global core.symlinks true");
+    println!("        (re-clone the repo, or: rm the stub path(s) above && git checkout -- <path>)");
+    println!("      See docs/SETUP.md \"Windows checkout\" section.");
+}
+
 fn strip_copy_cruft(target: &Path) {
     let mut to_remove: Vec<PathBuf> = Vec::new();
     let mut dirs_to_remove: Vec<PathBuf> = Vec::new();
@@ -255,6 +328,10 @@ pub fn run(target: &str, stack: Option<&str>, _pilot: bool, force: bool) -> Resu
         println!("✗ SOS_KIT_DIR ({kit_str}) is not sos-kit (no .claude/agents). Set SOS_KIT_DIR.");
         return Ok(());
     }
+    // P088 ITEM 2 (c) — stub-check the SOURCE kit checkout first: copy_tree below
+    // derefs .claude/agents|commands|skills symlinks, so a stub kit source would
+    // silently propagate dead stubs into every scaffolded project (O1.1).
+    warn_symlink_stubs(&kit, "SOS_KIT_DIR (kit source)");
 
     let target_dir = PathBuf::from(target);
     let non_empty = target_dir.exists()
@@ -477,9 +554,17 @@ pub fn run(target: &str, stack: Option<&str>, _pilot: bool, force: bool) -> Resu
     println!("[+] Git init + arm hooks");
     let git_dir = target_dir.join(".git");
     if !git_dir.is_dir() {
-        let init = Command::new("git").arg("init").arg("-q").current_dir(&target_dir).status();
+        let init = Command::new("git")
+            .arg("-c")
+            .arg("core.autocrlf=false")
+            .arg("init")
+            .arg("-q")
+            .current_dir(&target_dir)
+            .status();
         let _ = init;
         let _ = Command::new("git")
+            .arg("-c")
+            .arg("core.autocrlf=false")
             .arg("symbolic-ref")
             .arg("HEAD")
             .arg("refs/heads/main")
@@ -497,7 +582,13 @@ pub fn run(target: &str, stack: Option<&str>, _pilot: bool, force: bool) -> Resu
     // sees staged/tracked paths — rebaseline BEFORE `git add -A` writes an empty
     // baseline (Task 0 anchor #2). "no auto-commit" doctrine (new.rs:9) is preserved:
     // we stage, we do not commit.
-    let _ = Command::new("git").arg("add").arg("-A").current_dir(&target_dir).status();
+    let _ = Command::new("git")
+        .arg("-c")
+        .arg("core.autocrlf=false")
+        .arg("add")
+        .arg("-A")
+        .current_dir(&target_dir)
+        .status();
     let rebaseline = Command::new("bash")
         .arg("scripts/trust-gate.sh")
         .arg("rebaseline")
@@ -506,6 +597,8 @@ pub fn run(target: &str, stack: Option<&str>, _pilot: bool, force: bool) -> Resu
     match rebaseline {
         Ok(o) if o.status.success() => {
             let _ = Command::new("git")
+                .arg("-c")
+                .arg("core.autocrlf=false")
                 .arg("add")
                 .arg(".sos-trust-baseline")
                 .current_dir(&target_dir)
@@ -516,6 +609,14 @@ pub fn run(target: &str, stack: Option<&str>, _pilot: bool, force: bool) -> Resu
             println!("  ⚠ trust baseline NOT seeded (trust-gate.sh missing/failed) — run: bash scripts/trust-gate.sh rebaseline && git add .sos-trust-baseline");
         }
     }
+
+    // P088 ITEM 2 (c) — stub-check the freshly scaffolded TARGET too. Normally
+    // redundant with the source-side check above (fs::copy propagates whatever
+    // bytes the source check already validated), but kept as defense-in-depth
+    // per O1.1's "cover both locations" (a future direct edit / partial re-copy
+    // of the target's .claude/{agents,commands,skills} could reintroduce a stub
+    // without re-running `sos new`).
+    warn_symlink_stubs(&target_dir, "scaffolded target");
 
     println!();
     println!("✓ sos new done: {target}");

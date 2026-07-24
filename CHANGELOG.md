@@ -6,6 +6,14 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-24
 
+**[P088] Windows checkout/EOL layer — CRLF-safe parity goldens + symlink-stub detection (2026-07-24):**
+- **ITEM 1 — CRLF breaking parity goldens + git-warning capture noise:**
+  - `.gitattributes` extended: force LF for `*.golden` (direct fix for `parity_sync/new/adopt_enforced`) plus `*.toml`/`*.json`/`*.md`/`*.yaml` — closes the P087 BUG 2 CRLF-hash-mismatch class structurally (`.claude/settings.json`/`.mcp.json` sha256 now stable cross-platform for trust-gate).
+  - Every `git` shell-out in `crates/sos-cli/src/commands/new.rs` and `adopt.rs` (init, symbolic-ref, add) now passes `-c core.autocrlf=false` (per-invocation, no behavior change on POSIX where that's already the default) — the `warning: ... LF will be replaced by CRLF` line no longer leaks into `run_rust()`'s combined stdout+stderr capture (`tests/parity.rs:60-69`), which was the second (non-golden-EOL) cause of the same 3 parity fails.
+  - Existing checkouts: `git add --renormalize .`, then if any tracked file still shows CRLF on disk, delete it + `git checkout -- <path>` to force re-materialize (documented in `docs/SETUP.md` §5b + `INSTALL.md`).
+  - **Extra discoveries beyond the CRLF-only framing (Task 0 anchor #3 correction):** `parity_adopt_enforced` had two ADDITIONAL native-path-separator bugs, same bug class as P087 BUG 1 — `adopt.rs`'s `is_noise()` and the `skills/attic/` skip both string-matched `"/attic/"`/`"/__pycache__/"` against `to_string_lossy()` (native `\` on Windows, never matches) — fixed with `Path::components()` checks; and the "Next: diff staged wiring" hint line built its path via `PathBuf::display()` (native separator) instead of the raw `&str` arg — fixed to use forward-slash consistently. Both now green.
+- **ITEM 2 — `.claude/skills/*` (and `.claude/agents/`, `.claude/commands/`) symlinks checkout as dead text stubs on Windows** (`core.symlinks=false` default): Chủ nhà-decided option (c) hybrid — kept the symlink convention (no revert of the `.claude/agents/ -> agents/` pattern), added a mechanical stub-detection check (`find_symlink_stubs`/`warn_symlink_stubs` in `new.rs`, reused by `adopt.rs`) that scans both the `SOS_KIT_DIR` source checkout AND the freshly-scaffolded target, printing the Developer Mode + `core.symlinks true` + re-clone fix if it finds any. Documented in `docs/SETUP.md` §5b + `INSTALL.md` Windows section, including the maintainer-checkout-as-`--kit`-source propagation case.
+
 **[P087] Windows runtime bug-fix wave — `sos map` scanner dead + `trust-gate.sh` false-BLOCK (2026-07-24):**
 - **BUG 1 (`crates/sos-cli/src/commands/map.rs`):** `path_str` (native
   separator, `\` on Windows) was fed straight into POSIX-style substring

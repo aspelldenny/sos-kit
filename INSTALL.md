@@ -354,6 +354,13 @@ grep -A2 "Debate Log" .claude/agents/worker.md | head -5
 
 5. Worker chạy Task 0, code, test, Discovery, commit.
 
+## Windows checkout — EOL + symlinks (P088)
+
+Two Windows git defaults need attention on a fresh checkout:
+
+- **`core.autocrlf=true` (CRLF text):** `.gitattributes` force-LFs the text families this kit depends on being byte-stable (`*.sh`/`*.bash`/`*.py`/`hooks/*`/`bin/*`/`*.golden`/`*.toml`/`*.json`/`*.md`/`*.yaml`) — this is automatic on a fresh clone. Pulling the fix into an existing checkout: `git add --renormalize .` then commit, and if any file still shows CRLF on disk afterward, delete it + `git checkout -- <path>` to force re-materialize.
+- **`core.symlinks=false` (dead symlinks):** `.claude/agents/`, `.claude/commands/`, and `.claude/skills/<name>` are real git symlinks. Without support enabled, they check out as tiny text-stub files instead of real content and Claude Code skills/agents won't load. Fix (one-time per machine): enable **Windows Developer Mode**, run `git config --global core.symlinks true`, then re-clone (or delete + re-checkout `.claude/`). Full detail + the "kit-repo-as-`--kit`-source" edge case: `docs/SETUP.md` §5b. `sos new`/`sos adopt` print a warning with this fix automatically if they detect stub files.
+
 ## Common gotchas
 
 | Gotcha | Fix |
