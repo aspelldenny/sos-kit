@@ -16,6 +16,7 @@ sos new — bootstrap '<TARGET>' (stack: python)
 [+] Git init + arm hooks
     ✓ core.hooksPath → hooks/ (tracked hooks now live: pre-commit pre-push )
   ✓ git repo (branch main) + pre-commit/pre-push hooks armed
+  ⚠ trust baseline NOT seeded (trust-gate.sh missing/failed) — run: bash scripts/trust-gate.sh rebaseline && git add .sos-trust-baseline
 
 ✓ sos new done: <TARGET>
-  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git add -A && git commit.
+  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git commit.

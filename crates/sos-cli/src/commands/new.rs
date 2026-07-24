@@ -190,7 +190,8 @@ fn write_sos_stack_toml(target: &Path) {
     }
     let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let mut out = format!(
-        "# .sos-stack.toml — written by 'sos init security' on {ts}\n# Generic stack metadata. Consumed by advisory-scan (P041) + security-review (P042).\n# Schema version 1. Bump if breaking.\n\nschema_version = 1\ndetected_at = \"{ts}\"\nsos_kit_version = \"P040\"\n\n"
+        "# .sos-stack.toml — written by 'sos init security' on {ts}\n# Generic stack metadata. Consumed by advisory-scan (P041) + security-review (P042).\n# Schema version 1. Bump if breaking.\n\nschema_version = 1\ndetected_at = \"{ts}\"\nsos_kit_version = \"{}\"\n\n",
+        env!("CARGO_PKG_VERSION")
     );
     let mut stacks_found = 0;
 
@@ -320,6 +321,13 @@ pub fn run(target: &str, stack: Option<&str>, _pilot: bool, force: bool) -> Resu
     }
     chmod_x(&target_dir.join("hooks/pre-commit"));
     chmod_x(&target_dir.join("hooks/pre-push"));
+    // L5 (P086 spine drift): docs/ORCHESTRATION.md was already in adopt's spine
+    // (adopt.rs:526 / sync.rs:286) but missing here — new-born repos lacked the
+    // full orchestrator spec.
+    if kit.join("docs/ORCHESTRATION.md").is_file() {
+        fs::create_dir_all(target_dir.join("docs"))?;
+        fs::copy(kit.join("docs/ORCHESTRATION.md"), target_dir.join("docs/ORCHESTRATION.md"))?;
+    }
     if kit.join(".gitignore").is_file() {
         fs::copy(kit.join(".gitignore"), target_dir.join(".gitignore"))?;
     }
@@ -484,9 +492,34 @@ pub fn run(target: &str, stack: Option<&str>, _pilot: bool, force: bool) -> Resu
         println!("  ✓ pre-existing git repo — pre-commit/pre-push hooks armed");
     }
 
+    // ---- 6. Seed trust baseline (P086) — stage spine → rebaseline → stage baseline ----
+    // Order is load-bearing: trust-gate.sh's enumerator is `git ls-files`, which only
+    // sees staged/tracked paths — rebaseline BEFORE `git add -A` writes an empty
+    // baseline (Task 0 anchor #2). "no auto-commit" doctrine (new.rs:9) is preserved:
+    // we stage, we do not commit.
+    let _ = Command::new("git").arg("add").arg("-A").current_dir(&target_dir).status();
+    let rebaseline = Command::new("bash")
+        .arg("scripts/trust-gate.sh")
+        .arg("rebaseline")
+        .current_dir(&target_dir)
+        .output();
+    match rebaseline {
+        Ok(o) if o.status.success() => {
+            let _ = Command::new("git")
+                .arg("add")
+                .arg(".sos-trust-baseline")
+                .current_dir(&target_dir)
+                .status();
+            println!("  ✓ trust baseline seeded + spine staged");
+        }
+        _ => {
+            println!("  ⚠ trust baseline NOT seeded (trust-gate.sh missing/failed) — run: bash scripts/trust-gate.sh rebaseline && git add .sos-trust-baseline");
+        }
+    }
+
     println!();
     println!("✓ sos new done: {target}");
-    println!("  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git add -A && git commit.");
+    println!("  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git commit.");
 
     Ok(())
 }

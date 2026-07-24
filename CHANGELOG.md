@@ -6,6 +6,50 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
 
+**[P086] Seed `.sos-trust-baseline` in born-wire — fix first-commit deadlock (2026-07-24):**
+- Linux dogfood 2026-07-24 (finding L3, HIGH): a repo just `sos new`'d could not
+  create its FIRST commit — `hooks/pre-commit` `[8/8]` trust-gate fail-CLOSED on
+  `.sos-trust-baseline not found` (the file only ever gets created by a manual
+  `scripts/trust-gate.sh rebaseline`, which nothing nudged the user toward). `sos
+  adopt` had the identical gap on its arm-hooks leg.
+- `crates/sos-cli/src/commands/new.rs`: after arming hooks, born-wire now stages
+  the freshly-copied spine (`git add -A`), runs `scripts/trust-gate.sh
+  rebaseline`, then stages `.sos-trust-baseline` — order is load-bearing
+  (trust-gate's enumerator is `git ls-files`, so rebaseline BEFORE staging
+  writes an empty baseline). Missing/failing `trust-gate.sh` degrades to a
+  warn + manual-command hint, never fails the bootstrap itself. Next-line
+  wording updated (`git add -A && git commit` → `git commit`, spine is already
+  staged).
+- `crates/sos-cli/src/commands/adopt.rs`: same seed step, but scoped — adopt is
+  brownfield and must never `git add -A` (could sweep up the user's own
+  work-in-flight). A parallel `added_paths: Vec<PathBuf>` accumulator threads
+  through `adopt_item`/`adopt_skills`/`wire_mcp_json`/every inline
+  generated-file write, and ONLY those exact paths get staged — then rebaseline
+  → stage baseline, same order as `new`. Seeding only fires when hook-arming
+  actually succeeded (F09-decline leaves staging untouched); the "Heads-up for
+  your FIRST commit" block gained a line reminding the F09-decline path to
+  rebaseline by hand after arming manually.
+- `bin/sos.sh` dormant `sos_new`/`sos_adopt` oracles mirrored byte-for-byte
+  (bash `_added_paths` array parity to Rust's `added_paths`) — parity goldens
+  regenerated via `capture.sh`.
+- **L1 (order determinism):** `sos adopt`'s `added`/`conflicts` display lists
+  were built from unsorted directory-walk order (Linux dogfood: 2 `templates/`
+  lines swapped vs the macOS-captured golden → `parity_adopt_enforced` FAIL).
+  Fixed at the enumeration source (Rust `WalkDir` entries collected + sorted;
+  bash `find ... | sort`) in both `adopt_item` and the skills-remap loop.
+- **L4 (version stale):** `.sos-stack.toml`'s `sos_kit_version = "P040"` was a
+  dead ticket-ID tag. Rust now emits `env!("CARGO_PKG_VERSION")`
+  (`new.rs`/`adopt.rs`); bash reads the real value from
+  `crates/sos-cli/Cargo.toml`, same fallback (`0.1.0`) so both sides parity.
+- **L5 (spine drift):** `docs/ORCHESTRATION.md` was already in `adopt`'s spine
+  (and `sync`'s) but missing from `new`'s — new-born repos shipped without the
+  full orchestrator spec. Added to both Rust `new.rs` and bash `sos_new`.
+- (L2 — advisory-cron `.sha256` — already fixed outside this repo; noted here
+  for the L-series record only.)
+- New acceptance tests (`crates/sos-cli/tests/parity.rs`, against the REAL
+  sos-kit spine, not the synthetic fixture): `new_first_commit_passes_all_hooks_zero_seed`
+  and `adopt_does_not_stage_users_untracked_file`.
+
 **`sos help` polish + `--version`/`-V` fix (2026-07-23):**
 - `bin/sos.sh`: `sos help` rewritten into a modern-CLI facade (Install/Update, Quick start,
   grouped Commands, Env, docs/repo/npm pointers) — dynamic version header via
