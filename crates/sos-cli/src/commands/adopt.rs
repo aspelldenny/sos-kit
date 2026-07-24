@@ -185,6 +185,7 @@ fn adopt_item(
     dest_rel_override: Option<&str>,
     added: &mut Vec<String>,
     conflicts: &mut Vec<String>,
+    added_paths: &mut Vec<PathBuf>,
 ) {
     let src = kit.join(src_rel);
     if !src.exists() {
@@ -192,10 +193,17 @@ fn adopt_item(
     }
     if src.is_dir() {
         let kreal = fs::canonicalize(kit).unwrap_or_else(|_| kit.to_path_buf());
-        for entry in WalkDir::new(&src).follow_links(true).into_iter().filter_map(|e| e.ok()) {
-            if entry.file_type().is_dir() {
-                continue;
-            }
+        // L1 (order determinism, P086): sort entries before processing so
+        // `added`/`conflicts` order is filesystem-independent — Linux
+        // dogfood readdir order differed from the macOS-captured golden.
+        let mut entries: Vec<_> = WalkDir::new(&src)
+            .follow_links(true)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| !e.file_type().is_dir())
+            .collect();
+        entries.sort_by(|a, b| a.path().cmp(b.path()));
+        for entry in entries {
             let fpath = entry.path();
             if is_noise(fpath) {
                 continue;
@@ -226,6 +234,7 @@ fn adopt_item(
                 }
                 let _ = fs::copy(fpath, &fdest);
                 added.push(format!("    + {frel}"));
+                added_paths.push(fdest);
             }
         }
     } else {
@@ -244,6 +253,7 @@ fn adopt_item(
             }
             let _ = fs::copy(&src, &dest);
             added.push(format!("    + {rel}"));
+            added_paths.push(dest);
         }
     }
 }
@@ -251,15 +261,26 @@ fn adopt_item(
 /// Skills remap loop (bin/sos.sh:706-718): `skills/<rel>` -> `.claude/skills/<rel>`,
 /// skipping `attic/`. Plain `find` (no `-L` in Bash — skills/ has no symlinks
 /// today), so `follow_links` stays default (false). NOT sorted (raw order).
-fn adopt_skills(kit: &Path, target: &Path, incoming: &Path, added: &mut Vec<String>, conflicts: &mut Vec<String>) {
+fn adopt_skills(
+    kit: &Path,
+    target: &Path,
+    incoming: &Path,
+    added: &mut Vec<String>,
+    conflicts: &mut Vec<String>,
+    added_paths: &mut Vec<PathBuf>,
+) {
     let skills_dir = kit.join("skills");
     if !skills_dir.is_dir() {
         return;
     }
-    for entry in WalkDir::new(&skills_dir).into_iter().filter_map(|e| e.ok()) {
-        if entry.file_type().is_dir() {
-            continue;
-        }
+    // L1 (order determinism, P086): sort before processing (see adopt_item).
+    let mut entries: Vec<_> = WalkDir::new(&skills_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| !e.file_type().is_dir())
+        .collect();
+    entries.sort_by(|a, b| a.path().cmp(b.path()));
+    for entry in entries {
         let path = entry.path();
         let path_str = path.to_string_lossy();
         if path_str.contains("/attic/") || is_noise(path) {
@@ -284,6 +305,7 @@ fn adopt_skills(kit: &Path, target: &Path, incoming: &Path, added: &mut Vec<Stri
             }
             let _ = fs::copy(path, &sdest);
             added.push(format!("    + {srel}"));
+            added_paths.push(sdest);
         }
     }
 }
@@ -291,11 +313,12 @@ fn adopt_skills(kit: &Path, target: &Path, incoming: &Path, added: &mut Vec<Stri
 /// `.mcp.json` create-if-absent / jq-merge-if-exists (bin/sos.sh:720-751).
 /// The jq-merge branch is NOT exercised by the parity fixture (Constraint 7 —
 /// fixture always takes create-if-absent) but is implemented for real usage.
-fn wire_mcp_json(target: &Path, added: &mut Vec<String>, conflicts: &mut Vec<String>) {
+fn wire_mcp_json(target: &Path, added: &mut Vec<String>, conflicts: &mut Vec<String>, added_paths: &mut Vec<PathBuf>) {
     let dest = target.join(".mcp.json");
     if !dest.is_file() {
         let _ = fs::write(&dest, MCP_JSON_HEREDOC);
         added.push("    + .mcp.json (kit tools wired: doctor/docs-gate/ship/guard/vps — PATH-rel, same set as sos new)".to_string());
+        added_paths.push(dest);
         return;
     }
     if jq_available() {
@@ -308,6 +331,7 @@ fn wire_mcp_json(target: &Path, added: &mut Vec<String>, conflicts: &mut Vec<Str
                 } else {
                     let _ = fs::write(&dest, &o.stdout);
                     added.push("    + .mcp.json (kit tool entries jq-merged: doctor/docs-gate/ship/guard/vps — repo's own MCP servers kept)".to_string());
+                    added_paths.push(dest.clone());
                 }
             }
             _ => {
@@ -321,7 +345,13 @@ fn wire_mcp_json(target: &Path, added: &mut Vec<String>, conflicts: &mut Vec<Str
 
 /// `.claude/settings.local.json` copy-if-absent / jq-merge-if-exists
 /// (bin/sos.sh:782-803). Same out-of-fixture-scope note as `wire_mcp_json`.
-fn wire_settings_local(kit: &Path, target: &Path, added: &mut Vec<String>, conflicts: &mut Vec<String>) {
+fn wire_settings_local(
+    kit: &Path,
+    target: &Path,
+    added: &mut Vec<String>,
+    conflicts: &mut Vec<String>,
+    _added_paths: &mut Vec<PathBuf>,
+) {
     let slj = target.join(".claude/settings.local.json");
     if !slj.is_file() {
         let _ = fs::create_dir_all(target.join(".claude"));
@@ -330,6 +360,8 @@ fn wire_settings_local(kit: &Path, target: &Path, added: &mut Vec<String>, confl
             let _ = fs::copy(&src, &slj);
         }
         added.push("    + .claude/settings.local.json (5 marker perms — per-user, don't commit)".to_string());
+        // NOT pushed to added_paths — gitignored (per-user, "don't commit"),
+        // `git add` on it would warn "ignored" for no benefit.
         return;
     }
     if !jq_available() {
@@ -395,7 +427,8 @@ fn init_security(target: &Path) -> u8 {
     }
     let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let mut out = format!(
-        "# .sos-stack.toml — written by 'sos init security' on {ts}\n# Generic stack metadata. Consumed by advisory-scan (P041) + security-review (P042).\n# Schema version 1. Bump if breaking.\n\nschema_version = 1\ndetected_at = \"{ts}\"\nsos_kit_version = \"P040\"\n\n"
+        "# .sos-stack.toml — written by 'sos init security' on {ts}\n# Generic stack metadata. Consumed by advisory-scan (P041) + security-review (P042).\n# Schema version 1. Bump if breaking.\n\nschema_version = 1\ndetected_at = \"{ts}\"\nsos_kit_version = \"{}\"\n\n",
+        env!("CARGO_PKG_VERSION")
     );
     let mut stacks_found = 0;
 
@@ -502,11 +535,17 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
     let incoming = target_dir.join(".sos-adopt-incoming");
     let mut added: Vec<String> = Vec::new();
     let mut conflicts: Vec<String> = Vec::new();
+    // P086 Task 3 (O1.1 phương án A): parallel path accumulator — `added` is a
+    // pre-formatted stdout display list (mixes clean paths with trailing
+    // description text, some lines aren't paths at all), so it can't be used
+    // verbatim as `git add` args. Every call site that writes a REAL file into
+    // `target_dir` also pushes that path here.
+    let mut added_paths: Vec<PathBuf> = Vec::new();
 
     println!("[1/4] Spine (copy-if-absent; existing → staged to .sos-adopt-incoming/)");
-    adopt_item(&kit, &target_dir, &incoming, ".claude/agents", None, &mut added, &mut conflicts);
-    adopt_item(&kit, &target_dir, &incoming, ".claude/commands", None, &mut added, &mut conflicts);
-    adopt_item(&kit, &target_dir, &incoming, ".claude/settings.json", None, &mut added, &mut conflicts);
+    adopt_item(&kit, &target_dir, &incoming, ".claude/agents", None, &mut added, &mut conflicts, &mut added_paths);
+    adopt_item(&kit, &target_dir, &incoming, ".claude/commands", None, &mut added, &mut conflicts, &mut added_paths);
+    adopt_item(&kit, &target_dir, &incoming, ".claude/settings.json", None, &mut added, &mut conflicts, &mut added_paths);
     if kit.join("agents/orchestrator.md").is_file() {
         adopt_item(
             &kit,
@@ -516,20 +555,21 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
             Some(".claude/agents/orchestrator.md"),
             &mut added,
             &mut conflicts,
+            &mut added_paths,
         );
     }
-    adopt_item(&kit, &target_dir, &incoming, "scripts", None, &mut added, &mut conflicts);
-    adopt_item(&kit, &target_dir, &incoming, "phieu", None, &mut added, &mut conflicts);
-    adopt_item(&kit, &target_dir, &incoming, "templates", None, &mut added, &mut conflicts);
-    adopt_item(&kit, &target_dir, &incoming, "hooks/pre-commit", None, &mut added, &mut conflicts);
-    adopt_item(&kit, &target_dir, &incoming, "hooks/pre-push", None, &mut added, &mut conflicts);
-    adopt_item(&kit, &target_dir, &incoming, "docs/ORCHESTRATION.md", None, &mut added, &mut conflicts);
+    adopt_item(&kit, &target_dir, &incoming, "scripts", None, &mut added, &mut conflicts, &mut added_paths);
+    adopt_item(&kit, &target_dir, &incoming, "phieu", None, &mut added, &mut conflicts, &mut added_paths);
+    adopt_item(&kit, &target_dir, &incoming, "templates", None, &mut added, &mut conflicts, &mut added_paths);
+    adopt_item(&kit, &target_dir, &incoming, "hooks/pre-commit", None, &mut added, &mut conflicts, &mut added_paths);
+    adopt_item(&kit, &target_dir, &incoming, "hooks/pre-push", None, &mut added, &mut conflicts, &mut added_paths);
+    adopt_item(&kit, &target_dir, &incoming, "docs/ORCHESTRATION.md", None, &mut added, &mut conflicts, &mut added_paths);
     chmod_x(&target_dir.join("hooks/pre-commit"));
     chmod_x(&target_dir.join("hooks/pre-push"));
 
-    adopt_skills(&kit, &target_dir, &incoming, &mut added, &mut conflicts);
-    wire_mcp_json(&target_dir, &mut added, &mut conflicts);
-    wire_settings_local(&kit, &target_dir, &mut added, &mut conflicts);
+    adopt_skills(&kit, &target_dir, &incoming, &mut added, &mut conflicts, &mut added_paths);
+    wire_mcp_json(&target_dir, &mut added, &mut conflicts, &mut added_paths);
+    wire_settings_local(&kit, &target_dir, &mut added, &mut conflicts, &mut added_paths);
     println!("  done");
 
     println!("[2/4] Category C — generate ONLY if missing (never overwrite existing docs)");
@@ -545,6 +585,7 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
         existing.push_str("\n## INV-LOCAL (project-specific — FILL THESE)\n\n# TODO: add `## INV-LOCAL-NNN — <title>`, or `# No local INV`.\n");
         let _ = fs::write(&inv_path, existing);
         added.push("    + docs/security/INVARIANTS.md".to_string());
+        added_paths.push(inv_path.clone());
     } else {
         conflicts.push("    ~ docs/security/INVARIANTS.md (exists — kept)".to_string());
     }
@@ -553,6 +594,7 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
     if !map_path.is_file() {
         run_map_subcommand(&target_dir);
         added.push("    + docs/AGENT_MAP.yaml (scanned real surfaces — set load_bearing + blast by hand)".to_string());
+        added_paths.push(map_path.clone());
     } else {
         conflicts.push("    ~ docs/AGENT_MAP.yaml (exists — kept)".to_string());
     }
@@ -561,6 +603,7 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
     if !docs_gate_path.is_file() {
         let _ = fs::write(&docs_gate_path, DOCS_GATE_TOML);
         added.push("    + .docs-gate.toml".to_string());
+        added_paths.push(docs_gate_path.clone());
     } else {
         conflicts.push("    ~ .docs-gate.toml (exists — kept; verify ticket_dir + architecture)".to_string());
     }
@@ -583,6 +626,7 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
             format!("# Changelog\n\nFormat loosely follows Keep a Changelog.\n\n## v0.0.0 — sos adopt — {date}\n\n- Spine retrofitted via `sos adopt`.\n"),
         );
         added.push("    + CHANGELOG.md (skeleton)".to_string());
+        added_paths.push(changelog_root.clone());
     }
 
     let arch_path = target_dir.join("docs/ARCHITECTURE.md");
@@ -594,6 +638,7 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
         );
         let _ = fs::write(&arch_path, architecture_md);
         added.push("    + docs/ARCHITECTURE.md (skeleton)".to_string());
+        added_paths.push(arch_path.clone());
     }
 
     let backlog_path = target_dir.join("docs/BACKLOG.md");
@@ -602,6 +647,7 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
     } else if kit.join("templates/BACKLOG_template.md").is_file() {
         let _ = fs::copy(kit.join("templates/BACKLOG_template.md"), &backlog_path);
         added.push("    + docs/BACKLOG.md (template — fill Active sprint)".to_string());
+        added_paths.push(backlog_path.clone());
     }
 
     if target_dir.join("CLAUDE.md").is_file() {
@@ -628,6 +674,7 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
     let _ = fs::write(&gi_path, gi_content);
     if gi_added > 0 {
         added.push(format!("    + .gitignore ({gi_added} build/runtime ignore lines)"));
+        added_paths.push(gi_path.clone());
     }
 
     // .phieu-counter (bin/sos.sh:897-900).
@@ -635,10 +682,12 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
     if !counter_path.is_file() {
         let _ = fs::write(&counter_path, "0\n");
         added.push("    + .phieu-counter (seed 0 — source phieu/phieu.sh to use `phieu <slug>`)".to_string());
+        added_paths.push(counter_path.clone());
     }
 
     // ---- [3/4] Born-wire ----
     println!("[3/4] Born-wire (arm hooks + stack detect)");
+    let mut hooks_armed = false;
     let install_hooks = target_dir.join("scripts/install-hooks.sh");
     if target_dir.join(".git").is_dir() && install_hooks.is_file() {
         let out = Command::new("bash")
@@ -653,6 +702,7 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
                     println!("    {line}");
                 }
                 if o.status.success() {
+                    hooks_armed = true;
                     added.push("    + hooks ARMED (core.hooksPath → hooks/; pre-existing .git/hooks moved to .bak if any)".to_string());
                 } else {
                     conflicts.push("    ~ hooks NOT armed (F09 guard declined — existing hook setup detected; review then run: bash scripts/install-hooks.sh)".to_string());
@@ -667,9 +717,48 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
     }
 
     match init_security(&target_dir) {
-        0 => added.push("    + .sos-stack.toml (stack detected — advisory-scan/security-review ready)".to_string()),
+        0 => {
+            added.push("    + .sos-stack.toml (stack detected — advisory-scan/security-review ready)".to_string());
+            added_paths.push(target_dir.join(".sos-stack.toml"));
+        }
         1 => conflicts.push("    ~ .sos-stack.toml (already exists — kept)".to_string()),
-        _ => conflicts.push("    ~ .sos-stack.toml (no stack manifest detected — see file comments, add [[stack]] by hand)".to_string()),
+        // rc=2: no manifest detected, but init_security still WRITES the file
+        // (hint comment) — a real file, so still stage it for the seed step.
+        _ => {
+            conflicts.push("    ~ .sos-stack.toml (no stack manifest detected — see file comments, add [[stack]] by hand)".to_string());
+            added_paths.push(target_dir.join(".sos-stack.toml"));
+        }
+    }
+
+    // P086 Task 3 — seed trust baseline, ONLY when arm actually succeeded
+    // (repo not armed = don't touch staging at all). Runs AFTER `.sos-stack.toml`
+    // detection above so that file (written by init_security, which runs after
+    // the arm-hooks leg) is included in `added_paths` before we stage. Order
+    // load-bearing (same as `new`): stage → rebaseline → stage baseline.
+    // Scoped to `added_paths` (Luật chơi #3 — NOT `git add -A`, this is a
+    // brownfield repo that may have the user's own work-in-flight).
+    if hooks_armed {
+        for p in &added_paths {
+            let _ = Command::new("git").arg("add").arg(p).current_dir(&target_dir).status();
+        }
+        let rebaseline = Command::new("bash")
+            .arg("scripts/trust-gate.sh")
+            .arg("rebaseline")
+            .current_dir(&target_dir)
+            .output();
+        match rebaseline {
+            Ok(ro) if ro.status.success() => {
+                let _ = Command::new("git")
+                    .arg("add")
+                    .arg(".sos-trust-baseline")
+                    .current_dir(&target_dir)
+                    .status();
+                added.push("    + .sos-trust-baseline (seeded — first commit sẽ qua [8/8])".to_string());
+            }
+            _ => {
+                conflicts.push("    ~ .sos-trust-baseline NOT seeded (trust-gate.sh missing/failed) — run: bash scripts/trust-gate.sh rebaseline && git add .sos-trust-baseline".to_string());
+            }
+        }
     }
 
     // ---- [4/4] Validator ----
@@ -745,6 +834,11 @@ pub fn run(target: &str, _stack: Option<&str>) -> Result<()> {
     println!("  - docs-gate freshness: add a new CHANGELOG entry (e.g. `## <ver> — sos-kit adopted — {date}`)");
     println!("  - fill docs/BACKLOG.md Active sprint (1-2 real items) — the session banner reads it");
     println!("  - restart Claude Code in the repo so agents/skills load");
+    if !hooks_armed {
+        // F09-decline (P086 Task 5): hooks weren't armed here, so trust
+        // baseline wasn't seeded either — nudge the manual-arm path.
+        println!("  - hooks NOT armed here — after arming by hand (bash scripts/install-hooks.sh), also run: bash scripts/trust-gate.sh rebaseline && git add .sos-trust-baseline");
+    }
 
     Ok(())
 }

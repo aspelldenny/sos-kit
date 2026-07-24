@@ -73,14 +73,32 @@ echo "✓ Snapshot at .backup/${PHIEU_ID}/ — auto-cleaned on phieu-done"
 
 ## Debate Log
 
-**Phiếu version:** V1 (initial draft)
+**Phiếu version:** V2
 
-### Turn 1 — Worker Challenge
-*(pending)*
+### Turn 1 — Worker Challenge (phiếu V1)
+**Anchor verification:** #1 ✅ · #5 ⚠️ (existence confirmed, but Task 3 plan under-specified) · #6 ✅ (flow confirmed, capture.sh scope note non-blocking)
+**Objections:**
+- [O1.1] `adopt.rs:228,246,298,310,547,555,563,585,596,604,630,637,656` — `added: Vec<String>` is a pre-formatted stdout DISPLAY list, not a raw-path list (mixes clean paths with trailing description text; `:656` "hooks ARMED (core.hooksPath → ...)" isn't a path at all). Task 3's "git add giới hạn: các path adopt vừa ADDED" cannot iterate `added` directly for `git add`.
+  Claim: `added` cannot be used verbatim as `git add` args.
+  Oracle: direct code read of adopt.rs push call sites — SOUND (exact source text).
+  Soundness: SOUND for existence-of-gap; NOT sound for which fix to pick (design choice) → needs Architect respond.
+  Verdict: needs Architect respond.
+**Proposed alternatives:**
+- A. (Worker lean) Thread a parallel `added_paths: Vec<PathBuf>` accumulator through adopt_item/adopt_skills/wire_mcp_json/wire_settings_local + inline pushes; Task 3 git-adds that list + `.sos-trust-baseline`. Mechanical, no string parsing.
+- B. Parse `added` strings (strip "    + " prefix, split on " ("), skip non-path-looking entries. Cheaper diff, but silently drops special-case lines (e.g. hooks-armed) — maintenance trap.
+- C. Diff `git status --porcelain --untracked-files=all` before/after the adopt body instead of tracking paths in Rust; avoids touching accumulators but couples correctness to git-status parsing, different mechanism than phiếu's stated approach.
+**Status:** ✅ RESPONDED (below)
+
+### Turn 1 — Architect Response
+- [O1.1] → **ACCEPT — chọn phương án A** (parallel `added_paths: Vec<PathBuf>` accumulator). Lý do: B là string-parsing trap đúng như Worker chỉ (silently drops hooks-armed class); C đổi cơ chế sang parse git-status — thêm class rủi ro mới + lệch tinh thần "Rust tự bookkeeping". A mechanical, khớp pattern `&mut Vec<T>` sẵn có. **Task 3 respec:** mỗi call site ghi file thật push path tương ứng vào `added_paths` (side-effect không phải file — như hooks-armed `:656`, jq-merge `.mcp.json` merge-nhánh — vẫn push path file bị ghi nếu có ghi, bỏ qua nếu chỉ là git-config). Bash oracle dormant `sos_adopt` mirror bằng mảng `_added_paths`.
+- Anchor #6 note → **Tầng 2, chốt tree-only:** KHÔNG thêm `.sos-trust-baseline` vào `NEW_GEN_FILES`/`ADOPT_GEN_FILES` (nội dung baseline chứa hash biến thiên theo nội dung spine — gen-hash golden sẽ giòn vô ích; tree-golden proof-of-existence là đủ). `capture.sh` KHÔNG thuộc "Files cần sửa" — chỉ chạy để regenerate.
+
+**Status:** ✅ RESPONDED — phiếu bumped to V2
 
 ### Final consensus
-- Phiếu version: —
-- Approved by Chủ nhà: —
+- Phiếu version: V2
+- Total turns: 1
+- Approved by Chủ nhà: 2026-07-24 — standing approval ("em làm full flow đi") ghi nhận từ chat; execute may begin.
 
 ---
 
@@ -98,7 +116,7 @@ Sau bước arm hooks (quanh `:475` symbolic-ref + arm), TRƯỚC println Next-l
 
 **Task 2:** Sửa Next-line `:489` → "Next: fill # TODO (…) → git commit." (spine đã staged).
 
-**Task 3:** `adopt.rs` — tương tự sau leg arm-hooks, nhưng CHỈ khi arm thật sự xảy ra (F09 decline → không seed, không stage — repo người ta, đừng đụng staging khi mình không arm). `git add` giới hạn: các path adopt vừa ADDED + `.sos-trust-baseline` (KHÔNG `add -A` trên brownfield — xem Luật chơi #3).
+**Task 3 (V2 — per O1.1/phương án A):** `adopt.rs` — tương tự sau leg arm-hooks, nhưng CHỈ khi arm thật sự xảy ra (F09 decline → không seed, không stage — repo người ta, đừng đụng staging khi mình không arm). Cơ chế path: thread accumulator `added_paths: Vec<PathBuf>` song song `added` qua `adopt_item`/`adopt_skills`/`wire_mcp_json`/`wire_settings_local` + inline pushes (mỗi call site GHI FILE thật push path; side-effect không-file như hooks-armed thì bỏ qua). `git add` = `added_paths` + `.sos-trust-baseline` (KHÔNG `add -A` trên brownfield — Luật chơi #3). Bash oracle mirror bằng mảng `_added_paths`.
 
 **Task 4:** Sửa dormant `sos_new`/`sos_adopt` trong `bin/sos.sh` y hệt (bash oracle cho parity), regenerate goldens qua `crates/sos-cli/tests/golden/capture.sh`.
 
