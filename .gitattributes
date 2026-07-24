@@ -23,3 +23,9 @@ bin/*   text eol=lf
 *.json   text eol=lf
 *.md     text eol=lf
 *.yaml   text eol=lf
+
+# .sos-trust-baseline is extensionless — no glob above covers it. Fresh Windows
+# autocrlf=true clones would otherwise check it out CRLF, and the byte-exact diff
+# in trust-gate.sh's check path then false-blocks every line (security-review FLAG,
+# P088 remediation, 2026-07-24).
+.sos-trust-baseline text eol=lf
