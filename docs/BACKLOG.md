@@ -17,6 +17,7 @@
 
 ### Active items (in order)
 
+- [ ] **[P086] Seed `.sos-trust-baseline` in born-wire** — fix Linux dogfood **L3 (HIGH)**: repo mới `sos new` (và khả năng cao cả `sos adopt` — Worker verify) KHÔNG commit được first commit vì `[8/8]` trust-gate fail-closed mà born-wire không seed baseline. Fix: stage → `trust-gate.sh rebaseline` → stage baseline trong born-wire (thứ tự bắt buộc — `git ls-files` enumerator), Next-line đổi "→ git commit", adopt chỉ seed khi arm thật (F09-decline thì heads-up). Phiếu: `docs/ticket/P086-seed-trust-baseline-bornwire.md` (V1, chờ Worker CHALLENGE → Sếp duyệt). Nguồn: `docs/retro/DOGFOOD_LINUX_2026-07-24.md`. (Promoted từ "Captured 2026-07-24" — Sếp chỉ định mở phiếu L3 trước.)
 - [x] **[P074] Runtime boundary inventory** — DONE 2026-07-20. Ownership A: một monorepo/version/`sos`; core + Claude/Codex adapters module hóa; sister tools qua managed manifest để giữ one-command UX. Docs-only, không đổi runtime. Phiếu: `docs/ticket/P074-runtime-boundary-inventory.md`.
 - [x] **[P075] Portable SOS Core** — DONE 2026-07-20. `SOS.md` + `core/{README,ROLES,WORKFLOW,POLICY,ASSETS}.md`; capability vocabulary trung lập, one-ticket/one-delivery rule, zero runtime-token gate. Không đổi behavior adapter hiện tại.
 - [x] **[P076] Claude Code adapter parity** — DONE 2026-07-22 (`d370c82`). Declarative boundary (approach B): `adapters/claude/{README,MAPPING}.md` map each Claude artifact → core source ID + body provenance markers on 11 files; golden-parity diff=0 (frontmatter/`.claude/` untouched). Physical render deferred to P077 renderer.
