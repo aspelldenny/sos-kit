@@ -1,0 +1,6 @@
+{
+  "hooks": {
+    "PostToolUse":        [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/advise-on-fail.py\"", "timeout": 320 } ] } ],
+    "PostToolUseFailure": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/advise-on-fail.py\"", "timeout": 320 } ] } ]
+  }
+}
