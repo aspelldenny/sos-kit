@@ -1,330 +1,66 @@
 #!/usr/bin/env bash
-# sos-kit v2 pre-commit hook
-# Install: git config core.hooksPath hooks (or copy to .git/hooks/)
+# sos-kit v3 pre-commit — few gates, each fail-CLOSED, each failure says how to fix.
+# Install: git config core.hooksPath hooks
 #
-# Runs in order:
-#   1. Stack-specific type check (auto-detect)
-#   2. docs-gate Rust binary (v1 checks: CHANGELOG + ARCHITECTURE 9 sections)
-#   3. v2-specific checks: BACKLOG.md, Discovery Report mandatory for new phiếu
-#   4. Security gate (INV-009 source + INV-010 runtime)
-#   5. Case-collision gate (path khác-case)
-#   6. No-code-on-default gate (P050 — force feature branch for product code; fail-CLOSED if guard script missing, P080x)
-#   7. Block .env* secret-file commits (P052 — agent-agnostic backstop to P046 PreToolUse guard; fail-CLOSED if guard script missing, P080x)
-#   8. Trust gate (auto-exec baseline-diff + hidden-unicode — P073, port thanhtra v1.2)
+#   1. Type check        (cargo check when Cargo.toml exists)
+#   2. Secrets           (gitleaks on the staged diff)
+#   3. Case collision    (paths differing only by case break macOS checkouts)
+#   4. No code on default branch
+#   5. Block .env* commits (allow .env.example)
+#   6. Trust gate        (auto-exec surfaces vs .sos-trust-baseline + hidden unicode)
 #
-# Exit non-zero blocks commit. Use `git commit --no-verify` to bypass (not recommended).
+# v2 gates (docs-gate freshness, phiếu/Discovery checks, lane-check, INV security-gate)
+# are archived: see archive/v2/ and docs/plans/V3_TRIAGE_2026-10-08.md.
 
 set -uo pipefail
+FAILED=0
+red()   { printf "\033[31m%s\033[0m\n" "$*"; }
+green() { printf "\033[32m%s\033[0m\n" "$*"; }
+blue()  { printf "\033[34m%s\033[0m\n" "$*"; }
 
-FAIL_COUNT=0
-WARN_COUNT=0
-
-red()    { printf "\033[31m%s\033[0m\n" "$*"; }
-green()  { printf "\033[32m%s\033[0m\n" "$*"; }
-yellow() { printf "\033[33m%s\033[0m\n" "$*"; }
-blue()   { printf "\033[34m%s\033[0m\n" "$*"; }
-
-blue "🔍 sos-kit v2 pre-commit checks..."
-echo ""
-
-# ─────────────────────────────────────────────────────────────────────
-# 1. Stack-specific type check (auto-detect)
-# ─────────────────────────────────────────────────────────────────────
-blue "[1/8] Type check"
-
-if [ -f "Cargo.toml" ]; then
-    echo "  → cargo check"
-    if ! cargo check --quiet 2>&1 | tail -10; then
-        red "  ❌ Cargo check failed"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
+# gate <label> <fix instruction> <command...>
+gate() {
+    local label="$1" fix="$2"; shift 2
+    blue "[$label]"
+    if "$@"; then
+        green "  ✅ ok"
     else
-        green "  ✅ Cargo check passed"
+        red "  ❌ blocked"
+        echo "  → How to fix: $fix"
+        FAILED=$((FAILED + 1))
     fi
-elif [ -f "package.json" ] && grep -q "type-check" package.json 2>/dev/null; then
-    PM=$(test -f pnpm-lock.yaml && echo "pnpm" || echo "npm")
-    echo "  → $PM type-check"
-    if ! $PM run type-check --silent 2>&1 | tail -5; then
-        red "  ❌ Type check failed"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
-    else
-        green "  ✅ Type check passed"
-    fi
-elif [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
-    # Python: syntax-check staged .py files (not full mypy — too slow)
-    PY_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' || true)
-    if [ -n "$PY_FILES" ]; then
-        # Resolve a Python that ACTUALLY runs (Windows `python3` = Microsoft Store shim:
-        # on PATH but exits non-zero → test execution, not just `command -v`).
-        # This is a best-effort syntax linter (NOT a security boundary) → no working
-        # interpreter = loud WARN + skip, NOT a hard block (avoid bricking commits on a
-        # machine without Python). Security gates fail-closed; a linter does not.
-        PY=""
-        for c in python3 python py; do
-            if command -v "$c" >/dev/null 2>&1 && "$c" -c "" >/dev/null 2>&1; then PY="$c"; break; fi
-        done
-        if [ -z "$PY" ]; then
-            yellow "  ⚠️  No working Python (tried python3/python/py) — syntax check SKIPPED"
-            echo "     Staged .py NOT syntax-verified at commit; run build/test before PR."
-            WARN_COUNT=$((WARN_COUNT + 1))
-        else
-            echo "  → python syntax check ($(echo "$PY_FILES" | wc -l | tr -d ' ') files, via $PY)"
-            for f in $PY_FILES; do
-                if ! "$PY" -c "import ast, sys; ast.parse(open(sys.argv[1]).read())" "$f" 2>/dev/null; then
-                    red "  ❌ Syntax error in $f"
-                    FAIL_COUNT=$((FAIL_COUNT + 1))
-                fi
-            done
-            [ "$FAIL_COUNT" = "0" ] && green "  ✅ Syntax check passed"
-        fi
-    else
-        echo "  ⏭  No .py files staged"
-    fi
-else
-    # Loud, not silent: an un-detected stack (Swift/Go/Java/C/Ruby…) means pre-commit
-    # catches NO compile errors — the most expensive gate silently no-op'd before
-    # (Két Swift dogfood: [1/5] printed a grey skip, looked armed, caught nothing).
-    # Proportionate dose: warn + bump WARN_COUNT (don't build per-commit — too heavy
-    # for a 1-user tool); real build/test belongs to `ship check` / DoD before PR.
-    yellow "  ⚠️  No type-check for this stack (not cargo/npm/python)"
-    echo "     Compile errors are NOT caught at commit — run build/test before PR (ship check / DoD)."
-    WARN_COUNT=$((WARN_COUNT + 1))
+}
+
+# require <script> — a missing guard is a failure, never a silent pass
+
+if [ -f Cargo.toml ]; then
+    gate "1/6 type check" "run \`cargo check\`, fix the compile errors, re-stage" \
+        cargo check --quiet
 fi
+
+secrets() {
+    command -v gitleaks >/dev/null 2>&1 || { echo "  gitleaks not installed"; return 1; }
+    gitleaks git --pre-commit --staged --redact --no-banner --log-level warn .
+}
+gate "2/6 secrets" "remove the secret from the staged file (use an env var / .env, keep .env.example placeholders); if gitleaks is missing: \`brew install gitleaks\`. False positive: add a gitleaks:allow comment on that line with the reason" \
+    secrets
+
+gate "3/6 case collision" "rename one of the colliding paths so they differ by more than letter case" \
+    bash -c 'require() { [ -f "$1" ] || { echo "  missing $1"; return 1; }; }; require scripts/check-case-collision.sh && bash scripts/check-case-collision.sh'
+
+gate "4/6 no code on default branch" "create a branch (\`git switch -c <name>\`) and commit there" \
+    bash -c '[ -f scripts/no-code-on-default.sh ] || { echo "  missing scripts/no-code-on-default.sh"; exit 1; }; bash scripts/no-code-on-default.sh'
+
+gate "5/6 no .env commit" "\`git restore --staged <.env file>\`; keep secrets local, commit only .env.example" \
+    bash -c '[ -f scripts/block-env-commit.sh ] || { echo "  missing scripts/block-env-commit.sh"; exit 1; }; bash scripts/block-env-commit.sh'
+
+gate "6/6 trust gate" "review the auto-exec diff shown above; if it is intended, run \`scripts/trust-gate.sh rebaseline\` and stage .sos-trust-baseline" \
+    bash -c '[ -f scripts/trust-gate.sh ] || { echo "  missing scripts/trust-gate.sh"; exit 1; }; bash scripts/trust-gate.sh'
 
 echo ""
-
-# ─────────────────────────────────────────────────────────────────────
-# 2. docs-gate (v1 checks)
-# ─────────────────────────────────────────────────────────────────────
-blue "[2/8] docs-gate (v1: CHANGELOG + ARCHITECTURE 9 sections)"
-
-# --- docs-gate (P006: graceful skip on fresh install) ---
-if [ ! -f .docs-gate.toml ]; then
-    yellow "  ⚠️  docs-gate skipped: no .docs-gate.toml — run \`docs-gate init\` to bootstrap."
-    WARN_COUNT=$((WARN_COUNT + 1))
-elif command -v docs-gate >/dev/null 2>&1 || command -v docs-gate.exe >/dev/null 2>&1; then
-    echo "  → docs-gate"
-    if ! docs-gate 2>&1; then
-        red "  ❌ docs-gate failed"
-        echo "     Run: docs-gate --verbose  for details"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
-    else
-        green "  ✅ docs-gate passed"
-    fi
-else
-    yellow "  ⚠️  docs-gate binary not found — skipping v1 checks"
-    WARN_COUNT=$((WARN_COUNT + 1))
-fi
-# --- /docs-gate ---
-
-echo ""
-
-# ─────────────────────────────────────────────────────────────────────
-# 3. sos-kit v2 specific checks
-# ─────────────────────────────────────────────────────────────────────
-blue "[3/8] sos-kit v2 checks"
-
-# 3a. BACKLOG.md must exist
-if [ ! -f "docs/BACKLOG.md" ]; then
-    yellow "  ⚠️  docs/BACKLOG.md missing"
-    echo "     Bootstrap: cp ~/sos-kit/templates/BACKLOG_template.md docs/BACKLOG.md"
-    WARN_COUNT=$((WARN_COUNT + 1))
-else
-    # 3b. Active sprint section must exist and not be empty
-    # Find header line — strict match first (Active sprint), fallback to first ^## (P003 pattern)
-    HEADER_LINE=$(grep -n "^## .*Active sprint" docs/BACKLOG.md 2>/dev/null | head -1 | cut -d: -f1)
-    if [ -z "$HEADER_LINE" ]; then
-        HEADER_LINE=$(grep -n "^## " docs/BACKLOG.md 2>/dev/null | head -1 | cut -d: -f1)
-    fi
-    # Get content AFTER the matched header until next "## " (excluding both headers)
-    ACTIVE_SECTION=$(awk -v hdr="$HEADER_LINE" 'NR==hdr{found=1; next} found && /^## /{exit} found{print}' docs/BACKLOG.md)
-    ACTIVE_ITEMS=$(echo "$ACTIVE_SECTION" | grep -c "^- \[" 2>/dev/null) || ACTIVE_ITEMS=0
-    if [ "$ACTIVE_ITEMS" = "0" ]; then
-        yellow "  ⚠️  BACKLOG.md Active sprint section is empty"
-        echo "     Pick item từ Open backlog hoặc /idea thêm task vào Active sprint"
-        WARN_COUNT=$((WARN_COUNT + 1))
-    else
-        green "  ✅ BACKLOG.md Active sprint has $ACTIVE_ITEMS items"
-    fi
-fi
-
-# Resolve phiếu dir from single source (.docs-gate.toml ticket_dir) — Q-D1: gate READS, never hardcodes
-TICKET_DIR=$(grep -E '^[[:space:]]*ticket_dir[[:space:]]*=' .docs-gate.toml 2>/dev/null | sed -E 's/.*=[[:space:]]*"([^"]+)".*/\1/' | head -1)
-TICKET_DIR=${TICKET_DIR:-docs/ticket}
-
-# 3c. New phiếu file requires Discovery Report entry
-NEW_PHIEU=$(git diff --cached --name-only --diff-filter=A | grep -E "^${TICKET_DIR}/P[0-9]+-" || true)
-if [ -n "$NEW_PHIEU" ]; then
-    echo "  → New phiếu detected: $NEW_PHIEU"
-    DISCOVERIES_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^docs/DISCOVERIES\.md$' || true)
-    if [ -z "$DISCOVERIES_STAGED" ]; then
-        red "  ❌ New phiếu committed but DISCOVERIES.md not updated"
-        echo "     Architect/Worker must append a Discovery entry for this phiếu"
-        echo "     Or this is a phiếu DRAFT (not done yet) → continue editing, commit later"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
-    else
-        # Verify the phiếu ID appears in DISCOVERIES.md
-        for phieu in $NEW_PHIEU; do
-            PHIEU_ID=$(basename "$phieu" .md | grep -oE 'P[0-9]+')
-            # Match the ID whether DISCOVERIES.md uses a `## P<NNN>` heading OR a
-            # `| P<NNN> | … |` OR `| [P<NNN>](…) |` index-table row. The old grep
-            # matched ONLY headings. The Két dogfood fix added table rows but missed
-            # the markdown-link form `| [P<NNN>]` — sos-kit's own index uses links.
-            # `([^0-9]|$)` guards against P004 matching P0040.
-            if ! grep -qE "^(## .*|\|[[:space:]]*\[?${PHIEU_ID})([^0-9]|\$)" docs/DISCOVERIES.md 2>/dev/null; then
-                red "  ❌ Phiếu $PHIEU_ID has no Discovery entry in DISCOVERIES.md"
-                FAIL_COUNT=$((FAIL_COUNT + 1))
-            else
-                green "  ✅ Phiếu $PHIEU_ID has Discovery entry"
-            fi
-        done
-    fi
-fi
-
-# 3d. Modified phiếu (existing) — only check Discovery if it's marked done somehow
-# (Skip — phiếu drafts are common; only enforce on NEW phiếu file or explicit "completed" marker)
-
-# 3e. Worker commit pattern: phiếu touched + code touched + Discovery touched = good signal
-CODE_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '\.(py|rs|ts|tsx|js|jsx|go|java)$' | head -1 || true)
-PHIEU_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E "^${TICKET_DIR}/P[0-9]+-" || true)
-if [ -n "$CODE_STAGED" ] && [ -n "$PHIEU_STAGED" ]; then
-    DISCOVERIES_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^docs/DISCOVERIES\.md$' || true)
-    # CHANGELOG lives at root in some repos (sos-kit, claude-hooks), docs/ in others (doc-rotate).
-    # Accept BOTH — hardcoding docs/ gave a false-positive warning every code+phiếu commit and
-    # disagreed with [2/8] docs-gate which reads the root path (F-003 claude-hooks dogfood).
-    CHANGELOG_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^(docs/)?CHANGELOG\.md$' || true)
-    if [ -z "$DISCOVERIES_STAGED" ] || [ -z "$CHANGELOG_STAGED" ]; then
-        yellow "  ⚠️  Code + phiếu changed but DISCOVERIES.md or CHANGELOG.md not staged"
-        echo "     Definition of Done requires both. Stage them: git add docs/DISCOVERIES.md docs/CHANGELOG.md"
-        WARN_COUNT=$((WARN_COUNT + 1))
-    fi
-fi
-
-# 3f. Lane-field contract (OA-01 regression guard — only when template staged)
-TEMPLATE_STAGED=$(git diff --cached --name-only --diff-filter=AM | grep -E '^phieu/TICKET_TEMPLATE\.md$' || true)
-if [ -n "$TEMPLATE_STAGED" ] && [ -f "scripts/lane-check-contract.sh" ]; then
-    if bash scripts/lane-check-contract.sh; then
-        green "  ✅ Lane-field contract OK"
-    else
-        red "  ❌ Lane-field contract failed (OA-01 — template lost Lane field)"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
-    fi
-fi
-
-echo ""
-
-# ─────────────────────────────────────────────────────────────────────
-# 4. Security gate (INV-009 source + INV-010 runtime — Sub-mech F)
-#    Doctrine: WORKFLOW_V2.2.md §7 Sub-mech F. Wired via P306 backport.
-# ─────────────────────────────────────────────────────────────────────
-blue "[4/8] Security gate (INV-009 + INV-010)"
-
-if [ -f "scripts/security-gate.sh" ]; then
-    if bash scripts/security-gate.sh --mechanical-only > /tmp/sos-secgate.log 2>&1; then
-        green "  ✅ Security gate passed"
-    else
-        red "  ❌ Security gate failed"
-        tail -20 /tmp/sos-secgate.log
-        echo "     Full log: /tmp/sos-secgate.log"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
-    fi
-else
-    echo "  ⏭  scripts/security-gate.sh missing — run scripts/install-hooks.sh after bootstrap"
-fi
-
-echo ""
-
-# ─────────────────────────────────────────────────────────────────────
-# 5. Case-collision gate (path khác-case cùng tồn tại — vỡ Linux/CI)
-#    Doctrine: Két dogfood — Scripts/ ↔ scripts/ thrash.
-# ─────────────────────────────────────────────────────────────────────
-blue "[5/8] Case-collision gate"
-
-if [ -f "scripts/check-case-collision.sh" ]; then
-    if bash scripts/check-case-collision.sh; then
-        green "  ✅ No case collision"
-    else
-        red "  ❌ Case collision (chi tiết ở trên)"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
-    fi
-else
-    echo "  ⏭  scripts/check-case-collision.sh missing — run scripts/install-hooks.sh after bootstrap"
-fi
-
-echo ""
-
-# ─────────────────────────────────────────────────────────────────────
-# 6. No-code-on-default-branch gate (force feature branch for product code)
-#    Doctrine: gate INVARIANT (no code on default) not PROCEDURE (when to branch).
-#    ket P020 live failure. Agent-agnostic git-level (P049–P052 harvest).
-# ─────────────────────────────────────────────────────────────────────
-blue "[6/8] No-code-on-default gate"
-
-if [ -f "scripts/no-code-on-default.sh" ]; then
-    if bash scripts/no-code-on-default.sh; then
-        green "  ✅ No product code on default branch (or on a feature branch)"
-    else
-        red "  ❌ Product code staged on default branch (detail above)"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
-    fi
-else
-    red "  ❌ scripts/no-code-on-default.sh missing — cannot verify no product code on default (fail-CLOSED)"
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-fi
-
-echo ""
-
-# ─────────────────────────────────────────────────────────────────────
-# 7. Block .env* secret-file commits (allow .env.example).
-#    Agent-agnostic git-level backstop to the Claude-only PreToolUse block-env-edit.sh (P046).
-#    Grounding: media audit SEC-SECRET-01 (.env.docker committed → irreversible leak).
-# ─────────────────────────────────────────────────────────────────────
-blue "[7/8] Block .env* commit"
-
-if [ -f "scripts/block-env-commit.sh" ]; then
-    if bash scripts/block-env-commit.sh; then
-        green "  ✅ No .env* secret file staged"
-    else
-        red "  ❌ .env* secret file staged (detail above)"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
-    fi
-else
-    red "  ❌ scripts/block-env-commit.sh missing — cannot verify .env* not staged (fail-CLOSED)"
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-fi
-
-echo ""
-
-# ─────────────────────────────────────────────────────────────────────
-# 8. Trust gate (auto-exec baseline-diff + hidden-unicode — P073, port thanhtra v1.2)
-#    Doctrine: BACKLOG line 246 Rules-File-Backdoor threat model. Baseline-diff (not hard-fail)
-#    because the kit ships auto-exec as product; change = FAIL until reviewed + rebaselined.
-# ─────────────────────────────────────────────────────────────────────
-blue "[8/8] Trust gate (auto-exec baseline + hidden-unicode)"
-
-if [ -f "scripts/trust-gate.sh" ]; then
-    if bash scripts/trust-gate.sh; then
-        green "  ✅ Auto-exec surfaces match baseline; no hidden unicode"
-    else
-        red "  ❌ Trust gate failed (detail above)"
-        FAIL_COUNT=$((FAIL_COUNT + 1))
-    fi
-else
-    echo "  ⏭  scripts/trust-gate.sh missing — run scripts/install-hooks.sh after bootstrap"
-fi
-
-echo ""
-
-# ─────────────────────────────────────────────────────────────────────
-# Summary
-# ─────────────────────────────────────────────────────────────────────
-echo "─────────────────────────────────────────────────────────────"
-if [ "$FAIL_COUNT" = "0" ] && [ "$WARN_COUNT" = "0" ]; then
+if [ "$FAILED" -eq 0 ]; then
     green "✅ All checks passed."
-elif [ "$FAIL_COUNT" = "0" ]; then
-    yellow "⚠️  $WARN_COUNT warning(s). Commit allowed."
 else
-    red "❌ $FAIL_COUNT check(s) failed. Commit blocked."
-    echo ""
-    echo "Fix issues above, or use 'git commit --no-verify' to bypass (NOT recommended)."
+    red "❌ $FAILED check(s) failed. Commit blocked."
     exit 1
 fi
