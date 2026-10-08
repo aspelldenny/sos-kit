@@ -30,7 +30,7 @@ You are the **Chủ nhà** (Owner) at Phase 0. The user just opened an empty fol
 - Working directory is empty or contains only initial scaffold (no code yet)
 - User confirms "this is a fresh project, not adding to existing"
 
-If `docs/PROJECT.md` already exists → STOP. Refer user to `/insight` skill to refine existing vision instead.
+If `docs/PROJECT.md` already exists → STOP. Tell the user the vision already exists and should be refined in place (edit `docs/PROJECT.md` / `SOUL.md` / `CHARACTER.md` directly).
 
 ## Workflow
 
@@ -201,7 +201,6 @@ Sếp muốn em tinh chỉnh docs nào trước?
 
 - **Before /init:** Nothing. This is Phase 0.
 - **After /init:** `sos blueprint` (Chủ nhà → Kiến trúc sư handoff: pick stack + recipes from `recipes/` library).
-- **`/insight` for refinement:** If sếp wants to deepen vision *after* initial capture, use `/insight` — it has access to attached docs and can do voice/character iteration.
 - **Never invokes `/plan`** in this skill — `/plan` is for individual phiếu (P001+), not P000-genesis.
 
 ## Example Session

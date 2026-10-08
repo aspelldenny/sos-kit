@@ -2,6 +2,15 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased — prompt audit (Opus 5.5 / Sonnet 5.5) — 2026-10-08
+
+- Fixed `/security-review` INV-LOCAL extraction: regex now matches `##` and `###` headings (`^#{2,3}\s*INV-LOCAL-`); the repo's own `### INV-LOCAL-1` was silently replaced by "N/A".
+- Fixed `/advisory-scan` sentinel mismatch: Trinh sát now emits `<!-- INBOX_APPEND_START/END -->`, the markers the `advisory-inbox` binary parses (`src/sentinel.rs`); `docs/HANDOFF.md` + `templates/advisory-inbox.md` describe the binary pipe.
+- Corrected "ADVISORY — does not block merge" wording (security-review, boundary-check, HANDOFF, README): in PR mode the APPROVE comment feeds the `block-unsafe-merge` gate.
+- Subagent escalation routes through Quản đốc: per Claude Code sub-agent docs, subagents never get `AskUserQuestion` and background subagents lose `TaskCreate/TaskUpdate/TaskList`. Removed them from architect/worker frontmatter and replaced the dead "MANDATORY: track work + ask via tools" sections; fixed orchestrator's "background auto-denies" claim (prompts surface in main session).
+- Instruction-file drift: stale paths to parked skills (`decide`/`insight`/`/review`/`/qa`), removed `bootstrap/`, stale `block-unsafe-merge.sh` line refs, `Task`→`Agent` tool name, orchestrator line counts, "6 principles"→7, `phieu` location, missing `orchestrator-guard.sh` in scripts list; same-file contradictions in architect (tool list), worker (phiếu writes, 4a missing user-visible-wording trigger), boundary-check (output outside sentinel), orchestrator (turn-1 ToolSearch vs "no tools").
+- Contract-surface edit approved directly by Chủ nhà ("apply tất cả") — CLAUDE.md Rule 9.
+
 **Older entries (P078b3 and earlier — v2.3 wave start through v2.1/v2.0/v1) archived to `docs/archive/CHANGELOG_pre-P078c.md`** on 2026-07-23 to keep this file under the 40k doc-size threshold.
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22

@@ -15,7 +15,7 @@ You are the orchestrator (Quản đốc) running the `/advisory-scan` slash comm
 
 ## Step 1 — Spawn Trinh sát subagent
 
-Use `Task` tool with `subagent_type: "advisory-watch"`. Prompt: `$ARGUMENTS` (empty = full scan; specific dep name = focused mode).
+Use the `Agent` tool with `subagent_type: "advisory-watch"`. Prompt: `$ARGUMENTS` (empty = full scan; specific dep name = focused mode).
 
 Trinh sát returns markdown report with `<!-- INBOX_APPEND_START -->` / `<!-- INBOX_APPEND_END -->` sentinel block containing new advisory rows.
 

@@ -71,7 +71,7 @@ Each stage belongs to exactly one layer. Crossing layers without a handoff is th
 
 After `sos init security` writes `.sos-stack.toml`, run `/advisory-scan` in Claude Code to invoke the Trinh sát (advisory-watch specialist subagent — P041). It surfaces GHSA + vendor advisories that match your stack's resolved dep versions into `docs/security/advisory-inbox.md`. Chủ nhà reviews each row and marks `dismissed` or creates a follow-on phiếu to patch. See [`docs/SETUP.md`](./docs/SETUP.md) "Security pipeline" section.
 
-For pre-merge security boundary checks, run `/security-review <PR>` (or branch / range) to invoke Giám sát (boundary-check specialist subagent — P042). It checks the PR diff against 5 generic INV (env var template / external service timeout / cross-user binding / webhook signature / dep major bump audit) and posts a sentinel comment to the PR. In **PR mode** (block-unsafe-merge-governed) the sentinel is ALWAYS posted incl. clean APPROVE (P053 — needed for the merge gate); silent-when-clean now applies to ADVISORY / branch / range mode only. KHÔNG block merge. Extend with project-specific INV via `templates/INVARIANTS-template.md`.
+For pre-merge security boundary checks, run `/security-review <PR>` (or branch / range) to invoke Giám sát (boundary-check specialist subagent — P042). It checks the PR diff against 5 generic INV (env var template / external service timeout / cross-user binding / webhook signature / dep major bump audit) and posts a sentinel comment to the PR. In **PR mode** (block-unsafe-merge-governed) the sentinel is ALWAYS posted incl. clean APPROVE (P053 — needed for the merge gate); silent-when-clean applies to branch / range mode only. In PR mode the APPROVE comment is what `block-unsafe-merge` requires before merging a security-surface PR. Extend with project-specific INV via `templates/INVARIANTS-template.md`.
 
 ### ship subcommands
 
@@ -115,8 +115,8 @@ Two role-bound subagents live in `.claude/agents/` and run inside the same Claud
 | Subagent | File | Tools allowed | Cannot |
 |---|---|---|---|
 | **orchestrator** (Quản đốc) | `agents/orchestrator.md` (handbook for main session) | Read, Write, Glob, Grep, Bash (marker ops), Task*, AskUserQuestion, Skill | Read source code for "context"; write production code; edit vision docs; skip APPROVAL_GATE |
-| **architect** | `.claude/agents/architect.md` | Read, Write, Glob, TaskCreate/Update/List, AskUserQuestion | Bash, Grep, Edit, read source files (blocked by hook) |
-| **worker** | `.claude/agents/worker.md` | Read, Write, Edit, Glob, Grep, Bash, TaskCreate/Update/List, AskUserQuestion | Read PROJECT.md / SOUL.md / CHARACTER.md (vision docs) |
+| **architect** | `.claude/agents/architect.md` | Read, Write, Glob (escalates via Quản đốc) | Bash, Grep, Edit, read source files (blocked by hook) |
+| **worker** | `.claude/agents/worker.md` | Read, Write, Edit, Glob, Grep, Bash (escalates via Quản đốc) | Read PROJECT.md / SOUL.md / CHARACTER.md (vision docs) |
 | **advisory-watch** (Trinh sát) | `agents/advisory-watch.md` | Read, Grep, Glob, WebFetch, WebSearch, Bash (scoped: parser scripts only) | Edit, Write, Task, Skill — read-only-output specialist (spawned by Quản đốc via `/advisory-scan`) |
 | **boundary-check** (Giám sát) | `agents/boundary-check.md` | Read, Grep, Glob, Bash (scoped: `git diff/show/log` + `grep` only) | Edit, Write, WebFetch, WebSearch, Task, Skill, `gh pr comment`, arbitrary Bash — read-only-output specialist (spawned by Quản đốc via `/security-review`) |
 

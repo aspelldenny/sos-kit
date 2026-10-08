@@ -1,12 +1,12 @@
 ---
-description: Run boundary-check security review on a PR / branch / commit range. Spawns Giám sát subagent which checks 5 generic INV (env var / external service / cross-user / webhook / dep major). Posts ADVISORY comment to PR (silent if clean). KHÔNG block merge.
+description: Run boundary-check security review on a PR / branch / commit range. Spawns Giám sát subagent which checks 5 generic INV (env var / external service / cross-user / webhook / dep major). Posts the verdict as a PR comment (always in PR mode; silent-when-clean in branch/range mode). In PR mode the APPROVE comment is what `block-unsafe-merge` requires before a security-surface merge.
 ---
 
 # /security-review
 
 You are the orchestrator (Quản đốc) running the security-review slash command. Execute these steps in order — DO NOT skip, DO NOT improvise. Boundary checks happen INSIDE the Giám sát subagent, NOT in this main session.
 
-**ADVISORY mode reminder:** This command surfaces evidence for Chủ nhà review. It does NOT block merge, does NOT auto-fix, does NOT call `gh pr merge --block`.
+**Scope reminder:** This command surfaces evidence for Chủ nhà review. It does not auto-fix and does not call `gh pr merge --block`; in PR mode its `Verdict: APPROVE` comment is the input the `block-unsafe-merge` hook checks.
 
 ## Step 0 — Determine review scope
 
@@ -36,10 +36,10 @@ Capture PR body (PR mode only, for INV-5 changelog check): `gh pr view <N> --jso
 ## Step 2 — Spawn Giám sát subagent
 
 **Step 2a — Inject project-local invariants (INV-LOCAL slot).** Giám sát ships only the *generic* 5-INV rubric and by contract does NOT self-read INVARIANTS.md (`agents/boundary-check.md`: *"Caller's responsibility to inject INV-LOCAL-*"*). The caller MUST fill the INV-LOCAL slot below:
-- If `docs/security/INVARIANTS.md` exists → read it and extract the block of entries whose headings match `^##\s*INV-LOCAL-` (dynamic read — do NOT hardcode the INV list into this command; it is an N-repo template).
+- If `docs/security/INVARIANTS.md` exists → read it and extract the block of entries whose headings match `^#{2,3}\s*INV-LOCAL-` (projects use both `##` and `###` levels) (dynamic read — do NOT hardcode the INV list into this command; it is an N-repo template).
 - If the file is absent OR has no `INV-LOCAL-*` entries → the slot value is the literal string `N/A — no project-local invariants defined`.
 
-**Step 2b — Spawn.** Use `Task` tool with `subagent_type: "boundary-check"`. Fill EVERY `< >` slot in the template — including the INV-LOCAL slot (do NOT drop it):
+**Step 2b — Spawn.** Use the `Agent` tool with `subagent_type: "boundary-check"`. Fill EVERY `< >` slot in the template — including the INV-LOCAL slot (do NOT drop it):
 
 ```
 You are Giám sát. Run your full workflow (Bước 0 receive context → Bước 1 identify scope per INV → Bước 2 check rubric → Bước 3 compose verdict → Bước 4 emit final report).
@@ -66,10 +66,10 @@ Use `Grep` or string parsing to locate the block between `<!-- security-review-s
 
 **PR mode (preferred) — post for BOTH clean APPROVE and NEEDS_REVIEW:**
 - `gh pr comment <N> --body "<sentinel-block-content>"` — post the full sentinel-wrapped block (chứa `<!-- security-review-start -->` … `Verdict: APPROVE|NEEDS_REVIEW` … `<!-- security-review-end -->`) as a PR comment.
-- **Lý do post cả clean APPROVE:** `scripts/block-unsafe-merge.sh:103-109` grep comment cho `<!-- security-review-start -->` + `^Verdict:` chứa `APPROVE` để cho merge. Không có comment APPROVE = hook chặn merge (deadlock). PR mode KHÔNG áp silent-when-clean (xem Step 3).
+- **Lý do post cả clean APPROVE:** `claude-hooks block-unsafe-merge` (via the `scripts/block-unsafe-merge.sh` shim) greps comments cho `<!-- security-review-start -->` + `^Verdict:` chứa `APPROVE` để cho merge. Không có comment APPROVE = hook chặn merge (deadlock). PR mode KHÔNG áp silent-when-clean (xem Step 3).
 - Verify post: `gh pr view <N> --json comments` should show the new comment with the sentinel block.
 
-> **Known limitation — APPROVE sentinel is NOT SHA-scoped.** `scripts/block-unsafe-merge.sh:102-106` greps for ANY historical `Verdict: APPROVE` sentinel comment on the PR, with no binding to the reviewed commit's head SHA. Hệ quả: trên một multi-commit PR, một clean APPROVE trên commit A có thể satisfy gate cho commit B+C chưa review. **Mitigations:** (1) Chủ nhà đọc comment APPROVE có timestamp trước khi merge; (2) squash-merge collapse history. SHA-scoping tracked separately = **[P055]** (docs/BACKLOG.md Open backlog). Mirror pattern: documented bypass at block-unsafe-merge.sh:15-16.
+> **Known limitation — APPROVE sentinel is NOT SHA-scoped.** `claude-hooks block-unsafe-merge` greps for ANY historical `Verdict: APPROVE` sentinel comment on the PR, with no binding to the reviewed commit's head SHA. Hệ quả: trên một multi-commit PR, một clean APPROVE trên commit A có thể satisfy gate cho commit B+C chưa review. **Mitigations:** (1) Chủ nhà đọc comment APPROVE có timestamp trước khi merge; (2) squash-merge collapse history. SHA-scoping tracked separately = **[P055]** (docs/BACKLOG.md Open backlog). Mirror pattern: documented bypass at block-unsafe-merge.sh:15-16.
 
 **Branch/range mode (no PR context):**
 - Write sentinel block to `docs/security/last-review.md` (or filename user prefers).
@@ -85,7 +85,7 @@ Tell user:
 - Verdict: `APPROVE` or `NEEDS_REVIEW`.
 - Per-INV summary (1-line each): `INV-1 PASS/FLAG`, `INV-2 PASS/FLAG`, `INV-3 PASS/FLAG`, `INV-4 PASS/FLAG`, `INV-5 PASS/FLAG`.
 - Where comment posted (PR #N) OR file written (`<path>`).
-- ADVISORY reminder: merge gate is NOT affected. Chủ nhà reads the comment and decides.
+- PR mode: a clean `APPROVE` comment satisfies the `block-unsafe-merge` gate; `NEEDS_REVIEW` keeps a security-surface merge blocked until Chủ nhà resolves it.
 
 ## Hard rules
 
