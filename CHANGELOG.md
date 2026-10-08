@@ -2,7 +2,7 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## Unreleased — Harness Lite pilot (started 10-05) — 2026-10-08
+## Unreleased — Harness Lite pilot → v3 (started 10-05) — 2026-10-08
 
 - Restored lightweight worker challenge and evidence-based repair/closure loops; clarified risk-based role/model selection and stopping criteria. Uses existing briefs/state, without new tools or mandatory debate rounds. This prompt revision is not automatically synced into app-local adapters.
 
@@ -11,6 +11,7 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 - Added `harness-lite/`: a model-neutral shared contract, four thin role prompts and manual adoption guidance. Chủ nhà owns intent and final acceptance; AI owns intermediate execution, repair and risk-based independent review.
 - Refined test guidance: independent behavioral expectations, credible regressions and coverage-preserving test audit; risk/journey-driven local, UI and E2E checks on the combined candidate. Added a five-slice adoption example; the earlier synthetic smoke does not validate this new cadence on a real app.
 - Added `docs/research/HARNESS_SURVEY_2026-10-08.md`: evidence from Lucilius/Thirty/Payquill/Nếp nhà vs Anthropic/OpenAI guidance and community harnesses; proposes advisor-in-slice, outside-in reviewer on events, optional cross-model destroyer at acceptance.
+- v3 triage (`docs/plans/V3_TRIAGE_2026-10-08.md`): keep/change/replace/archive per tool and hook; decisions: shrink `sos` to `sos lite install/update/check`, gitleaks for secrets, `no-code-on-default` optional per app. BACKLOG active sprint → SOS Kit v3.
 - Kit prompt package remains a pilot, without a CLI profile or native agent registration. Separate local tool/app migration is recorded in the Lite README; the legacy SOS workflow remains unchanged. Behavioral effectiveness requires a real-project pilot; Markdown checks alone do not establish it.
 ## Unreleased — prompt audit (Opus 5.5 / Sonnet 5.5) — 2026-10-08
 

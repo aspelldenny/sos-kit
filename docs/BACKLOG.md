@@ -7,7 +7,24 @@
 
 ---
 
-## 🔒 Active sprint — runtime-portability foundation (Sếp ratified 2026-07-20)
+## 🔒 Active sprint — SOS Kit v3: Harness Lite làm lõi (Sếp chốt 2026-10-08)
+
+> **Mục tiêu:** đại phẫu vừa phải. Giữ triết lý (người giữ ý định và nghiệm thu, AI làm phần giữa), Lite làm lõi, giữ hook có tác dụng, bỏ hook thủ tục. Áp vào app mới đang spy để đo.
+> **Nguồn:** `docs/research/HARNESS_SURVEY_2026-10-08.md` (bằng chứng + §8 advisor/người soát), `docs/plans/V3_TRIAGE_2026-10-08.md` (bảng phân loại + 3 quyết định).
+> **Mốc:** tag `v2-final` (42ff006) = bản SOS v2 đầy đủ cuối cùng, đã qua prompt-audit.
+
+- [x] **Bước 0 — cất trạng thái** (08/10): commit prompt-audit → main + tag `v2-final`; Lite + survey trên `feat/harness-lite-adaptive`; `claude-hooks` 378bf0d (114 test), `ship` 3b6ea8c (61 test), Thirty 7c131df, Payquill fe4e2d8 (chỉ file harness). Chưa push.
+- [x] **Bước 1 — phân loại** (08/10): Sếp chốt: `sos` thu gọn còn `sos lite install/update/check`; secrets dùng gitleaks + runtime-scan; `no-code-on-default` tuỳ chọn theo app.
+- [ ] **Bước 2.1** — nhánh `v3`; chuyển workflow v2 vào `archive/v2/`; README + CLAUDE.md của kit thành bản đồ ngắn (dưới 100 dòng).
+- [ ] **Bước 2.2** — sửa role Lite: worker + advisor; reviewer từ ngoài vào + gọi theo sự kiện; báo cáo buộc bằng chứng.
+- [ ] **Bước 2.3** — bộ gate lõi (env, features-guard, quality-gate, gitleaks + runtime-scan, doc-rotate cap, mẫu `make ready`); thông báo lỗi dạng cách sửa; bỏ docs-gate mỗi commit; banner SessionStart còn khoảng 5 dòng.
+- [ ] **Bước 2.4** — thu gọn binary `sos`; dry-run cài vào repo trống + Thirty.
+- [ ] **Bước 3** — áp vào app mới khi spy xong; đo token / thời gian / lỗi theo từng tầng.
+- Ngoài phạm vi, chưa làm: `guard` còn 569 dòng chưa commit; Thirty còn việc dở không thuộc harness (DESIGN/SOUL/hồ sơ App Store).
+
+---
+
+## ⏸ Previous sprint — runtime-portability foundation (Sếp ratified 2026-07-20; superseded by v3 on 2026-10-08)
 
 > **Mục tiêu:** rút SOS Kit ra khỏi Claude Code thành một core độc lập runtime, sau đó cắm lại Claude Code như adapter đầu tiên, viết Codex adapter và dogfood trước khi đóng gói.
 >
