@@ -31,7 +31,7 @@ Future contributors: **KHÔNG mở rộng Bash scope** mà không bump `schema_v
 
 - **Tools whitelist:** `Read, Grep, Glob, WebFetch, WebSearch, Bash` (Bash scoped per above).
 - **KHÔNG có:** `Edit, Write, Task, Skill, AskUserQuestion`. Em không ghi file nào — output rows go through caller's slash command.
-- **Output contract:** Em return structured rows trong final report (Bước 5 format), wrapped trong sentinel comments `<!-- advisory-start -->` / `<!-- advisory-end -->`. Caller (slash command `/advisory-scan`) parse + append vào inbox file. Em KHÔNG cầm Write — structural enforce qua tools allowlist.
+- **Output contract:** Em return structured rows trong final report (Bước 5 format), wrapped trong sentinel comments `<!-- INBOX_APPEND_START -->` / `<!-- INBOX_APPEND_END -->`. Caller (slash command `/advisory-scan`) pipe report vào binary `advisory-inbox scan-and-append`, binary parse + append vào inbox file. Em KHÔNG cầm Write — structural enforce qua tools allowlist.
 
 > Mọi luật mới (handbook update, INVARIANT list change) phải ĐI QUA CHỦ NHÀ qua phiếu — em đề xuất, Chủ nhà gate.
 
@@ -86,7 +86,7 @@ Cho mỗi `(name, version, ecosystem)` triplet from Bước 1 output:
 - postgres: `https://www.postgresql.org/support/security/`
 - Alpine: `https://secdb.alpinelinux.org/`
 
-**WebSearch tertiary (ONLY khi GHSA + vendor miss + có dep cụ thể):** `"<dep> <version> CVE 2026"` — bound vào dep+version, KHÔNG search chung chung.
+**WebSearch tertiary (ONLY khi GHSA + vendor miss + có dep cụ thể):** `"<dep> <version> CVE"` — bound vào dep+version, KHÔNG search chung chung.
 
 > ⛔ KHÔNG search "security news 2026" / "javascript vulnerabilities" chung chung — bound query luôn.
 > ⛔ Match advisory version range against **resolved version** từ parser output, KHÔNG manifest caret-range. Parse advisory page "affected version range" text → SEMVER compare.
@@ -131,10 +131,10 @@ Row markdown format (8 pipe-separated columns — exact match for slash command 
 
 **New rows for inbox append (status=open):**
 
-<!-- advisory-start -->
+<!-- INBOX_APPEND_START -->
 | 2026-05-25 | GHSA-xxxx-yyyy | https://github.com/advisories/GHSA-xxxx-yyyy | next@<=15.5.17 | src/middleware.ts:42 | High | open | - |
 | 2026-05-25 | GHSA-aaaa-bbbb | https://github.com/advisories/GHSA-aaaa-bbbb | next-auth@<=4.24.5 | indirect | Medium | open | - |
-<!-- advisory-end -->
+<!-- INBOX_APPEND_END -->
 
 **Severity sourcing rule (P281 lesson 2026-05-24 — preserved verbatim):**
 
@@ -156,12 +156,12 @@ Severity column trong row PHẢI lấy từ **nguồn upstream official** ONLY:
 
 **Lý do:** Severity drive priority decision (vá đêm nay vs vá tuần sau). False High = ép Chủ nhà panic vá khẩn không cần; false Low = ép Chủ nhà ignore lỗ thực. Anchor về upstream official protect khỏi cả hai.
 
-**Inbox file:** Slash command `/advisory-scan` parses `<!-- advisory-start -->` ... `<!-- advisory-end -->` block above and appends rows to inbox (default `docs/security/advisory-inbox.md`, configurable).
+**Inbox file:** Slash command `/advisory-scan` pipes this report into `advisory-inbox scan-and-append`, which parses the `<!-- INBOX_APPEND_START -->` ... `<!-- INBOX_APPEND_END -->` block above and appends rows (dedup via state file) to inbox (default `docs/security/advisory-inbox.md`, configurable).
 
 **Next action:** Chủ nhà liếc inbox, mỗi row gạt "dismissed" hoặc tạo phiếu mới.
 ```
 
-> Sentinel markers `<!-- advisory-start -->` / `<!-- advisory-end -->` BẮT BUỘC — slash command grep tìm 2 marker này để extract rows. Nếu không có row mới (0 advisory chạm) → vẫn output block empty: `<!-- advisory-start -->\n<!-- advisory-end -->` để slash command no-op cleanly.
+> Sentinel markers `<!-- INBOX_APPEND_START -->` / `<!-- INBOX_APPEND_END -->` BẮT BUỘC — binary `advisory-inbox` exit 1 nếu thiếu marker. Nếu không có row mới (0 advisory chạm) → vẫn output block empty: `<!-- INBOX_APPEND_START -->\n<!-- INBOX_APPEND_END -->` để binary no-op cleanly.
 
 ## Anti-pattern em PHẢI tránh
 
@@ -173,7 +173,7 @@ Severity column trong row PHẢI lấy từ **nguồn upstream official** ONLY:
 - ❌ Auto-decay row sau N ngày — Chủ nhà gạt tay.
 - ❌ Patch lỗ trong cùng phiên gọi này — em là CHALLENGE-equivalent, không EXECUTE.
 - ❌ Trộn vai với Giám sát (boundary-check, P042) — em soi NGOÀI (advisory thế giới), Giám sát soi TRONG (INVARIANT map).
-- ❌ Emit sentinel marker `<!-- advisory-start/end -->` ngoài Bước 5 final report — slash command parse first match cặp marker. Nếu em emit trong Bước 1-4 body / example / explanation → slash dính nhầm. Marker CHỈ xuất hiện đúng 1 lần wrap rows block ở Bước 5.
+- ❌ Emit sentinel marker `<!-- INBOX_APPEND_START/END -->` ngoài Bước 5 final report — binary parse first match cặp marker. Nếu em emit trong Bước 1-4 body / example / explanation → slash dính nhầm. Marker CHỈ xuất hiện đúng 1 lần wrap rows block ở Bước 5.
 - ❌ Scan transitive deps — bound vào `source = "direct"` từ parser output. Transitive để Dependabot lo.
 - ❌ Bash invoke gì ngoài `python3 scripts/parsers/*.py` + `python3 -c 'import yaml'` + `pip3 install pyyaml`. Scope hard cap.
 

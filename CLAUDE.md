@@ -52,7 +52,7 @@ sos-kit/
 ├── INSTALL.md              # v2 install guide (5-min, with verify steps)
 ├── LICENSE
 ├── agents/                 # Orchestrator + role subagent definitions
-│   ├── orchestrator.md     # Quản đốc handbook (main-session orchestrator persona, ≤105 lines, session contract — includes deferred-tool loading section)
+│   ├── orchestrator.md     # Quản đốc handbook (main-session orchestrator persona, session contract — includes deferred-tool loading section)
 │   ├── architect.md        # Kiến trúc sư subagent (Read/Write/Glob, no Bash/Grep/Edit)
 │   ├── worker.md           # Thợ subagent (full code tools, no vision docs)
 │   ├── advisory-watch.md   # Trinh sát specialist subagent (P041 — scoped Bash, queries GHSA)
@@ -81,7 +81,7 @@ sos-kit/
 │   ├── HANDOFF.md          # 5 inter-layer protocols (insight, routing, phiếu, escalation, discovery)
 │   ├── LAYERS.md           # 3-role model (Chủ nhà / Kiến trúc sư / Thợ). Foundation doc.
 │   ├── ORCHESTRATION.md    # Full orchestrator spec (state machine, failure modes)
-│   ├── PHILOSOPHY.md       # Stable — 6 operational principles + Principle 0, change carefully
+│   ├── PHILOSOPHY.md       # Stable — 7 operational principles + Principle 0, change carefully
 │   ├── SETUP.md            # Install guide — MUST match actual binary names + cargo paths
 │   └── ticket/             # Phiếu dir — active (root) + done/ archive. Canonical: .docs-gate.toml ticket_dir
 ├── hooks/
@@ -113,6 +113,7 @@ sos-kit/
 │   ├── idea-smell.sh       # UserPromptSubmit hook — regex idea-smell in Sếp message → inject /idea reminder (skills dogfood 2026-06-11)
 │   ├── block-unsafe-merge.sh  # PreToolUse hook — B+3 fail-closed shim → `claude-hooks block-unsafe-merge` binary (gates `gh pr merge <N>` without security APPROVE; binary absent = BLOCK LOUD) [P064]
 │   ├── lane-check-contract.sh  # pre-commit [3/8] sub-check 3f — OA-01 lane-field contract guard (runs `doctor lane-check` on phiếu/TICKET_TEMPLATE.md when staged; degraded warn-skip when `doctor` absent) [P082]
+│   ├── orchestrator-guard.sh  # PreToolUse hook — block main-session Edit/Write on product source unless `.sos-state/worker-active` is set
 │   ├── no-code-on-default.sh  # pre-commit [6/8] — block product code committed on default branch (force feature branch; agent-agnostic)
 │   ├── security-gate.sh, check-*.py, parsers/  # commit-time security gate + advisory lockfile parsers
 │   ├── session-start-banner.sh  # SessionStart hook — show BACKLOG on session open
@@ -147,11 +148,11 @@ sos-kit/
 
 ### Edit vision doc templates (`phieu/VISION_TEMPLATES/`)
 1. Keep templates generic — no project-specific wording. Placeholders use `<angle brackets>`.
-2. If you add/remove a section in a template, update `/insight` skill's "Target section" list in `skills/insight/SKILL.md`.
+2. If you add/remove a section in a template, update the "Target section" list in `skills/attic/insight/SKILL.md` (parked — keep it in sync so un-parking doesn't resurrect a stale list).
 3. Also reflect the change in `docs/HANDOFF.md` Handoff 0 section.
 
 ### Edit RELAY_PROTOCOL.md
-1. If relay format changes (e.g. escalation fields), update the example session in `skills/decide/SKILL.md` (Worker-side escalation format must match).
+1. If relay format changes (e.g. escalation fields), update the example session in `skills/attic/decide/SKILL.md` (parked; Worker-side escalation format must match).
 2. Also update `docs/HANDOFF.md` Handoff 3 format.
 
 ### Add a new layer-specific skill
@@ -167,7 +168,7 @@ sos-kit/
 3. Add an expandable example in `README.md` "Example configs"
 
 ### Edit orchestrator behavior (`agents/orchestrator.md` + `docs/ORCHESTRATION.md`)
-1. `agents/orchestrator.md` is the condensed Quản đốc handbook (~148 lines after v2.2 cụm A additions — lane budget + rubric inject + sensor arm) — system-prompt contract for the main session in every sos-kit project. Keep terse + imperative.
+1. `agents/orchestrator.md` is the condensed Quản đốc handbook — system-prompt contract for the main session in every sos-kit project. Keep terse + imperative.
 2. `docs/ORCHESTRATION.md` is the full spec (state machine, failure modes, concrete example session). When changing state machine logic, update BOTH.
 3. If you add a new orchestrator hard rule, mirror it as a one-liner in `agents/orchestrator.md` "Hard rules" section AND a fuller entry in `docs/ORCHESTRATION.md` "Hard rules".
 4. SessionStart banner (`scripts/session-start-banner.sh`) references both files — verify the banner still surfaces them after edit.
@@ -220,7 +221,7 @@ Per Rule #8 above — when contributor edits these, BẮT BUỘC update target d
 | `agents/boundary-check.md` or `advisory-watch.md` | `docs/LAYERS.md` specialist subagents subsection + `README.md` row | Specialist agent inventory |
 | `phieu/TICKET_TEMPLATE.md` format | `phieu/README.md` + `docs/HANDOFF.md` Handoff 2 | Format contract Architect ↔ Worker |
 | `phieu/phieu.sh` function behavior | `phieu/README.md` + `docs/SETUP.md` install step | User-facing CLI |
-| `phieu/VISION_TEMPLATES/*.md` section change | `skills/insight/SKILL.md` "Target section" list + `docs/HANDOFF.md` Handoff 0 | Insight skill template binding |
+| `phieu/VISION_TEMPLATES/*.md` section change | `skills/attic/insight/SKILL.md` "Target section" list + `docs/HANDOFF.md` Handoff 0 | Insight skill template binding |
 | `hooks/pre-commit` SECTION add/remove (⚠️ this changes the **phase COUNT** `[N/M]`) | `CLAUDE.md` "Hook chain" + `docs/SETUP.md` — **update the M everywhere it appears** (every `[N/M]` label, the `# Runs in order` header list, AND any prose "Phase 5"/"5 phases" in CLAUDE.md + ARCHITECTURE) | Hook chain integrity. P062: phase-count drifted silently 3 phiếu (doc said "Phase 5" while hook was `[8/8]`) because the trigger only flagged section add/remove, not the count it implies — Architect reads stale doc → wrong phase in next phiếu. |
 | `scripts/no-code-on-default.sh` add/remove | `CLAUDE.md` scripts list + `docs/SETUP.md` hook section | Gate inventory (P050) |
 | `scripts/block-env-commit.sh` add/remove | `CLAUDE.md` scripts list + `docs/SETUP.md` hook section | Gate inventory (P052) |
@@ -267,9 +268,9 @@ Internal conversations with the maintainer (Denny / Nguyen) are in Vietnamese; s
 
 Claude Code's `AskUserQuestion`, `TaskCreate`, `TaskUpdate`, `TaskList` are **deferred** tools — they don't auto-load in fresh sessions. Direct invocation fails with `InputValidationError: tool not loaded`.
 
-The main-session orchestrator (Quản đốc) and Architect subagent both rely on these:
-- `AskUserQuestion` — APPROVAL_GATE + FORCE_ESCALATION (orchestrator), multi-choice escalation (Architect)
-- `TaskCreate` / `TaskUpdate` / `TaskList` — sprint tracking visibility (both)
+The main-session orchestrator (Quản đốc) relies on these:
+- `AskUserQuestion` — APPROVAL_GATE + FORCE_ESCALATION, and relaying every architect/worker escalation (subagents never get `AskUserQuestion`)
+- `TaskCreate` / `TaskUpdate` / `TaskList` — sprint tracking visibility (background subagents don't get these)
 
 **On every new Claude Code session in a sos-kit project**, the first turn MUST invoke `ToolSearch` to register them:
 
@@ -282,7 +283,7 @@ This is documented as a mandatory orchestrator session-start step in `agents/orc
 ## Maintainer-only conventions
 
 The maintainer (Denny) uses:
-- **Phiếu workflow** — ticket IDs `P<NNN>-<slug>`, shell function `phieu`, worktree per ticket. Lives in his `~/.zshrc`, not in this repo (yet).
+- **Phiếu workflow** — ticket IDs `P<NNN>-<slug>`, shell function `phieu`, worktree per ticket. Shipped as `phieu/phieu.sh`, sourced from `~/.zshrc`.
 - **Vietnamese communication with Claude** — em/anh xưng hô, Vietnamese in chat + commits in English.
 
 If you're the maintainer talking to Claude, that context applies. If you're an external contributor, follow the repo's English + PR-based flow as described in `README.md`.

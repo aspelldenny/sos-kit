@@ -292,8 +292,8 @@ Chủ nhà (session start)
             • Bước 3: Grep codebase for dep usage (Grep/Glob)
             • Bước 4–5: Format + return sentinel-wrapped rows in final report
             ↑ subagent returns report
-      4. Extract sentinel block (<!-- advisory-start --> ... <!-- advisory-end -->)
-      5. Append rows to advisory-inbox.md (Write — Quản đốc, NOT Trinh sát)
+      4. Pipe report into `advisory-inbox scan-and-append` (binary parses <!-- INBOX_APPEND_START --> ... <!-- INBOX_APPEND_END -->)
+      5. Binary appends rows after `## Rows` in advisory-inbox.md (dedup via .advisory-scan-state) — NOT Trinh sát
       6. Report N new advisories to Chủ nhà
   → Chủ nhà: review inbox, mark each row dismissed or create follow-on phiếu
 ```
@@ -303,7 +303,7 @@ Chủ nhà (session start)
 - **Quản đốc does NOT invoke parsers directly** — parser invocation lives inside Trinh sát subagent (scoped Bash). Quản đốc is spawn-only + sentinel-extract + inbox-append.
 - **Trinh sát is structurally Write/Edit-free** — its output is a report with sentinel-wrapped rows. All inbox writes happen in the main session (Quản đốc's side). Structural enforcement via tools allowlist (no Write/Edit in frontmatter).
 - **Chủ nhà gates each row** — no auto-patch, no auto-close. Every advisory row stays `open` until Chủ nhà marks it `dismissed` or creates a phiếu to fix it.
-- **Sentinel markers are LOAD-BEARING:** `<!-- advisory-start -->` / `<!-- advisory-end -->` in `templates/advisory-inbox.md` and the subagent's Bước 5 output must match exactly. Renaming = breaking change requires phiếu.
+- **Sentinel markers are LOAD-BEARING:** the subagent's Bước 5 output must use `<!-- INBOX_APPEND_START -->` / `<!-- INBOX_APPEND_END -->` exactly — the `advisory-inbox` binary (`src/sentinel.rs`) rejects anything else. Renaming = breaking change requires phiếu.
 - **Handoff terminus = Chủ nhà's review queue** (not a code commit). This is the key difference from Handoffs 0–4 where terminus is always a doc, phiếu, or code commit.
 
 ### Pattern: Quản đốc ↔ Giám sát (boundary-check)
@@ -335,7 +335,7 @@ Chủ nhà (PR push or pre-merge review request)
 **Key architectural distinctions from Trinh sát:**
 
 - **No persistent inbox.** Trinh sát appends to `advisory-inbox.md` (queue lives across sessions). Giám sát posts to PR comment thread (queue lives WITH the PR — merged or closed = queue closed). Local file fallback only when no PR context.
-- **ADVISORY mode is structural.** Slash command does NOT call `gh pr merge --block` or set any blocking status. Even with NEEDS_REVIEW verdict, merge gate is unaffected. Kit-level neutral; user can extend with project-local CI block if they want.
+- **ADVISORY mode is structural.** Slash command does NOT call `gh pr merge --block` or set any blocking status. In PR mode, `block-unsafe-merge` (`claude-hooks`) blocks merging a security-surface PR until a `Verdict: APPROVE` sentinel comment exists; branch/range mode stays advisory.
 - **Silent-when-clean rule (from tarot P275 lesson, generic).** APPROVE + 0 FLAG → no comment posted. Reduces approve-fatigue noise. Logic lives in slash command (caller), not in Giám sát (subagent always returns sentinel block; caller decides post-or-skip).
 - **5 INV are generic, not stack-specific.** env var / external service / cross-user / webhook / dep major bump — these patterns apply across npm/python/rust/go/shell. Project-specific INV-6+ live in user's local `INVARIANTS.md` (extending `templates/INVARIANTS-template.md` "User-added INV" section); kit-level Giám sát doesn't check those automatically.
 - **Bash scoped tighter than Trinh sát.** Trinh sát scope: `python3 <parser>` + `pip3 install`. Giám sát scope: `git diff/show/log` + `grep` only. No external network (no WebFetch, no `gh pr comment` — that's slash command's job).

@@ -175,9 +175,9 @@ Suggest next recipe in Genesis list (if any).
 ## Integration with Other Skills
 
 - **Before /apply:** `/blueprint` (recipe list locked in P000-genesis.md), `sos contract` (P000 locked)
-- **After /apply:** Either next recipe in Genesis list, or `/review` if recipe is the last one
+- **After /apply:** Either next recipe in Genesis list, or a review pass if recipe is the last one
 - **/forge** triggered if `/apply` discovers recipe is outdated
-- **/qa** runs after final recipe to validate full integration
+- After the final recipe, run a QA pass on the full integration
 
 ## Example Session
 

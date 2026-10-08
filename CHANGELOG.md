@@ -12,6 +12,14 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 - Refined test guidance: independent behavioral expectations, credible regressions and coverage-preserving test audit; risk/journey-driven local, UI and E2E checks on the combined candidate. Added a five-slice adoption example; the earlier synthetic smoke does not validate this new cadence on a real app.
 - Added `docs/research/HARNESS_SURVEY_2026-10-08.md`: evidence from Lucilius/Thirty/Payquill/Nếp nhà vs Anthropic/OpenAI guidance and community harnesses; proposes advisor-in-slice, outside-in reviewer on events, optional cross-model destroyer at acceptance.
 - Kit prompt package remains a pilot, without a CLI profile or native agent registration. Separate local tool/app migration is recorded in the Lite README; the legacy SOS workflow remains unchanged. Behavioral effectiveness requires a real-project pilot; Markdown checks alone do not establish it.
+## Unreleased — prompt audit (Opus 5.5 / Sonnet 5.5) — 2026-10-08
+
+- Fixed `/security-review` INV-LOCAL extraction: regex now matches `##` and `###` headings (`^#{2,3}\s*INV-LOCAL-`); the repo's own `### INV-LOCAL-1` was silently replaced by "N/A".
+- Fixed `/advisory-scan` sentinel mismatch: Trinh sát now emits `<!-- INBOX_APPEND_START/END -->`, the markers the `advisory-inbox` binary parses (`src/sentinel.rs`); `docs/HANDOFF.md` + `templates/advisory-inbox.md` describe the binary pipe.
+- Corrected "ADVISORY — does not block merge" wording (security-review, boundary-check, HANDOFF, README): in PR mode the APPROVE comment feeds the `block-unsafe-merge` gate.
+- Subagent escalation routes through Quản đốc: per Claude Code sub-agent docs, subagents never get `AskUserQuestion` and background subagents lose `TaskCreate/TaskUpdate/TaskList`. Removed them from architect/worker frontmatter and replaced the dead "MANDATORY: track work + ask via tools" sections; fixed orchestrator's "background auto-denies" claim (prompts surface in main session).
+- Instruction-file drift: stale paths to parked skills (`decide`/`insight`/`/review`/`/qa`), removed `bootstrap/`, stale `block-unsafe-merge.sh` line refs, `Task`→`Agent` tool name, orchestrator line counts, "6 principles"→7, `phieu` location, missing `orchestrator-guard.sh` in scripts list; same-file contradictions in architect (tool list), worker (phiếu writes, 4a missing user-visible-wording trigger), boundary-check (output outside sentinel), orchestrator (turn-1 ToolSearch vs "no tools").
+- Contract-surface edit approved directly by Chủ nhà ("apply tất cả") — CLAUDE.md Rule 9.
 
 **Older entries (P078b3 and earlier — v2.3 wave start through v2.1/v2.0/v1) archived to `docs/archive/CHANGELOG_pre-P078c.md`** on 2026-07-23 to keep this file under the 40k doc-size threshold.
 

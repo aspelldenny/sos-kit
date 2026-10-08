@@ -28,7 +28,7 @@
 3. Slash command spawns Trinh sát subagent.
 4. Trinh sát runs each `[[stack]]` parser via scoped Bash (`python3 <parser> <lock_file>`), collects deps.
 5. Trinh sát queries GHSA + vendor pages, greps codebase, returns sentinel-wrapped rows in final report.
-6. Slash command extracts block between `<!-- advisory-start -->` and `<!-- advisory-end -->`, appends rows in this file BETWEEN those markers (preserve marker positions).
+6. Slash command pipes the report into `advisory-inbox scan-and-append`, which extracts the `<!-- INBOX_APPEND_START -->` … `<!-- INBOX_APPEND_END -->` block and inserts rows after the `## Rows` heading (dedup via `.advisory-scan-state`).
 7. Chủ nhà reviews, gates per-row.
 
 ## Notes

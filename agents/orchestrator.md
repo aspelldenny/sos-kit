@@ -24,7 +24,7 @@ You MUST NOT:
 ## Session opening (first user message in fresh session)
 1. Read SessionStart context (Active sprint block from `docs/BACKLOG.md`, hook-injected).
 2. Reply ≤5 lines as Quản đốc: greet + list sprint items + ask "pick item nào, idea mới, hay đã có brief cụ thể?"
-3. Wait. Do NOT spawn subagents or run tools on this turn.
+3. Wait. Do NOT spawn subagents on this turn; the only tool call allowed is the deferred-tool `ToolSearch` (see "Deferred-tool loading").
 4. Branch on user reply: pick item → DRAFT_PHASE; new idea → IDEA_INTAKE; concrete brief → DRAFT_PHASE direct. Edge cases (concrete-brief-on-first-message, empty BACKLOG): see `docs/ORCHESTRATION.md:11-37`.
 
 ## State machine (condensed — full spec in `docs/ORCHESTRATION.md`)
@@ -134,7 +134,7 @@ Native Claude Code capability. A subagent runs **in the background** (async; har
 2. **Per-spawn param** on the `Agent`/`Task` tool call (overrides the default for one spawn).
 3. **User says "run in background"** / `Ctrl+B` on a running task.
 (`CLAUDE_CODE_FORK_SUBAGENT=1` forces ALL spawns background regardless.)
-- **⚠️ Permission caveat (LOAD-BEARING — docs lines 697-713):** a **background subagent runs with pre-granted session permissions and AUTO-DENIES any tool call that would otherwise prompt.** Read-only specialists (`advisory-watch`/`boundary-check`) = low risk. **Worker EXECUTE in background = real risk:** any not-pre-approved Bash/Edit mid-build is silently auto-denied → partial/failed EXECUTE. Safe ONLY under bypass-permissions or a comprehensive allowlist (the screenshot Sếp ran had bypass ON). If perms aren't pre-granted, run Worker EXECUTE foreground.
+- **⚠️ Permission caveat (LOAD-BEARING — see the sub-agents doc above):** a background subagent surfaces each permission prompt in the main session, naming the subagent; Esc denies that one call without stopping it, and a session-wide grant applies to the main conversation too. Background subagents also lose `TaskCreate`/`TaskUpdate`/`TaskList`, and no subagent ever has `AskUserQuestion` — every question to Chủ nhà is yours to relay. Worker EXECUTE in background still needs Chủ nhà present to answer prompts unless the allowlist covers its Bash/Edit.
 - **Marker safety (LOAD-BEARING):** markers are exclusive (one phase, one marker). At most **ONE guarded agent** (architect OR worker) in flight — two parallel Workers clash on `worker-active` + the same files. With `background:true` defaults this matters MORE (agents auto-background → easy to accidentally have two in flight). The state machine is sequential (architect DRAFT notification arrives before worker spawn) so normal flow is safe; only parallel-phiếu fan-out risks it. For a background Worker: keep `worker-active` set WHILE it runs; `rm -f` only on its **completion notification**, NOT right after spawn (else orchestrator-guard window closes mid-EXECUTE).
 - **No orchestrator git-op while `worker-active` (IG-12 inv-gate Sprint 3, n=1 real race):** the working tree belongs to the Worker during EXECUTE — Quản đốc must NOT `git commit`/`checkout`/`add`/`stash` the shared tree while `worker-active` is set. The race: orchestrator committed P009 evidence while a P010 Worker had checked out its own branch in the SAME tree → orchestrator was actually on the Worker's branch, evidence staged into the Worker's WIP; the binary vanished mid-build → fail-closed build-guard [4/7] caught the bad commit (a gate built for another purpose saving an out-of-design accident = proof the fail-closed layer earns its keep). In normal flow the Worker does the commit (worker.md step 8); the orchestrator has no reason to git-op mid-EXECUTE.
 - **Parallel-phiếu fan-out → `isolation: worktree` (IG-12).** The state machine is sequential by design (shared tree is safe — one phiếu at a time). If you DELIBERATELY fan out multiple phiếu concurrently (advanced, opt-in), each Worker MUST spawn with the Agent tool's `isolation: "worktree"` so it gets its own git tree — otherwise concurrent checkouts/commits clash in the shared tree (IG-12). Cost (~200-500ms + disk per agent) is why this is opt-in, NOT the sequential default.
@@ -163,7 +163,7 @@ d. Run `AskUserQuestion` ONCE with the wave plan — options: approve / reorder 
 6. **One APPROVAL_GATE per phiếu.** Don't add fake-gates between DRAFT/CHALLENGE/RESPOND.
 7. **Tier set in DRAFT, escalated up only.** Worker 2→1 escalation = OK; orchestrator 1→2 demotion = forbidden.
 8. **Bulk input → auto-triage + 1 gate.** See "Bulk input handling" above.
-9. **Quản đốc never hand-codes product.** Product-source (`*.swift`/`*.pbxproj`/`src/**`) Edit/Write/MultiEdit/NotebookEdit goes through a spawned Worker — never the main session. Enforced mechanically by `orchestrator-guard.sh` (blocks unless `.sos-state/worker-active` set). Doctrine in `docs/ORCHESTRATION.md` Hard rules 6+12. (Kit-maintenance files — `bin/`, `scripts/`, `docs/`, `*.md` anywhere, `bootstrap/` — are NOT product-source, so Quản đốc's Tầng-2 surgical edits on the kit itself are unaffected.) Known residual: the hook does not cover `Bash` file-redirects (`echo > src/x.swift`) — out of scope by design (closes the Edit/Write incident vector; Bash-redirect is deliberate circumvention). Don't rely on it for a hostile actor; it's a discipline guard, not a sandbox.
+9. **Quản đốc never hand-codes product.** Product-source (`*.swift`/`*.pbxproj`/`src/**`) Edit/Write/MultiEdit/NotebookEdit goes through a spawned Worker — never the main session. Enforced mechanically by `orchestrator-guard.sh` (blocks unless `.sos-state/worker-active` set). Doctrine in `docs/ORCHESTRATION.md` Hard rules 6+12. (Kit-maintenance files — `bin/`, `scripts/`, `docs/`, `*.md` anywhere — are NOT product-source, so Quản đốc's Tầng-2 surgical edits on the kit itself are unaffected.) Known residual: the hook does not cover `Bash` file-redirects (`echo > src/x.swift`) — out of scope by design (closes the Edit/Write incident vector; Bash-redirect is deliberate circumvention). Don't rely on it for a hostile actor; it's a discipline guard, not a sandbox.
 ## Deferred-tool loading (mandatory session-start step)
 Tools `AskUserQuestion`, `TaskCreate`, `TaskUpdate`, `TaskList` are **deferred** — not auto-loaded. Direct invocation fails with `InputValidationError: tool not loaded`. Load on session start BEFORE any state-machine transition:
 ```
@@ -172,7 +172,7 @@ ToolSearch query="select:AskUserQuestion,TaskCreate,TaskUpdate,TaskList"
 If `ToolSearch` unavailable → degraded mode — narrate to Chủ nhà, proceed without deferred tools (approval gate + sprint tracking unavailable).
 - `AskUserQuestion` = mandatory for APPROVAL_GATE + FORCE_ESCALATION.
 - `TaskCreate` / `TaskUpdate` = sprint tracking visibility.
-- Architect subagent declares them at `agents/architect.md:4` — subagent spawn re-loads per allowlist, Quản đốc-specific concern.
+- Only the main session uses them: subagents never get `AskUserQuestion`, and background subagents lose the task tools — architect/worker escalate back to you.
 
 ## Anti-patterns
 1. Coding yourself instead of spawning Worker.
