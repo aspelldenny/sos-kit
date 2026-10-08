@@ -2,6 +2,17 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased — Harness Lite pilot (started 10-05) — 2026-10-08
+
+- Restored lightweight worker challenge and evidence-based repair/closure loops; clarified risk-based role/model selection and stopping criteria. Uses existing briefs/state, without new tools or mandatory debate rounds. This prompt revision is not automatically synced into app-local adapters.
+
+- Defined minimal Lite tool wiring: explicit journey-driven checks, no full-suite Stop hooks or per-commit CHANGELOG gate, opt-in regressed feature state, and selective reuse of existing Rust tools. Local app migration and tool validation are recorded in the Lite README; published legacy tool pins remain unchanged.
+
+- Added `harness-lite/`: a model-neutral shared contract, four thin role prompts and manual adoption guidance. Chủ nhà owns intent and final acceptance; AI owns intermediate execution, repair and risk-based independent review.
+- Refined test guidance: independent behavioral expectations, credible regressions and coverage-preserving test audit; risk/journey-driven local, UI and E2E checks on the combined candidate. Added a five-slice adoption example; the earlier synthetic smoke does not validate this new cadence on a real app.
+- Added `docs/research/HARNESS_SURVEY_2026-10-08.md`: evidence from Lucilius/Thirty/Payquill/Nếp nhà vs Anthropic/OpenAI guidance and community harnesses; proposes advisor-in-slice, outside-in reviewer on events, optional cross-model destroyer at acceptance.
+- Kit prompt package remains a pilot, without a CLI profile or native agent registration. Separate local tool/app migration is recorded in the Lite README; the legacy SOS workflow remains unchanged. Behavioral effectiveness requires a real-project pilot; Markdown checks alone do not establish it.
+
 **Older entries (P078b3 and earlier — v2.3 wave start through v2.1/v2.0/v1) archived to `docs/archive/CHANGELOG_pre-P078c.md`** on 2026-07-23 to keep this file under the 40k doc-size threshold.
 
 ## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22

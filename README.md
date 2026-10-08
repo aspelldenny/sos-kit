@@ -4,6 +4,8 @@ One person. No team. Full operating system from code-ready to production health.
 
 SOS Kit is a collection of Rust CLI tools, Claude Code skills, subagents, and role-separation protocols that let one human run a software business without dropping context.
 
+**Experimental:** [Harness Lite](./harness-lite/README.md) is an owner-authorized, portable prompt pilot with a shared quality contract and adaptive role delegation. It does not replace the workflow or install enforcement described below.
+
 ## Why
 
 Building software alone means wearing three hats every day:
