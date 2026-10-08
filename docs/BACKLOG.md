@@ -15,7 +15,7 @@
 
 - [x] **Bước 0 — cất trạng thái** (08/10): commit prompt-audit → main + tag `v2-final`; Lite + survey trên `feat/harness-lite-adaptive`; `claude-hooks` 378bf0d (114 test), `ship` 3b6ea8c (61 test), Thirty 7c131df, Payquill fe4e2d8 (chỉ file harness). Chưa push.
 - [x] **Bước 1 — phân loại** (08/10): Sếp chốt: `sos` thu gọn còn `sos lite install/update/check`; secrets dùng gitleaks + runtime-scan; `no-code-on-default` tuỳ chọn theo app.
-- [ ] **Bước 2.1** — nhánh `v3`; chuyển workflow v2 vào `archive/v2/`; README + CLAUDE.md của kit thành bản đồ ngắn (dưới 100 dòng).
+- [x] **Bước 2.1** (08/10) — nhánh `v3`; workflow v2 → `archive/v2/`; pre-commit 330 → 66 dòng (6 gate fail-closed, lỗi in cách sửa, gitleaks thay INV gate — đã thử chặn thật); banner 19,6 KB → 0,9 KB; CLAUDE.md ~40 dòng, README ~45 dòng. Còn lại cho 2.4: `hooks/pre-push` vẫn nhắc `/security-review` (đã archive) và được nhúng vào `sos-install`; `core/`, `adapters/`, `bin/sos.sh` vẫn trỏ v2.
 - [ ] **Bước 2.2** — sửa role Lite: worker + advisor; reviewer từ ngoài vào + gọi theo sự kiện; báo cáo buộc bằng chứng.
 - [ ] **Bước 2.3** — bộ gate lõi (env, features-guard, quality-gate, gitleaks + runtime-scan, doc-rotate cap, mẫu `make ready`); thông báo lỗi dạng cách sửa; bỏ docs-gate mỗi commit; banner SessionStart còn khoảng 5 dòng.
 - [ ] **Bước 2.4** — thu gọn binary `sos`; dry-run cài vào repo trống + Thirty.
