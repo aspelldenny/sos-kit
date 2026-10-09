@@ -2,11 +2,20 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## Unreleased
+## v0.3.1 — 2026-10-09
 
-- Cleanup: v2 tickets, discoveries, adapter dogfood logs, retros, security reviews, plans, templates, configs, integrations and the tool manifest moved to `archive/v2/`; `docs/BACKLOG.md` reduced to v3 state (v2 backlog archived); `docs/PHILOSOPHY.md` rewritten for v3 (v2 version archived); `skills/apply` rewritten without tickets and without reading `.env`.
-- Trust gate: hidden-Unicode scan now covers the prompts shipped into apps (`harness-lite/`, `templates/`, `adapters/`, `recipes/`); stale v2 paths removed.
-- `CLAUDE.md` rule 7: changes reach `main` through a pull request.
+Hardening after a whole-repo Codex review (`docs/research/CODEX_REVIEW_2026-10-09.md`).
+
+- `sos install` never silently disables existing git hooks: it leaves an active `.git/hooks` or `core.hooksPath` (including a global one) in place and says how to chain it; `--force-hooks` moves `pre-commit`/`pre-push` to `harness-lite/hooks/*.local`, which run after the gates. All checks run before the first write, so an interrupted install can be rerun; symlinked or `..` paths are refused.
+- Starter files: `docs/BACKLOG.md` and `docs/FEATURES.json` are created when missing. `sos check` also checks the pre-push hook, hook permissions, `gitleaks`/`python3`, `.sos.toml`, the Claude/Codex wiring, `CLAUDE.md` importing `AGENTS.md`, and unfilled `AGENTS.md` placeholders.
+- Advisor: `.sos.toml` `[advisor]` (`backend = claude | codex | auto | off`, `model`, `after`, `max`); `auto` asks the other model family. The advisor now sees the files named in the failure and the diff (and a failing test's subject file), logs each call with time and cost to `.advise-state/calls.jsonl`, and reports failures instead of staying silent. Streaks are counted per test command.
+- Prompts (`harness-lite/`): work for writing, tools and libraries as well as apps; Quản đốc may make small changes itself and can run with a single agent; review triggers listed; Người soát has a reader's angle. Shorter (2,722 → 2,429 words).
+- One `.env` rule for editing and committing (`.env` and `.env.*`, except `.env.example`); `local-secrets` covers worktree configs and tracked `.env` files anywhere.
+- Trust gate: hidden-Unicode scan covers bidi controls and the tag block, across everything shipped into apps; CI workflows and app hooks are in the baseline.
+- Recipes: PayOS checks the paid amount before crediting; the rate limiter is described as a fixed window, sweeps old keys and has a test; stability labels and known gaps stated plainly.
+- CI runs tests, an install smoke test and a docs check on every PR and push to `main`; releases build only after tests pass. `tests/docs-check.py` fails when Markdown names a path, link or `sos` command that does not exist.
+- README rewritten for v3 and any kind of project; remaining v2 files moved to `archive/v2/`.
+- Earlier cleanup: v2 tickets, plans, templates, configs and backlog archived; `docs/PHILOSOPHY.md` and `skills/apply` rewritten for v3 (the skill no longer reads `.env`); `CLAUDE.md` rule 7: changes reach `main` through a pull request.
 
 ## v0.3.0 — SOS Kit v3 — 2026-10-09
 
