@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # advise — ask a stronger model for direction. Readable, logged, backend-switchable.
 # Usage: advise [--backend claude|codex] [--model M] [--error-file F] "question"
-# Env:   ADVISE_BACKEND (claude), ADVISE_MODEL (opus | gpt-5.6-sol), ADVISE_BRIEF (path to brief)
+# Env:   ADVISE_BACKEND (claude), ADVISE_MODEL (claude: opus; codex: Codex config default), ADVISE_BRIEF (path to brief)
 # Claude backend loads only this prompt (no MCP/skills/settings): ~1-2k tokens instead of ~77k.
 # Output: advice on stdout; a copy in evidence/advice/<timestamp>-<backend>.md
 set -uo pipefail
@@ -35,7 +35,7 @@ start=$(date +%s)
 case "$backend" in
   claude) raw=$(claude -p --model "${model:-opus}" --tools "" --output-format json --strict-mcp-config --disable-slash-commands --setting-sources "" --system-prompt "You are a senior engineer advising a coding agent. You see a snapshot of its work; you do not edit files. Follow the requested answer format exactly." < "${TMPDIR:-/tmp}/advise-prompt.$$" 2>&1); rc=$?
           out=$(printf '%s' "$raw" | python3 -I -c "import json,sys; d=json.loads(sys.stdin.read().strip().splitlines()[-1]); print(d.get('result','')); print('\n(cost \$%.4f, model %s)' % (d.get('total_cost_usd') or 0, ','.join(d.get('modelUsage',{}).keys())))" 2>/dev/null) || out="$raw";;
-  codex)  out=$(codex exec -m "${model:-gpt-5.6-sol}" --sandbox read-only --skip-git-repo-check - < "${TMPDIR:-/tmp}/advise-prompt.$$" 2>/dev/null); rc=$?;;
+  codex)  out=$(codex exec ${model:+-m "$model"} --sandbox read-only --skip-git-repo-check - < "${TMPDIR:-/tmp}/advise-prompt.$$" 2>/dev/null); rc=$?;;
   *) echo "advise: unknown backend $backend" >&2; exit 2;;
 esac
 secs=$(( $(date +%s) - start ))

@@ -4,7 +4,7 @@
 
 ## Thành phần
 - `advise`: CLI. Gói câu hỏi + lỗi gần nhất + `git status`/`git diff` (bỏ `evidence/`) + brief, gửi cho model mạnh, nhận lời khuyên theo khuôn **VERDICT / WHY / NEXT / RISKS / CHECK**, lưu vào `evidence/advice/`.
-  - Backend `claude` (mặc định Opus) hoặc `codex` (`gpt-5.6-sol`).
+  - Backend `claude` (mặc định Opus) hoặc `codex` (model mặc định trong config Codex, đổi bằng `ADVISE_MODEL`).
 - `advise-on-fail.py`: hook `PostToolUse` + `PostToolUseFailure` cho Bash.
   - Đếm số lần chạy test fail liên tiếp; tới `ADVISE_AFTER` (mặc định 2) thì gọi `advise` và đưa lời khuyên vào ngữ cảnh thợ qua `additionalContext`.
   - Test xanh thì đếm lại từ đầu; mỗi subagent có bộ đếm riêng; không bao giờ chặn thợ, lỗi nội bộ thì im lặng.
@@ -27,7 +27,7 @@
 2. **`claude -p` nạp khoảng 77k token mặc định** (MCP, skill, plugin của máy). Khi cache nguội, một lần hỏi Opus tốn khoảng $0,69. Thêm `--system-prompt … --strict-mcp-config --disable-slash-commands --setting-sources ""` thì chỉ còn khoảng 1,4k token: rẻ hơn khoảng 36 lần. (`--bare` đòi API key, không dùng được với gói Max.)
 3. **Advisor bị nhiễm qua `git diff`.** Lời khuyên nhắc tới `evidence/e2e.json` của lượt trước. Phải loại `evidence/` và trạng thái hook khỏi gói gửi đi.
 4. **Dữ liệu thử bị nhiễm (lỗi của Quản đốc).** `git add -A` commit nhầm bản đã sửa thành baseline, nên lượt sau "không có bug". Đã sửa: gắn tag `baseline-bug`, và script tự dừng nếu baseline không đỏ.
-5. Codex trên máy đang để model mặc định là `gpt-6.1-sol`, mà tài khoản ChatGPT không dùng được. `advise` chỉ định `gpt-5.6-sol`.
+5. `gpt-6.1-sol` bị từ chối vì `codex` trong terminal (npm, 0.146) quá cũ; bản trong app ChatGPT (0.162) chạy được. Đã nâng `npm i -g @openai/codex@latest` lên 0.162. `advise` không còn gắn cứng model.
 
 ## Giới hạn
 - Một bài dễ, mỗi cấu hình chạy 1 lần; chất lượng lời khuyên do Quản đốc tự chấm.
