@@ -18,7 +18,7 @@ set -eu
 
 GH_OWNER="aspelldenny"
 GH_REPO="sos-kit"
-VERSION="${SOS_VERSION:-v0.3.3}"
+VERSION="${SOS_VERSION:-v0.3.4}"
 BIN_DIR="${SOS_BIN_DIR:-$HOME/.local/bin}"
 
 OS="$(uname -s)" ARCH="$(uname -m)"

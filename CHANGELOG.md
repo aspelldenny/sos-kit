@@ -2,6 +2,12 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## v0.3.4 — 2026-10-09
+
+- Role wrappers (`.claude/agents/`) now set model and effort as decided for v3: Thợ `sonnet` medium; Người soát and Kiến trúc sư `opus` high. `.claude/settings.json` sets `advisorModel: "opus"`, so the worker can ask the native advisor as well as the hook-driven one. Before, wrappers set neither and every subagent silently ran the main session's model (TurnSigil's first worker ran Opus).
+- `sos check` warns when a role wrapper sets no model or effort.
+- `templates/app/AGENTS.md` says where the role models live.
+
 ## v0.3.3 — 2026-10-09
 
 Changes after an outside cross-check of v0.3.2 (approved by Chủ nhà).
