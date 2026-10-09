@@ -54,7 +54,7 @@ Chỉ thêm recipe đã chạy thật trong một dự án đã ship. Dùng `rec
 
 ## Recipe đã có
 
-### Stable (battle-tested)
+### Có sẵn (trích từ code production; kiểm của recipe phần lớn là grep — chỉ rate-limit có test hành vi đi kèm)
 - `payment/payos-vn` — Tích hợp PayOS VN (SDK official) với pre-charge + atomic deduct + VIP-qua-topup (DNA tarot)
 - `auth/nextauth-google-credentials` — NextAuth v4 Google OAuth + Credentials (email/password bcrypt), JWT strategy (DNA tarot)
 - `ai/multi-model-fallback` — Opus → Gemini → OpenRouter chain với timeout per-tier (DNA tarot)

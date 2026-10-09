@@ -1,7 +1,7 @@
 # Recipe: Multi-Model AI Fallback Chain
 
 > **Category:** ai
-> **Stability:** stable (battle-tested ở tarot — Opus 4.6 v98 → Gemini Flash → OpenRouter)
+> **Stability:** extracted from tarot production. Its checks are static (grep) unless a behaviour test is listed; run your own tests after adapting it.
 > **Last verified:** 2026-04-25
 
 ## Mục đích

@@ -1,7 +1,7 @@
 # Recipe: NextAuth — Google + Credentials (Next.js App Router)
 
 > **Category:** auth
-> **Stability:** stable (battle-tested ở tarot production)
+> **Stability:** extracted from tarot production. Its checks are static (grep) unless a behaviour test is listed; run your own tests after adapting it.
 > **Last verified:** 2026-07-23 (mined from tarot production, verified against tarot @cd16a86)
 
 ## Mục đích
