@@ -1,7 +1,8 @@
 # Recipe: NextAuth — Google + Credentials (Next.js App Router)
 
 > **Category:** auth
-> **Stability:** stable (battle-tested ở tarot production)
+> **Stability:** extracted from tarot production. Its checks are static (grep) unless a behaviour test is listed; run your own tests after adapting it.
+> **Known gaps (review 2026-10-09):** the `signIn` callback calls `onFirstSignIn` without showing its import (it lives in the file from step 2); to use the login rate limiter from `infra/rate-limit-inmemory`, read the IP from the request NextAuth passes to `authorize` (second argument) — the snippet there assumes a `req` in scope.
 > **Last verified:** 2026-07-23 (mined from tarot production, verified against tarot @cd16a86)
 
 ## Mục đích

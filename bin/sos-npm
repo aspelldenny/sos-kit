@@ -3,7 +3,7 @@
 #
 # THIN delegate, NOT a second dispatch route: the real `sos` is the binary
 # install.sh writes to $BIN_DIR/sos (default ~/.local/bin/sos).
-# This file only forwards to that wrapper — if it's missing (postinstall was
+# This file only forwards to that binary — if it's missing (postinstall was
 # skipped via --ignore-scripts, or failed), print how to fix it instead of
 # silently half-dispatching.
 

@@ -75,7 +75,7 @@ pub fn run(which: GateCmd) -> i32 {
     })();
     match reports {
         Err(e) => {
-            eprintln!("sos gate: {e:#}");
+            eprintln!("sos gate: {e:#}\n  → How to fix: run it from inside the git repository; if the message names a file, make it readable UTF-8 text");
             2
         }
         Ok(rs) => {

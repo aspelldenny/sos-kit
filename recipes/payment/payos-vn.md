@@ -1,7 +1,8 @@
 # Recipe: PayOS VN (payment integration — official SDK)
 
 > **Category:** payment
-> **Stability:** stable (battle-tested ở tarot production)
+> **Stability:** extracted from tarot production. Changed after the 2026-10-09 review (not yet in tarot): the webhook compares the paid amount with the stored order before settling, and two anchors that could never fail now can. Its checks are static plus one live HTTP check; no behaviour test ships with it yet.
+> **Known gaps (review 2026-10-09):** inputs name `infra/docker-compose-postgres`, which is still a TODO recipe (any Postgres + Prisma works); the outputs list a `/status` route and a refund helper that the steps do not supply — write them for your app.
 > **Last verified:** 2026-07-23 (verified against tarot @cd16a86)
 
 ## Changelog
@@ -166,6 +167,15 @@ export async function POST(req: Request) {
 
   const orderCode = BigInt(data.orderCode);
 
+  // Added after review (not in tarot): settle only if PayOS reports the amount we stored for this
+  // order. A mismatch never succeeds on retry, so answer 400 and leave the order for a human.
+  const order = await prisma.paymentTransaction.findUnique({ where: { orderCode } });
+  if (!order) return Response.json({ error: "unknown order" }, { status: 400 });
+  if (order.amount !== Number(data.amount)) {
+    console.error("payos amount mismatch", { orderCode: String(orderCode), stored: order.amount, paid: data.amount });
+    return Response.json({ error: "amount mismatch" }, { status: 400 });
+  }
+
   try {
     await prisma.$transaction(async (tx) => {
       // #2 — idempotency qua updateMany + count: chỉ update khi CHƯA completed.
@@ -203,6 +213,8 @@ export async function POST(req: Request) {
 > **Verified field names:** `data.orderCode` confirmed (tarot `webhookData.orderCode`, webhook/route.ts:47). `data.reference` — NOT used anywhere in tarot's real code (grepped `src/` for `.reference`, zero hits); dropped from this recipe rather than kept as an unverified guess.
 
 ### 5. VIP / subscription-qua-topup (điểm mới #4 — sửa kết luận sai cũ)
+
+> **Lưu ý 2026-10-09:** tarot đã gỡ gói VIP monthly (P180); phần này không còn chạy trong production, chỉ là mẫu đã từng chạy. Kiểm kỹ trước khi dùng.
 
 > **Sửa recipe cũ:** bản 2026-04-25 kết luận "PayOS không có subscription model". SAI — tarot production làm **subscription-qua-topup**: 1 payment VIP → gia hạn +30 ngày trong cùng settlement tx, qua model `Subscription` riêng (không phải `vipUntil` column trên `User` — draft ban đầu giả định sai field này; verified against `tarot/src/app/api/payment/webhook/route.ts:129-178`). PayOS chỉ là one-time payment, nhưng *subscription semantics* dựng ở app-layer.
 
@@ -295,7 +307,7 @@ try {
 
 ```bash
 grep -n "@payos/node" package.json src/lib/payment/payos.ts        # 1. dùng SDK, không raw HMAC
-grep -rn "createHmac" src/app/api/payment/ && echo "STILL RAW HMAC — FAIL" || echo "ok: SDK"  # 2. đã bỏ raw HMAC
+! grep -rn "createHmac" src/app/api/payment/                       # 2. đã bỏ raw HMAC (exit 1 if any remains)
 grep -n "new PayOS({" src/lib/payment/payos.ts                     # 3. object-arg constructor (not positional)
 grep -n "webhooks.verify" src/lib/payment/payos.ts                 # 4. SDK verify
 grep -n "updateMany" src/app/api/payment/webhook/route.ts          # 5. idempotency qua updateMany
@@ -303,7 +315,8 @@ grep -n "status: 500" src/app/api/payment/webhook/route.ts         # 6. retry-on
 grep -n "status: 400" src/app/api/payment/webhook/route.ts         # 7. bad-signature is non-retriable 400, not 401
 grep -rn "handleVipPaymentInTx\|Subscription" src/lib/payment/ prisma/schema.prisma  # 8. VIP subscription
 grep -E "PAYOS_CLIENT_ID|PAYOS_API_KEY|PAYOS_CHECKSUM_KEY" .env.example  # 9. ENV
-curl -X POST $APP_URL/api/payment/webhook -H "Content-Type: application/json" -d '{}'  # 10. → 400 (route + verify chạy)
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST $APP_URL/api/payment/webhook -H 'Content-Type: application/json' -d '{}')" = 400  # 10. bad signature → 400
+grep -n "amount mismatch" src/app/api/payment/webhook/route.ts   # 11. paid amount compared with the stored order
 ```
 
 ## Discovery hooks (chỗ dễ sai)
@@ -316,6 +329,7 @@ curl -X POST $APP_URL/api/payment/webhook -H "Content-Type: application/json" -d
 | Nuốt lỗi settlement trả 200 | Nếu tx fail mà trả 200, PayOS coi như xong → mất tiền/credit. Trả **500** để PayOS RETRY (điểm #3). |
 | Bad-signature trả 401 | Tarot dùng **400** cho signature sai — lỗi này KHÔNG retry-able (never succeeds), khác class với 500 (settlement, retriable). Đừng conflate 2 loại lỗi. |
 | "PayOS không có subscription" (kết luận sai cũ) | PayOS one-time, nhưng subscription = app-layer: 1 payment VIP → `Subscription` row (tier/status/currentPeriodStart/currentPeriodEnd), cộng-dồn từ `currentPeriodEnd` cũ nếu còn active, trong CÙNG settlement tx (`handleVipPaymentInTx`). |
+| Cộng credit theo số tiền đơn mà không đối chiếu số tiền PayOS báo | Chữ ký đúng chỉ chứng minh webhook đến từ PayOS, không chứng minh đã trả đúng số tiền của đơn này. So `data.amount` với `amount` đã lưu TRƯỚC khi settle; lệch → 400, không cộng credit, để người xem. |
 | `orderCode` overflow | `Date.now()` 53-bit safe; đừng `Math.random()` (collision). |
 | Description quá dài | PayOS giới hạn độ dài `description` — `.slice(0, 25)` (verify limit thật với SDK). |
 | Test prod key | PayOS có sandbox riêng — đừng test bằng prod checksum key. |

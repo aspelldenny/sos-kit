@@ -44,6 +44,8 @@ SURFACE_GLOBS=(
     "templates/app/hooks/*"
     "scripts/*"
     "install.sh"
+    ".github/workflows/*"
+    "tests/smoke.sh"
 )
 
 # Unicode gate: scan instruction/doc files agents load into context, above all the prompts
@@ -118,40 +120,26 @@ hash_file() {
 #   U+200F  RLM              = \xe2\x80\x8f
 #   U+2060  word joiner      = \xe2\x81\xa0
 #   U+180E  Mongolian sep    = \xe1\xa0\x8e
-# (Tag range U+E0000+ = 4-byte UTF-8, use grep -P OR perl for those; rare.)
 # grep -E with \x escapes works on GNU grep; BSD grep uses -P for \x.
 # Best fallback: rg (ripgrep) > grep -P (GNU) > grep (with LC_ALL=C byte match).
 # ─────────────────────────────────────────────────────────────────────
+# Bidi overrides/isolates U+202A–202E, U+2066–2069 and the tag block U+E0000–E007F
+# (UTF-8 prefixes \xf3\xa0\x80 / \xf3\xa0\x81) are matched too (Trojan Source / ASCII smuggling).
+HIDDEN_PATTERNS=(
+    $'\xef\xbb\xbf' $'\xe2\x80\x8b' $'\xe2\x80\x8c' $'\xe2\x80\x8d' $'\xe2\x80\x8e' $'\xe2\x80\x8f'
+    $'\xe2\x81\xa0' $'\xe1\xa0\x8e'
+    $'\xe2\x80\xaa' $'\xe2\x80\xab' $'\xe2\x80\xac' $'\xe2\x80\xad' $'\xe2\x80\xae'
+    $'\xe2\x81\xa6' $'\xe2\x81\xa7' $'\xe2\x81\xa8' $'\xe2\x81\xa9'
+    $'\xf3\xa0\x80' $'\xf3\xa0\x81'
+)
 unicode_grep() {
-    local targets=("$@")
-    # Strategy: try each tool in order of reliability/availability.
-    # (1) ripgrep — most reliable, Unicode-aware, fast
+    local targets=("$@") args=()
+    for pat in "${HIDDEN_PATTERNS[@]}"; do args+=(-e "$pat"); done
     if command -v rg >/dev/null 2>&1; then
-        rg --hidden --no-heading -n \
-            -e $'\xef\xbb\xbf' \
-            -e $'\xe2\x80\x8b' \
-            -e $'\xe2\x80\x8c' \
-            -e $'\xe2\x80\x8d' \
-            -e $'\xe2\x80\x8e' \
-            -e $'\xe2\x80\x8f' \
-            -e $'\xe2\x81\xa0' \
-            -e $'\xe1\xa0\x8e' \
-            "${targets[@]}" 2>/dev/null
-    # (2) grep with LC_ALL=C and byte patterns via POSIX character class (most portable)
+        LC_ALL=C rg --hidden --no-heading -n --no-unicode "${args[@]}" "${targets[@]}" 2>/dev/null
     else
-        # Use LC_ALL=C so grep treats input as bytes (not charset-decoded).
-        # Pattern matches the UTF-8 byte sequences for our target codepoints.
-        # Works on both GNU grep and BSD grep (macOS) — no -P needed.
-        LC_ALL=C grep -rn \
-            -e $'\xef\xbb\xbf' \
-            -e $'\xe2\x80\x8b' \
-            -e $'\xe2\x80\x8c' \
-            -e $'\xe2\x80\x8d' \
-            -e $'\xe2\x80\x8e' \
-            -e $'\xe2\x80\x8f' \
-            -e $'\xe2\x81\xa0' \
-            -e $'\xe1\xa0\x8e' \
-            "${targets[@]}" 2>/dev/null
+        # LC_ALL=C: match raw UTF-8 bytes; works on GNU and BSD grep without -P.
+        LC_ALL=C grep -rn "${args[@]}" "${targets[@]}" 2>/dev/null
     fi
 }
 
@@ -306,7 +294,7 @@ check_unicode() {
     if [ -n "$hits" ]; then
         echo "" >&2
         echo "BLOCKED: trust-gate: hidden Unicode codepoint(s) found in instruction/doc files." >&2
-        echo "  (U+FEFF BOM, U+200B/C/D zero-width, U+200E/F bidi, U+2060 word-joiner," >&2
+        echo "  (U+FEFF BOM, U+200B/C/D zero-width, U+200E/F + U+202A-E + U+2066-9 bidi, U+E0000 tags, U+2060 word-joiner," >&2
         echo "   U+180E Mongolian vowel sep, U+E0000 tag = prompt injection vector)" >&2
         echo "" >&2
         echo "$hits" | sed 's/^/  /' >&2

@@ -21,3 +21,11 @@ allow_regression = true   # a passed slice may honestly go back to false; ids ma
 
 [git]
 protect_default_branch = false   # true: non-Markdown commits must be made on a branch
+
+[advisor]
+# After `after` consecutive failing test runs, the agent's hook asks a stronger model for direction
+# (harness-lite/scripts/advise); at most `max` calls per failing streak. Log: .advise-state/calls.jsonl
+backend = "claude"        # claude | codex | auto (the other model family than the agent at work) | off
+model = ""                # empty: opus for claude, the Codex config default for codex
+after = 2
+max = 2

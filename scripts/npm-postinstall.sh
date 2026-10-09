@@ -6,7 +6,7 @@
 #   2. verifies its sha256 against a hash shipped in the npm package,
 #   3. runs it — fail-CLOSED on any mismatch or download failure.
 #
-# install.sh itself does the real work (10 sister tools + sos-bin + wrapper),
+# install.sh itself does the real work (downloads and verifies the sos binary),
 # unchanged and un-forked. Single source of truth = install.sh.
 #
 # Honors `npm install --ignore-scripts`: npm simply never invokes this file in
@@ -35,7 +35,7 @@ _resolve_self() {
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$(_resolve_self)")" && pwd)"
 PINNED_SHA_FILE="$SCRIPT_DIR/install-sh.sha256"
 
-echo "▶ sos-kit: fetching full toolset via install.sh@${PIN_TAG} (pinned tag, sha256-verified)"
+echo "▶ sos-kit: installing the sos binary via install.sh@${PIN_TAG} (pinned tag, sha256-verified)"
 
 if command -v sha256sum >/dev/null 2>&1; then
   SHA_CMD="sha256sum"
@@ -83,4 +83,4 @@ if ! sh "$TMP_INSTALL"; then
   exit 1
 fi
 
-echo "✓ sos-kit: postinstall complete (npm bin/sos-npm now delegates to installed wrapper)"
+echo "✓ sos-kit: postinstall complete (npm bin/sos-npm now delegates to the installed sos binary)"

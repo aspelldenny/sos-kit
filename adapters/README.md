@@ -33,9 +33,8 @@ Nothing to install for the gates: they run at `git commit`. Point it at `AGENTS.
 in-loop feedback, write `adapters/<name>/hook.py` that maps its payload to the same three
 CLI calls, add its captured payloads to `tests/adapters/fixtures/`, and extend `run.sh`.
 
-## Advisor settings (env)
+## Advisor settings
 
-`SOS_ADVISOR=off` disables it · `ADVISE_AFTER` consecutive failures before a call (2) ·
-`ADVISE_MAX` calls per failing streak before "stop and report" (2) · `ADVISE_BACKEND`
-`claude`|`codex` · `ADVISE_MODEL` (claude: `opus`; codex: Codex config default).
+`.sos.toml` `[advisor]`: `backend` (`claude` | `codex` | `auto` = the other model family than the agent at work, falling back to the same family when the other CLI is missing | `off`), `model`, `after` (consecutive failing test runs before a call, 2), `max` (calls per failing streak before "stop and report", 2). Env overrides for one session: `ADVISE_BACKEND`, `ADVISE_MODEL`, `ADVISE_AFTER`, `ADVISE_MAX`, `SOS_ADVISOR=off`. Each call is logged in `.advise-state/calls.jsonl` (backend, model, seconds, cost when reported) and the advice in `evidence/advice/`.
+
 sos-kit itself wires only session start and the edit guard (`.claude/settings.json`, `.codex/hooks.json`); the app templates also wire the advisor.

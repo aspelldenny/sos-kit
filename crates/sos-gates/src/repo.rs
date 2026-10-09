@@ -8,9 +8,11 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
 
+/// `.env` or `.env.<suffix>`, case-insensitive, except `.env.example` — the same rule as
+/// harness-lite/scripts/env-guard.sh (so the edit guard and the commit gate agree).
 pub fn is_real_env(name: &str) -> bool {
     let n = name.to_lowercase();
-    n.starts_with(".env") && n != ".env.example"
+    (n == ".env" || n.starts_with(".env.")) && n != ".env.example"
 }
 
 fn base(path: &str) -> &str {

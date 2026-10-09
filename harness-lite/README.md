@@ -27,7 +27,7 @@ An adversarial pass by a different model family before acceptance is optional.
 
 `sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps and `FEATURES.json` identity. Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` (executable, project-owned).
 
-**Advisor.** After two consecutive failing test runs, the adapter asks a stronger model (`scripts/advise`) for a direction and adds the answer to the worker's context; at most two calls per failing streak, then the worker stops and reports. `SOS_ADVISOR=off` disables it; `ADVISE_BACKEND=claude|codex`, `ADVISE_MODEL` choose the model.
+**Advisor.** After two consecutive failing runs of the same test command, the adapter asks a stronger model (`scripts/advise`) for a direction and adds the answer to the worker's context; the advisor is shown the files the failure and the change point at. Each call needs two more failures; after the second call, the next two failures tell the worker to stop and report. Choose the backend in `.sos.toml` `[advisor]` (`claude`, `codex`, `auto` for the other model family, `off`); calls and costs are logged in `.advise-state/calls.jsonl`.
 
 ## Commands
 
@@ -42,7 +42,7 @@ Requirements: `git`, `gitleaks`, `python3`, and the `sos` binary on `PATH`.
 
 ## Templates
 
-`templates/` holds the starting versions of project-owned files (`AGENTS.md`, `CLAUDE.md`, `.sos.toml`, `.claude/settings.json`, `.codex/hooks.json`, `.claude/agents/*`). `sos install` copies each one only if the project lacks it; compare with them when merging by hand.
+`templates/` holds the starting versions of project-owned files (`AGENTS.md`, `CLAUDE.md`, `.sos.toml`, `docs/BACKLOG.md`, `docs/FEATURES.json` with a filled example in `FEATURES.example.json`, `.claude/settings.json`, `.codex/hooks.json`, `.claude/agents/*`). `sos install` copies each one only if the project lacks it; compare with them when merging by hand.
 
 ## Limits
 

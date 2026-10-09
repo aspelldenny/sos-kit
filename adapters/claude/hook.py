@@ -57,10 +57,10 @@ def post_bash():
         out = (d.get("error") or "") + "\n" + out
     key = f"claude-{d.get('session_id', '')}-{d.get('agent_id', 'main')}"
     cmd = ["python3", str(SCRIPTS / "test-watch.py"), "--key", key,
-           "--cmd", (d.get("tool_input") or {}).get("command", "")]
+           "--cmd", (d.get("tool_input") or {}).get("command", ""), "--agent", "claude"]
     if event == "PostToolUseFailure":
         cmd += ["--exit", "1"]
-    r = subprocess.run(cmd, input=out, cwd=ROOT, capture_output=True, text=True, timeout=330)
+    r = subprocess.run(cmd, input=out, cwd=ROOT, capture_output=True, text=True, timeout=300)
     if r.stdout.strip():
         print(json.dumps({"hookSpecificOutput": {"hookEventName": event, "additionalContext": r.stdout.strip()}}))
 

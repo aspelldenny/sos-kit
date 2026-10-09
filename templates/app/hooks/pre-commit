@@ -6,7 +6,7 @@
 set -uo pipefail
 if ! command -v sos >/dev/null 2>&1; then
     echo "⛔ sos is not installed — commit refused."
-    echo "  → How to fix: install sos (https://github.com/aspelldenny/sos-kit#install), then commit again."
+    echo "  → How to fix: install sos (https://github.com/aspelldenny/sos-kit#quick-start), then commit again."
     exit 1
 fi
 sos gate all || exit 1

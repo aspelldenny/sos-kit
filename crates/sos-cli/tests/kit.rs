@@ -83,7 +83,7 @@ fn project_files_are_never_overwritten_and_foreign_hooks_kept() {
     assert_eq!(std::fs::read_to_string(p.join(".claude/settings.json")).unwrap(), "{}\n");
     let text = out(&o);
     assert!(text.contains("AGENTS.md exists not pointing"), "{text}");
-    assert!(text.contains("stays hooks"), "{text}");
+    assert!(text.contains("core.hooksPath stays") && text.contains("/hooks (set by you)"), "{text}");
     let hp = Command::new("git").current_dir(p).args(["config", "core.hooksPath"]).output().unwrap();
     assert_eq!(String::from_utf8_lossy(&hp.stdout).trim(), "hooks");
     // check: the foreign hook dir has no pre-commit running sos gate -> error
@@ -219,4 +219,53 @@ fn unreadable_gitignore_is_not_replaced() {
     let o = sos(p, &["install"]);
     assert_eq!(o.status.code(), Some(2), "{}", out(&o));
     assert_eq!(std::fs::read(p.join(".gitignore")).unwrap(), b"secret/\n\xff\n");
+}
+
+#[cfg(unix)]
+fn exec_hook(p: &Path, body: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::write(p, body).unwrap();
+    std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn existing_dot_git_hooks_are_not_silently_disabled() {
+    let d = repo();
+    let p = d.path();
+    exec_hook(&p.join(".git/hooks/pre-commit"), "#!/bin/sh\ntouch \"$(git rev-parse --show-toplevel)/old-hook-ran\"\n");
+    let o = sos(p, &["install"]);
+    assert!(o.status.success(), "{}", out(&o));
+    assert!(out(&o).contains("existing hooks in") && out(&o).contains("pre-commit"), "{}", out(&o));
+    let hp = Command::new("git").current_dir(p).args(["config", "--get", "core.hooksPath"]).output().unwrap();
+    assert!(!hp.status.success(), "hooksPath must not be set while an old hook is active");
+    assert_eq!(sos(p, &["check"]).status.code(), Some(1), "check reports the unwired gates");
+}
+
+#[cfg(unix)]
+#[test]
+fn force_hooks_keeps_old_hooks_running_after_the_gates() {
+    let d = repo();
+    let p = d.path();
+    exec_hook(&p.join(".git/hooks/pre-commit"), "#!/bin/sh\ntouch \"$(git rev-parse --show-toplevel)/old-hook-ran\"\n");
+    exec_hook(&p.join(".git/hooks/commit-msg"), "#!/bin/sh\nexit 0\n");
+    let o = sos(p, &["install", "--force-hooks"]);
+    assert!(o.status.success(), "{}", out(&o));
+    assert!(p.join("harness-lite/hooks/pre-commit.local").exists());
+    assert!(p.join("harness-lite/hooks/commit-msg").exists());
+    let body = std::fs::read_to_string(p.join("harness-lite/hooks/pre-commit")).unwrap();
+    assert!(body.contains("pre-commit.local"), "kit hook chains the local one");
+}
+
+#[cfg(unix)]
+#[test]
+fn hook_migration_conflict_stops_before_any_write() {
+    let d = repo();
+    let p = d.path();
+    exec_hook(&p.join(".git/hooks/pre-commit"), "#!/bin/sh\necho old\n");
+    std::fs::create_dir_all(p.join("harness-lite/hooks")).unwrap();
+    std::fs::write(p.join("harness-lite/hooks/pre-commit.local"), "different\n").unwrap();
+    let o = sos(p, &["install", "--force-hooks"]);
+    assert_eq!(o.status.code(), Some(2), "{}", out(&o));
+    assert!(!p.join("AGENTS.md").exists() && !p.join("harness-lite/CONTRACT.md").exists(), "nothing written");
 }
