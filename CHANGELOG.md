@@ -2,7 +2,18 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## Unreleased — Harness Lite pilot → v3 (started 10-05) — 2026-10-08
+## v0.3.0 — SOS Kit v3 — 2026-10-09
+
+**Breaking:** `sos` is a new CLI. The v2 commands (`new`, `adopt`, `map`, `sync`, `launch`, `init`, `blueprint`, `contract`, `apply`, `tools`), `bin/sos.sh` and the v2 crates are archived in `archive/v2/` (tag `v2-final`). `install.sh` installs only the `sos` binary; the sister tools are no longer downloaded.
+
+- `sos install | update | check`: vendor the harness (`harness-lite/`: contract, roles, agent-neutral scripts, Claude Code and Codex adapters, git hooks, templates) into any git repo from files embedded in the binary. Kit files are hash-tracked in `harness-lite/UPSTREAM.json`; locally edited files are never overwritten (`.sos-new`); project files are created only when missing.
+- `sos gate secrets | env-commit | case | branch | text | docs | features | local-secrets | all` and `sos filter`, configured by `.sos.toml`: replaces quality-gate, doc-rotate cap-check, claude-hooks features-guard, doctor runtime-scan and the kit's bash gates. Gates read the staged content and fail closed. A legacy `.quality-gate.toml` is still read.
+- Agent-neutral layout: checks are git gates and plain CLIs; `adapters/claude` and `adapters/codex` only translate hook payloads (fixtures captured live from Claude Code and Codex 0.162).
+- Advisor: after two consecutive failing test runs, `scripts/advise` asks a stronger model (Claude or Codex CLI) and the answer is added to the worker's context; at most two calls per failing streak. `SOS_ADVISOR=off` disables it.
+- Fixes found while merging the tools: quality-gate cut the wrong range when lowercasing changed byte length; runtime-scan missed `sk-proj-` keys and git config in worktrees; features-guard did not see shell writes or file deletion.
+- `SECURITY.md` rewritten for v3 (v2 policy archived).
+
+## Harness Lite pilot → v3 (started 10-05) — 2026-10-08
 
 - Restored lightweight worker challenge and evidence-based repair/closure loops; clarified risk-based role/model selection and stopping criteria. Uses existing briefs/state, without new tools or mandatory debate rounds. This prompt revision is not automatically synced into app-local adapters.
 
