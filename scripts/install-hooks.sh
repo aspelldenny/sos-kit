@@ -13,7 +13,6 @@
 # without that move would silently kill pre-push.) Hooks must be tracked +x (100755) —
 # git skips non-executable hooks silently.
 #
-# Doctrine: WORKFLOW_V2.2.md §7 (hook ship pattern). Két dogfood harvest 2026-06-03.
 
 set -e
 
@@ -30,7 +29,7 @@ fi
 chmod +x hooks/pre-commit 2>/dev/null || true
 [[ -f hooks/pre-push ]] && chmod +x hooks/pre-push 2>/dev/null || true
 
-# ── GUARD (F09 — doc-rotate dogfood 2026-06-09): don't SILENTLY hijack an adopter's
+# ── GUARD (found in a 2026-06 dogfood): don't SILENTLY hijack an adopter's
 #    existing hook setup. core.hooksPath redirects ALL hook lookups to hooks/; if the
 #    repo already points hooksPath elsewhere (its own security gate) or has a real
 #    .git/hooks/pre-commit, blindly overriding silently DISABLES it (sos-kit's hooks/

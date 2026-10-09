@@ -1,7 +1,7 @@
 # Release CI — prebuilt `sos` binaries for the sos-kit installer (P081 Stage 1).
 # Trigger: push a tag `v*` (e.g. v0.1.0). Builds the 2 Stage-1 targets
 # (mac-arm64 tested / linux-x64 build-only) and attaches them to a GitHub
-# Release. Windows dropped from Stage 1 (see phiếu P081 Task 1) — add back
+# Release. Windows is not built yet — add it back
 # when Stage 1 has run for real ≥1 release.
 # Asset naming contract (consumed by sos-kit install.sh): <bin>-<target-triple>[.exe]
 name: release

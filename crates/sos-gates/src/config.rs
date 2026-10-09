@@ -10,7 +10,7 @@
 //! strip_thinking = true        # <thinking>/<reflection> blocks count as violations
 //!
 //! [docs]                       # size cap for state docs (was doc-rotate cap-check)
-//! files = ["docs/STATE.md", "docs/DISCOVERIES.md"]
+//! files = ["docs/STATE.md", "docs/BACKLOG.md"]
 //! soft = 1000                  # warn at or above (lines)
 //! hard = 1500                  # block at or above
 //!

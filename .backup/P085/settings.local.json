@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/nguyenhuuanh/tarot/**)",
+      "Bash(bash scripts/session-start-banner.sh)",
+      "Bash(mkdir -p .sos-state)",
+      "Bash(touch .sos-state/architect-active)",
+      "Bash(bash scripts/architect-guard.sh)",
+      "Bash(rm -f .sos-state/architect-active)",
+      "Bash(python3 -c \"import json; json.load\\(open\\('.claude/settings.local.json'\\)\\); print\\('✅ valid JSON'\\)\")",
+      "Bash(echo \"exit=$?\")"
+    ]
+  }
+}

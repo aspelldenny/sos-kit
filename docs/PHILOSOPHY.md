@@ -1,137 +1,42 @@
 # Philosophy — SOS Kit
 
-## The Problem
+The v2 version of this page (information envelopes, phiếu, approval gates) is archived at `archive/v2/docs/PHILOSOPHY-v2.md`. What changed and why: `docs/research/HARNESS_SURVEY_2026-10-08.md`.
 
-Solo developers skip steps. Not because they're lazy — because each step has friction. Running tests, updating docs, reviewing your own code, creating PRs, checking production after deploy — each one is "just 2 minutes" but together they add up to "I'll do it later."
+## The problem
 
-Later never comes. Code ships without review. Docs drift from reality. Production breaks at 2 AM and nobody knows until a user complains.
+One person building real software with AI agents skips steps, not from laziness but from friction. Each check is "just two minutes"; together they become "later", and later never comes. Agents add a second problem: they produce a lot of plausible work quickly, and plausible is not the same as correct.
 
-## The Insight
+## Principle 0 — The human holds both ends
 
-In early 2026, Garry Tan (CEO of Y Combinator) published gstack — a framework that turns Claude Code into a virtual 20-person engineering team. 54,000 GitHub stars in days.
+> *"Whose house is it? The owner's. When AI makes mistakes, the person losing money and time is still you, so the owner does the final acceptance."*
 
-Around the same time, independently, this kit was being built to solve the same problem from a different angle.
+Chủ nhà owns intent and taste at the start and acceptance at the end. Agents own the middle: plan, build, check, repair. Everything else in the kit exists to make that middle trustworthy enough that the owner's time goes to the two ends, not to relaying messages between agents or approving every step.
 
-The convergence isn't coincidence. When you face the constraint of "one person, production software, real users" — you arrive at the same structure:
+## Principles
 
-1. **Separate roles.** Don't let the same brain design, build, and verify.
-2. **Gates between steps.** Each step must pass before the next begins.
-3. **Automate the boring parts.** Tests, commits, deploys, health checks.
-4. **Learn from mistakes.** Record patterns so you don't repeat them.
+**1. Gates, not reminders.** A rule that must always hold becomes a check that blocks and says how to fix the failure, never a sentence in a prompt. A gate that cannot run blocks; a missing tool is not a pass. Judgment stays guidance.
 
-## The Difference
+**2. Add only what a real failure demands.** Every rule, role line, hook and file points to an observed failure or a recorded decision. When a stronger model no longer needs a piece of scaffolding, remove it and write down what protection was lost. v3 removed the ticket-per-change workflow, debate rounds, approval gates and the "architect may not read code" envelope because the evidence from four shipped apps showed they cost more than they caught.
 
-gstack replaces your entire methodology with 31 AI skills — from ideation (/office-hours) to retrospective (/retro). It's opinionated about how you should think, plan, and build.
+**3. The checks live where every agent passes.** The boundary is git and plain command-line tools, not one vendor's hook format. Claude Code, Codex, another harness or a person at the keyboard all meet the same gates at commit. Per-agent adapters only give earlier feedback.
 
-SOS Kit is **just the tail of the pipeline** — from code-ready to production-verified. It doesn't tell you how to plan or think. It trusts that you have your own methodology for that. It just makes sure the code you wrote actually ships safely.
+**4. A view the builder does not have.** The builder cannot review itself. Independence comes from a fresh context, a different vantage point (the running product, from the outside in), and sometimes a different model family. It is spent at the moments that matter (a journey first connects, data or money is touched, before handoff), not on every slice. A stronger advisor helps the builder choose a direction when it is stuck; it does not replace review.
 
-## Principle 0 — Accountability stays human
+**5. Evidence over assertions.** "Done" means a repeatable check on the combined result, with the command and its output. An old green log is not current quality. A test that seeds what production should produce proves nothing.
 
-> *"Whose house is it? The owner's. Does AI bear responsibility? No. When AI makes mistakes, the person losing money and time is still you, so the owner must do the final acceptance."*
+**6. Tools for rules, models for judgment.** Deterministic checks belong in code: fast, testable, the same every time. Models handle what rules cannot: semantics, taste, finding what nobody wrote down.
 
-Every other principle in this kit serves this one. Roles, envelopes, gates, phiếu, Discovery Reports — they exist to give the human Owner clean checkpoints to inspect and reject AI output. They do NOT exist to remove the human from the loop.
+**7. Solo-first.** No team ceremony. Every feature serves one person shipping real software.
 
-The Owner (Chủ nhà) is structurally required to be human, by design, forever. AI cannot bear the cost of being wrong about your product — you can. So you stay in the chair where it matters: writing vision, approving phiếu, and final acceptance (nghiệm thu) before ship.
+## Garbage in — check the input, not just the output
 
-The envelopes (Architect can't grep code, Worker can't read vision) exist to make AI output *inspectable* by the Owner. The 3-role split exists to make accountability *unambiguous* — when something ships wrong, the trail is clear: Owner approved this phiếu, Architect wrote these anchors, Worker executed these tasks. No diffusion.
+Most gates watch what a model produces. Few watch what it consumes. When output is bad and the prompt looks fine, suspect the input first: is it decrypted, from the right source, complete, the shape you assume?
 
-This is the deepest reason SOS Kit refuses "full autonomy" framing even when technically feasible. The human cost of mistakes cannot be delegated to systems that don't pay it.
+Origin (Soul Signature, 2026-06-05): a monthly letter came out flat. Three reviewers proposed prompt fixes; half a day went into them. The cause was input: the test harness fed ciphertext, and the letter was built from a one-line digest instead of the real conversation. Production had always been fine. *Code clears the table first; the model writes after.* An input gate is on the backlog.
 
-## The deeper principle: information envelopes (alignment engineering)
+## What this is not
 
-The 3-role split isn't only about workflow. It's about **information envelope engineering for LLM alignment**.
-
-LLMs hallucinate in proportion to how much *irrelevant* context they see. An Architect-LLM with grep access invents implementations that "look right" but cite phantom functions. A Worker-LLM with full vision-doc access silently re-architects "while it's there." Both failures are caused by **information leakage across role boundaries**, not by lack of skill.
-
-### How envelopes are enforced
-
-SOS Kit prevents these failures *structurally*. Each role has a different `allowedTools` envelope:
-
-- **Quản đốc (Layer 0, orchestrator persona for the main Claude Code session)** — spawns subagents, drives state machine, invokes Skills. NO source-code reads (envelope guard); NO production code edits. Sees the phiếu, the BACKLOG, the Debate Log — enough to route, not enough to second-guess.
-- **Kiến trúc sư (Architect subagent)** — `Read`, `Write`, `Glob`. NO Bash, NO Grep, NO Edit on source. Reads docs (PROJECT/SOUL/CHARACTER/guides/BACKLOG/DISCOVERIES) but cannot grep source code. Writes phiếu with Task 0 anchors — every assumption framed as "Worker verify at file:line."
-- **Thợ (Worker subagent)** — full code tools (`Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`). Cannot Read vision docs (PROJECT.md / SOUL.md / CHARACTER*.md) — prevents silent re-architecture from "knowing" the why beyond the phiếu.
-
-Three envelopes, three accountability surfaces. Plus Layer 0 (Quản đốc) routing between them. The same human drives all four mental modes; the AI assisting each one sees only what that mode needs.
-
-### Why "share context for efficiency" is the trap
-
-The intuitive optimization — give every role more context "so it can help better" — is exactly the leak we prevent. Architect with code access invents anchors. Worker with vision access drifts scope. Quản đốc with source-code access starts coding instead of spawning Worker.
-
-The envelopes are not a workflow inconvenience; they are the **alignment surface**. Removing them removes the alignment.
-
-### Why role separation, not just prompt discipline
-
-Prompt discipline ("please don't read code, Architect") fails because LLMs reach for what they have access to. The fix is structural: don't ship the tool. `allowedTools: [Read, Write, Glob]` in Architect's frontmatter, plus a `PreToolUse` hook (`scripts/architect-guard.sh`) hard-blocking `Read` on `src/` paths when the architect marker is active. Even a misbehaving model cannot bypass.
-
-This is also why we don't lean on "trust the model": the hallucination-by-irrelevant-context failure mode is **load-bearing**, not occasional. The 3-role split is the minimum viable structure for catching it.
-
-## Seven Operational Principles
-
-### 1. One Command Per Step
-If shipping requires 5 manual steps, you'll eventually skip one. `ship` does all 5 in sequence with gates.
-
-### 2. Gates, Not Guidelines
-A pre-commit hook that blocks bad commits is worth more than a wiki page that says "please run tests." docs-gate fails the commit if docs aren't updated. The pipeline stops if tests fail. Enforcement, not hope.
-
-### 3. Cross-Project Learnings
-`ship learn add "Prisma needs manual ALTER TABLE on VPS"` saves a lesson that applies next time you touch any project with Prisma. Learnings compound across projects, not just within one.
-
-### 4. Rust for Tools, AI for Judgment
-- **Rust CLI:** Fast (< 5ms startup), small binary, deterministic, zero runtime dependency. Perfect for gates and automation.
-- **Claude Skills:** Fuzzy judgment — reviewing code for logic bugs, finding edge cases in QA, summarizing a week's work. AI handles what rules can't.
-
-### 5. Solo-First
-No multi-user auth. No team dashboards. No Slack integrations. Every feature serves exactly one person shipping code to production. This constraint keeps the kit small, fast, and focused.
-
-### 6. Separate Roles, Separate Brains
-One person running a software business wears three hats: **Chủ nhà** (owner — what to build, what to reject, maintain vision), **Kiến trúc sư** (architect — how to spec it, docs-only access), **Thợ** (worker — execute, ship, report reality back). When one brain does all three at once, you get half-finished features, scope explosions, and architectural drift.
-
-In v2.1+ Subagent mode, a 4th persona — **Quản đốc** (Layer 0, the main Claude Code session as orchestrator) — automates the relay between Kiến trúc sư and Thợ. Quản đốc is not a 4th *human* role; it's the AI persona surfacing the orchestrator state machine to Sếp. The human still wears three hats. See [`LAYERS.md`](./LAYERS.md) for Layer 0 specifics.
-
-SOS Kit enforces role separation structurally: **agent handbooks** (`agents/architect.md` / `worker.md` inline their layer's discipline — phiếu format, Task 0) + **5 living skills, each with a declared mechanical caller** (`/idea` `/init` for Chủ nhà, `/forge` for Kiến trúc sư, `/apply` `/retro` for Thợ — caller law: no hook/cron/CLI/gate caller, no skill; see `docs/LAYERS.md`). Different envelopes, different mental modes, same human.
-
-Handoffs between layers are **formalized** (see [`HANDOFF.md`](./HANDOFF.md)): insight briefing into vision docs, 5-bullet brief from Chủ nhà to Kiến trúc sư, phiếu (ticket) from Kiến trúc sư to Thợ, Discovery Report back up, blocker escalation via Chủ nhà as courier. No freestyle, no "just ping me." Format prevents context loss — the only thing more expensive than overhead is redundant work from misaligned assumptions.
-
-See [`LAYERS.md`](./LAYERS.md) for role boundaries and anti-patterns.
-
-### 7. Adopt Hiểu Repo (Composition)
-
-> **"Adopt không được biến repo thành sos-kit. Adopt phải làm sos-kit hiểu repo."** (Sếp, 2026-06-11)
-
-Projects have different shapes — web app with prod, thin bot, CLI tool, greenfield, brownfield. A smart adopt is NOT an LLM making more judgment calls; it is an installer that knows three categories apart: what can be **mechanically scanned** (stack, paths, existing hooks — scan it, never guess), what must be **asked of Chủ nhà** (production surface, load-bearing pieces, hard no-no's — judgment slots only, never mechanical noise), and what should **not be applied at all** (a Python bot gets no Next.js checks; a thin repo gets no heavy AGENT_MAP; deploy-gated tools stay out until a deploy target exists).
-
-The bar: assembly gets a project to **70-80% fit out of the box and RUNNING** — then the remaining fit is **self-sharpened in use** (mài dao riêng): friction logs feed retros, `sos sync` carries cures back and forth, and the repo grows its own domain agents/gates on top of the spine (tarot grew `prompt-reviewer`; jarvis grew a pytest pre-commit phase). Don't chase 100% fit at install time — chase a kit that learns the repo while working in it.
-
-Status: compass, not yet code — adopt today scores high on map-from-reality + validate, low on survey/classify/wire-what-matches (gap table: `docs/BACKLOG.md` "adopt-hiểu-repo" spec). Build the composition engine only as adoption evidence accumulates (dogfood-BEFORE-infra).
-
-## The garbage-in blind spot — gate the input, not just the output
-
-Every gate in this kit watches what the LLM **produces**: docs-gate on docs, giám sát (boundary-check) on PR diffs, doctor on runtime state, the prompt-reviewer on character drift. None watches what the LLM **consumes**.
-
-That asymmetry is a blind spot. When output quality is bad, the institutional reflex points where the tools point — at the prompt, the character, the model. Nobody reflexively asks *"is the input clean?"* So a dirty-input bug masquerades as a prompt bug, and you burn cycles tuning the prompt while the real fault is upstream.
-
-**Origin (Soul Signature, 2026-06-05).** A monthly "letter" feature produced flat, generic output. Three reviewers — the founder plus two external LLMs — independently proposed prompt fixes: loosen the closing, soften the synthesis, restructure the voice. Half a day of prompt archaeology. The root cause was two layers of dirty input: (1) the local test harness fed *ciphertext* — it never applied the decryption extension, so the model received encrypted gibberish; and (2) the letter was assembled from a tiny memory-digest (a lossy one-line summary built for a *different* job — in-chat recall) instead of the user's real conversation. The prompt was never the problem. Production, which decrypted correctly, had always been fine. Garbage in, garbage out — regardless of how smart the model or how good the prompt.
-
-**The doctrine:** before debugging output quality, verify input integrity — is it decrypted, from the right source, complete, the shape you assume it is? A clever model fed garbage produces *clever* garbage, which is worse than obvious garbage because it reads plausible. *Code dọn bàn sạch trước; LLM ngồi viết sau* — code clears a clean table first; the LLM writes after. Don't make the LLM do the janitorial work of filtering messy input; do that deterministically in code, then hand it clean material.
-
-**The gap this names:** the kit guards everything the LLM emits and nothing it ingests. A future *data sentinel* — a reflex or gate that verifies input integrity (decryption, source correctness, completeness, expected shape) before output is judged — would close it. Until then the reflex stays manual but mandatory: **when output is bad and the prompt looks fine, suspect the input first.**
-
-## What This Is Not
-
-- **Not a project scaffolder.** Use your own templates.
-- **Not a CI/CD replacement.** It complements GitHub Actions, not replaces it.
-- **Not an AI coding assistant.** Claude Code does the coding. SOS Kit organizes how you direct it.
-- **Not an external planning methodology.** Shape Up, Vibecode, product discovery frameworks — those live above SOS Kit. SOS Kit starts where Chủ nhà has decided "we're doing this" and ends at "it's shipped and healthy in production."
-- **Not a team tool pretending to work solo.** Every feature here exists because one person needed it. If it smells like team ceremony (stand-ups, sprint planning poker, architecture review boards), it's out of scope.
-
-## Scope — what SOS Kit does and does not govern
-
-SOS Kit governs **what you build and how you verify it**. It does NOT govern:
-
-- **SSH / VPS authentication** — your own key management, not part of the kit
-- **Multi-machine sync** — use git the way you would anyway
-- **Server-side state** — production ops are `vps` CLI's job (a separate kit)
-- **Time-based planning** — SOS Kit is wave-based (sprint = "until done", not "until Friday")
-- **Project scaffolding** — bring your own templates for new projects
-
-Keep these concerns at your infrastructure layer, not inside SOS Kit. Mixing them dilutes the kit's clarity about what it is responsible for.
+- Not an AI coding assistant: the agents do the coding; the kit organizes how they are directed and checked.
+- Not a planning methodology: it starts when Chủ nhà has decided what to build.
+- Not a CI/CD replacement, and not a team tool.
+- Not project scaffolding: `recipes/` hold verified patterns to apply, not whole-stack templates.
