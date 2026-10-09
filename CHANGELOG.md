@@ -2,6 +2,11 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## v0.3.2 — 2026-10-09
+
+- npm: `npm install -g sos-kit` works under npm 12, which skips package install scripts unless allowed (npm 11 only warns). The `sos` command from npm now installs the binary on first use, and updates it when it is older than the package, through the same pinned, checksum-verified path (the package's version wins over a stray `SOS_VERSION`), saying so on stderr; when that fails it names the cause and the fix. Before, it only printed a manual command. `sos gate` and `sos filter` never download: with no binary they block and say how to install. `install.sh` replaces the binary atomically.
+- `tests/npm.sh`: version pins agree across Cargo, `install.sh`, npm and the install.sh hash; the wrapper's install, update, keep-newer, gate and failure paths; a release tag must match the pinned version. CI runs it on every PR; a release runs it against the published binaries (`--real`).
+
 ## v0.3.1 — 2026-10-09
 
 Hardening after a whole-repo Codex review (`docs/research/CODEX_REVIEW_2026-10-09.md`).

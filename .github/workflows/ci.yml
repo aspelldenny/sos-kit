@@ -1,5 +1,5 @@
 # CI — every pull request and every push to main: Rust tests, adapter tests, and an
-# end-to-end install smoke with the built binary.
+# end-to-end install smoke with the built binary, docs check, npm wrapper and version pins.
 name: ci
 
 on:
@@ -32,3 +32,4 @@ jobs:
       - run: cargo build --locked -p sos-cli
       - run: tests/smoke.sh target/debug/sos
       - run: python3 tests/docs-check.py target/debug/sos
+      - run: tests/npm.sh

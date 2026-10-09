@@ -14,7 +14,7 @@ sos install                # add the harness
 sos check                  # confirm it is wired
 ```
 
-Needs `git`, `gitleaks` and `python3`, and `~/.local/bin` on `PATH`. Prebuilt binaries: macOS on Apple silicon and Linux x64 (also on npm: `npm install -g sos-kit`); elsewhere install Rust, clone this repo and run `cargo install --path crates/sos-cli`. Run `sos install` at the top level of a git repository (`git init` first for a new project).
+Needs `git`, `gitleaks` and `python3`, and `~/.local/bin` on `PATH`. Prebuilt binaries: macOS on Apple silicon and Linux x64. Also on npm: `npm install -g sos-kit`; when npm skips the package's install script (the default from npm 12), the first `sos` command (other than `sos gate`/`sos filter`, which never download) fetches the binary, checksum-verified, and says so. Elsewhere install Rust, clone this repo and run `cargo install --path crates/sos-cli`. Run `sos install` at the top level of a git repository (`git init` first for a new project).
 
 Then fill in the placeholders in `AGENTS.md` (what the project is, where its sources of truth live, how to build and test), write the first item in `docs/BACKLOG.md`, and start your agent in the repo. The main session takes the Quản đốc role and delegates as the role file says.
 
