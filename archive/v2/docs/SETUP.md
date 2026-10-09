@@ -232,6 +232,26 @@ cp ~/path/to/sos-kit/templates/.docs-gate.toml .docs-gate.toml
 
 If `.docs-gate.toml` is absent, the hook prints a yellow warning and skips the docs-gate check — other checks (type-check, BACKLOG, Discovery) still run. No hard fail on missing config.
 
+### 5b. Windows checkout — EOL + symlinks (P088)
+
+Windows' git defaults (`core.autocrlf=true`, `core.symlinks=false`) fight two things this kit relies on: byte-stable text checkouts and per-file symlinks. Both are fixed structurally in `.gitattributes` / documented here — you don't need to touch `core.autocrlf` yourself, but `core.symlinks` needs one manual step.
+
+**EOL (handled automatically):** `.gitattributes` force-LFs `*.sh`/`*.bash`/`*.py`/`hooks/*`/`bin/*` (P059) plus `*.golden`/`*.toml`/`*.json`/`*.md`/`*.yaml` (P088) — every checkout (macOS/Linux/Windows) gets LF for these families regardless of `core.autocrlf`. This also keeps `.claude/settings.json`/`.mcp.json` sha256 stable across platforms for the trust-gate baseline (P087).
+
+- **Existing checkout, pulling this fix for the first time:** run `git add --renormalize .` then commit, OR simply re-clone. Renormalize only updates the git index — if a file still shows CRLF on disk afterward, force a re-materialize: delete it and `git checkout -- <path>` (or `git checkout -- .` for everything).
+- **Fresh clone:** nothing to do — checkout is already LF for the tracked families above.
+
+**Symlinks (needs one manual step):** `.claude/agents/`, `.claude/commands/`, and `.claude/skills/<name>` are tracked as real git symlinks (mirrors the `.claude/agents/ -> agents/` convention — see `agents/README.md`). Without Windows support enabled, git materializes each as a tiny **text file** containing the literal link-target path (e.g. `../../skills/apply`, ~17-18 bytes) instead of the real content — Claude Code skills/agents silently fail to load.
+
+Fix (one-time per machine):
+1. Enable **Windows Developer Mode** (Settings → Privacy & Security → For developers) — lets git create symlinks without elevated/Administrator privileges.
+2. `git config --global core.symlinks true`
+3. Re-clone the repo (or delete + `git checkout -- .claude/` on an existing checkout).
+
+No Developer Mode available? Use WSL, or manually copy the real file content over each stub (`agents/<name>.md` → `.claude/agents/<name>.md`, `skills/<name>/` → `.claude/skills/<name>/`) — you'll need to repeat this after every `sos sync`/`sos adopt` that touches those paths, since it's not tracked as a real symlink on your machine.
+
+**This applies to BOTH checkouts, not just yours:** if you (or anyone) uses a Windows checkout of sos-kit itself as the `SOS_KIT_DIR`/`--kit` source for `sos new`/`sos adopt`, and that checkout still has the text-stub symlinks, the scaffolder will copy the *stub text* into every new project instead of the real skill/agent content — with no error. `sos new` and `sos adopt` both print a warning + the fix above automatically if they detect stub files in the kit source or the scaffolded target (mechanical net, no separate command to run).
+
 ### 6. Add canary to GitHub Actions
 
 Copy the snippet from `integrations/github-actions/canary.yml` into your deploy workflow.

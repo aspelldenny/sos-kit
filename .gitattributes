@@ -8,3 +8,24 @@
 *.py    text eol=lf
 hooks/* text eol=lf
 bin/*   text eol=lf
+
+# Parity golden fixtures + trust-gate-hashed text families MUST stay LF too.
+# Windows checkout (core.autocrlf=true default) rewrites these to CRLF, which:
+#   (a) breaks byte-for-byte parity comparisons against `archive/v2/sos-cli/tests/golden/*.golden` (v2, archived)
+#       (parity_sync_enforced, parity_new_enforced, parity_adopt_enforced)
+#   (b) shifts sha256 of `.claude/settings.json` / `.mcp.json` vs the POSIX-seeded
+#       trust-gate baseline (P087 BUG 2) — LF-forcing these families closes that
+#       CRLF-hash-mismatch structurally.
+# Targeted per-glob (kit style, P059 precedent) — NOT `* text=auto` global.
+# (sos-kit P088 — Windows checkout/EOL layer, 2026-07-24.)
+*.golden text eol=lf
+*.toml   text eol=lf
+*.json   text eol=lf
+*.md     text eol=lf
+*.yaml   text eol=lf
+
+# .sos-trust-baseline is extensionless — no glob above covers it. Fresh Windows
+# autocrlf=true clones would otherwise check it out CRLF, and the byte-exact diff
+# in trust-gate.sh's check path then false-blocks every line (security-review FLAG,
+# P088 remediation, 2026-07-24).
+.sos-trust-baseline text eol=lf

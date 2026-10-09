@@ -179,6 +179,16 @@ sos_init_security() {
   local tmpfile
   tmpfile="$(mktemp)"
 
+  # L4 (P086): stale hardcoded "P040" tag — read the REAL sos-cli crate version so
+  # this parity's-worth-checking with the Rust port's env!("CARGO_PKG_VERSION")
+  # (crates/sos-cli/src/commands/new.rs, adopt.rs). Fallback if the workspace
+  # layout ever moves.
+  local _skv="0.1.0"
+  if [[ -n "${SOS_KIT_DIR:-}" && -f "$SOS_KIT_DIR/crates/sos-cli/Cargo.toml" ]]; then
+    _skv="$(grep -m1 '^version' "$SOS_KIT_DIR/crates/sos-cli/Cargo.toml" | sed -E 's/^version *= *"([^"]+)".*/\1/')"
+    [[ -n "$_skv" ]] || _skv="0.1.0"
+  fi
+
   # Header
   cat > "$tmpfile" <<EOF
 # .sos-stack.toml — written by 'sos init security' on $ts
@@ -187,7 +197,7 @@ sos_init_security() {
 
 schema_version = 1
 detected_at = "$ts"
-sos_kit_version = "P040"
+sos_kit_version = "$_skv"
 
 EOF
 
@@ -478,6 +488,10 @@ sos_new() {
   cp    "$K/hooks/pre-commit" "$target/hooks/pre-commit"
   cp    "$K/hooks/pre-push"   "$target/hooks/pre-push"
   chmod +x "$target/hooks/pre-commit" "$target/hooks/pre-push" 2>/dev/null || true
+  # L5 (P086 spine drift): docs/ORCHESTRATION.md was already in adopt's spine (line ~757)
+  # but missing here — new-born repos lacked the full orchestrator spec.
+  mkdir -p "$target/docs"
+  [[ -f "$K/docs/ORCHESTRATION.md" ]] && cp "$K/docs/ORCHESTRATION.md" "$target/docs/ORCHESTRATION.md"
   # .gitignore — golden ships one (.DS_Store, .sos/, .sos-state/, build artifacts). Without it,
   # a spawned repo commits cruft on its first commit (dogfood finding: 4 .DS_Store leaked into ket).
   [[ -f "$K/.gitignore" ]] && cp "$K/.gitignore" "$target/.gitignore"
@@ -650,9 +664,22 @@ EOF
     echo "  ✓ pre-existing git repo — pre-commit/pre-push hooks armed"
   fi
 
+  # ---- 6. Seed trust baseline (P086) — stage spine → rebaseline → stage baseline ----
+  # Order is load-bearing: trust-gate.sh's enumerator is `git ls-files`, which only
+  # sees staged/tracked paths — rebaseline BEFORE `git add -A` writes an empty
+  # baseline (Task 0 anchor #2). "no auto-commit" doctrine is preserved: we
+  # stage, we do not commit.
+  ( cd "$target" && git add -A )
+  if ( cd "$target" && bash scripts/trust-gate.sh rebaseline ) >/dev/null 2>&1; then
+    ( cd "$target" && git add .sos-trust-baseline )
+    echo "  ✓ trust baseline seeded + spine staged"
+  else
+    echo "  ⚠ trust baseline NOT seeded (trust-gate.sh missing/failed) — run: bash scripts/trust-gate.sh rebaseline && git add .sos-trust-baseline"
+  fi
+
   echo ""
   echo "✓ sos new done: $target"
-  echo "  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git add -A && git commit."
+  echo "  Next: fill # TODO (AGENT_MAP surfaces, INV-LOCAL, CLAUDE.md context) → git commit."
 }
 
 sos_adopt() {
@@ -701,6 +728,12 @@ sos_adopt() {
   fi
   local incoming="$target/.sos-adopt-incoming"
   local added="" conflicts=""
+  # P086 Task 3 (O1.1 phương án A): parallel path accumulator — `added` is a
+  # pre-formatted display string (mixes clean paths with trailing description
+  # text; some lines aren't paths at all, e.g. "hooks ARMED (...)"), so it
+  # can't be used verbatim as `git add` args. Every call site that writes a
+  # REAL file into `$target` also appends that path here.
+  local -a _added_paths=()
 
   # adopt_item <src-rel> [dest-rel] — additive + non-clobber.
   #   plain file: copy if dest ABSENT; else stage to .sos-adopt-incoming/ + flag conflict.
@@ -727,11 +760,15 @@ sos_adopt() {
         else
           mkdir -p "$(dirname "$fdest")"; cp "$fpath" "$fdest"
           added="${added}    + ${frel}\n"
+          _added_paths+=("$fdest")
         fi
       # -L: deref symlinks — kit's .claude/agents/*.md are symlinks to ../../agents/ (drift-fix
       # 2026-06-01); plain -type f skips them → adopted repo gets NO spawnable agents (F-04
       # jarvis dogfood). cp without -P dereferences, so the dest receives a real file.
-      done < <(find -L "$src" -type f -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store')
+      # L1 (order determinism, P086): sort so `added`/`conflicts` order is
+      # filesystem-independent (Linux dogfood: readdir order differed from the
+      # macOS-captured golden).
+      done < <(find -L "$src" -type f -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store' | sort)
     else
       local dest="$target/$rel"
       if [[ -e "$dest" ]]; then
@@ -740,6 +777,7 @@ sos_adopt() {
       else
         mkdir -p "$(dirname "$dest")"; cp "$src" "$dest"
         added="${added}    + ${rel}\n"
+        _added_paths+=("$dest")
       fi
     fi
   }
@@ -768,8 +806,10 @@ sos_adopt() {
       else
         mkdir -p "$(dirname "$sdest")"; cp "$sfile" "$sdest"
         added="${added}    + ${srel}\n"
+        _added_paths+=("$sdest")
       fi
-    done < <(find "$K/skills" -type f -not -path '*/attic/*' -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store')
+    # L1 (order determinism, P086): sort (see adopt_item above).
+    done < <(find "$K/skills" -type f -not -path '*/attic/*' -not -path '*/__pycache__/*' -not -name '*.pyc' -not -name '.DS_Store' | sort)
   fi
   # .mcp.json — wire OUR doctor gate (Cat-A, our tool). Create-if-absent; if the repo already has
   # one (its own external MCP = Cat-C), flag it — add the 'doctor' entry by hand, never clobber.
@@ -806,6 +846,7 @@ sos_adopt() {
 }
 JSON
     added="${added}    + .mcp.json (kit tools wired: doctor/docs-gate/ship/guard/vps — PATH-rel, same set as sos new)\n"
+    _added_paths+=("$target/.mcp.json")
   else
     # JA-05 (jarvis dogfood): hand-editing JSON is where new users drop the ball. jq-merge the
     # kit's 5 MCP tool entries ONLY where absent (`//=` never touches existing keys =
@@ -824,6 +865,7 @@ JSON
         else
           mv "$target/.mcp.json.tmp" "$target/.mcp.json"
           added="${added}    + .mcp.json (kit tool entries jq-merged: doctor/docs-gate/ship/guard/vps — repo's own MCP servers kept)\n"
+          _added_paths+=("$target/.mcp.json")
         fi
       else
         rm -f "$target/.mcp.json.tmp"
@@ -864,10 +906,12 @@ JSON
     cp "$K/templates/INVARIANTS-template.md" "$target/docs/security/INVARIANTS.md"
     printf '\n## INV-LOCAL (project-specific — FILL THESE)\n\n# TODO: add `## INV-LOCAL-NNN — <title>`, or `# No local INV`.\n' >> "$target/docs/security/INVARIANTS.md"
     added="${added}    + docs/security/INVARIANTS.md\n"
+    _added_paths+=("$target/docs/security/INVARIANTS.md")
   else conflicts="${conflicts}    ~ docs/security/INVARIANTS.md (exists — kept)\n"; fi
   if [[ ! -f "$target/docs/AGENT_MAP.yaml" ]]; then
     sos_map "$target" >/dev/null    # SCAN real surfaces (NOT copy tarot content); draft_needs_review
     added="${added}    + docs/AGENT_MAP.yaml (scanned real surfaces — set load_bearing + blast by hand)\n"
+    _added_paths+=("$target/docs/AGENT_MAP.yaml")
   else conflicts="${conflicts}    ~ docs/AGENT_MAP.yaml (exists — kept)\n"; fi
   if [[ ! -f "$target/.docs-gate.toml" ]]; then
     cat > "$target/.docs-gate.toml" <<'TOML'
@@ -894,6 +938,7 @@ valid_types = []
 exclude_files = []
 TOML
     added="${added}    + .docs-gate.toml\n"
+    _added_paths+=("$target/.docs-gate.toml")
   else conflicts="${conflicts}    ~ .docs-gate.toml (exists — kept; verify ticket_dir + architecture)\n"; fi
   # Cat-C docs: GENERATE a skeleton when ABSENT (additive → repo passes its OWN pre-commit,
   # born-ready like sos new). NEVER overwrite an EXISTING one (that's the repo's content).
@@ -907,6 +952,7 @@ TOML
   else
     printf '# Changelog\n\nFormat loosely follows Keep a Changelog.\n\n## v0.0.0 — sos adopt — %s\n\n- Spine retrofitted via `sos adopt`.\n' "$(date -u +%Y-%m-%d)" > "$target/CHANGELOG.md"
     added="${added}    + CHANGELOG.md (skeleton)\n"
+    _added_paths+=("$target/CHANGELOG.md")
   fi
   if [[ -f "$target/docs/ARCHITECTURE.md" ]]; then conflicts="${conflicts}    ~ docs/ARCHITECTURE.md (exists — kept)\n"
   else
@@ -928,11 +974,13 @@ TOML
 # TODO: how data moves through the system.
 EOF
     added="${added}    + docs/ARCHITECTURE.md (skeleton)\n"
+    _added_paths+=("$target/docs/ARCHITECTURE.md")
   fi
   if [[ -f "$target/docs/BACKLOG.md" ]]; then conflicts="${conflicts}    ~ docs/BACKLOG.md (exists — kept)\n"
   elif [[ -f "$K/templates/BACKLOG_template.md" ]]; then
     cp "$K/templates/BACKLOG_template.md" "$target/docs/BACKLOG.md"
     added="${added}    + docs/BACKLOG.md (template — fill Active sprint)\n"
+    _added_paths+=("$target/docs/BACKLOG.md")
   fi
   [[ -f "$target/CLAUDE.md" ]] && conflicts="${conflicts}    ~ CLAUDE.md (exists — kept)\n" \
     || conflicts="${conflicts}    ! CLAUDE.md (MISSING — add a project CLAUDE.md by hand; adopt won't guess product identity)\n"
@@ -944,7 +992,10 @@ EOF
   for pat in '.sos-state/' '.backup/' '.sos-adopt-incoming/' '.claude/settings.local.json' 'target/' '__pycache__/' '*.pyc' '*.egg-info/' 'node_modules/' 'dist/'; do
     grep -qxF "$pat" "$gi" 2>/dev/null || { printf '%s\n' "$pat" >> "$gi"; gi_added=$((gi_added+1)); }
   done
-  [[ "$gi_added" -gt 0 ]] && added="${added}    + .gitignore ($gi_added build/runtime ignore lines)\n"
+  if [[ "$gi_added" -gt 0 ]]; then
+    added="${added}    + .gitignore ($gi_added build/runtime ignore lines)\n"
+    _added_paths+=("$gi")
+  fi
 
   # .phieu-counter — seed so `phieu <slug>` works out of the box (P061: phiếu lifecycle tooling
   # didn't bootstrap → phiếu made by hand + left untracked). Phiếu ARE tracked (audit trail, Sếp
@@ -952,6 +1003,7 @@ EOF
   if [[ ! -f "$target/.phieu-counter" ]]; then
     echo "0" > "$target/.phieu-counter"
     added="${added}    + .phieu-counter (seed 0 — source phieu/phieu.sh to use \`phieu <slug>\`)\n"
+    _added_paths+=("$target/.phieu-counter")
   fi
 
   # ---- Born-wire (JA-03 + JA-04, jarvis dogfood): `sos new` arms its gates at birth; adopt
@@ -959,6 +1011,7 @@ EOF
   # manual step = the class that dies). install-hooks.sh carries the F09 hijack guard
   # (pre-existing hooksPath ≠ hooks → TTY confirm / non-TTY abort) so auto-arm is safe.
   echo "[3/4] Born-wire (arm hooks + stack detect)"
+  local hooks_armed="false"
   if [[ -d "$target/.git" && -f "$target/scripts/install-hooks.sh" ]]; then
     local ih_rc
     set +e
@@ -966,6 +1019,7 @@ EOF
     ih_rc=${PIPESTATUS[0]}
     set -e
     if [[ "$ih_rc" -eq 0 ]]; then
+      hooks_armed="true"
       added="${added}    + hooks ARMED (core.hooksPath → hooks/; pre-existing .git/hooks moved to .bak if any)\n"
     else
       conflicts="${conflicts}    ~ hooks NOT armed (F09 guard declined — existing hook setup detected; review then run: bash scripts/install-hooks.sh)\n"
@@ -979,10 +1033,31 @@ EOF
   is_rc=$?
   set -e
   case "$is_rc" in
-    0) added="${added}    + .sos-stack.toml (stack detected — advisory-scan/security-review ready)\n" ;;
+    0) added="${added}    + .sos-stack.toml (stack detected — advisory-scan/security-review ready)\n"; _added_paths+=("$target/.sos-stack.toml") ;;
     1) conflicts="${conflicts}    ~ .sos-stack.toml (already exists — kept)\n" ;;
-    *) conflicts="${conflicts}    ~ .sos-stack.toml (no stack manifest detected — see file comments, add [[stack]] by hand)\n" ;;
+    # rc=2: no manifest detected, but sos_init_security still WRITES the file
+    # (hint comment) — a real file, so still stage it for the seed step.
+    *) conflicts="${conflicts}    ~ .sos-stack.toml (no stack manifest detected — see file comments, add [[stack]] by hand)\n"; _added_paths+=("$target/.sos-stack.toml") ;;
   esac
+
+  # P086 Task 3 — seed trust baseline, ONLY when arm actually succeeded (repo
+  # not armed = don't touch staging at all). Runs AFTER .sos-stack.toml
+  # detection above so that file (written by sos_init_security, which runs
+  # after the arm-hooks leg) is included in _added_paths before we stage.
+  # Order load-bearing (same as `new`): stage → rebaseline → stage baseline.
+  # Scoped to _added_paths (Luật chơi #3 — NOT `git add -A`, brownfield repo
+  # may have the user's own work-in-flight).
+  if [[ "$hooks_armed" == "true" ]]; then
+    if [[ "${#_added_paths[@]}" -gt 0 ]]; then
+      ( cd "$target" && git add -- "${_added_paths[@]}" ) 2>/dev/null || true
+    fi
+    if ( cd "$target" && bash scripts/trust-gate.sh rebaseline ) >/dev/null 2>&1; then
+      ( cd "$target" && git add .sos-trust-baseline )
+      added="${added}    + .sos-trust-baseline (seeded — first commit sẽ qua [8/8])\n"
+    else
+      conflicts="${conflicts}    ~ .sos-trust-baseline NOT seeded (trust-gate.sh missing/failed) — run: bash scripts/trust-gate.sh rebaseline && git add .sos-trust-baseline\n"
+    fi
+  fi
 
   echo "[4/4] Validator"
   local doctor_bin="${DOCTOR_BIN:-doctor}"
@@ -1023,6 +1098,11 @@ EOF
   echo "  - docs-gate freshness: add a new CHANGELOG entry (e.g. \`## <ver> — sos-kit adopted — $(date -u +%Y-%m-%d)\`)"
   echo "  - fill docs/BACKLOG.md Active sprint (1-2 real items) — the session banner reads it"
   echo "  - restart Claude Code in the repo so agents/skills load"
+  if [[ "$hooks_armed" != "true" ]]; then
+    # F09-decline (P086 Task 5): hooks weren't armed here, so trust baseline
+    # wasn't seeded either — nudge the manual-arm path.
+    echo "  - hooks NOT armed here — after arming by hand (bash scripts/install-hooks.sh), also run: bash scripts/trust-gate.sh rebaseline && git add .sos-trust-baseline"
+  fi
 }
 
 sos_sync() {

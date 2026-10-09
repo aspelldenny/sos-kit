@@ -17,8 +17,8 @@ ADDED (copied — were absent):
     + .claude/agents/orchestrator.md
     + scripts/install-hooks.sh
     + phieu/README.md
-    + templates/claude-settings.local.json
     + templates/BACKLOG_template.md
+    + templates/claude-settings.local.json
     + hooks/pre-commit
     + hooks/pre-push
     + .claude/skills/idea/SKILL.md
@@ -37,6 +37,7 @@ REVIEW / merge by hand (existing-or-missing — adopt did NOT touch):
     ~ templates/INVARIANTS-template.md
     ~ CHANGELOG.md (exists — kept)
     ! CLAUDE.md (MISSING — add a project CLAUDE.md by hand; adopt won't guess product identity)
+    ~ .sos-trust-baseline NOT seeded (trust-gate.sh missing/failed) — run: bash scripts/trust-gate.sh rebaseline && git add .sos-trust-baseline
 
 Next: diff staged wiring  (git diff --no-index <existing> <TARGET>/.sos-adopt-incoming/<path>)  → merge by hand;
       add MISSING docs; fill # TODO; then: doctor verify-setup --repo <TARGET>

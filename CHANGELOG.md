@@ -29,7 +29,91 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 **Older entries (P078b3 and earlier — v2.3 wave start through v2.1/v2.0/v1) archived to `docs/archive/CHANGELOG_pre-P078c.md`** on 2026-07-23 to keep this file under the 40k doc-size threshold.
 
-## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-22
+## v2.3 forge (in progress) — Phiếu path + sentinel + agents-drift cure + portability architecture — 2026-07-24
+
+**[P088] Windows checkout/EOL layer — CRLF-safe parity goldens + symlink-stub detection (2026-07-24):**
+- **ITEM 1 — CRLF breaking parity goldens + git-warning capture noise:**
+  - `.gitattributes` extended: force LF for `*.golden` (direct fix for `parity_sync/new/adopt_enforced`) plus `*.toml`/`*.json`/`*.md`/`*.yaml` — closes the P087 BUG 2 CRLF-hash-mismatch class structurally (`.claude/settings.json`/`.mcp.json` sha256 now stable cross-platform for trust-gate).
+  - Every `git` shell-out in `crates/sos-cli/src/commands/new.rs` and `adopt.rs` (init, symbolic-ref, add) now passes `-c core.autocrlf=false` (per-invocation, no behavior change on POSIX where that's already the default) — the `warning: ... LF will be replaced by CRLF` line no longer leaks into `run_rust()`'s combined stdout+stderr capture (`tests/parity.rs:60-69`), which was the second (non-golden-EOL) cause of the same 3 parity fails.
+  - Existing checkouts: `git add --renormalize .`, then if any tracked file still shows CRLF on disk, delete it + `git checkout -- <path>` to force re-materialize (documented in `docs/SETUP.md` §5b + `INSTALL.md`).
+  - **Extra discoveries beyond the CRLF-only framing (Task 0 anchor #3 correction):** `parity_adopt_enforced` had two ADDITIONAL native-path-separator bugs, same bug class as P087 BUG 1 — `adopt.rs`'s `is_noise()` and the `skills/attic/` skip both string-matched `"/attic/"`/`"/__pycache__/"` against `to_string_lossy()` (native `\` on Windows, never matches) — fixed with `Path::components()` checks; and the "Next: diff staged wiring" hint line built its path via `PathBuf::display()` (native separator) instead of the raw `&str` arg — fixed to use forward-slash consistently. Both now green.
+- **ITEM 2 — `.claude/skills/*` (and `.claude/agents/`, `.claude/commands/`) symlinks checkout as dead text stubs on Windows** (`core.symlinks=false` default): Chủ nhà-decided option (c) hybrid — kept the symlink convention (no revert of the `.claude/agents/ -> agents/` pattern), added a mechanical stub-detection check (`find_symlink_stubs`/`warn_symlink_stubs` in `new.rs`, reused by `adopt.rs`) that scans both the `SOS_KIT_DIR` source checkout AND the freshly-scaffolded target, printing the Developer Mode + `core.symlinks true` + re-clone fix if it finds any. Documented in `docs/SETUP.md` §5b + `INSTALL.md` Windows section, including the maintainer-checkout-as-`--kit`-source propagation case.
+- **Post-review remediation (2026-07-24, Giám sát security-review 2 FLAGs):** `.sos-trust-baseline` was rebaselined by P087 on a CRLF-materialized checkout BEFORE this phiếu's LF-forcing rules existed, so its `.claude/settings.json`/`.mcp.json` lines encoded stale CRLF-derived hashes (correct LF blobs unchanged since P086); rebaselined again on an LF-materialized tree — both lines now byte-identical to the P086 baseline (`cd0cb9c4…`/`5e75a6a7…`). Also added `.sos-trust-baseline text eol=lf` to `.gitattributes` — the baseline file itself is extensionless and matched no existing glob, so a fresh Windows `autocrlf=true` clone would still false-BLOCK on the byte-exact baseline diff.
+
+**[P087] Windows runtime bug-fix wave — `sos map` scanner dead + `trust-gate.sh` false-BLOCK (2026-07-24):**
+- **BUG 1 (`crates/sos-cli/src/commands/map.rs`):** `path_str` (native
+  separator, `\` on Windows) was fed straight into POSIX-style substring
+  match (`SURFACES[].path_substrs` like `"/routes/"`, `NOISE_EXCLUDE` like
+  `"/.git/"`) — never matched on Windows, so `sos map` neither excluded noise
+  dirs (`.git/`, `node_modules/`) nor detected any dir-pattern surface.
+  Fixed by forward-slash-normalizing `path_str` at both call sites
+  (`scan_surface`'s surface-match loop + `detect_present_stacks`) before
+  `.contains()`/`is_noise()`. `is_noise()` itself is `&str`-typed (no interior
+  fix possible without changing its signature — normalize at each caller
+  instead, both now do). Also added `display_out_path()` helper so the stdout
+  confirmation line renders forward-slash after the `target` arg (parity
+  golden expects `<TARGET>/docs/AGENT_MAP.yaml`) while keeping the `target`
+  substring itself byte-identical (the parity harness substring-replaces the
+  literal CLI arg with `<TARGET>` — blanket-normalizing the whole display
+  path would have broken that substitution on Windows).
+- **BUG 2 (`scripts/trust-gate.sh`):** GNU coreutils `sha256sum` on
+  Windows/Git Bash emits binary-mode hash lines (`HASH *PATH`, asterisk
+  prefix) while `.sos-trust-baseline` was seeded text-mode (`HASH  PATH`) on
+  POSIX — every line diffed regardless of actual content, false-BLOCKing the
+  first commit after `sos new` at hook `[8/8]`. Fixed inside `hash_file()`
+  (the single wrapper both the generate and compare branches call) by
+  piping its output through `awk '{ h=$1; sub(/^\*/, "", $2); print h"  "$2 }'`
+  — canonical `HASH  PATH` form, no-op on macOS `shasum` (already text-mode).
+  `.sos-trust-baseline` regenerated (`scripts/trust-gate.sh rebaseline`).
+- **Scope:** 3 remaining parity fails (`parity_new/adopt/sync_enforced`) plus
+  a newly-unmasked 4th (`parity_map_enforced`, now failing on a pure
+  golden-file CRLF checkout mismatch, not the stdout-path bug fixed here) are
+  all the same `.gitattributes`/CRLF class — deferred to P088 by design, not
+  touched here.
+
+**[P086] Seed `.sos-trust-baseline` in born-wire — fix first-commit deadlock (2026-07-24):**
+- Linux dogfood 2026-07-24 (finding L3, HIGH): a repo just `sos new`'d could not
+  create its FIRST commit — `hooks/pre-commit` `[8/8]` trust-gate fail-CLOSED on
+  `.sos-trust-baseline not found` (the file only ever gets created by a manual
+  `scripts/trust-gate.sh rebaseline`, which nothing nudged the user toward). `sos
+  adopt` had the identical gap on its arm-hooks leg.
+- `crates/sos-cli/src/commands/new.rs`: after arming hooks, born-wire now stages
+  the freshly-copied spine (`git add -A`), runs `scripts/trust-gate.sh
+  rebaseline`, then stages `.sos-trust-baseline` — order is load-bearing
+  (trust-gate's enumerator is `git ls-files`, so rebaseline BEFORE staging
+  writes an empty baseline). Missing/failing `trust-gate.sh` degrades to a
+  warn + manual-command hint, never fails the bootstrap itself. Next-line
+  wording updated (`git add -A && git commit` → `git commit`, spine is already
+  staged).
+- `crates/sos-cli/src/commands/adopt.rs`: same seed step, but scoped — adopt is
+  brownfield and must never `git add -A` (could sweep up the user's own
+  work-in-flight). A parallel `added_paths: Vec<PathBuf>` accumulator threads
+  through `adopt_item`/`adopt_skills`/`wire_mcp_json`/every inline
+  generated-file write, and ONLY those exact paths get staged — then rebaseline
+  → stage baseline, same order as `new`. Seeding only fires when hook-arming
+  actually succeeded (F09-decline leaves staging untouched); the "Heads-up for
+  your FIRST commit" block gained a line reminding the F09-decline path to
+  rebaseline by hand after arming manually.
+- `bin/sos.sh` dormant `sos_new`/`sos_adopt` oracles mirrored byte-for-byte
+  (bash `_added_paths` array parity to Rust's `added_paths`) — parity goldens
+  regenerated via `capture.sh`.
+- **L1 (order determinism):** `sos adopt`'s `added`/`conflicts` display lists
+  were built from unsorted directory-walk order (Linux dogfood: 2 `templates/`
+  lines swapped vs the macOS-captured golden → `parity_adopt_enforced` FAIL).
+  Fixed at the enumeration source (Rust `WalkDir` entries collected + sorted;
+  bash `find ... | sort`) in both `adopt_item` and the skills-remap loop.
+- **L4 (version stale):** `.sos-stack.toml`'s `sos_kit_version = "P040"` was a
+  dead ticket-ID tag. Rust now emits `env!("CARGO_PKG_VERSION")`
+  (`new.rs`/`adopt.rs`); bash reads the real value from
+  `crates/sos-cli/Cargo.toml`, same fallback (`0.1.0`) so both sides parity.
+- **L5 (spine drift):** `docs/ORCHESTRATION.md` was already in `adopt`'s spine
+  (and `sync`'s) but missing from `new`'s — new-born repos shipped without the
+  full orchestrator spec. Added to both Rust `new.rs` and bash `sos_new`.
+- (L2 — advisory-cron `.sha256` — already fixed outside this repo; noted here
+  for the L-series record only.)
+- New acceptance tests (`crates/sos-cli/tests/parity.rs`, against the REAL
+  sos-kit spine, not the synthetic fixture): `new_first_commit_passes_all_hooks_zero_seed`
+  and `adopt_does_not_stage_users_untracked_file`.
 
 **`sos help` polish + `--version`/`-V` fix (2026-07-23):**
 - `bin/sos.sh`: `sos help` rewritten into a modern-CLI facade (Install/Update, Quick start,

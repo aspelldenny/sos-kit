@@ -865,6 +865,100 @@ fn oa02_templates_excluded_from_frontend() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// P086 — trust-baseline seed acceptance tests. Unlike the fixtures above
+// (synthetic minimal fake-kit, no `scripts/trust-gate.sh`), these need the
+// REAL sos-kit spine (full `hooks/pre-commit` [8/8] chain + `scripts/*.sh`
+// guards) to prove the actual first-commit deadlock (P086 context) is fixed —
+// same pattern `crates/sos-install/tests/install.rs` uses for its own
+// end-to-end hook tests (`repo_root_hook_bytes` et al.).
+// ---------------------------------------------------------------------------
+
+fn real_kit_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn configure_git_identity(root: &Path) {
+    run_git(&["config", "user.email", "sos-kit-fixture@example.com"], root);
+    run_git(&["config", "user.name", "sos-kit fixture"], root);
+}
+
+/// Acceptance (a) — a fixture `sos new` repo's FIRST real `git commit` passes
+/// all 8 hook phases with zero hand intervention (pristine, zero-seed — same
+/// oracle pattern as `install_end_to_end_blocks_a_real_env_commit_after_fresh_install`).
+/// Regression this guards: the exact P086 deadlock (`.sos-trust-baseline not
+/// found` → BLOCKED) reproduced pre-fix on Linux dogfood 2026-07-24.
+#[test]
+fn new_first_commit_passes_all_hooks_zero_seed() {
+    let tmp = TempFixture::new("p086-new-first-commit");
+    let target = tmp.path().join("fresh");
+    let target_str = target.to_string_lossy().into_owned();
+    let kit = real_kit_root();
+
+    let raw = run_rust_with_kit(&["new", &target_str, "--stack", "python"], &kit);
+    assert!(
+        raw.contains("trust baseline seeded"),
+        "sos new must report trust baseline seeded (got: {raw})"
+    );
+    assert!(
+        target.join(".sos-trust-baseline").is_file(),
+        ".sos-trust-baseline must exist on disk after sos new"
+    );
+
+    configure_git_identity(&target);
+    let commit = git_commit_test(&target, &["commit", "-m", "bootstrap"]);
+    assert!(
+        commit.status.success(),
+        "first commit after `sos new` must pass all 8 hook phases zero-hand-fix (P086): stdout={}\nstderr={}",
+        String::from_utf8_lossy(&commit.stdout),
+        String::from_utf8_lossy(&commit.stderr)
+    );
+}
+
+/// Acceptance (b) — adopting into a brownfield repo with the user's OWN
+/// untracked file present must NOT stage that file (Luật chơi #3: adopt's
+/// seed step is scoped to `added_paths`, never `git add -A`, on a brownfield
+/// target that may carry the user's own work-in-flight).
+#[test]
+fn adopt_does_not_stage_users_untracked_file() {
+    let tmp = TempFixture::new("p086-adopt-no-stage");
+    let target = tmp.path().join("brown");
+    fs::create_dir_all(&target).unwrap();
+    run_git(&["init", "-q"], &target);
+    configure_git_identity(&target);
+    fs::write(target.join("README.md"), "hello\n").unwrap();
+    run_git(&["add", "README.md"], &target);
+    run_git(&["commit", "-q", "-m", "init brownfield"], &target);
+
+    // The user's own work-in-flight — untracked, never staged by them.
+    fs::write(target.join("my-scratch-notes.txt"), "wip, not ready\n").unwrap();
+
+    let target_str = target.to_string_lossy().into_owned();
+    let kit = real_kit_root();
+    let raw = run_rust_with_kit(&["adopt", &target_str], &kit);
+    let _ = raw;
+
+    let status = Command::new("git")
+        .args(["status", "--porcelain", "my-scratch-notes.txt"])
+        .current_dir(&target)
+        .output()
+        .expect("git status must run");
+    let out = String::from_utf8_lossy(&status.stdout);
+    assert_eq!(
+        out.trim(),
+        "?? my-scratch-notes.txt",
+        "adopt must leave the user's untracked file untouched/unstaged (Luật chơi #3), got: {out:?}"
+    );
+}
+
+fn git_commit_test(root: &Path, args: &[&str]) -> std::process::Output {
+    Command::new("git")
+        .args(args)
+        .current_dir(root)
+        .output()
+        .unwrap_or_else(|e| panic!("failed to exec git {:?}: {e}", args))
+}
+
 /// Acceptance #3 (audit `:130`) — nested/monorepo packages (`sim/`, `tools/`,
 /// `migrations/`, and a nested Rust sub-package) still produce their expected
 /// surfaces. Regression this guards: stack-detection or surface-scan being
