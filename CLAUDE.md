@@ -7,9 +7,11 @@ SOS Kit is a solo developer's harness for building apps with AI agents. v3 keeps
 | Path | What it is |
 |---|---|
 | `harness-lite/` | **The core.** `CONTRACT.md` (shared rules) + `roles/` (orchestrator, architect, worker, reviewer). Vendored into app repos with `UPSTREAM.json` hashes. |
-| `hooks/`, `scripts/` | The kit's own git gates (6, fail-closed, each prints a fix) + SessionStart banner + `.env` edit guard. `scripts/trust-gate.sh rebaseline` after a reviewed change to an auto-exec file. |
+| `hooks/` | Git gates (6, fail-closed, each prints a fix). The real gate for every agent. |
+| `scripts/` | Agent-neutral CLIs: git-gate helpers, `env-guard.sh`, `status.sh`, `advise` + `test-watch.py` (advisor). `scripts/trust-gate.sh rebaseline` after a reviewed change to an auto-exec file. |
+| `adapters/` | One thin translator per agent (`claude/`, `codex/`): hook payload → `scripts/` call. No policy; every check has a git/CLI backstop. Tests: `tests/adapters/run.sh`. See `adapters/README.md`. |
 | `recipes/` + `skills/apply/` | Verified implementation patterns and the skill that applies one. |
-| `crates/`, `bin/` | The `sos` Rust binary. Being shrunk to `sos lite install / update / check` (BACKLOG step 2.4); `core/` and `adapters/` belong to it until then. |
+| `crates/`, `bin/` | The `sos` Rust binary. Being shrunk to `sos lite install / update / check` (BACKLOG step 2.4); `core/` belongs to it until then (v2 adapter docs: `archive/v2/adapters/`). |
 | `configs/`, `templates/`, `integrations/` | Per-stack `.ship.toml` examples, starter files, CI/uptime snippets. |
 | `tool-manifest.toml` | Version pins + checksums for sister tools installed by `install.sh`. |
 | `archive/v2/` | The v2 workflow (phiếu, debate rounds, approval gate, role handbooks, INV gates). Read-only history; tag `v2-final` is its last live state. |
@@ -29,5 +31,5 @@ Sister tools live in their own repos and are pinned, not vendored: `~/claude-hoo
 ## Working here
 
 - Commits in English; talk with the maintainer in Vietnamese (em/anh). Role names (Chủ nhà, Quản đốc, Kiến trúc sư, Thợ, Người soát) are fixed terms, not forms of address.
-- `cargo test` must stay green. The pre-commit runs `cargo check`, gitleaks and the trust gate; do not bypass with `--no-verify`.
+- `cargo test` and `tests/adapters/run.sh` must stay green. The pre-commit runs `cargo check`, gitleaks and the trust gate; do not bypass with `--no-verify`.
 - Durable state belongs in the repo (BACKLOG, CHANGELOG, plans), not in private memory.

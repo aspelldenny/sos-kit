@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/session-start-banner.sh\""
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/adapters/claude/hook.py\" session-start"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/block-env-edit.sh\""
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/adapters/claude/hook.py\" pre-edit"
           }
         ]
       }

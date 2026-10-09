@@ -27,3 +27,7 @@ __pycache__/
 # Scan artifacts are local evidence, not committed (re-generated each scan).
 thanhtra-reports/
 .thanhtra-pre-scan.json
+
+# Advisor trigger state (scripts/test-watch.py) and logged advice
+.advise-state/
+evidence/advice/

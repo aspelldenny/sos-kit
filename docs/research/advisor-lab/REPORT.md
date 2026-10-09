@@ -1,5 +1,7 @@
 # Advisor lab — tự làm advisor cho thợ (2026-10-08)
 
+> **09/10: đã đưa vào kit** thành `scripts/advise` + `scripts/test-watch.py` + `adapters/{claude,codex}` (xem `adapters/README.md`). `advise-on-fail.py` ở đây là bản thử cũ, chỉ để tham khảo.
+>
 > Bản thử, chưa đưa vào harness. Mục đích: xem một "advisor tự làm" (đọc được, đổi được model) có chạy được với thợ Sonnet không, tốn bao nhiêu, lời khuyên tốt đến đâu.
 
 ## Thành phần

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PostToolUse / PostToolUseFailure hook for Bash.
 
-After ADVISE_AFTER (default 2) consecutive failing test runs, call tools/advise and put
+After ADVISE_AFTER (default 2) consecutive failing test runs, call scripts/advise and put
 its guidance into the agent's context (hookSpecificOutput.additionalContext).
 A passing test run resets the count. Never blocks; on any internal error it stays silent.
 """
@@ -44,7 +44,7 @@ def main():
     q = (f"The same tests have now failed {n} times in a row (command: {cmd}). "
          "What is the root cause, and should I change approach?")
     try:
-        r = subprocess.run([str(root / "tools/advise"), "--error-file", str(err), q],
+        r = subprocess.run([str(root / "scripts/advise"), "--error-file", str(err), q],
                            cwd=root, capture_output=True, text=True, timeout=300)
         advice = r.stdout.strip() if r.returncode == 0 else f"(advisor unavailable: {r.stderr.strip()[:300]})"
     except Exception as e:

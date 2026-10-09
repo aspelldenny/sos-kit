@@ -11,6 +11,7 @@ SOS Kit is the harness a solo developer uses to build and ship apps with Claude 
 | Part | What it does |
 |---|---|
 | [`harness-lite/`](harness-lite/README.md) | The core: one shared contract plus four short role prompts — **Quản đốc** (orchestrator), **Kiến trúc sư** (architect, only for structural uncertainty), **Thợ** (worker), **Người soát** (independent reviewer). Model-neutral; works in Claude Code and Codex. |
+| [`adapters/`](adapters/README.md) | Agent-neutral by design: the checks are git gates and plain CLIs in `scripts/`; `adapters/claude` and `adapters/codex` only translate each agent's hook payload. Another harness needs no adapter for the gates. |
 | Git gates | A few fail-closed checks, each printing how to fix the failure: secrets (gitleaks), `.env` commits, case collisions, code on the default branch, plus type checks. App repos add product gates such as wording rules (`quality-gate`) and a protected feature list (`features-guard`). |
 | [`recipes/`](recipes/README.md) | Implementation patterns verified against shipped code (payments, auth, rate limiting, PII encryption, SSE keepalive, multi-model fallback). Applied with the `apply` skill. |
 | Sister tools | Pinned in [`tool-manifest.toml`](tool-manifest.toml), installed by `install.sh`: `claude-hooks`, `quality-gate`, `doctor` (runtime secret scan), `doc-rotate` (keeps state docs small); server pack `ship`, `guard`, `vps` for web projects. |
