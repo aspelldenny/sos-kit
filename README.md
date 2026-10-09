@@ -34,7 +34,7 @@ cd your-repo && sos install --dry-run && sos install                            
 sos check
 ```
 
-Needs `git`, `gitleaks` and `python3`. `sos install` adds `harness-lite/` (kit-owned, updated by `sos update`), starter `AGENTS.md`/`CLAUDE.md`/`.sos.toml` and Claude/Codex wiring when they are missing, and git hooks that run `sos gate`. It never overwrites a project file. Until the v0.3.0 release is published, build from source: `cargo install --path crates/sos-cli`.
+Needs `git`, `gitleaks` and `python3`. `sos install` adds `harness-lite/` (kit-owned, updated by `sos update`), starter `AGENTS.md`/`CLAUDE.md`/`.sos.toml` and Claude/Codex wiring when they are missing, and git hooks that run `sos gate`. It never overwrites a project file. To build from source instead: `cargo install --path crates/sos-cli`.
 
 ## Repository map
 
