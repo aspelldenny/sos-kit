@@ -12,9 +12,9 @@ SOS Kit is the harness a solo developer uses to build and ship apps with Claude 
 |---|---|
 | [`harness-lite/`](harness-lite/README.md) | The core: one shared contract plus four short role prompts — **Quản đốc** (orchestrator), **Kiến trúc sư** (architect, only for structural uncertainty), **Thợ** (worker), **Người soát** (independent reviewer). Model-neutral; works in Claude Code and Codex. |
 | [`adapters/`](adapters/README.md) | Agent-neutral by design: the checks are git gates and plain CLIs in `scripts/`; `adapters/claude` and `adapters/codex` only translate each agent's hook payload. Another harness needs no adapter for the gates. |
-| Git gates | A few fail-closed checks, each printing how to fix the failure: secrets (gitleaks), `.env` commits, case collisions, code on the default branch, plus type checks. App repos add product gates such as wording rules (`quality-gate`) and a protected feature list (`features-guard`). |
+| Git gates | A few fail-closed checks, each printing how to fix the failure: secrets (gitleaks), `.env` commits, case collisions, code on the default branch, plus type checks. Project gates are built into `sos gate` (`.sos.toml`): wording rules, doc size caps, a protected feature list (`FEATURES.json`), and local-config token scan. |
 | [`recipes/`](recipes/README.md) | Implementation patterns verified against shipped code (payments, auth, rate limiting, PII encryption, SSE keepalive, multi-model fallback). Applied with the `apply` skill. |
-| Sister tools | Pinned in [`tool-manifest.toml`](tool-manifest.toml), installed by `install.sh`: `claude-hooks`, `quality-gate`, `doctor` (runtime secret scan), `doc-rotate` (keeps state docs small); server pack `ship`, `guard`, `vps` for web projects. |
+| Server pack | For web projects only, pinned in [`tool-manifest.toml`](tool-manifest.toml): `ship` (release), `guard` (pre-deploy), `vps` (server ops). The former sister tools `quality-gate`, `doc-rotate`, `doctor`, `claude-hooks` are merged into `sos gate`; `install.sh` still installs them until BACKLOG step 2.4. |
 
 ## How a project runs
 
@@ -33,7 +33,7 @@ v3's installer (`sos lite install / update / check`) is in progress — see [`do
 1. Copy `harness-lite/` into the app repo and record the source commit and file hashes in `harness-lite/UPSTREAM.json`.
 2. Point the app's `AGENTS.md` (and a one-line `CLAUDE.md` that imports it) at `harness-lite/CONTRACT.md` and the orchestrator role.
 3. Add git hooks for secrets and `.env`, and the product gates the app needs.
-4. Install sister tools with `./install.sh` (pinned versions and checksums from `tool-manifest.toml`); install `gitleaks` with Homebrew.
+4. Build `sos` (`cargo install --path crates/sos-cli`), add a `.sos.toml`, and call `sos gate all` from the pre-commit; install `gitleaks` with Homebrew.
 
 ## Philosophy
 

@@ -20,3 +20,4 @@ sos-install = { path = "../sos-install" }
 sos-adapter-claude = { path = "../sos-adapter-claude" }
 sos-adapter-codex = { path = "../sos-adapter-codex" }
 sos-hooks = { path = "../sos-hooks" }
+sos-gates = { path = "../sos-gates" }

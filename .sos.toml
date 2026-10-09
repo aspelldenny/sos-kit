@@ -1,0 +1,3 @@
+# SOS Kit's own gate config (format: crates/sos-gates/src/config.rs).
+[docs]
+files = ["docs/BACKLOG.md", "CHANGELOG.md", "docs/DISCOVERIES.md"]

@@ -11,13 +11,13 @@ SOS Kit is a solo developer's harness for building apps with AI agents. v3 keeps
 | `scripts/` | Agent-neutral CLIs: git-gate helpers, `env-guard.sh`, `status.sh`, `advise` + `test-watch.py` (advisor). `scripts/trust-gate.sh rebaseline` after a reviewed change to an auto-exec file. |
 | `adapters/` | One thin translator per agent (`claude/`, `codex/`): hook payload → `scripts/` call. No policy; every check has a git/CLI backstop. Tests: `tests/adapters/run.sh`. See `adapters/README.md`. |
 | `recipes/` + `skills/apply/` | Verified implementation patterns and the skill that applies one. |
-| `crates/`, `bin/` | The `sos` Rust binary. Being shrunk to `sos lite install / update / check` (BACKLOG step 2.4); `core/` belongs to it until then (v2 adapter docs: `archive/v2/adapters/`). |
+| `crates/`, `bin/` | The `sos` Rust binary. `crates/sos-gates` = the v3 gates (`sos gate text|docs|features|local-secrets|all`, `sos filter`; config `.sos.toml`). The rest is v2 install/bootstrap code being shrunk to `sos lite install / update / check` (BACKLOG step 2.4); `core/` belongs to it until then (v2 adapter docs: `archive/v2/adapters/`). |
 | `configs/`, `templates/`, `integrations/` | Per-stack `.ship.toml` examples, starter files, CI/uptime snippets. |
-| `tool-manifest.toml` | Version pins + checksums for sister tools installed by `install.sh`. |
+| `tool-manifest.toml` | Version pins + checksums for tools installed by `install.sh` (still lists the merged tools until step 2.4). |
 | `archive/v2/` | The v2 workflow (phiếu, debate rounds, approval gate, role handbooks, INV gates). Read-only history; tag `v2-final` is its last live state. |
 | `docs/` | `BACKLOG.md`, `CHANGELOG.md` (repo root), `PHILOSOPHY.md`, `DISCOVERIES.md`, `research/`, `plans/`, `retro/`. |
 
-Sister tools live in their own repos and are pinned, not vendored: `~/claude-hooks` (block-env-edit, features-guard), `~/quality-gate`, `~/doctor` (runtime-scan), `~/doc-rotate`, and the server pack `~/ship`, `~/guard`, `~/vps`.
+quality-gate, doc-rotate (cap-check), doctor (runtime-scan) and claude-hooks (features-guard) are merged into `sos gate` (triage §G); their repos are superseded. The server pack `~/ship`, `~/guard`, `~/vps` stays separate, pinned for web projects only.
 
 ## Rules
 
@@ -25,7 +25,7 @@ Sister tools live in their own repos and are pinned, not vendored: `~/claude-hoo
 2. **Add only what a real failure demands.** Every file, rule, hook or role line must point to an observed failure or a decision in `docs/plans/`. Remove scaffolding a newer model no longer needs, and record why.
 3. **No hardcoded personal paths** in shipped files. Use `~/` or a placeholder. (gitleaks/trust-gate do not catch this — check before committing.)
 4. **Changing `harness-lite/` changes how agents behave in every app.** Get one independent look (fresh-context reviewer or Chủ nhà) before committing, unless Chủ nhà's request is itself the approval; note which in the commit.
-5. **Sister-tool source stays in its own repo.** Only the `sos` binary is built here.
+5. **Tools are CLI first.** A check any project needs goes into `sos gate`; MCP is only an optional wrapper. Server-pack tools (`ship`, `guard`, `vps`) stay in their own repos.
 6. **Keep this file and `README.md` true.** If a path in the map moves, update both in the same commit.
 
 ## Working here

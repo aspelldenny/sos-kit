@@ -11,3 +11,4 @@ pub mod new;
 pub mod adopt;
 pub mod install;
 pub mod tools;
+pub mod gate;

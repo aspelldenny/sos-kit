@@ -107,6 +107,15 @@ enum Cmd {
         #[command(subcommand)]
         action: ToolsCmd,
     },
+    /// v3 gates (agent-neutral; called by git hooks): text, docs, features,
+    /// local-secrets, or all. Config: .sos.toml. Exit 0 ok, 1 blocked, 2 error.
+    Gate {
+        #[command(subcommand)]
+        which: commands::gate::GateCmd,
+    },
+    /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
+    /// (runtime filter for LLM output; rules from .sos.toml [text]).
+    Filter,
 }
 
 #[derive(Subcommand)]
@@ -147,5 +156,7 @@ fn main() -> anyhow::Result<()> {
         Cmd::Tools { action } => match action {
             ToolsCmd::Status => commands::tools::run(),
         },
+        Cmd::Gate { which } => std::process::exit(commands::gate::run(which)),
+        Cmd::Filter => std::process::exit(commands::gate::filter()),
     }
 }

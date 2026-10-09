@@ -8,6 +8,7 @@
 #   4. No code on default branch
 #   5. Block .env* commits (allow .env.example)
 #   6. Trust gate        (auto-exec surfaces vs .sos-trust-baseline + hidden unicode)
+#   7. sos gates         (`sos gate all`: wording, doc size caps, FEATURES.json — config .sos.toml)
 #
 # v2 gates (docs-gate freshness, phiếu/Discovery checks, lane-check, INV security-gate)
 # are archived: see archive/v2/ and docs/plans/V3_TRIAGE_2026-10-08.md.
@@ -34,7 +35,7 @@ gate() {
 # require <script> — a missing guard is a failure, never a silent pass
 
 if [ -f Cargo.toml ]; then
-    gate "1/6 type check" "run \`cargo check\`, fix the compile errors, re-stage" \
+    gate "1/7 type check" "run \`cargo check\`, fix the compile errors, re-stage" \
         cargo check --quiet
 fi
 
@@ -42,20 +43,24 @@ secrets() {
     command -v gitleaks >/dev/null 2>&1 || { echo "  gitleaks not installed"; return 1; }
     gitleaks git --pre-commit --staged --redact --no-banner --log-level warn .
 }
-gate "2/6 secrets" "remove the secret from the staged file (use an env var / .env, keep .env.example placeholders); if gitleaks is missing: \`brew install gitleaks\`. False positive: add a gitleaks:allow comment on that line with the reason" \
+gate "2/7 secrets" "remove the secret from the staged file (use an env var / .env, keep .env.example placeholders); if gitleaks is missing: \`brew install gitleaks\`. False positive: add a gitleaks:allow comment on that line with the reason" \
     secrets
 
-gate "3/6 case collision" "rename one of the colliding paths so they differ by more than letter case" \
+gate "3/7 case collision" "rename one of the colliding paths so they differ by more than letter case" \
     bash -c 'require() { [ -f "$1" ] || { echo "  missing $1"; return 1; }; }; require scripts/check-case-collision.sh && bash scripts/check-case-collision.sh'
 
-gate "4/6 no code on default branch" "create a branch (\`git switch -c <name>\`) and commit there" \
+gate "4/7 no code on default branch" "create a branch (\`git switch -c <name>\`) and commit there" \
     bash -c '[ -f scripts/no-code-on-default.sh ] || { echo "  missing scripts/no-code-on-default.sh"; exit 1; }; bash scripts/no-code-on-default.sh'
 
-gate "5/6 no .env commit" "\`git restore --staged <.env file>\`; keep secrets local, commit only .env.example" \
+gate "5/7 no .env commit" "\`git restore --staged <.env file>\`; keep secrets local, commit only .env.example" \
     bash -c '[ -f scripts/block-env-commit.sh ] || { echo "  missing scripts/block-env-commit.sh"; exit 1; }; bash scripts/block-env-commit.sh'
 
-gate "6/6 trust gate" "review the auto-exec diff shown above; if it is intended, run \`scripts/trust-gate.sh rebaseline\` and stage .sos-trust-baseline" \
+gate "6/7 trust gate" "review the auto-exec diff shown above; if it is intended, run \`scripts/trust-gate.sh rebaseline\` and stage .sos-trust-baseline" \
     bash -c '[ -f scripts/trust-gate.sh ] || { echo "  missing scripts/trust-gate.sh"; exit 1; }; bash scripts/trust-gate.sh'
+
+# The kit runs its own freshly built binary; app repos call the installed `sos`.
+gate "7/7 sos gates" "follow the → How to fix lines above; config lives in .sos.toml" \
+    cargo run --quiet -p sos-cli -- gate all
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then
