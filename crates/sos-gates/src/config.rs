@@ -21,6 +21,12 @@
 //! [git]
 //! protect_default_branch = false   # true: non-Markdown commits must happen on a branch
 //! default_branch = ""              # empty: origin/HEAD, else main, else master
+//!
+//! [advisor]                        # read by harness-lite/scripts/advise
+//! backend = "claude"               # claude | codex | auto (other family than the agent) | off
+//! model = ""                       # empty: opus for claude, Codex config default for codex
+//! after = 2                        # consecutive failing test runs before advice
+//! max = 2                          # advice calls per failing streak, then "stop and report"
 //! ```
 //!
 //! A legacy `.quality-gate.toml` (`[banned_phrases].items`, `[internal_leaks].patterns`,
@@ -44,6 +50,35 @@ pub struct Config {
     pub features: FeaturesConfig,
     #[serde(default)]
     pub git: GitConfig,
+    #[serde(default)]
+    pub advisor: AdvisorConfig,
+}
+
+/// Read by `harness-lite/scripts/advise` (Python); validated here so a typo fails `sos check`.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct AdvisorConfig {
+    #[serde(default = "advisor_backend")]
+    pub backend: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default = "two")]
+    pub after: u32,
+    #[serde(default = "two")]
+    pub max: u32,
+}
+
+impl Default for AdvisorConfig {
+    fn default() -> Self {
+        Self { backend: advisor_backend(), model: String::new(), after: 2, max: 2 }
+    }
+}
+
+fn advisor_backend() -> String {
+    "claude".into()
+}
+fn two() -> u32 {
+    2
 }
 
 #[derive(Debug, Deserialize, Clone, Default)]
@@ -144,6 +179,12 @@ struct LegacyThinking {
 
 pub fn parse(src: &str) -> Result<Config> {
     let cfg: Config = toml::from_str(src).context("parsing .sos.toml")?;
+    if !["claude", "codex", "auto", "off"].contains(&cfg.advisor.backend.as_str()) {
+        bail!("[advisor] backend must be claude, codex, auto or off (got {:?})", cfg.advisor.backend);
+    }
+    if cfg.advisor.after == 0 {
+        bail!("[advisor] after must be at least 1");
+    }
     if cfg.docs.soft == 0 || cfg.docs.soft >= cfg.docs.hard {
         bail!("[docs] needs 0 < soft < hard (got soft={}, hard={})", cfg.docs.soft, cfg.docs.hard);
     }
@@ -205,6 +246,14 @@ mod tests {
     fn unknown_key_is_an_error() {
         assert!(parse("[text]\nbaned = [\"x\"]\n").is_err());
         assert!(parse("[txt]\n").is_err());
+    }
+
+    #[test]
+    fn advisor_section() {
+        let c = parse("[advisor]\nbackend = \"auto\"\nafter = 3\n").unwrap();
+        assert_eq!((c.advisor.backend.as_str(), c.advisor.after, c.advisor.max), ("auto", 3, 2));
+        assert!(parse("[advisor]\nbackend = \"gpt\"\n").is_err());
+        assert!(parse("[advisor]\nafter = 0\n").is_err());
     }
 
     #[test]

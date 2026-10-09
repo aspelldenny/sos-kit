@@ -11,7 +11,16 @@ cd "$T" && git init -q && git commit -q --allow-empty -m init
 mkdir -p scripts adapters
 cp "$KIT"/scripts/{env-guard.sh,test-watch.py,status.sh} scripts/
 cp -R "$KIT"/adapters/claude "$KIT"/adapters/codex adapters/
-printf '#!/usr/bin/env bash\necho "STUB ADVICE"\n' > scripts/advise; chmod +x scripts/advise
+cat > scripts/advise <<'PY'
+#!/usr/bin/env python3
+import json, os, sys
+if "--config" in sys.argv:
+    print(json.dumps({"backend": os.environ.get("STUB_BACKEND", "claude"), "after": 2, "max": 2})); sys.exit(0)
+if os.environ.get("STUB_FAIL"):
+    print("stub advisor down", file=sys.stderr); sys.exit(1)
+print("STUB ADVICE agent=" + (sys.argv[sys.argv.index("--agent") + 1] if "--agent" in sys.argv else "?"))
+PY
+chmod +x scripts/advise
 export CLAUDE_PROJECT_DIR="$T" ADVISE_AFTER=2 ADVISE_MAX=2
 pass=0; fail=0
 
@@ -69,6 +78,13 @@ check "claude: .Env.Local (case) blocked"      2 "BLOCKED"  claude pre-edit <<<"
 check "claude: k5 fail #1 silent"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"')"
 check "claude: quoted ';pytest' not a test"    0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"; d["tool_input"]["command"]="echo \"hello; pytest\" && printf \"a|pytest\""; d["tool_response"]["stdout"]="hello; pytest"')"
 check "claude: k5 fail #2 -> advice"           0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"')"
+check "claude: k6 pytest fail #1"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
+check "claude: k6 other suite passes, no reset" 0 -         claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"; d["tool_input"]["command"]="cargo test"; d["tool_response"]["stdout"]="test result: ok. 3 passed"')"
+check "claude: k6 pytest fail #2 -> advice"    0 "agent=claude" claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
+STUB_BACKEND=off check "claude: backend off -> silent" 0 - claude post-bash <<<"$(line $C 1 'd["session_id"]="k7"')"
+STUB_BACKEND=off check "claude: backend off #2 silent" 0 - claude post-bash <<<"$(line $C 1 'd["session_id"]="k7"')"
+check "claude: k8 fail #1"                     0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k8"')"
+STUB_FAIL=1 check "claude: advisor down is visible" 0 "advisor unavailable" claude post-bash <<<"$(line $C 1 'd["session_id"]="k8"')"
 check "claude: session-start prints status"    0 "branch:"  claude session-start <<<"{}"
 
 # ── Codex ────────────────────────────────────────────────────
@@ -88,7 +104,7 @@ for n in 1 2 3; do
 check "codex: P078b3 fixture line $n allowed"  0 -          codex pre-edit <<<"$(sed -n "${n}p" "$FIX/codex-p078b3-apply-patch.jsonl")"
 done
 check "codex: piped fail #1 silent"            0 -          codex post-bash <<<"$(line $X 3)"
-check "codex: piped fail #2 -> advice"         0 "STUB ADVICE" codex post-bash <<<"$(line $X 3)"
+check "codex: piped fail #2 -> advice"         0 "agent=codex" codex post-bash <<<"$(line $X 3)"
 check "codex: exit-code-only fail #1 silent"   0 -          codex post-bash <<<"$(line $X 3 'd["session_id"]="s3"; d["tool_response"]="Exit code: 1\nOutput:\nboom"')"
 check "codex: exit-code-only fail #2 advice"   0 "STUB ADVICE"          codex post-bash <<<"$(line $X 3 'd["session_id"]="s3"; d["tool_response"]="Exit code: 1\nOutput:\nboom"')"
 check "codex: session-start gives context"     0 "additionalContext" codex session-start <<<"$(line $X 1)"

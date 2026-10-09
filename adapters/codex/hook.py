@@ -81,7 +81,7 @@ def post_bash():
     resp = d.get("tool_response")
     out = resp if isinstance(resp, str) else json.dumps(resp)
     cmd = ["python3", str(SCRIPTS / "test-watch.py"), "--key", f"codex-{d.get('session_id', '')}",
-           "--cmd", (d.get("tool_input") or {}).get("command", "")]
+           "--cmd", (d.get("tool_input") or {}).get("command", ""), "--agent", "codex"]
     m = re.match(r"Exit code: (\d+)", out or "")
     if m:
         cmd += ["--exit", m.group(1)]

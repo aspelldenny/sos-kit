@@ -6,18 +6,19 @@ when the same agent's tests have failed ADVISE_AFTER times in a row, and nothing
 Adapters (adapters/<agent>/hook.py) translate their agent's hook payload into this call
 and wrap the printed text in whatever that agent uses to add context.
 
-  scripts/test-watch.py --key <session/agent id> --cmd "<command>" [--exit <code>] < output
+  scripts/test-watch.py --key <session/agent id> --cmd "<command>" [--exit <code>] [--agent claude|codex] < output
 
 Rules (docs/plans/V3_TRIAGE_2026-10-08.md §F):
-  - only commands matching TEST_RE count; a passing run resets the count;
+  - only commands matching TEST_RE count, each test command separately; its passing run resets it;
   - failure = non-zero --exit OR failure text in the output (agents pipe through `| tail`,
     which hides the exit code);
-  - after ADVISE_AFTER (default 2) consecutive failures, call scripts/advise;
-  - at most ADVISE_MAX (default 2) advisor calls per failing streak; then tell the agent
-    to stop and report to Quản đốc instead of calling again;
-  - SOS_ADVISOR=off disables it. Never fails loudly: any internal error prints nothing.
+  - after `after` (default 2) consecutive failures, call scripts/advise;
+  - at most `max` (default 2) advisor calls per failing streak; then tell the agent to stop
+    and report to Quản đốc instead of calling again;
+  - settings come from `advise --config` (.sos.toml [advisor], env); backend "off" or
+    SOS_ADVISOR=off disables it. An internal error is reported in one line, never raised.
 """
-import argparse, os, re, shlex, subprocess, sys
+import argparse, hashlib, json, os, re, shlex, subprocess, sys
 from pathlib import Path
 
 FAIL_RE = os.environ.get("ADVISE_FAIL_RE",
@@ -47,8 +48,17 @@ def segments(cmd: str):
     yield " ".join(seg)
 
 
+def test_segment(cmd: str):
+    """The first test-running segment of the command, normalised, or None."""
+    for s in segments(cmd):
+        s = WRAPPER.sub("", s.strip())
+        if re.match(TEST_RE, s):
+            return " ".join(s.split())
+    return None
+
+
 def is_test_command(cmd: str) -> bool:
-    return any(re.match(TEST_RE, WRAPPER.sub("", s.strip())) for s in segments(cmd))
+    return test_segment(cmd) is not None
 
 
 def repo_root() -> Path:
@@ -66,16 +76,26 @@ def main() -> None:
     ap.add_argument("--key", default="default")
     ap.add_argument("--cmd", required=True)
     ap.add_argument("--exit", type=int, default=None)
+    ap.add_argument("--agent", default="")
     a = ap.parse_args()
-    if os.environ.get("SOS_ADVISOR", "on") == "off" or not is_test_command(a.cmd):
+    seg = test_segment(a.cmd)
+    if os.environ.get("SOS_ADVISOR", "on") == "off" or seg is None:
         return
     output = sys.stdin.read() if not sys.stdin.isatty() else ""
     failed = (a.exit not in (None, 0)) or bool(re.search(FAIL_RE, output, re.M))
 
     root = repo_root()
+    advise = Path(__file__).resolve().parent / "advise"  # shipped next to this script
+    if not advise.exists():
+        return
+    cfg = json.loads(subprocess.run([sys.executable, str(advise), "--config"], cwd=root,
+                                    capture_output=True, text=True, timeout=30).stdout or "{}")
+    if cfg.get("backend") == "off":
+        return
     state = root / ".advise-state"
     state.mkdir(exist_ok=True)
-    key = re.sub(r"[^A-Za-z0-9_-]", "_", a.key)[:120]
+    # One streak per test command, so another suite passing does not hide this failure.
+    key = re.sub(r"[^A-Za-z0-9_-]", "_", a.key)[:100] + "-" + hashlib.sha1(seg.encode()).hexdigest()[:8]
     count_f, calls_f = state / f"{key}.fails", state / f"{key}.calls"
     if not failed:
         count_f.unlink(missing_ok=True); calls_f.unlink(missing_ok=True)
@@ -83,10 +103,10 @@ def main() -> None:
 
     fails = int(count_f.read_text() or 0) + 1 if count_f.exists() else 1
     count_f.write_text(str(fails))
-    if fails < int(os.environ.get("ADVISE_AFTER", "2")):
+    if fails < int(cfg.get("after", 2)):
         return
     calls = int(calls_f.read_text() or 0) if calls_f.exists() else 0
-    cap = int(os.environ.get("ADVISE_MAX", "2"))
+    cap = int(cfg.get("max", 2))
     if calls >= cap:
         if calls == cap:  # say it once, then stay quiet for the rest of the streak
             calls_f.write_text(str(calls + 1))
@@ -94,26 +114,22 @@ def main() -> None:
                   "Stop changing code; report to Quản đốc what you tried, the failing evidence and your best hypothesis.")
         return
     calls_f.write_text(str(calls + 1))
-    count_f.write_text("0")  # next advice needs another ADVISE_AFTER failures
+    count_f.write_text("0")  # next advice needs another `after` failures
 
-    advise = Path(__file__).resolve().parent / "advise"  # shipped next to this script
-    if not advise.exists():
-        return
     err = state / f"{key}.last-error.txt"
     err.write_text(output[-8000:])
     q = (f"The same tests have now failed {fails} times in a row (command: {a.cmd}). "
          "What is the root cause, and should I change approach?")
-    try:
-        r = subprocess.run([str(advise), "--error-file", str(err), q], cwd=root,
-                           capture_output=True, text=True, timeout=300)
-        advice = r.stdout.strip() if r.returncode == 0 else f"(advisor unavailable: {r.stderr.strip()[:300]})"
-    except Exception as e:
-        advice = f"(advisor unavailable: {e})"
-    print("ADVISOR (automatic, after repeated test failures). Weigh it against your own evidence; "
-          "if you disagree, say why in your report.\n\n" + advice)
+    r = subprocess.run([sys.executable, str(advise), "--agent", a.agent, "--error-file", str(err), q],
+                       cwd=root, capture_output=True, text=True, timeout=660)
+    if r.returncode == 0:
+        print("ADVISOR (automatic, after repeated test failures). Weigh it against your own evidence; "
+              "if you disagree, say why in your report.\n\n" + r.stdout.strip())
+    else:
+        print(f"(advisor unavailable: {r.stderr.strip()[:300]} — continue on your own evidence)")
 
 
 try:
     main()
-except Exception:
-    pass
+except Exception as e:  # visible but harmless: the agent keeps working
+    print(f"(advisor hook error, continuing without advice: {type(e).__name__}: {e})")

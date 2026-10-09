@@ -1,48 +1,197 @@
-#!/usr/bin/env bash
-# advise — ask a stronger model for direction. Readable, logged, backend-switchable.
-# Usage: advise [--backend claude|codex] [--model M] [--error-file F] "question"
-# Env:   ADVISE_BACKEND (claude), ADVISE_MODEL (claude: opus; codex: Codex config default), ADVISE_BRIEF (path to brief)
-# Claude backend loads only this prompt (no MCP/skills/settings): ~1-2k tokens instead of ~77k.
-# Output: advice on stdout; a copy in evidence/advice/<timestamp>-<backend>.md
-set -uo pipefail
-backend="${ADVISE_BACKEND:-claude}"; model="${ADVISE_MODEL:-}"; errfile=""
-while [ $# -gt 0 ]; do case "$1" in
-  --backend) backend="$2"; shift 2;; --model) model="$2"; shift 2;;
-  --error-file) errfile="$2"; shift 2;; *) break;; esac; done
-question="${*:-What is the most likely root cause, and what should change next?}"
-root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-cd "$root" || exit 1
+#!/usr/bin/env python3
+"""advise — ask a stronger model for direction on the current work. Agent-neutral CLI.
 
-section() { printf '\n## %s\n' "$1"; }
-{
-  echo "You are the advisor to a worker agent coding in this repository. You do not edit files."
-  echo "Give direction, not code dumps. Be concrete and short (under 300 words)."
-  echo "Answer in exactly these parts:"
-  echo "VERDICT: continue | change approach | stop and escalate"
-  echo "WHY: the root cause or key insight, citing file:line or test names"
-  echo "NEXT: 1-3 concrete steps for the worker"
-  echo "RISKS: what the worker is likely missing (edge cases, other callers, data)"
-  echo "CHECK: the single check that would prove the next step worked"
-  section "Worker's question"; echo "$question"
-  if [ -n "${ADVISE_BRIEF:-}" ] && [ -f "$ADVISE_BRIEF" ]; then section "Brief"; head -c 6000 "$ADVISE_BRIEF"; fi
-  if [ -n "$errfile" ] && [ -f "$errfile" ]; then section "Latest failure"; tail -c 8000 "$errfile"; fi
-  section "git status"; git status --short -- . ":(exclude)evidence" ":(exclude).advise-state" | head -50
-  section "Recent commits"; git log --oneline -5 2>/dev/null
-  section "Uncommitted diff (truncated)"; git diff HEAD -- . ":(exclude)evidence" ":(exclude).advise-state" | head -c 30000
-} > "${TMPDIR:-/tmp}/advise-prompt.$$"
+  advise [--backend claude|codex|auto] [--model M] [--agent claude|codex] [--error-file F] "question"
+  advise --config        print the resolved advisor settings as JSON
 
-start=$(date +%s)
-case "$backend" in
-  claude) raw=$(claude -p --model "${model:-opus}" --tools "" --output-format json --strict-mcp-config --disable-slash-commands --setting-sources "" --system-prompt "You are a senior engineer advising a coding agent. You see a snapshot of its work; you do not edit files. Follow the requested answer format exactly." < "${TMPDIR:-/tmp}/advise-prompt.$$" 2>&1); rc=$?
-          out=$(printf '%s' "$raw" | python3 -I -c "import json,sys; d=json.loads(sys.stdin.read().strip().splitlines()[-1]); print(d.get('result','')); print('\n(cost \$%.4f, model %s)' % (d.get('total_cost_usd') or 0, ','.join(d.get('modelUsage',{}).keys())))" 2>/dev/null) || out="$raw";;
-  codex)  out=$(codex exec ${model:+-m "$model"} --sandbox read-only --skip-git-repo-check - < "${TMPDIR:-/tmp}/advise-prompt.$$" 2>/dev/null); rc=$?;;
-  *) echo "advise: unknown backend $backend" >&2; exit 2;;
-esac
-secs=$(( $(date +%s) - start ))
-rm -f "${TMPDIR:-/tmp}/advise-prompt.$$"
-mkdir -p evidence/advice
-log="evidence/advice/$(date +%Y%m%d-%H%M%S)-$backend.md"
-{ echo "# advice ($backend ${model:-default}, ${secs}s, rc=$rc)"; echo; echo "**Q:** $question"; echo; echo "$out"; } > "$log"
-if [ $rc -ne 0 ] || [ -z "$out" ]; then echo "advise: $backend failed (rc=$rc) — see $log" >&2; exit 1; fi
-echo "$out"
-echo; echo "(advice logged: $log, ${secs}s)"
+Settings, strongest first: command-line flags, env (ADVISE_BACKEND, ADVISE_MODEL, ADVISE_AFTER,
+ADVISE_MAX, SOS_ADVISOR=off), `.sos.toml` [advisor], defaults (backend claude, after 2, max 2).
+`auto` asks the other model family than the agent at work (a different eye), falling back to
+the same family when the other CLI is missing; a missing chosen CLI also falls back, and says so.
+
+The advisor gets a snapshot, not the transcript: the question, the brief (ADVISE_BRIEF), the
+latest failure, git status, recent commits, the uncommitted diff, and the files that the failure
+and the change mention (or the last commit's files when the tree is clean).
+Output: advice on stdout; a copy in evidence/advice/; one JSON line per call in
+.advise-state/calls.jsonl (backend, model, seconds, ok, cost when the CLI reports it).
+"""
+import json, os, re, shutil, subprocess, sys, time
+from pathlib import Path
+
+DEFAULTS = {"backend": "claude", "model": "", "after": 2, "max": 2}
+SYSTEM = ("You are a senior engineer advising a coding agent. You see a snapshot of its work; "
+          "you do not edit files. Follow the requested answer format exactly.")
+FORMAT = """You are the advisor to a worker agent in this repository. You do not edit files.
+Give direction, not code dumps. Be concrete and short (under 300 words). Answer in exactly these parts:
+VERDICT: continue | change approach | stop and escalate
+WHY: the root cause or key insight, citing file:line or test names
+NEXT: 1-3 concrete steps for the worker
+RISKS: what the worker is likely missing (edge cases, other callers, data)
+CHECK: the single check that would prove the next step worked"""
+CODE_EXT = r"(?:py|swift|rs|ts|tsx|js|jsx|go|kt|java|rb|c|cc|cpp|h|m|sql|toml|json|ya?ml|md)"
+
+
+def git(*args, cwd):
+    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else ""
+
+
+def repo_root() -> Path:
+    top = git("rev-parse", "--show-toplevel", cwd=Path.cwd()).strip()
+    return Path(top) if top else Path.cwd()
+
+
+def load_settings(root: Path) -> dict:
+    s = dict(DEFAULTS)
+    cfg = root / ".sos.toml"
+    if cfg.exists():
+        try:
+            import tomllib
+            s.update({k: v for k, v in tomllib.loads(cfg.read_text()).get("advisor", {}).items() if k in s})
+        except ImportError:  # Python < 3.11: read the [advisor] table by hand
+            sect = re.search(r"^\[advisor\]\s*$(.*?)(?=^\[|\Z)", cfg.read_text(), re.M | re.S)
+            for k, v in re.findall(r"^\s*(\w+)\s*=\s*\"?([^\"\n#]*)\"?", sect.group(1) if sect else "", re.M):
+                if k in s:
+                    s[k] = int(v) if k in ("after", "max") else v.strip()
+    env = {"backend": "ADVISE_BACKEND", "model": "ADVISE_MODEL", "after": "ADVISE_AFTER", "max": "ADVISE_MAX"}
+    for k, var in env.items():
+        if os.environ.get(var):
+            s[k] = int(os.environ[var]) if k in ("after", "max") else os.environ[var]
+    if os.environ.get("SOS_ADVISOR") == "off":
+        s["backend"] = "off"
+    return s
+
+
+def pick_backend(wanted: str, agent: str) -> tuple:
+    """Returns (backend, note). note explains a fallback."""
+    have = {b: shutil.which(b) is not None for b in ("claude", "codex")}
+    other = {"claude": "codex", "codex": "claude"}
+    if wanted == "auto":
+        first = other.get(agent, "codex")
+        order = [first, other[first]]
+    else:
+        order = [wanted, other.get(wanted, wanted)]
+    for b in order:
+        if have.get(b):
+            note = "" if b == order[0] else f"({order[0]} CLI not found; used {b})"
+            return b, note
+    return None, "neither claude nor codex CLI is on PATH"
+
+
+def relevant_files(root: Path, failure: str, diff: str) -> list:
+    names = set(re.findall(rf"([\w./-]+\.{CODE_EXT})\b", failure))
+    names |= set(re.findall(r"^\+\+\+ b/(\S+)", diff, re.M))
+    if not diff:  # clean tree: the last commit is the work in progress
+        names |= set(git("show", "--name-only", "--format=", "HEAD", cwd=root).split())
+    # A failing test file brings its subject: test_pay.py -> pay.py, PayTests.swift -> Pay.swift.
+    tracked = git("ls-files", cwd=root).split()
+    for n in list(names):
+        base = Path(n).name
+        subject = re.sub(r"^test_|_test(?=\.)|_spec(?=\.)|\.test(?=\.)|\.spec(?=\.)|Tests?(?=\.)", "", base)
+        if subject != base:
+            names |= {t for t in tracked if Path(t).name == subject}
+    out = []
+    for n in sorted(names):
+        p = (root / n.lstrip("./")).resolve()
+        try:
+            p.relative_to(root)
+        except ValueError:
+            continue
+        if p.is_file() and "evidence" not in p.parts and ".advise-state" not in p.parts and p.stat().st_size < 200_000:
+            out.append(p)
+    return out[:8]
+
+
+def build_prompt(root: Path, question: str, errfile: str) -> str:
+    parts = [FORMAT, "\n## Worker's question\n" + question]
+    brief = os.environ.get("ADVISE_BRIEF")
+    if brief and Path(brief).is_file():
+        parts.append("\n## Brief\n" + Path(brief).read_text(errors="replace")[:6000])
+    failure = Path(errfile).read_text(errors="replace")[-8000:] if errfile and Path(errfile).is_file() else ""
+    if failure:
+        parts.append("\n## Latest failure\n" + failure)
+    excl = [":(exclude)evidence", ":(exclude).advise-state"]
+    parts.append("\n## git status\n" + "\n".join(git("status", "--short", "--", ".", *excl, cwd=root).splitlines()[:50]))
+    parts.append("\n## Recent commits\n" + git("log", "--oneline", "-5", cwd=root))
+    diff = git("diff", "HEAD", "--", ".", *excl, cwd=root)
+    parts.append("\n## Uncommitted diff (truncated)\n" + (diff[:30000] or "(none: the tree is clean)"))
+    budget = 40_000
+    for p in relevant_files(root, failure, diff):
+        body = p.read_text(errors="replace")[:12_000]
+        if budget - len(body) < 0:
+            break
+        budget -= len(body)
+        parts.append(f"\n## File {p.relative_to(root)}\n```\n{body}\n```")
+    return "\n".join(parts)
+
+
+def call(backend: str, model: str, prompt: str) -> tuple:
+    """Returns (ok, text, cost_usd or None, model_used)."""
+    if backend == "claude":
+        r = subprocess.run(["claude", "-p", "--model", model or "opus", "--tools", "", "--output-format", "json",
+                            "--strict-mcp-config", "--disable-slash-commands", "--setting-sources", "",
+                            "--system-prompt", SYSTEM], input=prompt, capture_output=True, text=True, timeout=600)
+        try:
+            d = json.loads(r.stdout.strip().splitlines()[-1])
+            return (r.returncode == 0 and not d.get("is_error"), d.get("result", ""), d.get("total_cost_usd"),
+                    ",".join(d.get("modelUsage", {}).keys()) or model or "opus")
+        except (ValueError, IndexError):
+            return False, (r.stderr or r.stdout).strip()[-500:], None, model or "opus"
+    r = subprocess.run(["codex", "exec", *(["-m", model] if model else []), "--sandbox", "read-only",
+                        "--skip-git-repo-check", "-"], input=prompt, capture_output=True, text=True, timeout=600)
+    return r.returncode == 0 and bool(r.stdout.strip()), (r.stdout if r.returncode == 0 else r.stderr).strip(), None, model or "codex default"
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    opts = {"--backend": None, "--model": None, "--agent": None, "--error-file": ""}
+    rest = []
+    while args:
+        a = args.pop(0)
+        if a == "--config":
+            root = repo_root()
+            print(json.dumps(load_settings(root)))
+            return 0
+        if a in opts and args:
+            opts[a] = args.pop(0)
+        else:
+            rest.append(a)
+    root = repo_root()
+    s = load_settings(root)
+    wanted = opts["--backend"] or s["backend"]
+    if wanted == "off":
+        print("advise: the advisor is off (.sos.toml [advisor] backend or SOS_ADVISOR)", file=sys.stderr)
+        return 2
+    if wanted not in ("claude", "codex", "auto"):
+        print(f"advise: unknown backend {wanted!r} (claude | codex | auto | off)", file=sys.stderr)
+        return 2
+    backend, note = pick_backend(wanted, opts["--agent"] or "")
+    if backend is None:
+        print(f"advise: {note}", file=sys.stderr)
+        return 1
+    model = opts["--model"] or s["model"]
+    question = " ".join(rest) or "What is the most likely root cause, and what should change next?"
+    start = time.time()
+    try:
+        ok, text, cost, used = call(backend, model, build_prompt(root, question, opts["--error-file"]))
+    except subprocess.TimeoutExpired:
+        ok, text, cost, used = False, "timed out after 600 s", None, model
+    secs = round(time.time() - start, 1)
+    (root / ".advise-state").mkdir(exist_ok=True)
+    with open(root / ".advise-state" / "calls.jsonl", "a") as log:
+        log.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "backend": backend, "model": used, "agent": opts["--agent"],
+                              "seconds": secs, "ok": ok, "cost_usd": cost, "question": question[:160]}) + "\n")
+    (root / "evidence" / "advice").mkdir(parents=True, exist_ok=True)
+    rec = root / "evidence" / "advice" / f"{time.strftime('%Y%m%d-%H%M%S')}-{backend}.md"
+    rec.write_text(f"# advice ({backend} {used}, {secs}s, ok={ok})\n\n**Q:** {question}\n\n{text}\n")
+    if not ok:
+        print(f"advise: {backend} failed — {text[:300]} (see {rec.relative_to(root)})", file=sys.stderr)
+        return 1
+    print(text)
+    tail = f"(advisor: {backend} {used}, {secs}s" + (f", ${cost:.3f}" if cost else "") + f"; logged {rec.relative_to(root)})"
+    print("\n" + (note + " " if note else "") + tail)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
