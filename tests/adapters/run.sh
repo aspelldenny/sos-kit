@@ -109,5 +109,33 @@ check "codex: exit-code-only fail #1 silent"   0 -          codex post-bash <<<"
 check "codex: exit-code-only fail #2 advice"   0 "STUB ADVICE"          codex post-bash <<<"$(line $X 3 'd["session_id"]="s3"; d["tool_response"]="Exit code: 1\nOutput:\nboom"')"
 check "codex: session-start gives context"     0 "additionalContext" codex session-start <<<"$(line $X 1)"
 
+# ── advise: the prompt carries intent (real scripts/advise, fake claude CLI) ──
+A=$(mktemp -d); mkdir -p "$A/bin" "$A/repo"
+cat > "$A/bin/claude" <<'SH'
+#!/usr/bin/env bash
+cat > "$ADVISE_PROMPT_OUT"
+echo '{"result":"VERDICT: continue","is_error":false}'
+SH
+chmod +x "$A/bin/claude"
+( cd "$A/repo" && git init -q && git commit -q --allow-empty -m init )
+# prompt <name> <want-substring>: run advise in $A/repo and grep the prompt it sent
+prompt() {
+    local name=$1 want=$2
+    (cd "$A/repo" && PATH="$A/bin:$PATH" ADVISE_PROMPT_OUT="$A/prompt" python3 "$KIT/scripts/advise" --backend claude "why red?" >/dev/null 2>&1)
+    if grep -q -- "$want" "$A/prompt" 2>/dev/null; then pass=$((pass + 1)); echo "ok   $name"
+    else fail=$((fail + 1)); echo "FAIL $name (want $want): $(head -c 300 "$A/prompt" 2>/dev/null)"; fi
+}
+prompt "advise: no intent -> says so"          "none found"
+mkdir -p "$A/repo/docs"
+printf '# Backlog\n\nintro\n\n## Now\n\n- [ ] export splits shifts at Sunday midnight\n\n## Later\n\n- [ ] dark mode\n' > "$A/repo/docs/BACKLOG.md"
+prompt "advise: backlog current section sent"  "export splits shifts"
+if grep -q "dark mode" "$A/prompt"; then fail=$((fail + 1)); echo "FAIL advise: later section leaked"; else pass=$((pass + 1)); echo "ok   advise: later section not sent"; fi
+printf '{"features":[{"id":"F01","title":"Totals match payslip","passes":false},{"id":"F02","title":"Old done thing","passes":true}]}' > "$A/repo/docs/FEATURES.json"
+prompt "advise: open feature sent"             "Totals match payslip"
+if grep -q "Old done thing" "$A/prompt"; then fail=$((fail + 1)); echo "FAIL advise: passing feature sent"; else pass=$((pass + 1)); echo "ok   advise: passing feature not sent"; fi
+printf 'Brief: refunds must never go negative\n' > "$A/brief.md"
+ADVISE_BRIEF="$A/brief.md" prompt "advise: ADVISE_BRIEF wins" "refunds must never go negative"
+rm -rf "$A"
+
 echo ""; echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

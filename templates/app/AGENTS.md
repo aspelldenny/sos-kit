@@ -19,6 +19,15 @@ This repo uses SOS Kit's harness (`harness-lite/`). Chủ nhà owns intent, tast
 | Scope and pass/fail status | `docs/FEATURES.json` |
 | <design, wording, architecture> | <paths> |
 
+## Design handoff
+
+Before planning or building screens or wording, read this. If it is empty for the work at hand, ask Chủ nhà; do not start a spike in its place.
+
+- **Approved by Chủ nhà:** <soul / design docs and the version agreed>
+- **Reference screens or renders:** <paths or links the result must match>
+- **Still a proposal, or waiting on an API:** <items not to build as if final>
+- **Accepted when:** <the journeys Chủ nhà will walk to accept it>
+
 ## Commands
 
 | Purpose | Command |
