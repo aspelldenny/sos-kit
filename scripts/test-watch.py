@@ -96,7 +96,7 @@ def main() -> None:
     calls_f.write_text(str(calls + 1))
     count_f.write_text("0")  # next advice needs another ADVISE_AFTER failures
 
-    advise = root / "scripts" / "advise"
+    advise = Path(__file__).resolve().parent / "advise"  # shipped next to this script
     if not advise.exists():
         return
     err = state / f"{key}.last-error.txt"

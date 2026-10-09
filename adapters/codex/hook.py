@@ -16,8 +16,12 @@ the git pre-commit is the backstop.
 import json, re, subprocess, sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-SCRIPTS = ROOT / "scripts"
+# The kit's files sit two levels above this file: the sos-kit repo root, or an app's
+# vendored harness-lite/. The project root is the git top level of the session.
+KIT = Path(__file__).resolve().parents[2]
+SCRIPTS = KIT / "scripts"
+_top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+ROOT = Path(_top.stdout.strip()) if _top.returncode == 0 else KIT
 def patch_paths(patch: str) -> list:
     """Every path named on any '*** <header>: <path>' line. Deliberately broader than the V4A
     grammar: Codex's parser trims any whitespace (incl. Unicode) around headers, so a narrow

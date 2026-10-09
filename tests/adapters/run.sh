@@ -85,7 +85,7 @@ check "codex: .ENV (case) blocked"             2 "BLOCKED"  codex pre-edit <<<"$
 check "codex: U+2028 inside path blocked"     2 "BLOCKED"  codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Update File: dir\u2028/.env\n@@\n-A=1\n+A=2\n*** End Patch"')"
 check "codex: unparseable patch blocked"       2 "could not find" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="garbage"')"
 for n in 1 2 3; do
-check "codex: P078b3 fixture line $n allowed"  0 -          codex pre-edit <<<"$(sed -n "${n}p" "$KIT/crates/sos-adapter-codex/tests/fixtures/codex-apply-patch-payloads.jsonl")"
+check "codex: P078b3 fixture line $n allowed"  0 -          codex pre-edit <<<"$(sed -n "${n}p" "$FIX/codex-p078b3-apply-patch.jsonl")"
 done
 check "codex: piped fail #1 silent"            0 -          codex post-bash <<<"$(line $X 3)"
 check "codex: piped fail #2 -> advice"         0 "STUB ADVICE" codex post-bash <<<"$(line $X 3)"

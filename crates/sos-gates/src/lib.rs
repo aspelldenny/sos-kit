@@ -4,6 +4,8 @@
 //! `quality-gate check` → [`text`], `doc-rotate cap-check` → [`docs`],
 //! `claude-hooks features-guard` → [`features`] (now a git-level check, any agent),
 //! `doctor runtime-scan` → [`local_secrets`] (now delegates patterns to gitleaks).
+//! The kit's former bash pre-commit gates (gitleaks, .env commit, case collision, default
+//! branch) → [`repo`].
 //!
 //! Every gate returns a [`Report`]; a failed report always carries a "how to fix" line.
 
@@ -13,6 +15,7 @@ pub mod features;
 pub mod git;
 pub mod glob;
 pub mod local_secrets;
+pub mod repo;
 pub mod text;
 
 /// Outcome of one gate.

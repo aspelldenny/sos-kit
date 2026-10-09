@@ -44,7 +44,7 @@ pub fn decide(old: Option<&str>, new: &str, allow_regression: bool) -> Vec<Strin
             Some(id) if !ids.insert(id.clone()) => errs.push(format!("duplicate id {id}")),
             _ => {}
         }
-        if !f.get("title").and_then(Value::as_str).is_some_and(|t| !t.trim().is_empty()) {
+        if f.get("title").and_then(Value::as_str).is_none_or(|t| t.trim().is_empty()) {
             errs.push(format!("entry {label} has no title"));
         }
         if !f.get("passes").is_some_and(Value::is_boolean) {

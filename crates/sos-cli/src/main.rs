@@ -1,17 +1,18 @@
-// sos — 0→1 bootstrap (Rust port — phase 2; bash MVP at bin/sos.sh)
-//
-// Status: skeleton. Subcommands wired but most delegate to interactive flows
-// that require Claude Code skills (/init, /apply, /forge). Rust port focuses
-// on deterministic mechanics: state.toml management + spec_hash compute +
-// launch checklist parser. LLM-driven phases stay as instructions printed
-// to stdout, identical to bash MVP.
+//! sos — SOS Kit v3 CLI.
+//!
+//! `sos install | update | check` vendor the harness into a repo and keep it healthy;
+//! `sos gate …` and `sos filter` are the agent-neutral checks the git hooks call.
+//! The v2 commands (new, adopt, map, sync, launch, …) are archived in archive/v2/.
 
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
-mod commands;
+mod gate;
+mod kit;
 
 #[derive(Parser)]
-#[command(name = "sos", version, about = "SOS Kit 0→1 bootstrap")]
+#[command(name = "sos", version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("SOS_KIT_COMMIT"), ")"),
+          about = "SOS Kit — harness for building with AI agents: install it in a repo and run its gates")]
 struct Cli {
     #[command(subcommand)]
     command: Cmd,
@@ -19,144 +20,56 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Phase 0 — vision capture (Chủ nhà). Delegates to /init skill.
-    Init,
-    /// Phase 1 — pick stack + recipes (Chủ nhà → Kiến trúc sư).
-    Blueprint,
-    /// Phase 2 — lock P000-genesis.md with spec_hash (Kiến trúc sư).
-    Contract,
-    /// Phase 3 — apply 1 recipe (Thợ). Use --all for full Genesis recipe list.
-    Apply {
-        /// Recipe path: <category>/<name>, or --all
-        recipe: String,
-    },
-    /// Forge new recipe (Kiến trúc sư).
-    Recipe {
-        #[command(subcommand)]
-        action: RecipeCmd,
-    },
-    /// Phase N+1 — launch gate (hard block on incomplete checklist).
-    Launch {
-        /// Skip specific checklist items (audited). Repeatable.
-        #[arg(long, value_delimiter = ',')]
-        skip: Vec<String>,
-        #[arg(long)]
-        reason: Option<String>,
-    },
-    /// Show .sos/state.toml summary.
-    Status,
-    /// Scan an EXISTING repo → draft AGENT_MAP with REAL surfaces (bug-for-bug
-    /// parity with `bin/sos.sh` map — see P077c1; OA-02 fix is P077c5).
-    Map {
-        /// Target directory to scan (defaults to ".").
-        #[arg(default_value = ".")]
-        target: String,
-    },
-    /// Re-sync sos-kit spine into an adopted repo (KIT-LAG cure, P067) —
-    /// bug-for-bug parity with `bin/sos.sh` sos_sync (see P077c2).
-    Sync {
-        /// Adopted repo dir to sync spine files into.
-        target: String,
-    },
-    /// Bootstrap a NEW repo from sos-kit golden (greenfield) — bug-for-bug
-    /// parity with `bin/sos.sh` sos_new (see P077c3).
-    New {
-        /// Target directory to bootstrap into.
-        target: String,
-        #[arg(long)]
-        stack: Option<String>,
-        /// Declared but unused, bug-for-bug (bin/sos.sh:368 parses `--pilot` and
-        /// never reads the variable again).
-        #[arg(long)]
-        pilot: bool,
-        #[arg(long)]
-        force: bool,
-    },
-    /// Retrofit sos-kit spine into an EXISTING repo (brownfield) — ADDITIVE +
-    /// NON-CLOBBER, bug-for-bug parity with `bin/sos.sh` sos_adopt (P077c4).
-    Adopt {
-        /// Existing repo dir to retrofit.
-        dir: String,
-        /// Declared but unused, bug-for-bug (bin/sos.sh:615-621 parses
-        /// `--stack` and never reads the variable again in sos_adopt).
-        #[arg(long)]
-        stack: Option<String>,
-    },
-    /// P077d2 — install engine: transaction plan / dry-run / non-clobber /
-    /// rollback / apply. NEW command, additive alongside `install.sh`
-    /// (zero-touch); no Bash counterpart.
+    /// Install the harness into a git repo: harness-lite/ (kit-owned), starter project files
+    /// (created only when missing), .gitignore lines, and git hooks.
     Install {
-        /// Target runtime adapter: auto | claude | codex.
-        #[arg(long, default_value = "auto")]
-        runtime: String,
-        /// Compute + print the transaction plan only — ZERO filesystem
-        /// mutation.
+        /// Repository top level (default: current directory).
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+        /// Show the plan; write nothing.
         #[arg(long)]
         dry_run: bool,
-        /// Fail-closed (P078c opt-in): run the tool-manifest check BEFORE
-        /// rendering/writing any adapter file — abort (exit 1, nothing
-        /// written) on required-tool drift/missing, same as the pre-P078c
-        /// behavior. Default (flag unset): render first, report tool
-        /// drift loud + exit 3, never blocks the write.
+        /// Point core.hooksPath at harness-lite/hooks even if the repo already uses another hooks dir.
         #[arg(long)]
-        require_tools: bool,
+        force_hooks: bool,
     },
-    /// P077d3 (OA-07) — tool-manifest pin/status. NEW command, additive
-    /// alongside `install.sh`; no Bash counterpart.
-    Tools {
-        #[command(subcommand)]
-        action: ToolsCmd,
+    /// Bring harness-lite/ to this sos version; locally edited files are kept (new version → .sos-new).
+    Update {
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+        #[arg(long)]
+        dry_run: bool,
     },
-    /// v3 gates (agent-neutral; called by git hooks): text, docs, features,
-    /// local-secrets, or all. Config: .sos.toml. Exit 0 ok, 1 blocked, 2 error.
+    /// Check an installed repo: kit files, hooks, required tools, .sos.toml, agent wiring.
+    Check {
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
+    /// Run gates (what the git hooks call). Config: .sos.toml. Exit 0 ok, 1 blocked (including a
+    /// missing required tool such as gitleaks), 2 invalid config or internal error.
     Gate {
         #[command(subcommand)]
-        which: commands::gate::GateCmd,
+        which: gate::GateCmd,
     },
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
 }
 
-#[derive(Subcommand)]
-enum ToolsCmd {
-    /// Report expected-vs-installed sister-tool version per
-    /// `tool-manifest.toml`. Exit 1 if any REQUIRED tool is
-    /// missing/older/unparseable; optional drift = warn only, exit 0.
-    Status,
-}
-
-#[derive(Subcommand)]
-enum RecipeCmd {
-    /// Forge new recipe — invokes /forge skill.
-    New { name: String },
-}
-
-fn main() -> anyhow::Result<()> {
+fn main() {
     let cli = Cli::parse();
-    match cli.command {
-        Cmd::Init => commands::init::run(),
-        Cmd::Blueprint => commands::blueprint::run(),
-        Cmd::Contract => commands::contract::run(),
-        Cmd::Apply { recipe } => commands::apply::run(&recipe),
-        Cmd::Recipe { action } => match action {
-            RecipeCmd::New { name } => commands::recipe::new(&name),
-        },
-        Cmd::Launch { skip, reason } => commands::launch::run(skip, reason),
-        Cmd::Status => commands::status::run(),
-        Cmd::Map { target } => commands::map::run(&target),
-        Cmd::Sync { target } => commands::sync::run(&target),
-        Cmd::New { target, stack, pilot, force } => {
-            commands::new::run(&target, stack.as_deref(), pilot, force)
+    let code = match cli.command {
+        Cmd::Install { dir, dry_run, force_hooks } => kit::install(&dir, &kit::Opts { dry_run, force_hooks }),
+        Cmd::Update { dir, dry_run } => kit::update(&dir, &kit::Opts { dry_run, force_hooks: false }),
+        Cmd::Check { dir } => kit::check(&dir),
+        Cmd::Gate { which } => Ok(gate::run(which)),
+        Cmd::Filter => Ok(gate::filter()),
+    };
+    match code {
+        Ok(c) => std::process::exit(c),
+        Err(e) => {
+            eprintln!("sos: {e:#}");
+            std::process::exit(2);
         }
-        Cmd::Adopt { dir, stack } => commands::adopt::run(&dir, stack.as_deref()),
-        Cmd::Install { runtime, dry_run, require_tools } => {
-            commands::install::run(&runtime, dry_run, require_tools)
-        }
-        Cmd::Tools { action } => match action {
-            ToolsCmd::Status => commands::tools::run(),
-        },
-        Cmd::Gate { which } => std::process::exit(commands::gate::run(which)),
-        Cmd::Filter => std::process::exit(commands::gate::filter()),
     }
 }

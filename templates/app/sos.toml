@@ -1,0 +1,23 @@
+# SOS Kit gate rules for this project. Reference: harness-lite/README.md. Unknown keys are errors.
+
+[text]
+# Staged files whose wording is checked (globs). Empty = wording gate off.
+files = []
+# Case-insensitive phrases users must never see.
+banned = []
+# Case-insensitive regexes for internal leaks (base list of AI vendor names is on by default).
+leaks = []
+# base = false            # turn off the built-in vendor-name list (e.g. a project about AI)
+
+[docs]
+# State docs that must stay small. Warn at `soft` lines, block at `hard`.
+files = ["docs/BACKLOG.md"]
+soft = 1000
+hard = 1500
+
+[features]
+file = "docs/FEATURES.json"
+allow_regression = true   # a passed slice may honestly go back to false; ids may never be deleted
+
+[git]
+protect_default_branch = false   # true: non-Markdown commits must be made on a branch

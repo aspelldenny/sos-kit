@@ -1,9 +1,8 @@
 #!/bin/sh
 # bin/sos-npm — npm `bin` entry point for sos-kit (P081b, Stage 2).
 #
-# THIN delegate, NOT a second dispatch route: the real `sos` launcher is the
-# wrapper install.sh writes to $BIN_DIR/sos (default ~/.local/bin/sos), which
-# in turn execs bin/sos.sh in the cloned kit checkout (route A, canonical).
+# THIN delegate, NOT a second dispatch route: the real `sos` is the binary
+# install.sh writes to $BIN_DIR/sos (default ~/.local/bin/sos).
 # This file only forwards to that wrapper — if it's missing (postinstall was
 # skipped via --ignore-scripts, or failed), print how to fix it instead of
 # silently half-dispatching.

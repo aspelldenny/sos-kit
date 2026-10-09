@@ -12,8 +12,11 @@ Payload shape (Claude Code): tool_input.file_path / notebook_path; Bash tool_res
 import json, os, subprocess, sys
 from pathlib import Path
 
-ROOT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or Path(__file__).resolve().parents[2])
-SCRIPTS = ROOT / "scripts"
+# The kit's files sit two levels above this file: the sos-kit repo root, or an app's
+# vendored harness-lite/. The project root is where Claude Code runs.
+KIT = Path(__file__).resolve().parents[2]
+SCRIPTS = KIT / "scripts"
+ROOT = Path(os.environ.get("CLAUDE_PROJECT_DIR") or KIT)
 
 
 def payload():

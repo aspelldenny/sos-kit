@@ -1,9 +1,10 @@
 [package]
 name = "sos-cli"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
-description = "SOS Kit 0->1 bootstrap CLI — composition root (binary `sos`)"
+description = "SOS Kit v3 CLI (binary `sos`): install/update/check the harness in a repo, and run its gates"
 license = "MIT"
+build = "build.rs"
 
 [[bin]]
 name = "sos"
@@ -13,11 +14,9 @@ path = "src/main.rs"
 clap = { workspace = true }
 anyhow = { workspace = true }
 sha2 = { workspace = true }
-walkdir = { workspace = true }
-chrono = { workspace = true }
-sos-core = { path = "../sos-core" }
-sos-install = { path = "../sos-install" }
-sos-adapter-claude = { path = "../sos-adapter-claude" }
-sos-adapter-codex = { path = "../sos-adapter-codex" }
-sos-hooks = { path = "../sos-hooks" }
+serde = { workspace = true }
+serde_json = { workspace = true }
 sos-gates = { path = "../sos-gates" }
+
+[dev-dependencies]
+tempfile = "3"

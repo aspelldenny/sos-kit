@@ -31,10 +31,7 @@ pub fn gate(root: &Path) -> Result<Report> {
              `git rm --cached` them"
         .into();
 
-    let is_real_env = |name: &str| {
-        let n = name.to_lowercase();
-        n.starts_with(".env") && n != ".env.example"
-    };
+    let is_real_env = crate::repo::is_real_env;
     // 1a. No real .env file tracked anywhere in the repo (index, so a deleted working copy
     //     or a nested services/.env is still caught).
     for path in git::tracked_files(root)? {

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# SOS Kit pre-push. Kit-owned: `sos update` replaces this file.
+# Tokens in .git/config and agent config files; real .env files ignored and untracked.
+# Project-specific extra checks: harness-lite/hooks/pre-push.local (optional, project-owned).
+set -uo pipefail
+if ! command -v sos >/dev/null 2>&1; then
+    echo "⛔ sos is not installed — push refused."
+    echo "  → How to fix: install sos (https://github.com/aspelldenny/sos-kit#install), then push again."
+    exit 1
+fi
+sos gate local-secrets || exit 1
+local_hook="$(dirname "$0")/pre-push.local"
+if [ -e "$local_hook" ]; then
+    [ -x "$local_hook" ] || { echo "⛔ $local_hook exists but is not executable — chmod +x it."; exit 1; }
+    exec "$local_hook" "$@"
+fi

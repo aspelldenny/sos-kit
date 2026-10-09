@@ -39,13 +39,12 @@ SURFACE_GLOBS=(
     ".codex/hooks.json"
     ".mcp.json"
     "adapters/*/*"
-    "bin/sos.sh"
     "bin/sos-npm"
     "hooks/pre-commit"
     "hooks/pre-push"
+    "templates/app/hooks/*"
     "scripts/*"
     "install.sh"
-    "phieu/phieu.sh"
     "templates/setup-dev.sh"
 )
 

@@ -167,3 +167,64 @@ fn unreadable_doc_dir_is_an_error() {
     std::fs::set_permissions(p.join("private"), std::fs::Permissions::from_mode(0o755)).unwrap();
     assert!(!r.ok(), "{:?}", r);
 }
+
+#[test]
+fn repo_gates() {
+    use sos_gates::config::GitConfig;
+    use sos_gates::repo;
+    let d = repo();
+    let p = d.path();
+    git(p, &["checkout", "-q", "-b", "main"]);
+    std::fs::write(p.join("README.md"), "x").unwrap();
+    git(p, &["add", "."]);
+    git(p, &["commit", "-qm", "init"]);
+
+    // .env staged anywhere -> blocked; .env.example fine
+    std::fs::create_dir_all(p.join("svc")).unwrap();
+    std::fs::write(p.join("svc/.ENV.local"), "A=1").unwrap();
+    std::fs::write(p.join(".env.example"), "A=").unwrap();
+    git(p, &["add", "-f", "."]);
+    let r = repo::env_commit(p).unwrap();
+    assert_eq!(r.errors.len(), 1, "{:?}", r.errors);
+    git(p, &["rm", "-q", "--cached", "svc/.ENV.local"]);
+    assert!(repo::env_commit(p).unwrap().ok());
+
+    // case collision, including a directory segment
+    std::fs::create_dir_all(p.join("Docs")).unwrap();
+    std::fs::write(p.join("Docs/a.md"), "x").unwrap();
+    std::fs::create_dir_all(p.join("docs")).unwrap();
+    git(p, &["add", "Docs/a.md"]);
+    git(p, &["update-index", "--add", "--cacheinfo", &format!("100644,{},docs/b.md", blob_id(p))]);
+    let r = repo::case_collision(p).unwrap();
+    assert!(r.errors.iter().any(|e| e.contains("Docs") && e.contains("docs")), "{:?}", r.errors);
+    git(p, &["rm", "-q", "--cached", "docs/b.md"]);
+    assert!(repo::case_collision(p).unwrap().ok());
+
+    // branch rule: off by default; on -> code on main blocked, markdown allowed
+    let on = GitConfig { protect_default_branch: true, default_branch: String::new() };
+    std::fs::write(p.join("main.rs"), "fn main(){}").unwrap();
+    git(p, &["add", "main.rs"]);
+    assert!(repo::branch(p, &GitConfig::default()).unwrap().skipped.is_some());
+    let r = repo::branch(p, &on).unwrap();
+    assert!(r.errors.iter().any(|e| e.contains("main.rs")), "{:?}", r);
+    git(p, &["checkout", "-q", "-b", "feat/x"]);
+    assert!(repo::branch(p, &on).unwrap().ok());
+}
+
+fn blob_id(p: &Path) -> String {
+    let o = Command::new("git").current_dir(p).args(["hash-object", "-w", "--stdin"]).output().unwrap();
+    String::from_utf8_lossy(&o.stdout).trim().to_string()
+}
+
+#[test]
+fn branch_rule_applies_to_the_first_commit() {
+    use sos_gates::config::GitConfig;
+    let d = tempfile::tempdir().unwrap();
+    let p = d.path();
+    git(p, &["init", "-q", "-b", "main"]);
+    std::fs::write(p.join("main.rs"), "x").unwrap();
+    git(p, &["add", "."]);
+    let on = GitConfig { protect_default_branch: true, default_branch: String::new() };
+    let r = sos_gates::repo::branch(p, &on).unwrap();
+    assert!(!r.ok(), "{:?}", r);
+}

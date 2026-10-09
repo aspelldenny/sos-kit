@@ -1,12 +1,12 @@
 {
-  "description": "SOS Kit v3 Codex adapter: translates payloads to agent-neutral scripts/. The git pre-commit is the real gate.",
+  "description": "SOS Kit: translates Codex hook payloads to harness-lite/scripts. The git pre-commit is the real gate.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/adapters/codex/hook.py\" session-start"
+            "command": "python3 \"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\" session-start"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/adapters/codex/hook.py\" pre-edit"
+            "command": "python3 \"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\" pre-edit"
           }
         ]
       }
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/adapters/codex/hook.py\" post-bash",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\" post-bash",
             "timeout": 340
           }
         ]

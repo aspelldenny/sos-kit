@@ -1,7 +1,7 @@
 //! `sos gate …` and `sos filter` — thin CLI over the sos-gates crate.
 
 use clap::Subcommand;
-use sos_gates::{config, docs, features, local_secrets, text, Report};
+use sos_gates::{config, docs, features, local_secrets, repo, text, Report};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
@@ -20,7 +20,15 @@ pub enum GateCmd {
     Features,
     /// Tokens in .git/config and agent config files; .env files ignored and untracked.
     LocalSecrets,
-    /// text --staged, docs and features (what the pre-commit runs).
+    /// Staged diff scanned by gitleaks.
+    Secrets,
+    /// No real .env file staged.
+    EnvCommit,
+    /// No two tracked paths differing only by letter case.
+    Case,
+    /// [git] protect_default_branch: no non-Markdown commit on the default branch.
+    Branch,
+    /// Everything the pre-commit runs: secrets, env-commit, case, branch, text --staged, docs, features.
     All,
 }
 
@@ -50,7 +58,15 @@ pub fn run(which: GateCmd) -> i32 {
             GateCmd::Docs => vec![docs::gate(&root, &cfg.docs)],
             GateCmd::Features => vec![features::gate(&root, &cfg.features)?],
             GateCmd::LocalSecrets => vec![local_secrets::gate(&root)?],
+            GateCmd::Secrets => vec![repo::secrets(&root)?],
+            GateCmd::EnvCommit => vec![repo::env_commit(&root)?],
+            GateCmd::Case => vec![repo::case_collision(&root)?],
+            GateCmd::Branch => vec![repo::branch(&root, &cfg.git)?],
             GateCmd::All => vec![
+                repo::secrets(&root)?,
+                repo::env_commit(&root)?,
+                repo::case_collision(&root)?,
+                repo::branch(&root, &cfg.git)?,
                 text::gate(&root, &cfg.text, &[], true)?,
                 docs::gate(&root, &cfg.docs),
                 features::gate(&root, &cfg.features)?,
@@ -63,6 +79,17 @@ pub fn run(which: GateCmd) -> i32 {
             2
         }
         Ok(rs) => {
+            // Agents read hook output: when everything passes, say so in one line.
+            if rs.iter().all(|r| r.ok() && r.warnings.is_empty()) {
+                let skipped: Vec<&str> = rs.iter().filter(|r| r.skipped.is_some()).map(|r| r.gate).collect();
+                let ran = rs.len() - skipped.len();
+                if skipped.is_empty() {
+                    eprintln!("sos gate: {ran} ok");
+                } else {
+                    eprintln!("sos gate: {ran} ok, not configured: {}", skipped.join(", "));
+                }
+                return 0;
+            }
             for r in &rs {
                 eprint!("{}", r.render());
             }

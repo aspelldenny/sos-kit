@@ -7,14 +7,15 @@ SOS Kit is a solo developer's harness for building apps with AI agents. v3 keeps
 | Path | What it is |
 |---|---|
 | `harness-lite/` | **The core.** `CONTRACT.md` (shared rules) + `roles/` (orchestrator, architect, worker, reviewer). Vendored into app repos with `UPSTREAM.json` hashes. |
-| `hooks/` | Git gates (6, fail-closed, each prints a fix). The real gate for every agent. |
-| `scripts/` | Agent-neutral CLIs: git-gate helpers, `env-guard.sh`, `status.sh`, `advise` + `test-watch.py` (advisor). `scripts/trust-gate.sh rebaseline` after a reviewed change to an auto-exec file. |
+| `hooks/` | The kit's own git gates: `cargo check`, trust gate, `sos gate all` (pre-commit); `sos gate local-secrets` (pre-push). |
+| `scripts/` | Agent-neutral scripts shipped into apps (`env-guard.sh`, `status.sh`, `advise`, `test-watch.py`) plus kit-only tooling (`trust-gate.sh`, `install-hooks.sh`, npm postinstall). `scripts/trust-gate.sh rebaseline` after a reviewed change to an auto-exec file. |
 | `adapters/` | One thin translator per agent (`claude/`, `codex/`): hook payload → `scripts/` call. No policy; every check has a git/CLI backstop. Tests: `tests/adapters/run.sh`. See `adapters/README.md`. |
 | `recipes/` + `skills/apply/` | Verified implementation patterns and the skill that applies one. |
-| `crates/`, `bin/` | The `sos` Rust binary. `crates/sos-gates` = the v3 gates (`sos gate text|docs|features|local-secrets|all`, `sos filter`; config `.sos.toml`). The rest is v2 install/bootstrap code being shrunk to `sos lite install / update / check` (BACKLOG step 2.4); `core/` belongs to it until then (v2 adapter docs: `archive/v2/adapters/`). |
+| `crates/` | The `sos` binary (v3): `sos install / update / check` vendor the harness into a repo (`crates/sos-cli`, files embedded at build time; ownership rules in `kit.rs`), `sos gate …` / `sos filter` run the gates (`crates/sos-gates`, config `.sos.toml`). Tests: `cargo test`. |
+| `templates/app/` | What `sos install` writes besides the kit files: app hooks, AGENTS/CLAUDE/.sos.toml templates, Claude/Codex wiring, Claude agent wrappers. |
 | `configs/`, `templates/`, `integrations/` | Per-stack `.ship.toml` examples, starter files, CI/uptime snippets. |
-| `tool-manifest.toml` | Version pins + checksums for tools installed by `install.sh` (still lists the merged tools until step 2.4). |
-| `archive/v2/` | The v2 workflow (phiếu, debate rounds, approval gate, role handbooks, INV gates). Read-only history; tag `v2-final` is its last live state. |
+| `install.sh`, `package.json` | Distribution: download the pinned `sos` release binary (npm wraps the same script). `tool-manifest.toml` is v2 (pins for the merged tools) and is no longer read. |
+| `archive/v2/` | The v2 workflow and code: phiếu, debate rounds, approval gate, role handbooks, INV gates, the v2 crates (`sos new/adopt/map/sync`, adapters), `bin/sos.sh`, `core/`, v2 docs and security policy. Read-only history; tag `v2-final` is its last live state. |
 | `docs/` | `BACKLOG.md`, `CHANGELOG.md` (repo root), `PHILOSOPHY.md`, `DISCOVERIES.md`, `research/`, `plans/`, `retro/`. |
 
 quality-gate, doc-rotate (cap-check), doctor (runtime-scan) and claude-hooks (features-guard) are merged into `sos gate` (triage §G); their repos are superseded. The server pack `~/ship`, `~/guard`, `~/vps` stays separate, pinned for web projects only.

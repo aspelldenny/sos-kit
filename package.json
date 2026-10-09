@@ -1,7 +1,7 @@
 {
   "name": "sos-kit",
-  "version": "0.1.0",
-  "description": "sos-kit — 1-command installer for the sos CLI + full sister toolset (doctor/ship/docs-gate/inv-gate/...). Postinstall fetches install.sh@v0.1.0 (pinned tag, sha256-verified, fail-CLOSED) and runs it.",
+  "version": "0.3.0",
+  "description": "sos-kit — installs the sos CLI (SOS Kit v3 harness: install/update/check + git gates). Postinstall fetches install.sh@v0.3.0 (pinned tag, sha256-verified, fail-closed) and runs it.",
   "os": ["darwin", "linux"],
   "bin": {
     "sos": "bin/sos-npm",

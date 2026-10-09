@@ -28,12 +28,13 @@ State lives in the repo: a feature list with pass/fail status, one current-state
 
 ## Install
 
-v3's installer (`sos lite install / update / check`) is in progress — see [`docs/BACKLOG.md`](docs/BACKLOG.md). Until it lands:
+```bash
+curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh   # the sos binary
+cd your-repo && sos install --dry-run && sos install                                   # the harness
+sos check
+```
 
-1. Copy `harness-lite/` into the app repo and record the source commit and file hashes in `harness-lite/UPSTREAM.json`.
-2. Point the app's `AGENTS.md` (and a one-line `CLAUDE.md` that imports it) at `harness-lite/CONTRACT.md` and the orchestrator role.
-3. Add git hooks for secrets and `.env`, and the product gates the app needs.
-4. Build `sos` (`cargo install --path crates/sos-cli`), add a `.sos.toml`, and call `sos gate all` from the pre-commit; install `gitleaks` with Homebrew.
+Needs `git`, `gitleaks` and `python3`. `sos install` adds `harness-lite/` (kit-owned, updated by `sos update`), starter `AGENTS.md`/`CLAUDE.md`/`.sos.toml` and Claude/Codex wiring when they are missing, and git hooks that run `sos gate`. It never overwrites a project file. Until the v0.3.0 release is published, build from source: `cargo install --path crates/sos-cli`.
 
 ## Philosophy
 

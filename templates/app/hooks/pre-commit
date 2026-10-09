@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# SOS Kit pre-commit. Kit-owned: `sos update` replaces this file; project rules live in .sos.toml.
+# Runs every gate: secrets (gitleaks), .env commits, case collisions, default branch, wording,
+# doc size caps, FEATURES.json. Project-specific extra checks: harness-lite/hooks/pre-commit.local
+# (optional, executable, project-owned; `sos update` never touches it).
+set -uo pipefail
+if ! command -v sos >/dev/null 2>&1; then
+    echo "⛔ sos is not installed — commit refused."
+    echo "  → How to fix: install sos (https://github.com/aspelldenny/sos-kit#install), then commit again."
+    exit 1
+fi
+sos gate all || exit 1
+local_hook="$(dirname "$0")/pre-commit.local"
+if [ -e "$local_hook" ]; then
+    [ -x "$local_hook" ] || { echo "⛔ $local_hook exists but is not executable — chmod +x it."; exit 1; }
+    exec "$local_hook"
+fi

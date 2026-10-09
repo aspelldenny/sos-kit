@@ -17,7 +17,7 @@ set -eu
 
 GH_OWNER="aspelldenny"
 GH_REPO="sos-kit"
-PIN_TAG="v0.1.0"
+PIN_TAG="v0.3.0"
 # npm installs `bin` entries as SYMLINKS (bin/sos-kit-setup -> ../lib/node_modules/.../
 # scripts/npm-postinstall.sh) — dirname "$0" alone resolves to the symlink's own
 # directory, not the real file's, so it must be dereferenced first.
@@ -75,7 +75,7 @@ if [ "$expected" != "$actual" ]; then
 fi
 echo "  ✓ install.sh sha256 verified"
 
-echo "▶ running install.sh (SOS_KIT_DIR=${SOS_KIT_DIR:-<default>} SOS_BIN_DIR=${SOS_BIN_DIR:-<default>})"
+echo "▶ running install.sh (SOS_BIN_DIR=${SOS_BIN_DIR:-<default>})"
 if ! sh "$TMP_INSTALL"; then
   echo "✗ install.sh FAILED — sos-kit install incomplete." >&2
   echo "  Retry manually: sh $SCRIPT_DIR/npm-postinstall.sh" >&2

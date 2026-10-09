@@ -16,7 +16,9 @@ custom-role subagents, `openai/codex#21753`; any agent can write `.env` through 
 
 ## What each adapter wires
 
-| Hook | Claude Code (`claude/settings.json`) | Codex (`codex/hooks.json`) | Calls |
+Wiring templates for app repos: `templates/app/claude-settings.json` and `templates/app/codex-hooks.json` in sos-kit (installed as `harness-lite/templates/`). The adapters find the scripts relative to themselves (`../../scripts/`), so the same files work in sos-kit and in an app's `harness-lite/`.
+
+| Hook | Claude Code | Codex | Calls |
 |---|---|---|---|
 | Session start | `SessionStart` → stdout to context | `SessionStart` → `additionalContext` | `scripts/status.sh` |
 | Before an edit | `PreToolUse` Edit/Write/MultiEdit/NotebookEdit, `file_path` | `PreToolUse` `apply_patch`, every path in the patch; unparseable patch is blocked | `scripts/env-guard.sh` (exit 2 blocks) |
@@ -36,4 +38,4 @@ CLI calls, add its captured payloads to `tests/adapters/fixtures/`, and extend `
 `SOS_ADVISOR=off` disables it · `ADVISE_AFTER` consecutive failures before a call (2) ·
 `ADVISE_MAX` calls per failing streak before "stop and report" (2) · `ADVISE_BACKEND`
 `claude`|`codex` · `ADVISE_MODEL` (claude: `opus`; codex: Codex config default).
-The kit itself wires only session start and the edit guard; app templates also wire the advisor.
+sos-kit itself wires only session start and the edit guard (`.claude/settings.json`, `.codex/hooks.json`); the app templates also wire the advisor.

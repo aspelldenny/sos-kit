@@ -17,6 +17,10 @@
 //! [features]                   # FEATURES.json identity rules (was features-guard)
 //! file = "docs/FEATURES.json"
 //! allow_regression = true      # a passed slice may go back to false (honest status)
+//!
+//! [git]
+//! protect_default_branch = false   # true: non-Markdown commits must happen on a branch
+//! default_branch = ""              # empty: origin/HEAD, else main, else master
 //! ```
 //!
 //! A legacy `.quality-gate.toml` (`[banned_phrases].items`, `[internal_leaks].patterns`,
@@ -38,6 +42,17 @@ pub struct Config {
     pub docs: DocsConfig,
     #[serde(default)]
     pub features: FeaturesConfig,
+    #[serde(default)]
+    pub git: GitConfig,
+}
+
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct GitConfig {
+    #[serde(default)]
+    pub protect_default_branch: bool,
+    #[serde(default)]
+    pub default_branch: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
