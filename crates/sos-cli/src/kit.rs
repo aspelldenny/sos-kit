@@ -66,6 +66,9 @@ pub const KIT_FILES: &[File] = &[
     kit!("harness-lite/templates/AGENTS.md", "templates/app/AGENTS.md"),
     kit!("harness-lite/templates/CLAUDE.md", "templates/app/CLAUDE.md"),
     kit!("harness-lite/templates/sos.toml", "templates/app/sos.toml"),
+    kit!("harness-lite/templates/BACKLOG.md", "templates/app/BACKLOG.md"),
+    kit!("harness-lite/templates/FEATURES.json", "templates/app/FEATURES.json"),
+    kit!("harness-lite/templates/FEATURES.example.json", "templates/app/FEATURES.example.json"),
     kit!("harness-lite/templates/claude-settings.json", "templates/app/claude-settings.json"),
     kit!("harness-lite/templates/codex-hooks.json", "templates/app/codex-hooks.json"),
     kit!("harness-lite/templates/claude-agents/architect.md", "templates/app/claude-agents/architect.md"),
@@ -78,6 +81,8 @@ pub const PROJECT_FILES: &[File] = &[
     kit!("AGENTS.md", "templates/app/AGENTS.md"),
     kit!("CLAUDE.md", "templates/app/CLAUDE.md"),
     kit!(".sos.toml", "templates/app/sos.toml"),
+    kit!("docs/BACKLOG.md", "templates/app/BACKLOG.md"),
+    kit!("docs/FEATURES.json", "templates/app/FEATURES.json"),
     kit!(".claude/settings.json", "templates/app/claude-settings.json"),
     kit!(".codex/hooks.json", "templates/app/codex-hooks.json"),
     kit!(".claude/agents/architect.md", "templates/app/claude-agents/architect.md"),
@@ -255,16 +260,16 @@ fn wiring_notes(root: &Path, installing: bool) -> Vec<String> {
     let has = |p: &str, needle: &str| std::fs::read_to_string(root.join(p)).map(|s| s.contains(needle)).unwrap_or(false);
     let exists = |p: &str| root.join(p).exists();
     let verb = if installing { "exists" } else { "is" };
-    if exists("AGENTS.md") && !has("AGENTS.md", "harness-lite") {
+    if installing && exists("AGENTS.md") && !has("AGENTS.md", "harness-lite") {
         n.push(format!("AGENTS.md {verb} not pointing at harness-lite/: add the \"Harness\" section from harness-lite/templates/AGENTS.md"));
     }
-    if exists(".claude/settings.json") && !has(".claude/settings.json", "harness-lite/adapters/claude/hook.py") {
+    if installing && exists(".claude/settings.json") && !has(".claude/settings.json", "harness-lite/adapters/claude/hook.py") {
         n.push(format!(".claude/settings.json {verb} not wired: merge the hooks from harness-lite/templates/claude-settings.json (replace old claude-hooks entries)"));
     }
     if exists(".quality-gate.toml") && sos_gates::config::load(root).map(|c| c.text.files.is_empty()).unwrap_or(false) {
         n.push(".quality-gate.toml rules are read, but the wording gate checks nothing until .sos.toml [text].files lists the files (globs) your old hook scanned".into());
     }
-    if exists(".codex/hooks.json") && !has(".codex/hooks.json", "harness-lite/adapters/codex/hook.py") {
+    if installing && exists(".codex/hooks.json") && !has(".codex/hooks.json", "harness-lite/adapters/codex/hook.py") {
         n.push(format!(".codex/hooks.json {verb} not wired: merge the hooks from harness-lite/templates/codex-hooks.json"));
     }
     n
@@ -560,6 +565,10 @@ pub fn check(dir: &Path) -> Result<i32> {
     if !runs_gates {
         errors.push(format!("{hook_dir}/pre-commit does not run `sos gate all` — `git config core.hooksPath {HOOKS_PATH}`"));
     }
+    let pre_push = std::fs::read_to_string(root.join(&hook_dir).join("pre-push")).unwrap_or_default();
+    if !pre_push.lines().map(str::trim).any(|l| !l.starts_with('#') && l.contains("sos gate local-secrets")) {
+        errors.push(format!("{hook_dir}/pre-push does not run `sos gate local-secrets`"));
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -577,10 +586,49 @@ pub fn check(dir: &Path) -> Result<i32> {
             errors.push(format!("{bin} not found on PATH (needed by {why})"));
         }
     }
-    if let Err(e) = sos_gates::config::load(&root) {
-        errors.push(format!(".sos.toml: {e:#}"));
+    match sos_gates::config::load(&root) {
+        Err(e) => errors.push(format!(".sos.toml: {e:#}")),
+        Ok(cfg) => {
+            if !root.join(&cfg.features.file).exists() {
+                warns.push(format!("{} missing (template: harness-lite/templates/FEATURES.example.json)", cfg.features.file));
+            }
+        }
     }
-    warns.extend(wiring_notes(&root, false));
+    for (file, agent) in [(".claude/settings.json", "claude"), (".codex/hooks.json", "codex")] {
+        let Ok(src) = std::fs::read_to_string(root.join(file)) else { continue };
+        match serde_json::from_str::<serde_json::Value>(&src) {
+            Err(e) => errors.push(format!("{file} is not valid JSON ({e}); the agent will ignore its hooks")),
+            Ok(v) => {
+                let needle = format!("harness-lite/adapters/{agent}/hook.py");
+                let wired = v.get("hooks").and_then(|h| h.as_object()).is_some_and(|events| {
+                    events.values().flat_map(|e| e.as_array().into_iter().flatten())
+                        .flat_map(|m| m.get("hooks").and_then(|h| h.as_array()).into_iter().flatten())
+                        .any(|h| h.get("command").and_then(|c| c.as_str()).is_some_and(|c| c.contains(&needle)))
+                });
+                if !wired {
+                    warns.push(format!("{file} has no hook calling {needle} (template: harness-lite/templates/)"));
+                }
+            }
+        }
+    }
+    if let Ok(c) = std::fs::read_to_string(root.join("CLAUDE.md")) {
+        if !c.contains("@AGENTS.md") {
+            warns.push("CLAUDE.md does not import AGENTS.md (add a line `@AGENTS.md`)".into());
+        }
+    }
+    if let Ok(a) = std::fs::read_to_string(root.join("AGENTS.md")) {
+        let open: Vec<&str> = ["<Project name>", "<One paragraph", "<e.g.", "<paths>", "<design, wording"]
+            .into_iter().filter(|p| a.contains(p)).collect();
+        if !open.is_empty() {
+            warns.push(format!("AGENTS.md still has template placeholders ({}): fill them in", open.join(", ")));
+        }
+        if !a.contains("harness-lite") {
+            warns.push("AGENTS.md does not point at harness-lite/ (see harness-lite/templates/AGENTS.md)".into());
+        }
+    }
+    if !root.join("docs/BACKLOG.md").exists() {
+        warns.push("docs/BACKLOG.md missing: the session-start status reads its first section".into());
+    }
     for w in &warns {
         say!("warning: {w}");
     }

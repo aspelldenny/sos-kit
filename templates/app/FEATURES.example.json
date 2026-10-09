@@ -1,0 +1,13 @@
+{
+  "features": [
+    {
+      "id": "F01",
+      "title": "Weekly pay splits a shift that crosses Sunday midnight",
+      "passes": false,
+      "verify": [
+        "unit: a 22:00 Sun – 06:00 Mon shift puts 2 h in week 1 and 6 h in week 2",
+        "app: enter that shift, export the week, totals match the independent calculation"
+      ]
+    }
+  ]
+}
