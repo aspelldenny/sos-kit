@@ -2,6 +2,10 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## v0.3.5 — 2026-10-09
+
+- Quản đốc continues the same Thợ for dependent follow-on slices and fixes in the same area (in Claude Code, `SendMessage`: the worker resumes with its context and worktree, checked live), and starts a fresh one only for independent parallel work, a different area, or an unreliable context. TurnSigil's Quản đốc had started a fresh worker per slice, re-reading the project each time.
+
 ## v0.3.4 — 2026-10-09
 
 - Role wrappers (`.claude/agents/`) now set model and effort as decided for v3: Thợ `sonnet` medium; Người soát and Kiến trúc sư `opus` high. `.claude/settings.json` sets `advisorModel: "opus"`, so the worker can ask the native advisor as well as the hook-driven one. Before, wrappers set neither and every subagent silently ran the main session's model (TurnSigil's first worker ran Opus).

@@ -17,7 +17,7 @@ set -eu
 
 GH_OWNER="aspelldenny"
 GH_REPO="sos-kit"
-PIN_TAG="v0.3.4"
+PIN_TAG="v0.3.5"
 # npm installs `bin` entries as SYMLINKS (bin/sos-kit-setup -> ../lib/node_modules/.../
 # scripts/npm-postinstall.sh) — dirname "$0" alone resolves to the symlink's own
 # directory, not the real file's, so it must be dereferenced first.
