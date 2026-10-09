@@ -42,7 +42,7 @@ Requirements: `git`, `gitleaks`, `python3`, and the `sos` binary on `PATH`.
 
 ## Templates
 
-`templates/` holds the starting versions of project-owned files (`AGENTS.md`, `CLAUDE.md`, `.sos.toml`, `.claude/settings.json`, `.codex/hooks.json`, `.claude/agents/*`). `sos install` copies each one only if the project lacks it; compare with them when merging by hand.
+`templates/` holds the starting versions of project-owned files (`AGENTS.md`, `CLAUDE.md`, `.sos.toml`, `docs/BACKLOG.md`, `docs/FEATURES.json` with a filled example in `FEATURES.example.json`, `.claude/settings.json`, `.codex/hooks.json`, `.claude/agents/*`). `sos install` copies each one only if the project lacks it; compare with them when merging by hand.
 
 ## Limits
 

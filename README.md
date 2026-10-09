@@ -1,48 +1,73 @@
-# SOS Kit — Solo Operating System
+# SOS Kit
 
-One person, AI agents in the middle, real apps out the other end.
+A small harness for one person building with AI coding agents (Claude Code, Codex, or any agent that reads `AGENTS.md`). It works for apps, web services, command-line tools and libraries, and for writing projects.
 
-SOS Kit is the harness a solo developer uses to build and ship apps with Claude Code and Codex. **v3** keeps one idea from the start: *the human holds both ends* — intent and taste at the beginning, acceptance at the end — and AI does the work in between: plan, build, check, repair.
+**The idea:** the human holds both ends: intent and taste at the start, acceptance at the end. Agents do the middle: plan, build, check, repair. SOS Kit gives that middle a few roles, a few checks that cannot be skipped, and a stronger model to ask when the work is stuck.
 
-> v3 replaces the v2 workflow (ticket per change, architect↔worker debate rounds, an approval gate before every execution, 200–300-line role handbooks). The reasons and the evidence from four shipped apps are in [`docs/research/HARNESS_SURVEY_2026-10-08.md`](docs/research/HARNESS_SURVEY_2026-10-08.md). v2 is preserved under [`archive/v2/`](archive/v2/) and tag `v2-final`.
-
-## What's in the box
-
-| Part | What it does |
-|---|---|
-| [`harness-lite/`](harness-lite/README.md) | The core: one shared contract plus four short role prompts — **Quản đốc** (orchestrator), **Kiến trúc sư** (architect, only for structural uncertainty), **Thợ** (worker), **Người soát** (independent reviewer). Model-neutral; works in Claude Code and Codex. |
-| [`adapters/`](adapters/README.md) | Agent-neutral by design: the checks are git gates and plain CLIs in `scripts/`; `adapters/claude` and `adapters/codex` only translate each agent's hook payload. Another harness needs no adapter for the gates. |
-| Git gates | A few fail-closed checks, each printing how to fix the failure: secrets (gitleaks), `.env` commits, case collisions, code on the default branch, plus type checks. Project gates are built into `sos gate` (`.sos.toml`): wording rules, doc size caps, a protected feature list (`FEATURES.json`), and local-config token scan. |
-| [`recipes/`](recipes/README.md) | Implementation patterns verified against shipped code (payments, auth, rate limiting, PII encryption, SSE keepalive, multi-model fallback). Applied with the `apply` skill. |
-| Server pack | For web projects only, in their own repos: `ship` (release), `guard` (pre-deploy), `vps` (server ops). The former sister tools `quality-gate`, `doc-rotate`, `doctor`, `claude-hooks` are merged into `sos gate`. |
-
-## How a project runs
-
-1. **Brief.** Chủ nhà states the outcome, scope, references and acceptance. Product research and design decisions happen before the build starts.
-2. **Blueprint, when needed.** The architect resolves structural questions once; the worker does not wait on it for routine changes.
-3. **Build in slices.** Each worker checks the brief against the real code before building, runs focused tests with independently computed expectations, and reports what it actually verified.
-4. **Check at the right moments, not every slice.** An independent reviewer looks from the outside in — user journeys, data lifecycle, promises the UI makes, edge environments — when a journey first connects, when a slice touches data, money, privacy or sync, and before handoff.
-5. **Accept.** Chủ nhà uses the real app. An optional adversarial pass, ideally by a different model family, can precede it.
-
-State lives in the repo: a feature list with pass/fail status, one current-state file, and git history.
-
-## Install
+## Quick start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh   # the sos binary
-cd your-repo && sos install --dry-run && sos install                                   # the harness
-sos check
+curl -fsSL https://raw.githubusercontent.com/aspelldenny/sos-kit/main/install.sh | sh   # installs the `sos` binary
+cd your-project
+sos install --dry-run      # see what it would add
+sos install                # add the harness
+sos check                  # confirm it is wired
 ```
 
-Needs `git`, `gitleaks` and `python3`. `sos install` adds `harness-lite/` (kit-owned, updated by `sos update`), starter `AGENTS.md`/`CLAUDE.md`/`.sos.toml` and Claude/Codex wiring when they are missing, and git hooks that run `sos gate`. It never overwrites a project file. To build from source instead: `cargo install --path crates/sos-cli`.
+Needs `git`, `gitleaks` and `python3`. Also on npm: `npm install -g sos-kit`. From source: `cargo install --path crates/sos-cli`.
 
-## Repository map
+Then fill in the placeholders in `AGENTS.md` (what the project is, where its sources of truth live, how to build and test), write the first item in `docs/BACKLOG.md`, and start your agent in the repo. The main session takes the Quản đốc role and delegates as the role file says.
 
-See [`CLAUDE.md`](CLAUDE.md) for the map of this repository and the rules for changing it. v2 history lives in `archive/v2/` (tag `v2-final`).
+## What `sos install` adds
 
-## Philosophy
+| Added | Owner | What it is |
+|---|---|---|
+| `harness-lite/` | SOS Kit (`sos update` refreshes it) | The shared contract and four roles: **Quản đốc** (orchestrator), **Kiến trúc sư** (architect, only for structural questions), **Thợ** (worker), **Người soát** (independent reviewer). Plus the scripts, agent adapters and git hooks below. |
+| Git hooks | SOS Kit | Every commit runs `sos gate all`; every push runs `sos gate local-secrets`. Project-specific checks (type checks, tests) go in `harness-lite/hooks/pre-commit.local`. |
+| `AGENTS.md`, `CLAUDE.md` | Your project | Project instructions; `CLAUDE.md` imports `AGENTS.md` so Claude Code and Codex read the same text. |
+| `.sos.toml` | Your project | Rules for the gates (wording, doc size, feature list, branch) and the advisor. |
+| `docs/BACKLOG.md`, `docs/FEATURES.json` | Your project | Current work (agents see its first section at session start) and the feature list with pass/fail status. |
+| `.claude/`, `.codex/` | Your project | Hooks for Claude Code and Codex: a status line at session start, a block on editing real `.env` files, and the advisor. |
 
-See [`docs/PHILOSOPHY.md`](docs/PHILOSOPHY.md). In short: accountability for intent and acceptance stays human; rules that must always hold are gates, not reminders; extra roles and checks are added only where they catch what the builder cannot see.
+Existing files are never overwritten. If the project already has git hooks, `sos install` leaves them active and tells you how to chain them (`--force-hooks` moves them to `*.local`).
+
+## The gates
+
+`sos gate all` runs at every commit, reads what is staged, and blocks with a "how to fix" line when something fails. A gate that cannot run (for example `gitleaks` missing) blocks too.
+
+| Gate | Blocks |
+|---|---|
+| `secrets` | Secrets in the staged diff (gitleaks) |
+| `env-commit` | A real `.env` file being committed (`.env.example` is fine) |
+| `case` | Two paths that differ only by letter case (breaks macOS and Windows checkouts) |
+| `branch` | Non-Markdown commits on the default branch, when `[git] protect_default_branch = true` |
+| `text` | Banned wording, AI-vendor names and `<thinking>` leaks in files you list in `[text].files` |
+| `docs` | State documents past a line limit (`[docs]`) |
+| `features` | Deleting or malforming entries in `docs/FEATURES.json` |
+| `local-secrets` (push) | Tokens in `.git/config` and agent config files; `.env` files not ignored |
+
+`sos filter` applies the wording rules to text on stdin, for filtering model output at runtime.
+
+## How work runs
+
+1. **Brief.** Chủ nhà states the outcome, scope, references and how it will be accepted.
+2. **Build.** Quản đốc gives bounded work to Thợ (or does a small change itself), each checking the brief against the real code or text first and verifying with independently computed expectations.
+3. **Advice when stuck.** After two failing runs of the same test, the agent's hook asks a stronger model (Opus or Codex, configurable) for a direction.
+4. **Independent review at the moments that matter**, not every slice: when a journey first works end to end, when data, money, privacy or sync is touched, and before handing over something meant for real use. Người soát uses the result as its user would.
+5. **Acceptance.** Chủ nhà uses the real thing. Reports say plainly what ran for real, what ran only on sample data, and what is unverified.
+
+## This repository
+
+| Path | What it is |
+|---|---|
+| [`harness-lite/`](harness-lite/README.md) | Contract and roles (installed into projects) |
+| [`adapters/`](adapters/README.md), `scripts/`, `templates/app/` | Agent adapters, agent-neutral scripts and the templates `sos install` writes |
+| `crates/` | The `sos` binary (installer and gates, Rust) |
+| [`recipes/`](recipes/README.md), `skills/apply/` | Implementation patterns taken from shipped code, and the skill that applies one |
+| [`docs/`](docs/PHILOSOPHY.md) | Philosophy, backlog, plans and research behind v3 |
+| `archive/v2/` | The previous, heavier workflow (tag `v2-final`), kept as history |
+
+Maintainers: [`CLAUDE.md`](CLAUDE.md) has the rules for changing this repo; [`SECURITY.md`](SECURITY.md) lists what runs automatically and why it is safe; [`CHANGELOG.md`](CHANGELOG.md) has the history.
 
 ## License
 

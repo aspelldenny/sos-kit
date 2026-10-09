@@ -7,6 +7,7 @@
 #   3. sos gates    (`sos gate all` from the freshly built binary: gitleaks on the staged diff,
 #                    .env commits, case collisions, default branch, wording, doc caps,
 #                    FEATURES.json — config .sos.toml)
+#   4. Docs check   (every path and `sos` command named in live docs exists: tests/docs-check.py)
 #
 # v2 gates (docs-gate freshness, phiếu/Discovery checks, lane-check, INV security-gate) and the
 # v3.0 bash gates (block-env-commit, check-case-collision, no-code-on-default) are archived:
@@ -33,16 +34,19 @@ gate() {
 
 
 if [ -f Cargo.toml ]; then
-    gate "1/3 type check" "run \`cargo check\`, fix the compile errors, re-stage" \
+    gate "1/4 type check" "run \`cargo check\`, fix the compile errors, re-stage" \
         cargo check --quiet
 fi
 
-gate "2/3 trust gate" "review the auto-exec diff shown above; if it is intended, run \`scripts/trust-gate.sh rebaseline\` and stage .sos-trust-baseline" \
+gate "2/4 trust gate" "review the auto-exec diff shown above; if it is intended, run \`scripts/trust-gate.sh rebaseline\` and stage .sos-trust-baseline" \
     bash -c '[ -f scripts/trust-gate.sh ] || { echo "  missing scripts/trust-gate.sh"; exit 1; }; bash scripts/trust-gate.sh'
 
 # The kit runs its own freshly built binary; app repos call the installed `sos`.
-gate "3/3 sos gates" "follow the → How to fix lines above; config lives in .sos.toml" \
+gate "3/4 sos gates" "follow the → How to fix lines above; config lives in .sos.toml" \
     cargo run --quiet -p sos-cli -- gate all
+
+gate "4/4 docs match the repo" "fix the path or command named above (or move the doc to archive/ if it is history)" \
+    python3 tests/docs-check.py target/debug/sos
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then

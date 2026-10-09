@@ -1,7 +1,7 @@
 ---
 name: apply
 description: |
-  Apply one SOS Kit recipe (a verified implementation pattern such as payment/payos-vn, auth/nextauth-google-credentials, infra/pii-encryption) to the current project: check its inputs against the real code, adapt and implement its steps, run its verification anchors, and report evidence.
+  Apply one SOS Kit recipe (an implementation pattern taken from shipped code, such as payment/payos-vn, auth/nextauth-google-credentials, infra/pii-encryption) to the current project: check its inputs against the real code, adapt and implement its steps, run its verification anchors, and report evidence.
   Use when the user or Quản đốc says "apply recipe X", "áp recipe X", "dùng recipe X", or a brief names a recipe.
 ---
 

@@ -48,6 +48,8 @@ Template chi tiết: `recipes/_TEMPLATE.md`
 
 Trong brief giao cho Thợ, ghi recipe cần áp (ví dụ `payment/payos-vn`). Thợ dùng skill `apply` (`skills/apply/SKILL.md`): đọc recipe, đối chiếu đầu vào với code thật, làm các bước cho khớp dự án, chạy hết verification anchors, báo bằng chứng. Mỗi recipe một commit hoặc một PR.
 
+Skill `apply` không được `sos install` cài vào dự án: chép `skills/apply/` vào `~/.claude/skills/` (Claude Code) hoặc `~/.codex/skills/` (Codex) để dùng ở mọi dự án.
+
 ## Thêm recipe mới
 
 Chỉ thêm recipe đã chạy thật trong một dự án đã ship. Dùng `recipes/_TEMPLATE.md`; bắt buộc có verification anchors chạy được và ít nhất một discovery hook. Recipe là thay đổi của sos-kit, đi qua PR như mọi thay đổi khác.
