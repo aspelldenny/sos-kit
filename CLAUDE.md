@@ -32,5 +32,5 @@ The former sister tools quality-gate, doc-rotate (cap-check), doctor (runtime-sc
 ## Working here
 
 - Commits in English; talk with the maintainer in Vietnamese (em/anh). Role names (Chủ nhà, Quản đốc, Kiến trúc sư, Thợ, Người soát) are fixed terms, not forms of address.
-- `cargo test`, `tests/adapters/run.sh` and `tests/docs-check.py` must stay green (CI runs them on every PR, plus `tests/smoke.sh`). The pre-commit runs `cargo check`, the trust gate, `sos gate all` and the docs check; do not bypass with `--no-verify`. After a reviewed change to an auto-exec file: `scripts/trust-gate.sh rebaseline`.
+- `cargo test`, `tests/adapters/run.sh`, `tests/docs-check.py` and `tests/npm.sh` must stay green (CI runs them on every PR, plus `tests/smoke.sh`; a release also runs `tests/npm.sh --real`). The pre-commit runs `cargo check`, the trust gate, `sos gate all` and the docs check; do not bypass with `--no-verify`. After a reviewed change to an auto-exec file: `scripts/trust-gate.sh rebaseline`.
 - Durable state belongs in the repo (BACKLOG, CHANGELOG, plans), not in private memory.

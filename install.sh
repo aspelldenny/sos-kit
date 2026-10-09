@@ -18,7 +18,7 @@ set -eu
 
 GH_OWNER="aspelldenny"
 GH_REPO="sos-kit"
-VERSION="${SOS_VERSION:-v0.3.1}"
+VERSION="${SOS_VERSION:-v0.3.2}"
 BIN_DIR="${SOS_BIN_DIR:-$HOME/.local/bin}"
 
 OS="$(uname -s)" ARCH="$(uname -m)"
@@ -57,7 +57,12 @@ if ! ver="$("$TMP/sos" --version 2>&1)"; then
   echo "✗ The downloaded binary does not run here: $ver" >&2
   exit 1
 fi
-mv "$TMP/sos" "$BIN_DIR/sos"
+# Stage next to the destination so the final rename is atomic (no half-written sos on PATH).
+cp "$TMP/sos" "$BIN_DIR/.sos.new.$$" && mv -f "$BIN_DIR/.sos.new.$$" "$BIN_DIR/sos" || {
+  rm -f "$BIN_DIR/.sos.new.$$"
+  echo "✗ Could not write $BIN_DIR/sos (disk full or no permission?)." >&2
+  exit 1
+}
 echo "  ✓ $BIN_DIR/sos ($ver)"
 
 case ":$PATH:" in

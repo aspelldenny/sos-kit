@@ -4,7 +4,7 @@
 
 ## Đang chạy — SOS Kit v3 dùng thật
 
-> Nguồn: `docs/research/HARNESS_SURVEY_2026-10-08.md`, `docs/plans/V3_TRIAGE_2026-10-08.md`. Phát hành: `v0.3.0` (GitHub release + npm `sos-kit@0.3.0`).
+> Nguồn: `docs/research/HARNESS_SURVEY_2026-10-08.md`, `docs/plans/V3_TRIAGE_2026-10-08.md`. Phát hành mới nhất: xem `CHANGELOG.md`.
 
 - [ ] **Áp vào app mới** khi Chủ nhà brainstorm xong: `sos install`, đo token, thời gian, lỗi bắt được theo tầng (gate / advisor / người soát), số lần advisor bắn và đổi hướng thợ. Chốt model và effort cho advisor sau khi có số đo.
 - [ ] **Chuyển Thirty / Payquill sang v3** (khi Chủ nhà muốn): `sos install --force-hooks`, `[text].files` lấy từ hook cũ, nối `.claude/settings.json`, sửa `AGENTS.md` trỏ `harness-lite/roles` thay `agents/roles`. Đã thử trên bản clone Thirty.

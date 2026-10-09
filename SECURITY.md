@@ -13,7 +13,7 @@ The v2 policy (sister-tool binaries, Codex adapter guards, rendered backstop hoo
 | `.claude/settings.json`, `.codex/hooks.json` | Agent session in this folder | Session status line; `.env` edit guard (via `adapters/`) |
 | `scripts/*`, `adapters/*/*` | Called by the hooks above | Agent-neutral checks and payload translators |
 | `install.sh` | `curl … \| sh` | Downloads the `sos` binary for one pinned release tag, verifies its `.sha256`, puts it in `~/.local/bin` |
-| `scripts/npm-postinstall.sh`, `bin/sos-npm` | `npm install -g sos-kit` | Fetch `install.sh` from a pinned tag, verify it against `scripts/install-sh.sha256`, run it |
+| `scripts/npm-postinstall.sh`, `bin/sos-npm` | `npm install -g sos-kit` (when npm runs install scripts); otherwise the first `sos` call from npm other than `sos gate`/`sos filter`, or such a call when the installed binary is older than the package | Fetch `install.sh` from a pinned tag, verify it against `scripts/install-sh.sha256`, run it |
 | `templates/app/hooks/*` | Installed into apps by `sos install` | See below |
 
 **Not auto-exec, but loaded by agents as instructions:** `harness-lite/*.md`, `templates/app/*.md`, `skills/`, `recipes/`, `docs/` (scanned for hidden Unicode by the trust gate). `archive/` is history and is not loaded.

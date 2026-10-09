@@ -1,26 +1,101 @@
 #!/bin/sh
-# bin/sos-npm — npm `bin` entry point for sos-kit (P081b, Stage 2).
+# bin/sos-npm — the `sos` command an npm install puts on PATH.
 #
-# THIN delegate, NOT a second dispatch route: the real `sos` is the binary
-# install.sh writes to $BIN_DIR/sos (default ~/.local/bin/sos).
-# This file only forwards to that binary — if it's missing (postinstall was
-# skipped via --ignore-scripts, or failed), print how to fix it instead of
-# silently half-dispatching.
+# The real `sos` is the binary install.sh writes to $SOS_BIN_DIR (default ~/.local/bin).
+# npm 12 skips package install scripts unless the user allows them (npm 11 only warns), so the
+# postinstall that fetches the binary may never have run, or ran for an older package version.
+# So: when the binary is missing or older than this package, install it through the same
+# pinned, sha256-verified path (scripts/npm-postinstall.sh), then run it. Setup output goes to
+# stderr so `sos …` output stays clean for pipes.
+#
+# `sos gate` and `sos filter` (git hooks, runtime filters) never download (SECURITY.md
+# INV-TRUST-03): with no binary they fail closed and say how to install; with an older one
+# they run it and print a one-line note. Concurrent first calls each install; install.sh
+# renames atomically, so the last one wins and no caller sees a half-written binary.
 
 set -eu
 
 BIN_DIR="${SOS_BIN_DIR:-$HOME/.local/bin}"
 TARGET="$BIN_DIR/sos"
 
-if [ ! -x "$TARGET" ]; then
-  echo "✗ sos-kit is not installed yet ($TARGET not found or not executable)." >&2
-  echo "  This npm package only ships a thin delegate — the real install runs via" >&2
-  echo "  postinstall (skipped here, e.g. --ignore-scripts was used)." >&2
-  echo "  Run it by hand:" >&2
-  echo "    npx --package=sos-kit sos-kit-setup" >&2
-  echo "  or locate this package and run its postinstall script directly:" >&2
-  echo "    sh \$(npm root -g)/sos-kit/scripts/npm-postinstall.sh" >&2
+# Follows symlinks (npm installs `bin` entries as symlinks); prints the real file's path.
+resolve() {
+  _f="$1"
+  while [ -L "$_f" ]; do
+    _link="$(readlink "$_f")"
+    case "$_link" in
+      /*) _f="$_link" ;;
+      *)  _f="$(dirname -- "$_f")/$_link" ;;
+    esac
+  done
+  printf '%s/%s\n' "$(CDPATH= cd -- "$(dirname -- "$_f")" && pwd -P)" "$(basename -- "$_f")"
+}
+SELF="$(resolve "$0")"
+PKG_DIR="$(dirname -- "$(dirname -- "$SELF")")"
+
+# The binary location must not be this wrapper (npm's bin directory == SOS_BIN_DIR).
+if [ -e "$TARGET" ] && [ "$(resolve "$TARGET")" = "$SELF" ]; then
+  echo "✗ sos-kit: $TARGET is this npm wrapper, not the sos binary (npm's bin directory is $BIN_DIR)." >&2
+  echo "  → How to fix: set SOS_BIN_DIR to another directory (for example ~/.sos/bin), put it on PATH, run: sos --version" >&2
   exit 1
+fi
+SETUP="$PKG_DIR/scripts/npm-postinstall.sh"
+WANT="$(sed -n 's/^  "version": "\([0-9.]*\)".*/\1/p' "$PKG_DIR/package.json")"
+
+# Prints the installed version (x.y.z), or nothing when the binary is missing or does not run.
+installed() {
+  [ -x "$TARGET" ] || return 0
+  "$TARGET" --version 2>/dev/null | sed -n 's/^sos \([0-9][0-9.]*\).*/\1/p'
+}
+
+# True when version $1 is older than $2 (numeric x.y.z).
+older() {
+  awk -v a="$1" -v b="$2" 'BEGIN {
+    split(a, x, "."); split(b, y, ".")
+    for (i = 1; i <= 3; i++) { if (x[i] + 0 < y[i] + 0) exit 0; if (x[i] + 0 > y[i] + 0) exit 1 }
+    exit 1 }'
+}
+
+stale() { [ -z "$HAVE" ] || older "$HAVE" "$WANT"; }
+
+HAVE="$(installed)"
+if stale; then
+  case "${1:-}" in
+    gate|filter)
+      if [ -z "$HAVE" ]; then
+        echo "✗ sos-kit: the sos binary is not installed yet ($TARGET), so this check cannot run." >&2
+        echo "  → How to fix: run  sos --version  once (it downloads sos $WANT, checksum-verified), then retry." >&2
+        exit 1
+      fi
+      echo "note: sos $HAVE is older than the npm package ($WANT); run  sos --version  to update." >&2
+      exec "$TARGET" "$@" ;;
+  esac
+  if [ -z "$HAVE" ]; then
+    echo "▶ sos-kit: the sos binary is not installed yet (npm did not run the package's install script)." >&2
+  else
+    echo "▶ sos-kit: updating the sos binary $HAVE → $WANT (npm did not run the package's install script)." >&2
+  fi
+  echo "  Installing it now from the v$WANT GitHub release (checksum-verified) into $BIN_DIR." >&2
+  if ! SOS_VERSION="v$WANT" sh "$SETUP" >&2; then
+    if [ -n "$HAVE" ]; then
+      echo "⚠ sos-kit: could not update; continuing with sos $HAVE. Retry later: sos --version" >&2
+    else
+      echo "" >&2
+      echo "✗ sos-kit: could not install the sos binary; nothing was run." >&2
+      echo "  The lines above say which step failed. Common causes:" >&2
+      echo "  · no network or GitHub unreachable → retry when online:  sos --version" >&2
+      echo "  · no prebuilt binary for this machine (only macOS Apple silicon and Linux x64)" >&2
+      echo "      → install Rust, clone https://github.com/aspelldenny/sos-kit, run: cargo install --path crates/sos-cli" >&2
+      echo "  · checksum mismatch → do not retry; report it at https://github.com/aspelldenny/sos-kit/issues" >&2
+      exit 1
+    fi
+  else
+    HAVE="$(installed)"
+    if [ -z "$HAVE" ] || older "$HAVE" "$WANT"; then
+      echo "✗ sos-kit: setup finished but $TARGET is ${HAVE:-not runnable}, expected $WANT. Report it at https://github.com/aspelldenny/sos-kit/issues" >&2
+      exit 1
+    fi
+  fi
 fi
 
 exec "$TARGET" "$@"

@@ -23,6 +23,7 @@ jobs:
       - run: cargo test --locked --workspace
       - run: tests/adapters/run.sh
       - run: cargo build --locked -p sos-cli && tests/smoke.sh target/debug/sos
+      - run: tests/npm.sh   # also: the tag matches the version the package pins
 
   build:
     needs: test
@@ -87,3 +88,16 @@ jobs:
               draft: false,
             });
             console.log(`Published release ${draft.id} for tag ${tag}`);
+
+  # The npm package against the release just published: installed without its install
+  # script (npm 12's default), the first `sos` call must fetch and run this version.
+  npm-check:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - run: tests/npm.sh --real
