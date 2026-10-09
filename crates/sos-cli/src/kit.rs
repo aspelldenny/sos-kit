@@ -325,11 +325,7 @@ fn write_upstream(root: &Path, files: BTreeMap<String, String>) -> Result<()> {
 
 fn ensure_gitignore(root: &Path) -> Result<Vec<&'static str>> {
     let p = root.join(".gitignore");
-    let cur = match std::fs::read_to_string(&p) {
-        Ok(s) => s,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(e) => return Err(e).context("reading .gitignore (left unchanged; add the SOS lines by hand)"),
-    };
+    let cur = read_gitignore(root)?;
     let missing: Vec<&str> = GITIGNORE_LINES.iter().copied().filter(|l| !cur.lines().any(|x| x.trim() == *l)).collect();
     if !missing.is_empty() {
         let mut s = cur.clone();
@@ -346,24 +342,122 @@ fn ensure_gitignore(root: &Path) -> Result<Vec<&'static str>> {
     Ok(missing)
 }
 
+/// Git's hook names (githooks(5)); other files in a hooks dir are not hooks.
+const GIT_HOOKS: &[&str] = &[
+    "applypatch-msg", "pre-applypatch", "post-applypatch", "pre-commit", "pre-merge-commit",
+    "prepare-commit-msg", "commit-msg", "post-commit", "pre-rebase", "post-checkout", "post-merge",
+    "pre-push", "pre-receive", "update", "proc-receive", "post-receive", "post-update",
+    "reference-transaction", "push-to-checkout", "pre-auto-gc", "post-rewrite", "sendemail-validate",
+    "fsmonitor-watchman", "post-index-change",
+];
+
+/// What install does with git hooks.
+enum HookPlan {
+    /// Nothing active to lose: point core.hooksPath at harness-lite/hooks.
+    Set,
+    /// Already pointing at harness-lite/hooks.
+    Already,
+    /// Active hooks elsewhere and no --force-hooks: leave git config alone.
+    Keep { dir: PathBuf, hooks: Vec<String> },
+    /// --force-hooks: copy active hooks next to ours (pre-commit/pre-push become *.local,
+    /// which our hooks run after the gates), then switch core.hooksPath.
+    Migrate { dir: PathBuf, copies: Vec<(PathBuf, String)> },
+}
+
+fn is_executable(p: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(p).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false)
+    }
+    #[cfg(not(unix))]
+    {
+        p.is_file()
+    }
+}
+
+fn hook_plan(root: &Path, force: bool) -> Result<HookPlan> {
+    let configured = hooks_path(root).filter(|h| !h.is_empty());
+    if configured.as_deref() == Some(HOOKS_PATH) {
+        return Ok(HookPlan::Already);
+    }
+    let dir = match &configured {
+        Some(h) if h.starts_with("~/") => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(&h[2..]),
+        Some(h) if Path::new(h).is_absolute() => PathBuf::from(h),
+        Some(h) => root.join(h),
+        None => {
+            let gp = git_out(root, &["rev-parse", "--git-path", "hooks"]).context("locating .git/hooks")?;
+            let gp = PathBuf::from(gp);
+            if gp.is_absolute() { gp } else { root.join(gp) }
+        }
+    };
+    let hooks: Vec<String> = GIT_HOOKS.iter().filter(|h| is_executable(&dir.join(h))).map(|h| h.to_string()).collect();
+    if configured.is_none() && hooks.is_empty() {
+        return Ok(HookPlan::Set);
+    }
+    if !force {
+        return Ok(HookPlan::Keep { dir, hooks });
+    }
+    let mut copies = Vec::new();
+    for h in &hooks {
+        let dst = match h.as_str() {
+            "pre-commit" => format!("{HOOKS_PATH}/pre-commit.local"),
+            "pre-push" => format!("{HOOKS_PATH}/pre-push.local"),
+            other => format!("{HOOKS_PATH}/{other}"),
+        };
+        let src = dir.join(h);
+        if let Ok(existing) = std::fs::read(root.join(&dst)) {
+            if existing != std::fs::read(&src)? {
+                bail!("{dst} already exists and differs from {} — merge them by hand, then rerun", src.display());
+            }
+        }
+        copies.push((src, dst));
+    }
+    Ok(HookPlan::Migrate { dir, copies })
+}
+
+fn describe(hp: &HookPlan) -> String {
+    match hp {
+        HookPlan::Set => format!("git core.hooksPath → {HOOKS_PATH}"),
+        HookPlan::Already => "git core.hooksPath already set".into(),
+        HookPlan::Keep { dir, hooks } if hooks.is_empty() => format!(
+            "git core.hooksPath stays {} (set by you): call `sos gate all` from its pre-commit and `sos gate local-secrets` from its pre-push, or rerun with --force-hooks",
+            dir.display()
+        ),
+        HookPlan::Keep { dir, hooks } => format!(
+            "existing hooks in {} stay active ({}); sos gates are NOT wired yet: rerun with --force-hooks to keep them as harness-lite/hooks/*.local and switch, or call `sos gate all` from your pre-commit and `sos gate local-secrets` from your pre-push",
+            dir.display(),
+            hooks.join(", ")
+        ),
+        HookPlan::Migrate { dir, copies } if copies.is_empty() => format!("git core.hooksPath {} → {HOOKS_PATH} (--force-hooks)", dir.display()),
+        HookPlan::Migrate { dir, copies } => format!(
+            "git core.hooksPath {} → {HOOKS_PATH} (--force-hooks); your hooks keep running: {}",
+            dir.display(),
+            copies.iter().map(|(s, d)| format!("{} → {d}", s.file_name().unwrap_or_default().to_string_lossy())).collect::<Vec<_>>().join(", ")
+        ),
+    }
+}
+
+fn read_gitignore(root: &Path) -> Result<String> {
+    match std::fs::read_to_string(root.join(".gitignore")) {
+        Ok(s) => Ok(s),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(e).context("reading .gitignore (left unchanged; fix or remove the unreadable bytes)"),
+    }
+}
+
 pub fn install(dir: &Path, o: &Opts) -> Result<i32> {
     let root = repo_root(dir)?;
     if root.join(UPSTREAM).exists() {
         bail!("{UPSTREAM} exists: the kit is already installed here — run `sos update`");
     }
+    // Preflight: every check that can fail runs before the first write.
     let p = plan(&root, None)?;
+    let hp = hook_plan(&root, o.force_hooks)?;
+    read_gitignore(&root)?;
     say!("sos install {VERSION} ({COMMIT}) → {}", root.display());
     print_plan(&p);
-    let hp = hooks_path(&root);
-    let hooks_note = match hp.as_deref() {
-        None | Some("") => format!("git core.hooksPath → {HOOKS_PATH}"),
-        Some(h) if h == HOOKS_PATH => "git core.hooksPath already set".into(),
-        Some(h) if o.force_hooks => format!("git core.hooksPath {h} → {HOOKS_PATH} (--force-hooks; your old hooks stay in {h}/)"),
-        Some(h) => format!(
-            "git core.hooksPath stays {h}: call `sos gate all` from {h}/pre-commit and `sos gate local-secrets` from {h}/pre-push, or rerun with --force-hooks and move extra checks to harness-lite/hooks/pre-commit.local"
-        ),
-    };
-    say!("  {hooks_note}");
+    say!("  {}", describe(&hp));
     let conflicts = p.kit.iter().filter(|(_, a)| *a == Act::Conflict).count();
     if o.dry_run {
         for n in &p.notes {
@@ -379,17 +473,24 @@ pub fn install(dir: &Path, o: &Opts) -> Result<i32> {
             write(&root, f, f.path)?;
         }
     }
-    write_upstream(&root, recorded)?;
     let added = ensure_gitignore(&root)?;
     if !added.is_empty() {
         say!("  .gitignore += {}", added.join(", "));
     }
-    if matches!(hp.as_deref(), None | Some("")) || o.force_hooks {
-        let ok = Command::new("git").current_dir(&root).args(["config", "--local", "core.hooksPath", HOOKS_PATH]).status()?.success();
-        if !ok {
-            bail!("could not set core.hooksPath");
+    if let HookPlan::Migrate { copies, .. } = &hp {
+        for (src, dst) in copies {
+            let target = safe_path(&root, dst)?;
+            std::fs::copy(src, &target).with_context(|| format!("copying {} to {dst}", src.display()))?;
         }
     }
+    if matches!(hp, HookPlan::Set | HookPlan::Migrate { .. }) {
+        let ok = Command::new("git").current_dir(&root).args(["config", "--local", "core.hooksPath", HOOKS_PATH]).status()?.success();
+        if !ok {
+            bail!("could not set core.hooksPath (rerun `sos install`; nothing is recorded yet)");
+        }
+    }
+    // Written last: if anything above failed, `sos install` can simply run again.
+    write_upstream(&root, recorded)?;
     finish(&root, &p.notes, conflicts)
 }
 
