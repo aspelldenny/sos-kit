@@ -29,7 +29,7 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py\" post-bash",
-            "timeout": 340
+            "timeout": 320
           }
         ]
       }
@@ -41,7 +41,7 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py\" post-bash",
-            "timeout": 340
+            "timeout": 320
           }
         ]
       }

@@ -85,7 +85,7 @@ def post_bash():
     m = re.match(r"Exit code: (\d+)", out or "")
     if m:
         cmd += ["--exit", m.group(1)]
-    r = subprocess.run(cmd, input=out or "", cwd=ROOT, capture_output=True, text=True, timeout=330)
+    r = subprocess.run(cmd, input=out or "", cwd=ROOT, capture_output=True, text=True, timeout=300)
     if r.stdout.strip():
         context("PostToolUse", r.stdout.strip())
 

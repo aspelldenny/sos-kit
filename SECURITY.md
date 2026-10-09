@@ -8,7 +8,7 @@ The v2 policy (sister-tool binaries, Codex adapter guards, rendered backstop hoo
 
 | Surface | Trigger | What it does |
 |---|---|---|
-| `hooks/pre-commit` | `git commit` | `cargo check`, the trust gate, then `sos gate all` from the freshly built binary |
+| `hooks/pre-commit` | `git commit` | `cargo check`, the trust gate, `sos gate all` from the freshly built binary, and `tests/docs-check.py` |
 | `hooks/pre-push` | `git push` | `sos gate local-secrets` |
 | `.claude/settings.json`, `.codex/hooks.json` | Agent session in this folder | Session status line; `.env` edit guard (via `adapters/`) |
 | `scripts/*`, `adapters/*/*` | Called by the hooks above | Agent-neutral checks and payload translators |
@@ -28,17 +28,17 @@ The v2 policy (sister-tool binaries, Codex adapter guards, rendered backstop hoo
 | `harness-lite/scripts/*`, `harness-lite/adapters/*` | Kit | Called by agent hooks; `scripts/advise` calls the `claude` or `codex` CLI after repeated test failures (disable: `SOS_ADVISOR=off`) |
 | `.claude/settings.json`, `.codex/hooks.json` | Project (created only if missing) | Agent sessions |
 
-It never overwrites an existing project file, never changes an existing `core.hooksPath` without `--force-hooks`, and records the SHA-256 of every kit file in `harness-lite/UPSTREAM.json`. `sos update` replaces only kit files whose hash still matches that record; an edited file is kept and the new version is written beside it as `.sos-new`.
+It never overwrites an existing project file (it appends three lines to `.gitignore`), never changes an existing `core.hooksPath` without `--force-hooks`, and records the SHA-256 of every kit file in `harness-lite/UPSTREAM.json`. `sos update` replaces only kit files whose hash still matches that record; an edited file is kept and the new version is written beside it as `.sos-new`.
 
 ## Invariants
 
-**INV-TRUST-01 — Auto-exec content integrity.** Every tracked auto-exec surface in this repo has its SHA-256 in `.sos-trust-baseline`; `scripts/trust-gate.sh` fails the commit on any difference. A reviewed change is accepted only by `scripts/trust-gate.sh rebaseline`, so the diff is visible in the PR.
+**INV-TRUST-01 — Auto-exec content integrity.** The auto-exec surfaces listed in `scripts/trust-gate.sh` (`SURFACE_GLOBS`: agent hook configs, `adapters/`, `scripts/`, git hooks and the app hook templates, `install.sh`, the npm wrapper, `.github/workflows/`, `tests/smoke.sh`) have their SHA-256 in `.sos-trust-baseline`; `scripts/trust-gate.sh` fails the commit on any difference. A reviewed change is accepted only by `scripts/trust-gate.sh rebaseline`, so the diff is visible in the PR.
 
-**INV-TRUST-02 — No hidden Unicode in instruction files.** The trust gate rejects BOM, zero-width and bidi control characters in files agents load as instructions (the "rules file backdoor" vector).
+**INV-TRUST-02 — No hidden Unicode in instruction files.** The trust gate rejects BOM, zero-width characters, bidi marks, overrides and isolates (U+200E/F, U+202A–202E, U+2066–2069) and Unicode tag characters (U+E0000 block) in files agents load as instructions (the "rules file backdoor" vector).
 
 **INV-TRUST-03 — Gates do not fetch.** Git hooks and `sos gate` read local files and git only. The one networked component is the optional advisor, which sends the question, the latest test output and `git diff` (excluding `evidence/`) to the model CLI you already use.
 
-**INV-TRUST-04 — Fail closed.** A gate that cannot run (missing `sos`, `gitleaks`, unreadable file, unparseable patch, unknown `.sos.toml` key) blocks instead of passing.
+**INV-TRUST-04 — Fail closed.** A gate that cannot run (missing `sos`, `gitleaks`, unreadable file, unparseable patch, unknown `.sos.toml` key) blocks instead of passing. One documented exception: the default-branch rule only warns when it cannot tell which branch is the default (set `[git] default_branch`).
 
 **INV-TRUST-05 — Verified downloads.** `install.sh` installs one binary for one pinned tag and aborts on a missing or mismatching checksum. npm pins both the tag and the hash of `install.sh`.
 

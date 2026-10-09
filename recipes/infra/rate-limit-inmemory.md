@@ -8,7 +8,7 @@
 
 Rate-limit theo IP cho Next.js App Router route/middleware, KHÔNG cần Redis/Upstash — một `Map` module-level trong tiến trình. Đủ cho single-instance / low-to-mid scale; chấp nhận reset khi cold-start serverless. Zero-dep (chỉ dùng `next/server` types). Hai use case: (1) generic bucket limiter cho bất kỳ route nào, (2) limiter chuyên biệt cho login/credentials — chống brute-force với cửa sổ dài hơn (15 phút) và limit thấp hơn (5 lần).
 
-**Chọn in-memory thay vì Redis vì:** solo-dev/single-VPS scale không cần distributed store; thêm Redis chỉ để rate-limit là over-engineering theo Philosophy #5 (solo-first). Nếu scale ra multi-instance, thay `Map` bằng Redis `INCR`+`EXPIRE` — interface (`rateLimitByIP`, `checkLoginRateLimit`) giữ nguyên chữ ký, chỉ đổi implementation bên trong.
+**Chọn in-memory thay vì Redis vì:** solo-dev/single-VPS scale không cần distributed store; thêm Redis chỉ để rate-limit là over-engineering cho dự án một người (solo-first, `docs/PHILOSOPHY.md`). Nếu scale ra multi-instance, thay `Map` bằng Redis `INCR`+`EXPIRE` — interface (`rateLimitByIP`, `checkLoginRateLimit`) giữ nguyên chữ ký, chỉ đổi implementation bên trong.
 
 ## Inputs (yêu cầu trước khi apply)
 

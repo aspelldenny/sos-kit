@@ -1,6 +1,5 @@
 [workspace]
-# P077b — carved into virtual workspace (5 crates under crates/*).
-# Root stays at bootstrap/sos-rs/, NOT repo-root — relocation is P077e.
+# Workspace: crates/sos-cli (the `sos` binary) and crates/sos-gates (the gates).
 members = ["crates/*"]
 resolver = "2"
 

@@ -183,6 +183,7 @@ fn repo_gates() {
     std::fs::create_dir_all(p.join("svc")).unwrap();
     std::fs::write(p.join("svc/.ENV.local"), "A=1").unwrap();
     std::fs::write(p.join(".env.example"), "A=").unwrap();
+    std::fs::write(p.join(".environment.ts"), "export {}").unwrap(); // not an env file
     git(p, &["add", "-f", "."]);
     let r = repo::env_commit(p).unwrap();
     assert_eq!(r.errors.len(), 1, "{:?}", r.errors);

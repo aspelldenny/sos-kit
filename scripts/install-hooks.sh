@@ -20,7 +20,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
 if [[ ! -f hooks/pre-commit ]]; then
-    echo "ERROR: hooks/pre-commit not found (run from a sos-kit-spawned repo)" >&2
+    echo "ERROR: hooks/pre-commit not found — this script arms the sos-kit repo's own hooks; in a project use \`sos install\`" >&2
     exit 1
 fi
 

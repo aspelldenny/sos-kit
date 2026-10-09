@@ -2,6 +2,7 @@
 
 > **Category:** payment
 > **Stability:** extracted from tarot production. Changed after the 2026-10-09 review (not yet in tarot): the webhook compares the paid amount with the stored order before settling, and two anchors that could never fail now can. Its checks are static plus one live HTTP check; no behaviour test ships with it yet.
+> **Known gaps (review 2026-10-09):** inputs name `infra/docker-compose-postgres`, which is still a TODO recipe (any Postgres + Prisma works); the outputs list a `/status` route and a refund helper that the steps do not supply — write them for your app.
 > **Last verified:** 2026-07-23 (verified against tarot @cd16a86)
 
 ## Changelog

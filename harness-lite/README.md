@@ -27,7 +27,7 @@ An adversarial pass by a different model family before acceptance is optional.
 
 `sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps and `FEATURES.json` identity. Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` (executable, project-owned).
 
-**Advisor.** After two consecutive failing runs of the same test command, the adapter asks a stronger model (`scripts/advise`) for a direction and adds the answer to the worker's context, together with the files the failure and the change point at. After two calls in one failing streak the worker is told to stop and report. Choose the backend in `.sos.toml` `[advisor]` (`claude`, `codex`, `auto` for the other model family, `off`); calls and costs are logged in `.advise-state/calls.jsonl`.
+**Advisor.** After two consecutive failing runs of the same test command, the adapter asks a stronger model (`scripts/advise`) for a direction and adds the answer to the worker's context; the advisor is shown the files the failure and the change point at. Each call needs two more failures; after the second call, the next two failures tell the worker to stop and report. Choose the backend in `.sos.toml` `[advisor]` (`claude`, `codex`, `auto` for the other model family, `off`); calls and costs are logged in `.advise-state/calls.jsonl`.
 
 ## Commands
 

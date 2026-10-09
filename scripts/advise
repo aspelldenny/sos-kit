@@ -130,7 +130,7 @@ def call(backend: str, model: str, prompt: str) -> tuple:
     if backend == "claude":
         r = subprocess.run(["claude", "-p", "--model", model or "opus", "--tools", "", "--output-format", "json",
                             "--strict-mcp-config", "--disable-slash-commands", "--setting-sources", "",
-                            "--system-prompt", SYSTEM], input=prompt, capture_output=True, text=True, timeout=600)
+                            "--system-prompt", SYSTEM], input=prompt, capture_output=True, text=True, timeout=240)
         try:
             d = json.loads(r.stdout.strip().splitlines()[-1])
             return (r.returncode == 0 and not d.get("is_error"), d.get("result", ""), d.get("total_cost_usd"),
@@ -138,7 +138,7 @@ def call(backend: str, model: str, prompt: str) -> tuple:
         except (ValueError, IndexError):
             return False, (r.stderr or r.stdout).strip()[-500:], None, model or "opus"
     r = subprocess.run(["codex", "exec", *(["-m", model] if model else []), "--sandbox", "read-only",
-                        "--skip-git-repo-check", "-"], input=prompt, capture_output=True, text=True, timeout=600)
+                        "--skip-git-repo-check", "-"], input=prompt, capture_output=True, text=True, timeout=240)
     return r.returncode == 0 and bool(r.stdout.strip()), (r.stdout if r.returncode == 0 else r.stderr).strip(), None, model or "codex default"
 
 
@@ -175,7 +175,7 @@ def main() -> int:
     try:
         ok, text, cost, used = call(backend, model, build_prompt(root, question, opts["--error-file"]))
     except subprocess.TimeoutExpired:
-        ok, text, cost, used = False, "timed out after 600 s", None, model
+        ok, text, cost, used = False, "timed out after 240 s", None, model
     secs = round(time.time() - start, 1)
     (root / ".advise-state").mkdir(exist_ok=True)
     with open(root / ".advise-state" / "calls.jsonl", "a") as log:

@@ -121,7 +121,7 @@ def main() -> None:
     q = (f"The same tests have now failed {fails} times in a row (command: {a.cmd}). "
          "What is the root cause, and should I change approach?")
     r = subprocess.run([sys.executable, str(advise), "--agent", a.agent, "--error-file", str(err), q],
-                       cwd=root, capture_output=True, text=True, timeout=660)
+                       cwd=root, capture_output=True, text=True, timeout=270)
     if r.returncode == 0:
         print("ADVISOR (automatic, after repeated test failures). Weigh it against your own evidence; "
               "if you disagree, say why in your report.\n\n" + r.stdout.strip())

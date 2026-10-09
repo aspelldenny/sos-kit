@@ -35,6 +35,6 @@ CLI calls, add its captured payloads to `tests/adapters/fixtures/`, and extend `
 
 ## Advisor settings
 
-`.sos.toml` `[advisor]`: `backend` (`claude` | `codex` | `auto` = the other model family than the agent at work | `off`), `model`, `after` (consecutive failing test runs before a call, 2), `max` (calls per failing streak before "stop and report", 2). Env overrides for one session: `ADVISE_BACKEND`, `ADVISE_MODEL`, `ADVISE_AFTER`, `ADVISE_MAX`, `SOS_ADVISOR=off`. Each call is logged in `.advise-state/calls.jsonl` (backend, model, seconds, cost when reported) and the advice in `evidence/advice/`.
+`.sos.toml` `[advisor]`: `backend` (`claude` | `codex` | `auto` = the other model family than the agent at work, falling back to the same family when the other CLI is missing | `off`), `model`, `after` (consecutive failing test runs before a call, 2), `max` (calls per failing streak before "stop and report", 2). Env overrides for one session: `ADVISE_BACKEND`, `ADVISE_MODEL`, `ADVISE_AFTER`, `ADVISE_MAX`, `SOS_ADVISOR=off`. Each call is logged in `.advise-state/calls.jsonl` (backend, model, seconds, cost when reported) and the advice in `evidence/advice/`.
 
 sos-kit itself wires only session start and the edit guard (`.claude/settings.json`, `.codex/hooks.json`); the app templates also wire the advisor.

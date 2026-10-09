@@ -2,6 +2,7 @@
 
 > **Category:** ai
 > **Stability:** extracted from tarot production. Its checks are static (grep) unless a behaviour test is listed; run your own tests after adapting it.
+> **Known gaps (review 2026-10-09):** inputs name `framework-starter/<chosen>`, still a TODO recipe; the steps supply two tiers, not the three in the title; smoke check 5 prints the result but does not fail on `{ok:false}` and needs a TypeScript loader (`npx tsx`).
 > **Last verified:** 2026-04-25
 
 ## Mục đích
