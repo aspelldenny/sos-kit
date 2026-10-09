@@ -269,3 +269,20 @@ fn hook_migration_conflict_stops_before_any_write() {
     assert_eq!(o.status.code(), Some(2), "{}", out(&o));
     assert!(!p.join("AGENTS.md").exists() && !p.join("harness-lite/CONTRACT.md").exists(), "nothing written");
 }
+
+#[test]
+fn role_wrappers_carry_model_and_effort_and_check_flags_missing_ones() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let w = std::fs::read_to_string(p.join(".claude/agents/worker.md")).unwrap();
+    assert!(w.contains("model: sonnet") && w.contains("effort: medium"), "{w}");
+    let r = std::fs::read_to_string(p.join(".claude/agents/reviewer.md")).unwrap();
+    assert!(r.contains("effort: high"), "{r}");
+    let s: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(p.join(".claude/settings.json")).unwrap()).unwrap();
+    assert_eq!(s["advisorModel"], "opus");
+    assert!(!out(&sos(p, &["check"])).contains("sets no"));
+    std::fs::write(p.join(".claude/agents/worker.md"), "---\nname: worker\n---\nbody\n").unwrap();
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains("worker.md sets no model or effort"), "{c}");
+}

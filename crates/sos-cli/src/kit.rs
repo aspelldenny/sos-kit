@@ -611,6 +611,17 @@ pub fn check(dir: &Path) -> Result<i32> {
             }
         }
     }
+    // Role model and effort are decisions (worker sonnet/medium, checks high); unset, a subagent
+    // silently runs the main session's model, as TurnSigil's first worker did.
+    for role in ["worker", "reviewer", "architect"] {
+        let Ok(src) = std::fs::read_to_string(root.join(format!(".claude/agents/{role}.md"))) else { continue };
+        let front = src.strip_prefix("---\n").and_then(|r| r.split("\n---").next()).unwrap_or("");
+        let missing: Vec<&str> = ["model", "effort"].into_iter()
+            .filter(|k| !front.lines().any(|l| l.trim_start().starts_with(&format!("{k}:")))).collect();
+        if !missing.is_empty() {
+            warns.push(format!(".claude/agents/{role}.md sets no {}: it runs the main session's (template: harness-lite/templates/claude-agents/{role}.md)", missing.join(" or ")));
+        }
+    }
     if let Ok(c) = std::fs::read_to_string(root.join("CLAUDE.md")) {
         if !c.contains("@AGENTS.md") {
             warns.push("CLAUDE.md does not import AGENTS.md (add a line `@AGENTS.md`)".into());
