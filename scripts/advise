@@ -9,8 +9,8 @@ ADVISE_MAX, SOS_ADVISOR=off), `.sos.toml` [advisor], defaults (backend claude, a
 `auto` asks the other model family than the agent at work (a different eye), falling back to
 the same family when the other CLI is missing; a missing chosen CLI also falls back, and says so.
 
-The advisor gets a snapshot, not the transcript: the question, the brief (ADVISE_BRIEF), the
-latest failure, git status, recent commits, the uncommitted diff, and the files that the failure
+The advisor gets a snapshot, not the transcript: the question, the intent (ADVISE_BRIEF, else the
+first section of docs/BACKLOG.md and the open features in docs/FEATURES.json), the latest failure, git status, recent commits, the uncommitted diff, and the files that the failure
 and the change mention (or the last commit's files when the tree is clean).
 Output: advice on stdout; a copy in evidence/advice/; one JSON line per call in
 .advise-state/calls.jsonl (backend, model, seconds, ok, cost when the CLI reports it).
@@ -102,11 +102,34 @@ def relevant_files(root: Path, failure: str, diff: str) -> list:
     return out[:8]
 
 
-def build_prompt(root: Path, question: str, errfile: str) -> str:
-    parts = [FORMAT, "\n## Worker's question\n" + question]
+def intent(root: Path) -> str:
+    """What the work is for. Without it the advisor can only say why a test is red, not what to build."""
     brief = os.environ.get("ADVISE_BRIEF")
     if brief and Path(brief).is_file():
-        parts.append("\n## Brief\n" + Path(brief).read_text(errors="replace")[:6000])
+        return "\n## Brief\n" + Path(brief).read_text(errors="replace")[:6000]
+    found = []
+    backlog = root / "docs" / "BACKLOG.md"
+    if backlog.is_file():
+        m = re.search(r"^## .*?(?=^## |\Z)", backlog.read_text(errors="replace"), re.M | re.S)
+        if m:
+            found.append("From docs/BACKLOG.md (current work):\n" + m.group(0).strip()[:3000])
+    features = root / "docs" / "FEATURES.json"
+    if features.is_file():
+        try:
+            open_ = [f for f in json.loads(features.read_text()).get("features", []) if not f.get("passes")]
+        except (ValueError, AttributeError):
+            open_ = []
+        if open_:
+            found.append("Open features from docs/FEATURES.json:\n" + json.dumps(open_, ensure_ascii=False, indent=1)[:3000])
+    if found:
+        return "\n## Intent\n" + "\n\n".join(found)
+    return ("\n## Intent\n(none found: no ADVISE_BRIEF, docs/BACKLOG.md or open docs/FEATURES.json entry. "
+            "Do not guess what the product must do; say which intent your advice depends on.)")
+
+
+def build_prompt(root: Path, question: str, errfile: str) -> str:
+    parts = [FORMAT, "\n## Worker's question\n" + question]
+    parts.append(intent(root))
     failure = Path(errfile).read_text(errors="replace")[-8000:] if errfile and Path(errfile).is_file() else ""
     if failure:
         parts.append("\n## Latest failure\n" + failure)

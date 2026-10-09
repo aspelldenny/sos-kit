@@ -7,7 +7,7 @@
 > Nguồn: `docs/research/HARNESS_SURVEY_2026-10-08.md`, `docs/plans/V3_TRIAGE_2026-10-08.md`. Phát hành mới nhất: xem `CHANGELOG.md`.
 
 - [ ] **Áp vào app mới** khi Chủ nhà brainstorm xong: `sos install`, đo token, thời gian, lỗi bắt được theo tầng (gate / advisor / người soát), số lần advisor bắn và đổi hướng thợ. Chốt model và effort cho advisor sau khi có số đo.
-- [ ] **Chuyển Thirty / Payquill sang v3** (khi Chủ nhà muốn): `sos install --force-hooks`, `[text].files` lấy từ hook cũ, nối `.claude/settings.json`, sửa `AGENTS.md` trỏ `harness-lite/roles` thay `agents/roles`. Đã thử trên bản clone Thirty.
+- [ ] **Chuyển Thirty / Payquill sang v3** (khi Chủ nhà muốn): `sos install --force-hooks`, `[text].files` lấy từ hook cũ, nối `.claude/settings.json`, sửa `AGENTS.md` trỏ `harness-lite/roles` thay `agents/roles`. Đã thử trên bản clone Thirty. `sos check` xanh chỉ xác nhận wiring, không phát hiện chỉ dẫn cũ mâu thuẫn với `harness-lite/`: đối chiếu `AGENTS.md`/`CLAUDE.md` cũ bằng tay, và thêm mục Design handoff.
 - [ ] **Hồ sơ theo loại dự án** (sau brainstorm): `ios-app`, `writing` trước; `web-app`, `tool` sau. Mỗi hồ sơ: lăng kính cho người soát, nội dung `make ready`, gate thêm. `reviewer.md` hiện viết cho app; tách phần riêng ra hồ sơ.
 - [ ] **Repo tool cũ:** ghi chú "đã gộp vào `sos gate`" ở README của quality-gate, doctor, doc-rotate, claude-hooks.
 

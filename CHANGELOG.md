@@ -2,6 +2,15 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+Changes after an outside cross-check of v0.3.2 (approved by Chủ nhà).
+
+- Advisor: the prompt now always carries intent. Without `ADVISE_BRIEF` (which nothing set, so automatic advice after failing tests never saw what the work was for) it sends the first section of `docs/BACKLOG.md` and the open entries of `docs/FEATURES.json`, or says that no intent was found so the advisor does not guess. Tested with the real script and a stub CLI in `tests/adapters/run.sh`.
+- Thợ consults the advisor only for a specific question its evidence does not settle, stating the acceptance and the uncertainty; no longer by default before hand-back, which overlapped with Người soát.
+- Người soát, after using the result, may also read changed code paths whose failures one run will not show (write ordering, concurrency, migration, authorization).
+- `templates/app/AGENTS.md`: a short design handoff (approved sources, reference screens, what is still a proposal, acceptance journeys), so agents ask instead of starting a spike when it is empty. Existing apps keep their `AGENTS.md`; add the section by hand.
+
 ## v0.3.2 — 2026-10-09
 
 - npm: `npm install -g sos-kit` works under npm 12, which skips package install scripts unless allowed (npm 11 only warns). The `sos` command from npm now installs the binary on first use, and updates it when it is older than the package, through the same pinned, checksum-verified path (the package's version wins over a stray `SOS_VERSION`), saying so on stderr; when that fails it names the cause and the fix. Before, it only printed a manual command. `sos gate` and `sos filter` never download: with no binary they block and say how to install. `install.sh` replaces the binary atomically.
