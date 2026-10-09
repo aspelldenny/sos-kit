@@ -2,6 +2,12 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+- Cleanup: v2 tickets, discoveries, adapter dogfood logs, retros, security reviews, plans, templates, configs, integrations and the tool manifest moved to `archive/v2/`; `docs/BACKLOG.md` reduced to v3 state (v2 backlog archived); `docs/PHILOSOPHY.md` rewritten for v3 (v2 version archived); `skills/apply` rewritten without tickets and without reading `.env`.
+- Trust gate: hidden-Unicode scan now covers the prompts shipped into apps (`harness-lite/`, `templates/`, `adapters/`, `recipes/`); stale v2 paths removed.
+- `CLAUDE.md` rule 7: changes reach `main` through a pull request.
+
 ## v0.3.0 — SOS Kit v3 — 2026-10-09
 
 **Breaking:** `sos` is a new CLI. The v2 commands (`new`, `adopt`, `map`, `sync`, `launch`, `init`, `blueprint`, `contract`, `apply`, `tools`), `bin/sos.sh` and the v2 crates are archived in `archive/v2/` (tag `v2-final`). `install.sh` installs only the `sos` binary; the sister tools are no longer downloaded.

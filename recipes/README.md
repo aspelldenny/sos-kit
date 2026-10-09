@@ -1,6 +1,6 @@
 # Recipes — Atomic, Composable Building Blocks
 
-> **Triết lý:** sos-kit không có "scaffolds cứng" theo combo (Next+Prisma+Postgres+Docker). Recipes là **đơn vị nhỏ nhất** — 1 file = 1 recipe — Kiến trúc sư mix theo blueprint của project.
+> **Triết lý:** sos-kit không có "scaffolds cứng" theo combo (Next+Prisma+Postgres+Docker). Recipes là **đơn vị nhỏ nhất** — 1 file = 1 recipe — chọn theo nhu cầu của dự án.
 
 ## Tại sao recipes thay scaffolds
 
@@ -9,7 +9,7 @@
 | Đơn vị | Cả stack | 1 mảnh ghép |
 | Combo lạ | Phải tạo scaffold mới | Mix recipe có sẵn |
 | Maintain | N×M×K (tổ hợp nổ) | Tuyến tính |
-| Project mới | Phụ thuộc combo có sẵn | Mix + forge nếu thiếu |
+| Project mới | Phụ thuộc combo có sẵn | Mix; thiếu thì viết recipe mới từ code đã ship |
 
 ## Categories
 
@@ -44,34 +44,13 @@ Recipe = 1 file Markdown duy nhất, có structure:
 
 Template chi tiết: `recipes/_TEMPLATE.md`
 
-## Cách Kiến trúc sư dùng
+## Cách dùng
 
-Trong `phieu/P000-genesis.md > 3. Tech Commitments > Recipes to apply`:
+Trong brief giao cho Thợ, ghi recipe cần áp (ví dụ `payment/payos-vn`). Thợ dùng skill `apply` (`skills/apply/SKILL.md`): đọc recipe, đối chiếu đầu vào với code thật, làm các bước cho khớp dự án, chạy hết verification anchors, báo bằng chứng. Mỗi recipe một commit hoặc một PR.
 
-```
-1. infra/vps-bootstrap-ubuntu
-2. infra/docker-compose-postgres
-3. framework-starter/nextjs-15-app-router
-4. auth/nextauth-google-email
-5. payment/payos-vn
-6. ai/multi-model-fallback
-7. observability/sentry-nextjs
-```
+## Thêm recipe mới
 
-Thợ chạy `sos apply <name>` lần lượt — mỗi recipe = 1 phiếu sub-genesis (P000.1, P000.2, ...) với verification anchors riêng.
-
-## Cách forge recipe mới
-
-Khi blueprint cần combo mà library thiếu:
-
-```bash
-sos recipe new <category>/<name>
-# Hoặc invoke skill /forge trong Claude Code
-```
-
-Skill `/forge` dẫn Kiến trúc sư qua: nghiên cứu official docs → write steps → verify trên test project → save vào `recipes/<category>/<name>.md` → commit.
-
-**Quy tắc forge:** Mọi recipe mới PHẢI có Verification anchors chạy được + ít nhất 1 Discovery hook (anticipate failure mode). Không recipe nào ship "untested".
+Chỉ thêm recipe đã chạy thật trong một dự án đã ship. Dùng `recipes/_TEMPLATE.md`; bắt buộc có verification anchors chạy được và ít nhất một discovery hook. Recipe là thay đổi của sos-kit, đi qua PR như mọi thay đổi khác.
 
 ## Recipe đã có
 

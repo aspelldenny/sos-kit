@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # trust-gate.sh — pre-commit gate: auto-exec surface baseline-diff + hidden-unicode check.
 #
-# Purpose: sos-kit ships auto-exec surfaces as its product (hooks, scripts, .mcp.json,
-#   .claude/settings.json, bin/sos.sh, install.sh, phieu/phieu.sh, templates/setup-dev.sh).
-#   Any malicious modification to these surfaces that ships silently = irreversible trust breach
-#   for every `git pull`-ing user (Rules-File-Backdoor class, BACKLOG line 246).
-#   This gate provides the CONTENT INTEGRITY layer (Tier-1 GitHub hardening = already on;
-#   this phiếu = content layer. Port of thanhtra v1.2 trust gate, P073).
+# Purpose: sos-kit ships auto-exec surfaces as its product (git hooks, scripts and adapters that
+#   `sos install` copies into apps, agent hook configs, install.sh, the npm wrapper). A silent
+#   malicious change to them is an irreversible trust breach for every user (Rules-File-Backdoor
+#   class). This gate is the content-integrity layer; GitHub settings are the server layer.
+#   Port of the thanhtra v1.2 trust gate (2026-06).
 #
 # Deviations from thanhtra v1.2:
 #   (a) Baseline-diff NOT hard-fail: sos-kit ships auto-exec as product; reviewed changes
@@ -18,7 +17,7 @@
 #   A NEW auto-exec file MUST be `git add`ed BEFORE running rebaseline, or it is invisible.
 #   (git ls-files only lists tracked files — untracked = silently missed by baseline.)
 #
-# Doctrine: WORKFLOW_V2.2.md §7 Sub-mech F (runtime state) + BACKLOG line 246 threat model.
+# Threat model: SECURITY.md.
 
 set -uo pipefail
 
@@ -45,23 +44,23 @@ SURFACE_GLOBS=(
     "templates/app/hooks/*"
     "scripts/*"
     "install.sh"
-    "templates/setup-dev.sh"
 )
 
-# Unicode gate: scan instruction/doc files Claude loads into context.
-# Broad scope per Sếp-ratified decision 2026-06-15.
-# docs/ticket + docs/discoveries INCLUDED (broad scope decision).
+# Unicode gate: scan instruction/doc files agents load into context, above all the prompts
+# `sos install` ships into every app (harness-lite/, templates/). archive/ is history, not loaded.
 # Codepoints: U+FEFF BOM, U+200B/C/D zero-width, U+200E/F bidi marks,
 #             U+2060 word joiner, U+180E Mongolian vowel separator,
 #             U+E0000–U+E007F tag range (prompt injection vector).
 UNICODE_SCAN_DIRS=(
     "CLAUDE.md"
-    "agents/"
+    "README.md"
+    "harness-lite/"
+    "templates/"
+    "adapters/"
     "skills/"
-    "phieu/"
+    "recipes/"
     "docs/"
     ".claude/"
-    "README.md"
 )
 # Add SECURITY.md if it exists (it's a loaded doc too)
 [ -f "SECURITY.md" ] && UNICODE_SCAN_DIRS+=("SECURITY.md")
@@ -92,7 +91,7 @@ fi
 # binary-mode output ("<hash> *<file>", single space + asterisk), while the
 # baseline is seeded on POSIX (text-mode "<hash>  <file>", two spaces). Left
 # unnormalized this made every hash-line diff on Windows regardless of actual
-# content (P087 BUG 2: false-BLOCK on `sos new`'s first commit hook [8/8]).
+# content (P087: a false block on Windows).
 # Normalizing here (the single call point used by BOTH the generate branch
 # and the compare branch, plus the raw-baseline-file `awk '{print $NF}'` read
 # for added/removed-surface detection — since a baseline WRITTEN via this

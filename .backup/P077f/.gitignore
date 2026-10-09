@@ -1,0 +1,29 @@
+.DS_Store
+*.log
+.env
+.env.local
+node_modules/
+
+# Rust build artifacts
+bootstrap/*/target/
+**/*.rs.bk
+
+# SOS Kit state (architect marker, per-project state)
+.sos/
+# P050: .sos-state/ is ignored but sos-kit-self must be committed (travels with kit).
+# Per git gitignore docs §3: negating a file inside an ignored dir requires un-ignoring
+# the dir first, then re-ignoring its contents except the target file.
+.sos-state/*
+!.sos-state/sos-kit-self
+
+# Pre-phiếu snapshot rollback points (P038)
+.backup/
+
+# Python bytecode (P040 — scripts/parsers/ added)
+__pycache__/
+*.pyc
+
+# Thanhtra — 3rd-party security-scan skill, run periodically by the maintainer.
+# Scan artifacts are local evidence, not committed (re-generated each scan).
+thanhtra-reports/
+.thanhtra-pre-scan.json
