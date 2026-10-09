@@ -44,6 +44,8 @@ SURFACE_GLOBS=(
     "templates/app/hooks/*"
     "scripts/*"
     "install.sh"
+    ".github/workflows/*"
+    "tests/smoke.sh"
 )
 
 # Unicode gate: scan instruction/doc files agents load into context, above all the prompts

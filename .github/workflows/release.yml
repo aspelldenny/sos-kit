@@ -14,7 +14,18 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - run: brew install gitleaks
+      - run: cargo test --locked --workspace
+      - run: tests/adapters/run.sh
+      - run: cargo build --locked -p sos-cli && tests/smoke.sh target/debug/sos
+
   build:
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -29,7 +40,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - run: cargo build --release -p sos-cli --target ${{ matrix.target }}
+      - run: cargo build --release --locked -p sos-cli --target ${{ matrix.target }}
       - name: Package asset
         shell: bash
         run: |
