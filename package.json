@@ -1,7 +1,7 @@
 {
   "name": "sos-kit",
-  "version": "0.3.2",
-  "description": "sos-kit — installs the sos CLI (SOS Kit v3 harness: install/update/check + git gates). The binary is fetched from install.sh@v0.3.2 (pinned tag, sha256-verified, fail-closed) by postinstall, or by the first `sos` call when npm skipped install scripts.",
+  "version": "0.3.3",
+  "description": "sos-kit — installs the sos CLI (SOS Kit v3 harness: install/update/check + git gates). The binary is fetched from install.sh@v0.3.3 (pinned tag, sha256-verified, fail-closed) by postinstall, or by the first `sos` call when npm skipped install scripts.",
   "os": ["darwin", "linux"],
   "bin": {
     "sos": "bin/sos-npm",
