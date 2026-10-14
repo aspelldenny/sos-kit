@@ -90,7 +90,7 @@ pub const PROJECT_FILES: &[File] = &[
     kit!(".claude/agents/reviewer.md", "templates/app/claude-agents/reviewer.md"),
 ];
 
-pub const GITIGNORE_LINES: &[&str] = &[".advise-state/", "evidence/advice/", "*.sos-new"];
+pub const GITIGNORE_LINES: &[&str] = &[".advise-state/", "evidence/advice/", "evidence/roles/", "*.sos-new"];
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Upstream {
@@ -611,16 +611,49 @@ pub fn check(dir: &Path) -> Result<i32> {
             }
         }
     }
-    // Role model and effort are decisions (worker sonnet/medium, checks high); unset, a subagent
-    // silently runs the main session's model, as TurnSigil's first worker did.
-    for role in ["worker", "reviewer", "architect"] {
-        let Ok(src) = std::fs::read_to_string(root.join(format!(".claude/agents/{role}.md"))) else { continue };
+    // Role model and effort are decisions; unset, a subagent silently runs the main session's
+    // model (TurnSigil's first worker ran Opus). .sos.toml [roles] is the one table they follow.
+    let cfg = sos_gates::config::load(&root).ok();
+    for role in sos_gates::config::ROLES {
+        let path = format!(".claude/agents/{role}.md");
+        let want = cfg.as_ref().and_then(|c| c.roles.get(role)).and_then(|e| e.for_family("claude"))
+            .filter(|s| s.backend == "claude");
+        let Ok(src) = std::fs::read_to_string(root.join(&path)) else {
+            if let Some(w) = want {
+                warns.push(format!("[roles.{role}] runs {role} on Claude ({}) but {path} is missing (template: harness-lite/templates/claude-agents/{role}.md)", w.model));
+            }
+            continue;
+        };
         let front = src.strip_prefix("---\n").and_then(|r| r.split("\n---").next()).unwrap_or("");
-        let missing: Vec<&str> = ["model", "effort"].into_iter()
-            .filter(|k| !front.lines().any(|l| l.trim_start().starts_with(&format!("{k}:")))).collect();
+        let get = |k: &str| front.lines().find_map(|l| l.trim().strip_prefix(&format!("{k}:")).map(|v| v.trim().trim_matches('"').to_string()));
+        let missing: Vec<&str> = ["model", "effort"].into_iter().filter(|k| get(k).is_none()).collect();
         if !missing.is_empty() {
-            warns.push(format!(".claude/agents/{role}.md sets no {}: it runs the main session's (template: harness-lite/templates/claude-agents/{role}.md)", missing.join(" or ")));
+            warns.push(format!("{path} sets no {}: it runs the main session's (template: harness-lite/templates/claude-agents/{role}.md)", missing.join(" or ")));
+        } else if let Some(w) = want {
+            let (m, e) = (get("model").unwrap_or_default(), get("effort").unwrap_or_default());
+            if m != w.model || e != w.effort {
+                warns.push(format!("{path} says {m}/{e} but .sos.toml [roles.{role}] says {}/{}: make them agree", w.model, w.effort));
+            }
         }
+    }
+    for doc in ["AGENTS.md", "CLAUDE.md"] {
+        let Ok(text) = std::fs::read_to_string(root.join(doc)) else { continue };
+        // A retired path that still exists in this repo is not stale (an app may keep it).
+        let retired: Vec<String> = RETIRED.iter()
+            .filter(|(old, _)| mentions(&text, old) && !(old.contains('/') && root.join(old).exists()))
+            .map(|(old, new)| format!("`{old}` (now {new})")).collect();
+        if !retired.is_empty() {
+            warns.push(format!("{doc} still names retired tools: {}; agents read this every session", retired.join(", ")));
+        }
+        let gone = missing_paths(&root, &text);
+        if !gone.is_empty() {
+            warns.push(format!("{doc} names paths that do not exist: {}", gone.join(", ")));
+        }
+    }
+    let merged = merged_worktrees(&root);
+    if !merged.is_empty() {
+        warns.push(format!("{} clean worktree(s) on branches already merged, still on disk: {} — `git worktree remove <path>`",
+                           merged.len(), merged.join(", ")));
     }
     if let Ok(c) = std::fs::read_to_string(root.join("CLAUDE.md")) {
         if !c.contains("@AGENTS.md") {
@@ -653,4 +686,69 @@ pub fn check(dir: &Path) -> Result<i32> {
         say!("sos check: {} error(s)", errors.len());
         Ok(1)
     }
+}
+
+/// Tools merged into `sos gate` or moved in v3, and what replaced them.
+const RETIRED: &[(&str, &str)] = &[
+    ("quality-gate", "`sos gate text`"),
+    ("claude-hooks", "harness-lite/adapters"),
+    ("features-guard", "`sos gate features`"),
+    ("doc-rotate", "`sos gate docs`"),
+    ("doctor runtime-scan", "`sos gate local-secrets`"),
+    ("agents/roles/", "harness-lite/roles/"),
+];
+
+/// `needle` in `text`, not as part of a longer name (`.quality-gate.toml` is still read, and
+/// `harness-lite/agents/roles/` would be someone else's path).
+fn mentions(text: &str, needle: &str) -> bool {
+    text.match_indices(needle).any(|(i, _)| {
+        let before = text[..i].chars().last();
+        let after = &text[i + needle.len()..];
+        !matches!(before, Some('.') | Some('-') | Some('/') | Some('_')) && !after.starts_with(".toml")
+    })
+}
+
+/// Backticked relative paths in `text` that do not exist under `root`.
+fn missing_paths(root: &Path, text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (i, span) in text.split('`').enumerate() {
+        if i % 2 == 0 {
+            continue;
+        }
+        let t = span.split([':', '#']).next().unwrap_or("").trim_end_matches(['.', ',']);
+        let looks_like_path = t.contains('/') && !t.starts_with(['/', '~', '-', '.'])
+            && !t.contains("://") && !t.chars().any(|c| c.is_whitespace() || "*<>{}$|()[]\"'".contains(c));
+        if looks_like_path && !root.join(t).exists() && !out.iter().any(|o| o == t) {
+            out.push(t.to_string());
+        }
+    }
+    out.truncate(6);
+    out
+}
+
+/// Clean linked worktrees whose branch is already merged into the default branch.
+fn merged_worktrees(root: &Path) -> Vec<String> {
+    let Some(list) = git_out(root, &["worktree", "list", "--porcelain"]) else { return vec![] };
+    let base = ["main", "master"].into_iter()
+        .find(|b| git_out(root, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{b}")]).is_some());
+    let Some(base) = base else { return vec![] };
+    let merged = git_out(root, &["branch", "--merged", base, "--format=%(refname:short)"]).unwrap_or_default();
+    // A branch that never got a commit of its own (one reflog entry: its creation) is a fresh
+    // worktree about to be used, not a leftover.
+    let merged: Vec<&str> = merged.lines().collect();
+    let mut out = Vec::new();
+    let mut path = "";
+    for line in list.lines() {
+        if let Some(p) = line.strip_prefix("worktree ") {
+            path = p;
+        } else if let Some(b) = line.strip_prefix("branch refs/heads/") {
+            let clean = git_out(Path::new(path), &["status", "--porcelain"]).is_some_and(|o| o.is_empty());
+                let fresh = git_out(root, &["reflog", "show", "--format=%gs", &format!("refs/heads/{b}")])
+                    .is_some_and(|l| l.lines().count() <= 1);
+                if b != base && clean && !fresh && merged.contains(&b) && std::fs::canonicalize(path).ok() != std::fs::canonicalize(root).ok() {
+                out.push(path.to_string());
+            }
+        }
+    }
+    out
 }

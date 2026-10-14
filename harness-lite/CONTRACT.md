@@ -8,7 +8,7 @@ Chủ nhà owns product intent, taste, scope and final acceptance. AI owns the m
 
 ## Work from a bounded brief
 
-Know the outcome, allowed changes, relevant sources, acceptance criteria and limits. Before implementation, identify credible failure cases in the brief; no separate test-plan document is required. Inspect the actual code, text or data and current state before assuming the brief describes reality. Resolve technical choices yourself within scope. Size the work by uncertainty, dependencies and observed performance, not model brand. Start with the runtime's configured model and settings and change them only on observed performance; do not invent aliases or silently replace a requested model.
+Know the outcome, allowed changes, relevant sources, acceptance criteria and limits. Before implementation, identify credible failure cases in the brief; no separate test-plan document is required. Inspect the actual code, text or data and current state before assuming the brief describes reality. Resolve technical choices yourself within scope. Size the work by uncertainty, dependencies and observed performance, not model brand. Run on the model and effort the project assigns to your role (`.sos.toml` [roles]), or where it assigns none, the runtime's configured model; do not invent aliases or silently replace a requested model.
 
 Load project entry instructions, current state and relevant sources; follow links on demand. Do not require full history on every handoff. Keep one canonical current state in the project's existing location; link detailed evidence rather than duplicating it.
 

@@ -27,6 +27,21 @@
 //! model = ""                       # empty: opus for claude, Codex config default for codex
 //! after = 2                        # consecutive failing test runs before advice
 //! max = 2                          # advice calls per failing streak, then "stop and report"
+//! effort = ""                      # empty: the CLI default
+//! service_tier = ""                # codex only, e.g. "default" (empty: Codex config)
+//!
+//! [state]
+//! file = "docs/BACKLOG.md"         # current-work doc: session-start status and advisor intent
+//!
+//! [roles.worker]                   # model per role, read by `sos role` and `sos check`
+//! backend = "claude"               # claude | codex
+//! model = "sonnet"
+//! effort = "medium"
+//! [roles.reviewer.claude]          # keyed by the family that built the work:
+//! backend = "codex"                # Claude-built work is reviewed by Codex, and the reverse
+//! model = "gpt-…"
+//! effort = "high"
+//! sandbox = "read-only"            # codex only: read-only | workspace-write
 //! ```
 //!
 //! A legacy `.quality-gate.toml` (`[banned_phrases].items`, `[internal_leaks].patterns`,
@@ -52,6 +67,71 @@ pub struct Config {
     pub git: GitConfig,
     #[serde(default)]
     pub advisor: AdvisorConfig,
+    #[serde(default)]
+    pub state: StateConfig,
+    #[serde(default)]
+    pub roles: std::collections::BTreeMap<String, RoleEntry>,
+}
+
+/// The doc that says what is being worked on now (status at session start, advisor intent).
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct StateConfig {
+    #[serde(default = "state_default")]
+    pub file: String,
+}
+
+impl Default for StateConfig {
+    fn default() -> Self {
+        Self { file: state_default() }
+    }
+}
+
+fn state_default() -> String {
+    "docs/BACKLOG.md".into()
+}
+
+pub const ROLES: [&str; 3] = ["worker", "reviewer", "architect"];
+
+/// One role's model: either the same for every builder, or per family that built the work.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum RoleEntry {
+    One(RoleSpec),
+    ByFamily(ByFamily),
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ByFamily {
+    pub claude: Option<RoleSpec>,
+    pub codex: Option<RoleSpec>,
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RoleSpec {
+    pub backend: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub effort: String,
+    #[serde(default)]
+    pub sandbox: String,
+    #[serde(default)]
+    pub service_tier: String,
+    #[serde(default)]
+    pub timeout_secs: Option<u64>,
+}
+
+impl RoleEntry {
+    /// The spec for work built by `from` (claude | codex), if configured.
+    pub fn for_family(&self, from: &str) -> Option<&RoleSpec> {
+        match self {
+            RoleEntry::One(s) => Some(s),
+            RoleEntry::ByFamily(f) => if from == "codex" { f.codex.as_ref() } else { f.claude.as_ref() },
+        }
+    }
 }
 
 /// Read by `harness-lite/scripts/advise` (Python); validated here so a typo fails `sos check`.
@@ -66,11 +146,15 @@ pub struct AdvisorConfig {
     pub after: u32,
     #[serde(default = "two")]
     pub max: u32,
+    #[serde(default)]
+    pub effort: String,
+    #[serde(default)]
+    pub service_tier: String,
 }
 
 impl Default for AdvisorConfig {
     fn default() -> Self {
-        Self { backend: advisor_backend(), model: String::new(), after: 2, max: 2 }
+        Self { backend: advisor_backend(), model: String::new(), after: 2, max: 2, effort: String::new(), service_tier: String::new() }
     }
 }
 
@@ -178,12 +262,50 @@ struct LegacyThinking {
 }
 
 pub fn parse(src: &str) -> Result<Config> {
-    let cfg: Config = toml::from_str(src).context("parsing .sos.toml")?;
+    let cfg: Config = toml::from_str(src).map_err(|e| {
+        // An untagged [roles] entry hides the real key error; say what a role entry may hold.
+        let msg = e.to_string();
+        if msg.contains("did not match any variant of untagged enum RoleEntry") {
+            anyhow::anyhow!("{msg}\n[roles.<role>] takes backend, model, effort, sandbox, service_tier, timeout_secs; \
+                             or only [roles.<role>.claude] / [roles.<role>.codex] tables with those keys (not both)")
+        } else {
+            anyhow::Error::from(e)
+        }
+    }).context("parsing .sos.toml")?;
     if !["claude", "codex", "auto", "off"].contains(&cfg.advisor.backend.as_str()) {
         bail!("[advisor] backend must be claude, codex, auto or off (got {:?})", cfg.advisor.backend);
     }
     if cfg.advisor.after == 0 {
         bail!("[advisor] after must be at least 1");
+    }
+    for (role, entry) in &cfg.roles {
+        if !ROLES.contains(&role.as_str()) {
+            bail!("[roles.{role}]: unknown role (use {})", ROLES.join(", "));
+        }
+        let specs: Vec<(&str, &RoleSpec)> = match entry {
+            RoleEntry::One(s) => vec![("", s)],
+            RoleEntry::ByFamily(ByFamily { claude, codex }) => {
+                if claude.is_none() && codex.is_none() {
+                    bail!("[roles.{role}] needs backend/model/effort, or [roles.{role}.claude] / [roles.{role}.codex]");
+                }
+                [("claude", claude), ("codex", codex)].into_iter().filter_map(|(k, v)| v.as_ref().map(|s| (k, s))).collect()
+            }
+        };
+        for (fam, s) in specs {
+            let at = if fam.is_empty() { format!("[roles.{role}]") } else { format!("[roles.{role}.{fam}]") };
+            if !["claude", "codex"].contains(&s.backend.as_str()) {
+                bail!("{at} backend must be claude or codex (got {:?})", s.backend);
+            }
+            if s.model.trim().is_empty() || s.effort.trim().is_empty() {
+                bail!("{at} needs model and effort: a role without them silently runs the caller's model");
+            }
+            if !s.sandbox.is_empty() && !["read-only", "workspace-write"].contains(&s.sandbox.as_str()) {
+                bail!("{at} sandbox must be read-only or workspace-write (got {:?})", s.sandbox);
+            }
+            if s.backend == "claude" && (!s.sandbox.is_empty() || !s.service_tier.is_empty()) {
+                bail!("{at}: sandbox and service_tier apply to the codex backend only");
+            }
+        }
     }
     if cfg.docs.soft == 0 || cfg.docs.soft >= cfg.docs.hard {
         bail!("[docs] needs 0 < soft < hard (got soft={}, hard={})", cfg.docs.soft, cfg.docs.hard);
@@ -254,6 +376,25 @@ mod tests {
         assert_eq!((c.advisor.backend.as_str(), c.advisor.after, c.advisor.max), ("auto", 3, 2));
         assert!(parse("[advisor]\nbackend = \"gpt\"\n").is_err());
         assert!(parse("[advisor]\nafter = 0\n").is_err());
+    }
+
+    #[test]
+    fn state_and_roles() {
+        let c = parse("").unwrap();
+        assert_eq!(c.state.file, "docs/BACKLOG.md");
+        let c = parse("[state]\nfile = \"docs/PROGRESS.md\"\n[roles.worker]\nbackend = \"claude\"\nmodel = \"sonnet\"\neffort = \"medium\"\n\
+                       [roles.reviewer.claude]\nbackend = \"codex\"\nmodel = \"m\"\neffort = \"high\"\nsandbox = \"read-only\"\n").unwrap();
+        assert_eq!(c.state.file, "docs/PROGRESS.md");
+        assert_eq!(c.roles["worker"].for_family("codex").unwrap().model, "sonnet");
+        assert_eq!(c.roles["reviewer"].for_family("claude").unwrap().backend, "codex");
+        assert!(c.roles["reviewer"].for_family("codex").is_none());
+        assert!(parse("[roles.tester]\nbackend = \"claude\"\nmodel = \"m\"\neffort = \"high\"\n").is_err());
+        assert!(parse("[roles.worker]\nbackend = \"claude\"\nmodel = \"sonnet\"\n").is_err(), "effort required");
+        assert!(parse("[roles.worker]\nbackend = \"gpt\"\nmodel = \"m\"\neffort = \"high\"\n").is_err());
+        assert!(parse("[roles.worker]\nbackend = \"claude\"\nmodel = \"m\"\neffort = \"high\"\nsandbox = \"read-only\"\n").is_err());
+        assert!(parse("[roles.worker]\nbackend = \"codex\"\nmodel = \"m\"\neffort = \"high\"\nsandbx = \"x\"\n").is_err());
+        let mixed = "[roles.reviewer]\nbackend = \"claude\"\nmodel = \"opus\"\neffort = \"high\"\n[roles.reviewer.codex]\nbackend = \"claude\"\nmodel = \"m\"\neffort = \"high\"\n";
+        assert!(parse(mixed).is_err(), "a spec and a family table together must not drop the spec silently");
     }
 
     #[test]

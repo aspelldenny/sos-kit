@@ -27,5 +27,29 @@ protect_default_branch = false   # true: non-Markdown commits must be made on a 
 # (harness-lite/scripts/advise); at most `max` calls per failing streak. Log: .advise-state/calls.jsonl
 backend = "claude"        # claude | codex | auto (the other model family than the agent at work) | off
 model = ""                # empty: opus for claude, the Codex config default for codex
+effort = ""                # empty: the CLI default
 after = 2
 max = 2
+
+[state]
+# The doc that says what is being worked on now: session-start status and advisor intent read its first `## ` section.
+file = "docs/BACKLOG.md"
+
+# Model and effort per role, the one table everything follows: `sos role` (runs a role from any agent,
+# prompt on closed stdin, with a timeout), `sos check` (compares .claude/agents/*.md with it).
+# Builders at medium, checks at high. For a reviewer from the other model family, key it by who built
+# the work, e.g. [roles.reviewer.claude] backend = "codex" … and [roles.reviewer.codex] backend = "claude" ….
+[roles.worker]
+backend = "claude"
+model = "sonnet"
+effort = "medium"
+
+[roles.reviewer]
+backend = "claude"
+model = "opus"
+effort = "high"
+
+[roles.architect]
+backend = "claude"
+model = "opus"
+effort = "high"

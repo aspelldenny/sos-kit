@@ -48,11 +48,13 @@ Existing files are never overwritten; the only change to an existing file is thr
 
 `sos filter` applies the wording rules to text on stdin, for filtering model output at runtime.
 
+`sos role <worker|reviewer|architect> --from <claude|codex> --brief <file>` runs a role on the model and effort `.sos.toml` `[roles]` names (for a reviewer, keyed by the family that built the work), from any agent: prompt on stdin with stdin closed, a time limit, the final message in `evidence/roles/`, one line in `.advise-state/calls.jsonl`.
+
 ## How work runs
 
 1. **Brief.** Chủ nhà states the outcome, scope, references and how it will be accepted.
 2. **Build.** Quản đốc gives bounded work to Thợ (or does a small change itself), each checking the brief against the real code or text first and verifying with independently computed expectations.
-3. **Advice when stuck.** After two failing runs of the same recognised test command (pytest, cargo test, swift test, xcodebuild test, npm/yarn/pnpm test, vitest, jest, go test, make check/test/ready), the agent's hook asks a stronger model (Opus or Codex, configurable) for a direction.
+3. **Advice when stuck.** After two failing runs of the same test or build runner (pytest, cargo, swift, xcodebuild, npm/yarn/pnpm, vitest, jest, go, make check/test/ready/build; flags and log paths do not start a new count, and a script whose output carries an Xcode or cargo verdict counts too), the agent's hook asks a stronger model (Opus or Codex, configurable) for a direction. It is told the current work from the state doc (`.sos.toml` `[state] file`).
 4. **Independent review at the moments that matter**, not every slice: when a journey first works end to end, when data, money, privacy or sync is touched, and before handing over something meant for real use. Người soát uses the result as its user would.
 5. **Acceptance.** Chủ nhà uses the real thing. Reports say plainly what ran for real, what ran only on sample data, and what is unverified.
 

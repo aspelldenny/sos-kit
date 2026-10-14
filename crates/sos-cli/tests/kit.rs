@@ -5,7 +5,18 @@ use std::path::Path;
 use std::process::{Command, Output};
 
 fn sos(dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args).output().unwrap()
+    // A hung run must fail its test by name, not stall the whole suite.
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args)
+        .stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
+    let start = std::time::Instant::now();
+    while child.try_wait().unwrap().is_none() {
+        if start.elapsed() > std::time::Duration::from_secs(60) {
+            let _ = child.kill();
+            panic!("sos {args:?} still running after 60 s");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    child.wait_with_output().unwrap()
 }
 
 fn git(dir: &Path, args: &[&str]) {
@@ -285,4 +296,33 @@ fn role_wrappers_carry_model_and_effort_and_check_flags_missing_ones() {
     std::fs::write(p.join(".claude/agents/worker.md"), "---\nname: worker\n---\nbody\n").unwrap();
     let c = out(&sos(p, &["check"]));
     assert!(c.contains("worker.md sets no model or effort"), "{c}");
+}
+
+#[test]
+fn check_flags_role_drift_retired_tools_missing_paths_and_merged_worktrees() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    assert!(!out(&sos(p, &["check"])).contains("make them agree"), "template wrappers match template [roles]");
+    let toml = std::fs::read_to_string(p.join(".sos.toml")).unwrap()
+        .replace("[roles.worker]\nbackend = \"claude\"\nmodel = \"sonnet\"", "[roles.worker]\nbackend = \"claude\"\nmodel = \"haiku\"");
+    std::fs::write(p.join(".sos.toml"), toml).unwrap();
+    let mut agents = std::fs::read_to_string(p.join("AGENTS.md")).unwrap();
+    agents.push_str("\nWording: `quality-gate` in pre-commit; rules in `.quality-gate.toml`. Roles: `agents/roles/worker.md`, `harness-lite/roles/worker.md`.\n");
+    std::fs::write(p.join("AGENTS.md"), agents).unwrap();
+    git(p, &["add", "-A"]);
+    git(p, &["commit", "-qm", "init", "--no-verify"]);
+    git(p, &["branch", "-M", "main"]);
+    git(p, &["worktree", "add", "-q", "-b", "fresh-slice", p.join("fresh").to_str().unwrap()]);
+    git(p, &["worktree", "add", "-q", "-b", "done-slice", p.join("wt").to_str().unwrap()]);
+    std::fs::write(p.join("wt/slice.txt"), "x\n").unwrap();
+    git(&p.join("wt"), &["add", "slice.txt"]);
+    git(&p.join("wt"), &["commit", "-qm", "slice", "--no-verify"]);
+    git(p, &["merge", "-q", "--ff-only", "done-slice"]);
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains("worker.md says sonnet/medium but .sos.toml [roles.worker] says haiku/medium"), "{c}");
+    assert!(c.contains("retired tools: `quality-gate`") && c.contains("`agents/roles/`"), "{c}");
+    assert!(!c.contains(".quality-gate.toml` (now"), "{c}");
+    assert!(c.contains("paths that do not exist: agents/roles/worker.md") && !c.contains("harness-lite/roles/worker.md,"), "{c}");
+    assert!(c.contains("1 clean worktree(s) on branches already merged") && c.contains("/wt") && !c.contains("/fresh"), "{c}");
 }
