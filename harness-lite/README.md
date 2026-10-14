@@ -27,7 +27,9 @@ An adversarial pass by a different model family before acceptance is optional.
 
 `sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps and `FEATURES.json` identity. Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` (executable, project-owned).
 
-**Advisor.** After two consecutive failing runs of the same test command, the adapter asks a stronger model (`scripts/advise`) for a direction and adds the answer to the worker's context; the advisor is shown the files the failure and the change point at. Each call needs two more failures; after the second call, the next two failures tell the worker to stop and report. Choose the backend in `.sos.toml` `[advisor]` (`claude`, `codex`, `auto` for the other model family, `off`); calls and costs are logged in `.advise-state/calls.jsonl`.
+**Models.** `.sos.toml` `[roles]` sets backend, model and effort per role; the Claude wrappers in `.claude/agents/` mirror it and `sos check` compares them. `sos role` runs a role from any agent on that table (stdin closed, time limit, logged); use it instead of hand-written `codex exec` / `claude -p` calls.
+
+**Advisor.** After two consecutive failing runs of the same test or build runner, the adapter asks a stronger model (`scripts/advise`) for a direction and adds the answer to the worker's context; the advisor is shown the files the failure and the change point at. Each call needs two more failures; after the second call, the next two failures tell the worker to stop and report. Choose the backend in `.sos.toml` `[advisor]` (`claude`, `codex`, `auto` for the other model family, `off`); calls and costs are logged in `.advise-state/calls.jsonl`.
 
 ## Commands
 
@@ -36,6 +38,7 @@ sos install            # once per repo (--dry-run to preview)
 sos check              # kit files, hooks, tools, .sos.toml, agent wiring
 sos update             # after upgrading sos
 sos gate all           # what the pre-commit runs
+sos role reviewer --from claude --brief brief.md   # run a role on its configured model
 ```
 
 Requirements: `git`, `gitleaks`, `python3`, and the `sos` binary on `PATH`.

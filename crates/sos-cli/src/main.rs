@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 mod gate;
 mod kit;
+mod role;
 
 #[derive(Parser)]
 #[command(name = "sos", version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("SOS_KIT_COMMIT"), ")"),
@@ -51,6 +52,27 @@ enum Cmd {
         #[command(subcommand)]
         which: gate::GateCmd,
     },
+    /// Run one role (worker, reviewer, architect) on the model .sos.toml [roles] names for it:
+    /// prompt on stdin with stdin closed, a wall-clock limit, the final message in one file.
+    Role {
+        /// worker | reviewer | architect
+        role: String,
+        /// The family that built the work (claude | codex); picks [roles.<role>.<from>] when set.
+        #[arg(long)]
+        from: String,
+        /// File with the bounded brief.
+        #[arg(long)]
+        brief: PathBuf,
+        /// Where the final message goes (default evidence/roles/<time>-<role>-<backend>.md).
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Seconds before the run is stopped (default [roles] timeout_secs, else 1800).
+        #[arg(long)]
+        timeout: Option<u64>,
+        /// Print the command; run nothing.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
@@ -63,6 +85,8 @@ fn main() {
         Cmd::Update { dir, dry_run } => kit::update(&dir, &kit::Opts { dry_run, force_hooks: false }),
         Cmd::Check { dir } => kit::check(&dir),
         Cmd::Gate { which } => Ok(gate::run(which)),
+        Cmd::Role { role, from, brief, out, timeout, dry_run } =>
+            role::run(&role::Args { role, from, brief, out, timeout, dry_run }),
         Cmd::Filter => Ok(gate::filter()),
     };
     match code {

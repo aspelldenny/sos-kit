@@ -85,6 +85,22 @@ STUB_BACKEND=off check "claude: backend off -> silent" 0 - claude post-bash <<<"
 STUB_BACKEND=off check "claude: backend off #2 silent" 0 - claude post-bash <<<"$(line $C 1 'd["session_id"]="k7"')"
 check "claude: k8 fail #1"                     0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k8"')"
 STUB_FAIL=1 check "claude: advisor down is visible" 0 "advisor unavailable" claude post-bash <<<"$(line $C 1 'd["session_id"]="k8"')"
+XA='d["session_id"]="x1"; d["tool_input"]["command"]="xcodebuild -scheme T -only-testing:TTests/A test > build/a.log 2>&1"; d["tool_response"]["stdout"]="** TEST FAILED **"'
+XB='d["session_id"]="x1"; d["tool_input"]["command"]="xcodebuild -scheme T -only-testing:TTests/B test -resultBundlePath r.xcresult | tail -5"; d["tool_response"]["stdout"]="** TEST FAILED **"'
+check "claude: xcodebuild test fail #1"        0 -          claude post-bash <<<"$(line $C 1 "$XA")"
+check "claude: other filter/log, same streak"  0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 "$XB")"
+HD='d["session_id"]="x2"; d["tool_input"]["command"]="python3 - <<PY\nimport subprocess\nPY"; d["tool_response"]["stdout"]="Testing failed:\n** TEST FAILED **"'
+check "claude: heredoc w/ xcode verdict #1"    0 -          claude post-bash <<<"$(line $C 1 "$HD")"
+check "claude: heredoc w/ xcode verdict #2"    0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 "$HD")"
+BF='d["session_id"]="x3"; d["tool_input"]["command"]="xcodebuild -scheme T build -quiet"; d["tool_response"]["stdout"]="** BUILD FAILED **"'
+check "claude: build fail #1"                  0 -          claude post-bash <<<"$(line $C 1 "$BF")"
+check "claude: build fail #2 -> advice"        0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 "$BF")"
+TL='d["session_id"]="x4"; d["tool_input"]["command"]="tail -40 build/a.log"; d["tool_response"]["stdout"]="** TEST FAILED **"'
+check "claude: tail of a failed log #1 silent" 0 -          claude post-bash <<<"$(line $C 1 "$TL")"
+check "claude: tail of a failed log #2 silent" 0 -          claude post-bash <<<"$(line $C 1 "$TL")"
+XL='d["session_id"]="x5"; d["tool_input"]["command"]="xcodebuild -list"; d["tool_response"]["stdout"]="error"; d["tool_response"]["interrupted"]=False'
+check "claude: xcodebuild -list ignored #1"    0 -          claude post-bash <<<"$(line $C 1 "$XL")"
+check "claude: xcodebuild -list ignored #2"    0 -          claude post-bash <<<"$(line $C 1 "$XL")"
 check "claude: session-start prints status"    0 "branch:"  claude session-start <<<"{}"
 
 # ── Codex ────────────────────────────────────────────────────
@@ -133,6 +149,12 @@ if grep -q "dark mode" "$A/prompt"; then fail=$((fail + 1)); echo "FAIL advise: 
 printf '{"features":[{"id":"F01","title":"Totals match payslip","passes":false},{"id":"F02","title":"Old done thing","passes":true}]}' > "$A/repo/docs/FEATURES.json"
 prompt "advise: open feature sent"             "Totals match payslip"
 if grep -q "Old done thing" "$A/prompt"; then fail=$((fail + 1)); echo "FAIL advise: passing feature sent"; else pass=$((pass + 1)); echo "ok   advise: passing feature not sent"; fi
+printf '[state]\nfile = "docs/PROGRESS.md"\n' > "$A/repo/.sos.toml"
+printf '# P\n\n## Current\n\nP5 refund fence open\n' > "$A/repo/docs/PROGRESS.md"
+prompt "advise: [state] file is the intent"   "P5 refund fence open"
+if grep -q "export splits shifts" "$A/prompt"; then fail=$((fail + 1)); echo "FAIL advise: BACKLOG used despite [state]"; else pass=$((pass + 1)); echo "ok   advise: BACKLOG not used when [state] names another"; fi
+printf '# P\n\n## Hiện tại\n\n%s\n' "$(python3 -c 'print("Kiểm tra hành trình hoàn tiền. " * 200)')" > "$A/repo/docs/PROGRESS.md"
+prompt "advise: long Vietnamese state doc ok"  "Kiểm tra hành trình"
 printf 'Brief: refunds must never go negative\n' > "$A/brief.md"
 ADVISE_BRIEF="$A/brief.md" prompt "advise: ADVISE_BRIEF wins" "refunds must never go negative"
 rm -rf "$A"

@@ -2,6 +2,17 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## v0.3.6 — 2026-10-14
+
+From a read of TurnSigil's first week on v3 (Claude and Codex transcripts, 91 commits): `docs/research/FIELD-REPORT-2026-10-09-turnsigil-codex-stdin.md` and the findings below.
+
+- **Advisor fires on real failures.** The streak is counted per runner (`xcodebuild test`, `make check`, `cargo test`…), so reruns with other `-only-testing` filters or log paths continue it; failing builds count; a script whose output carries an Xcode or cargo verdict counts. Before: 65 failing runs in TurnSigil's Codex session, one advice (on a synthetic probe).
+- **`sos role <worker|reviewer|architect> --from <claude|codex> --brief <file>`** runs a role on the model in `.sos.toml` `[roles]`: prompt on stdin with stdin closed (a background `codex exec` had waited 40 minutes for input), a time limit that stops the whole process group, the final message in `evidence/roles/`, a line in `.advise-state/calls.jsonl`. A worker run must be in its own worktree.
+- **`.sos.toml` `[roles]`**: backend, model and effort per role, required together; a reviewer may be keyed by the family that built the work (`[roles.reviewer.claude]` → Codex, `[roles.reviewer.codex]` → Claude). New installs get Thợ `sonnet` medium, Người soát and Kiến trúc sư `opus` high. Model changes go through Chủ nhà, not the agent (TurnSigil's owner corrected models seven times).
+- **`.sos.toml` `[state] file`**: the current-work doc for the session-start status and the advisor's intent (TurnSigil's BACKLOG held later ideas; its state lived in PROGRESS). The status shows that section's lines when it has no checkboxes. `[advisor]` takes `effort` and `service_tier`.
+- **`sos check`** warns when a Claude wrapper disagrees with `[roles]` or is missing for a Claude role, when `AGENTS.md`/`CLAUDE.md` name retired tools (`quality-gate`, `claude-hooks`, `agents/roles/`…) or paths that do not exist, and when clean worktrees on merged branches are left on disk.
+- **Prompts:** continued workers get a cost limit (about 300K tokens or an hour idle, then a fresh worker with a short handoff); a worker that cannot build the target is replaced by one that can, not by Quản đốc; background runs are looked at within minutes; free simulators are granted in the brief; a reviewer that cannot run the product reviews statically from the evidence Quản đốc gives; findings are blocking or non-blocking and only blocking ones get rechecks (TurnSigil P1 took six rounds, three on wording); workers hand back after their checks finish; reports end with what Quản đốc does next, not a question.
+
 ## v0.3.5 — 2026-10-09
 
 - Quản đốc continues the same Thợ for dependent follow-on slices and fixes in the same area (in Claude Code, `SendMessage`: the worker resumes with its context and worktree, checked live), and starts a fresh one only for independent parallel work, a different area, or an unreliable context. TurnSigil's Quản đốc had started a fresh worker per slice, re-reading the project each time.
