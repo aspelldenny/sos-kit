@@ -5,7 +5,18 @@ use std::path::Path;
 use std::process::{Command, Output};
 
 fn sos(dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args).output().unwrap()
+    // A hung run must fail its test by name, not stall the whole suite.
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args)
+        .stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
+    let start = std::time::Instant::now();
+    while child.try_wait().unwrap().is_none() {
+        if start.elapsed() > std::time::Duration::from_secs(60) {
+            let _ = child.kill();
+            panic!("sos {args:?} still running after 60 s");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    child.wait_with_output().unwrap()
 }
 
 fn git(dir: &Path, args: &[&str]) {

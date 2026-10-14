@@ -165,26 +165,28 @@ pub fn run(a: &Args) -> Result<i32> {
     let prompt_t = std::thread::spawn(move || { let _ = stdin.write_all(text.as_bytes()); });
     let mut stdout = child.stdout.take().expect("piped stdout");
     let mut stderr = child.stderr.take().expect("piped stderr");
-    let out_t = std::thread::spawn(move || { let mut s = String::new(); let _ = stdout.read_to_string(&mut s); s });
-    let err_t = std::thread::spawn(move || { let mut s = String::new(); let _ = stderr.read_to_string(&mut s); s });
+    let (out_tx, out_rx) = std::sync::mpsc::channel();
+    let (err_tx, err_rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || { let mut s = String::new(); let _ = stdout.read_to_string(&mut s); let _ = out_tx.send(s); });
+    std::thread::spawn(move || { let mut s = String::new(); let _ = stderr.read_to_string(&mut s); let _ = err_tx.send(s); });
     let status = loop {
         if let Some(st) = child.try_wait()? {
             break Some(st);
         }
         if started.elapsed() > Duration::from_secs(timeout) {
-            #[cfg(unix)]
-            let _ = Command::new("kill").args(["-KILL", &format!("-{}", child.id())]).status();
+            kill_group(child.id());
             let _ = child.kill();
             let _ = child.wait();
             break None;
         }
         std::thread::sleep(Duration::from_millis(200));
     };
-    // Anything the CLI left running in its group (a server it started) would hold our pipes open.
-    #[cfg(unix)]
-    let _ = Command::new("kill").args(["-KILL", &format!("-{}", child.id())]).stderr(Stdio::null()).status();
-    let _ = prompt_t.join();
-    let (so, se) = (out_t.join().unwrap_or_default(), err_t.join().unwrap_or_default());
+    // Anything the CLI left running in its group (a server it started) would hold our pipes open:
+    // stop the group, then wait for the readers only briefly.
+    kill_group(child.id());
+    drop(prompt_t);
+    let so = out_rx.recv_timeout(Duration::from_secs(5)).unwrap_or_default();
+    let se = err_rx.recv_timeout(Duration::from_secs(5)).unwrap_or_default();
     let secs = started.elapsed().as_secs();
     let mut ok = status.is_some_and(|s| s.success());
     // Claude prints JSON on stdout; Codex writes its last message to `out` itself.
@@ -219,6 +221,17 @@ pub fn run(a: &Args) -> Result<i32> {
             Ok(0)
         }
     }
+}
+
+/// SIGKILL the process group led by `pid` (the CLI and whatever it started).
+fn kill_group(pid: u32) {
+    #[cfg(unix)]
+    // SAFETY: kill(2) with a negative pid signals that process group; no memory is touched.
+    unsafe {
+        libc::kill(-(pid as i32), libc::SIGKILL);
+    }
+    #[cfg(not(unix))]
+    let _ = pid;
 }
 
 fn log(root: &Path, role: &str, from: &str, s: &RoleSpec, secs: u64, ok: bool) {

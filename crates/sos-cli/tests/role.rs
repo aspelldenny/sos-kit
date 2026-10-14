@@ -49,7 +49,18 @@ fn sos(d: &Path, args: &[&str], extra: &[(&str, &str)]) -> Output {
     for (k, v) in extra {
         c.env(k, v);
     }
-    c.output().unwrap()
+    // A hung run must fail this test by name, not stall the whole suite.
+    c.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    let mut child = c.spawn().unwrap();
+    let start = std::time::Instant::now();
+    while child.try_wait().unwrap().is_none() {
+        if start.elapsed() > std::time::Duration::from_secs(60) {
+            let _ = child.kill();
+            panic!("sos {args:?} still running after 60 s");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    child.wait_with_output().unwrap()
 }
 
 fn out(o: &Output) -> String {
