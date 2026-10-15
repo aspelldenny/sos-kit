@@ -673,6 +673,19 @@ pub fn check(dir: &Path) -> Result<i32> {
     if !root.join("docs/BACKLOG.md").exists() {
         warns.push("docs/BACKLOG.md missing: the session-start status reads its first section".into());
     }
+    // Every session loads the entry files and the state section. Tarot's grew to 338 and 558
+    // lines of reference and done items; agents then skim past the rules (harness-lite/README.md "Docs").
+    let lines = |f: &str| std::fs::read_to_string(root.join(f)).map(|s| s.lines().count()).unwrap_or(0);
+    let entry = lines("AGENTS.md") + lines("CLAUDE.md");
+    if entry > ENTRY_MAX {
+        warns.push(format!("AGENTS.md + CLAUDE.md are {entry} lines (keep under {ENTRY_MAX}): route to docs (task → file), move reference into them"));
+    }
+    if let Some(state) = cfg.as_ref().map(|c| c.state.file.clone()) {
+        let n = std::fs::read_to_string(root.join(&state)).map(|s| first_section_lines(&s)).unwrap_or(0);
+        if n > STATE_MAX {
+            warns.push(format!("{state} first section is {n} lines (keep under {STATE_MAX}): open items only; done ones go to the changelog"));
+        }
+    }
     for w in &warns {
         say!("warning: {w}");
     }
@@ -688,12 +701,25 @@ pub fn check(dir: &Path) -> Result<i32> {
     }
 }
 
+/// Line budgets for what every session loads (warnings, not gates).
+const ENTRY_MAX: usize = 200;
+const STATE_MAX: usize = 80;
+
+/// Lines from the first `## ` heading up to the next one; the part status.sh shows.
+fn first_section_lines(text: &str) -> usize {
+    let mut lines = text.lines().skip_while(|l| !l.starts_with("## "));
+    match lines.next() {
+        None => 0,
+        Some(_) => 1 + lines.take_while(|l| !l.starts_with("## ")).count(),
+    }
+}
+
 /// Tools merged into `sos gate` or moved in v3, and what replaced them.
 const RETIRED: &[(&str, &str)] = &[
     ("quality-gate", "`sos gate text`"),
     ("claude-hooks", "harness-lite/adapters"),
     ("features-guard", "`sos gate features`"),
-    ("doc-rotate", "`sos gate docs`"),
+    ("doc-rotate cap-check", "`sos gate docs`"),
     ("doctor runtime-scan", "`sos gate local-secrets`"),
     ("agents/roles/", "harness-lite/roles/"),
 ];

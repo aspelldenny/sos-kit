@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # status — a few lines of live repo state for the start of an agent session (any agent).
 # Prints: repo, branch, uncommitted count, then the first "## " section of the state doc
-# (its open "- [ ]" items, or its first lines when it has none). State doc: $SOS_STATE_FILE,
+# (its open "- [ ]" items, or its first lines when it has none), and a note when that section
+# or the entry files outgrow their budget (same numbers as `sos check`). State doc: $SOS_STATE_FILE,
 # else .sos.toml [state] file, else docs/BACKLOG.md, else STATE.md.
 set -uo pipefail
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
@@ -29,4 +30,9 @@ if [ -n "$state" ] && [ -f "$state" ]; then
         }
     ' "$state" | cut -c1-220
     echo "Detail: $state"
+    n=$(awk '/^## /{s++} s==1' "$state" | wc -l | tr -d ' ')
+    [ "$n" -gt 80 ] && echo "Note: that section is $n lines (keep under 80): open items only; done ones go to the changelog."
 fi
+entry=$(cat AGENTS.md CLAUDE.md 2>/dev/null | wc -l | tr -d ' ')
+[ "$entry" -gt 200 ] && echo "Note: AGENTS.md + CLAUDE.md are $entry lines (keep under 200): route to docs, move reference into them."
+exit 0

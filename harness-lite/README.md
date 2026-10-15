@@ -47,6 +47,20 @@ Requirements: `git`, `gitleaks`, `python3`, and the `sos` binary on `PATH`.
 
 `templates/` holds the starting versions of project-owned files (`AGENTS.md`, `CLAUDE.md`, `.sos.toml`, `docs/BACKLOG.md`, `docs/FEATURES.json` with a filled example in `FEATURES.example.json`, `.claude/settings.json`, `.codex/hooks.json`, `.claude/agents/*`). `sos install` copies each one only if the project lacks it; compare with them when merging by hand.
 
+## Docs
+
+Agents read what is loaded at session start and grep the rest. Docs stay useful when each fact has one home and each layer has one job:
+
+| Layer | Files (examples) | Budget | Update when |
+|---|---|---|---|
+| Entry | `AGENTS.md`, `CLAUDE.md` | under 200 lines together | how work is done changes, or a task needs a new pointer. A router (task → file), not a reference |
+| State | first section of `docs/BACKLOG.md` (`[state] file`) | under 80 lines | an item opens or closes. Open items only; finished ones go to the changelog |
+| Sources | soul, character, voice, design spec, product, invariants, constants | one fact, one file | intent, voice, an invariant or infrastructure changes |
+| Map guides | backend, frontend, prompts, data | none | a flow or boundary changes. Flows, reasons and pitfalls, pointing at code; never copies of signatures, schemas or prompts |
+| History | changelog, discoveries, old tickets, archives | `.sos.toml` [docs] caps | always appended; grepped, never preloaded |
+
+Anything else lives in the code and the changelog. `sos check` and the session-start status warn when the entry or state budget is exceeded.
+
 ## Limits
 
 Role behavior is guidance, not enforcement; gates and runtime permissions are the boundary. Agent hooks do not see shell writes, and Codex runs no hooks inside custom-role subagents (`openai/codex#21753`); the git gates cover both. History of this harness: SOS Kit `docs/research/` (pilot 2026-10-05, survey 2026-10-08).

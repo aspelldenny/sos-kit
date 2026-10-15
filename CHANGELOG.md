@@ -2,6 +2,14 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## v0.3.7 — 2026-10-15
+
+From moving Tarot (web) to v3: its `CLAUDE.md` had grown to 338 lines of reference and its BACKLOG's first section to 558 lines, mostly finished items. Every session loaded both.
+
+- **Docs layers** in `harness-lite/README.md` "Docs": entry (`AGENTS.md` + `CLAUDE.md`, a router under 200 lines), state (the first BACKLOG section, open items only, under 80 lines), sources (one fact, one file), map guides (flows, reasons and pitfalls pointing at code, not copies of it), history (grepped, never preloaded), and when each one is updated. `templates/app/AGENTS.md` points there.
+- **`sos check`** and the session-start status warn when `AGENTS.md` + `CLAUDE.md` pass 200 lines or the state section passes 80.
+- **`sos check`** no longer flags `doc-rotate` itself as retired; only `doc-rotate cap-check` moved into `sos gate docs` (rotation still uses `doc-rotate apply`).
+
 ## v0.3.6 — 2026-10-14
 
 From a read of TurnSigil's first week on v3 (Claude and Codex transcripts, 91 commits): `docs/research/FIELD-REPORT-2026-10-09-turnsigil-codex-stdin.md` and the findings below.

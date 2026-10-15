@@ -326,3 +326,22 @@ fn check_flags_role_drift_retired_tools_missing_paths_and_merged_worktrees() {
     assert!(c.contains("paths that do not exist: agents/roles/worker.md") && !c.contains("harness-lite/roles/worker.md,"), "{c}");
     assert!(c.contains("1 clean worktree(s) on branches already merged") && c.contains("/wt") && !c.contains("/fresh"), "{c}");
 }
+
+#[test]
+fn check_warns_on_oversized_entry_and_state() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let c = out(&sos(p, &["check"]));
+    assert!(!c.contains("keep under"), "fresh install is within budget: {c}");
+    let mut agents = std::fs::read_to_string(p.join("AGENTS.md")).unwrap();
+    agents.push_str("\nRotate with `doc-rotate apply`; caps were `doc-rotate cap-check`.\n");
+    agents.push_str(&"filler\n".repeat(200));
+    std::fs::write(p.join("AGENTS.md"), agents).unwrap();
+    let backlog = format!("# Backlog\n\n## Now\n{}## Later\n- [ ] x\n", "- [ ] item\n".repeat(90));
+    std::fs::write(p.join("docs/BACKLOG.md"), backlog).unwrap();
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains("AGENTS.md + CLAUDE.md are") && c.contains("keep under 200"), "{c}");
+    assert!(c.contains("docs/BACKLOG.md first section is 91 lines"), "{c}");
+    assert!(c.contains("`doc-rotate cap-check` (now `sos gate docs`)") && !c.contains("`doc-rotate` (now"), "{c}");
+}

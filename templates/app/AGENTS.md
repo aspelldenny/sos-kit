@@ -19,6 +19,8 @@ This repo uses SOS Kit's harness (`harness-lite/`). Chủ nhà owns intent, tast
 | Scope and pass/fail status | `docs/FEATURES.json` |
 | <design, wording, architecture> | <paths> |
 
+Keep this file and `CLAUDE.md` short (under 200 lines together): point to the file that holds a fact instead of copying it here. Docs layers: `harness-lite/README.md` "Docs".
+
 ## Design handoff
 
 Before planning or building screens or wording, read this. If it is empty for the work at hand, ask Chủ nhà; do not start a spike in its place.
