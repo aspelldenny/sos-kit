@@ -102,6 +102,11 @@ XL='d["session_id"]="x5"; d["tool_input"]["command"]="xcodebuild -list"; d["tool
 check "claude: xcodebuild -list ignored #1"    0 -          claude post-bash <<<"$(line $C 1 "$XL")"
 check "claude: xcodebuild -list ignored #2"    0 -          claude post-bash <<<"$(line $C 1 "$XL")"
 check "claude: session-start prints status"    0 "branch:"  claude session-start <<<"{}"
+mkdir -p docs && { echo "## Now"; for i in $(seq 90); do echo "- [ ] item $i"; done; } > docs/BACKLOG.md
+seq 210 > AGENTS.md
+check "claude: status notes oversized state"   0 "section is 91 lines" claude session-start <<<"{}"
+check "claude: status notes oversized entry"   0 "are 210 lines" claude session-start <<<"{}"
+rm -rf docs AGENTS.md
 
 # ── Codex ────────────────────────────────────────────────────
 check "codex: real apply_patch allowed"        0 -          codex pre-edit <<<"$(line $X 4)"
