@@ -41,10 +41,12 @@ Input: a repo, a plan or brief, or one role/persona file. Read-only: do not edit
    - *Instrument*: what a top professional would run (backtest, statistical test, tap/time count, loudness meter, schema check). Mark "on the shelf" when the method exists only in books or docs.
    - *Independent*: a judge is not independent if it is the same model family, or if its knowledge came from **the same source** as the work (fixtures, persona rules and the reviewer's answers all written by one research pass agree with each other by construction).
    - *Loop closed*: a threshold or prediction was written **before** the result, and someone compared it with the actual result and recorded pass/fail and the lesson.
+   - *Unknown model family*: when independence depends on which model produced a verdict (often a research pass or Hub output that does not record it), write "chưa rõ", not "independent" or "not independent". Recommend that the producer stamp model and family on each verdict it writes.
+   - *Outcome data outside the repo*: real-user numbers often live in App Store Connect, RevenueCat, Sentry, analytics or the production DB. Before concluding the real judge is silent, name where that data would live, say "không thấy trong repo", and ask the owner for an export. Absent from the repo is not absent.
 
 4. **Correlated sources.** Trace where the rules, answers and judges' knowledge come from. If everything descends from one research pass or one model, propose one independent check: a different model family deriving answers blind from the raw source, a second dataset, or a real person.
 
-5. **Predictions and targets.** Find written thresholds and predictions; check whether each was graded against the actuals. Note whether a numeric, "unreasonable but reachable" target exists for the product's promise (for example: every table action in at most 2 taps). A promise with no number cannot be gated.
+5. **Predictions and targets.** Find written thresholds and predictions; check whether each was graded against the actuals, and list the ungraded ones with where they were written and when they fall due. The default fix is a trigger, not memory: put a "due predictions" list into something that already runs or is already read (the daily report, the session-start status, the weekly review), not a new tool. Note whether a numeric, "unreasonable but reachable" target exists for the product's promise (for example: every table action in at most 2 taps). A promise with no number cannot be gated.
 
 6. **Feedback speed.** Compare how often the judge answers with how often decisions are made. A loop that needs months for a sample (live trades, slow organic views) needs a faster proxy: replay history, count operations, run the deterministic part offline.
 
@@ -68,12 +70,16 @@ Input: a repo, a plan or brief, or one role/persona file. Read-only: do not edit
 
 - Voice roles; job roles that are mostly procedure.
 - Simulated audiences used to find faults before real people or the owner read the work.
-- The owner as the one real reader or user. Calibrate any simulated panel against the owner's recorded verdicts: how many of the owner's faults it caught, how many it raised that the owner rejected. Keep the parts that track the owner.
+- The owner as the one real reader or user. Calibrate any simulated panel against the owner's recorded verdicts: how many of the owner's faults it caught, how many it raised that the owner rejected. Keep the parts that track the owner. Look for verdicts already on record first (an owner column in a verdict table, owner bug reports, cold-read notes) and count them before proposing a new calibration round; note when the owner may have read the panel's verdict before giving theirs.
 - The owner as a real *novice* user when they do not know the domain; their confusion is real data.
 
 ## Report
 
 Write to the user in their language. Do not score out of 10. Separate what you found, what you did not find, and what you did not check.
+
+- **Domain facts from model memory** (what a symbol on a card means, what a regulation's form says, a rule of the game) are labelled "trí nhớ model, chưa kiểm" and sent through the project's own evidence path (for example the Hub's cite and verify) before anyone acts on them.
+- **Common gaps go short.** When the top gap is one seen in most projects (no real-user numbers, every judge in one model family, ungraded thresholds), state it in a line or two with its evidence and spend the report on what is specific to this project.
+- **Deliver the whole report as plain text in the final message**, before any closing question, button box or wrap-up call, so it is not hidden behind one. Then offer to save it as `docs/audits/<YYYY-MM-DD>-depth-check.md` in the project (one file per run; no other new files).
 
 ```
 ## Kết luận
