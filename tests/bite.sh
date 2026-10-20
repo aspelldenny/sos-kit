@@ -71,5 +71,33 @@ g add -A && g commit -qm red
 o=$(eval "$B~1" 2>&1); rc=$?
 [ $rc = 1 ] && grep -q "red at HEAD" <<<"$o"; expect "red HEAD -> not measured" $? "rc=$rc $o"
 
+o=$(python3 "$KIT/tests/bite_parsers.py" "$KIT/scripts/bite" 2>&1)
+[ "$o" = ok ]; expect "parsers: unittest (docstring), pytest, XCTest formats, test bounds and classes" $? "$o"
+
+# A mutant that breaks the build is not a kill; base == head and an outside cwd are refused.
+mkdir "$T/b2" && cd "$T/b2" && g init -q -b main
+printf 'let xs = Array<Int>()\n' > app.swift
+cat > run.sh <<'SH'
+#!/usr/bin/env bash
+if grep -q 'Array>=' app.swift; then echo "app.swift:2: error: expected type"; exit 1; fi
+if grep -q 'n = 4' app.swift; then echo "Test Case '-[M.C testA]' failed (0.0 seconds)"; exit 1; fi
+echo "Test Case '-[M.C testA]' passed (0.0 seconds)"
+SH
+chmod +x run.sh && g add -A && g commit -qm base
+printf 'let xs = Array<Int>()\nlet ys = Array<Int>()\nlet n = 3\n++ i == 3\n' > app.swift
+g add -A && g commit -qm change
+o=$(python3 "$KIT/scripts/bite" --test ./run.sh --src 'app\.swift$' --tests 'Tests/' --base main~1 2>&1); rc=$?
+[ $rc = 0 ] && grep -q "1/2 mutants killed" <<<"$o" && grep -q "not counted (no test ran, build broke?): app.swift:2" <<<"$o"
+expect "build-breaking mutant not counted as a kill" $? "rc=$rc $o"
+grep -q "survived: app.swift:4  ++ i == 3  ->  ++ i != 3" <<<"$o"; expect "an added line starting with ++ is read" $? "$o"
+o=$(python3 "$KIT/scripts/bite" --test ./run.sh --src x --tests y --base HEAD 2>&1); rc=$?
+[ $rc = 1 ] && grep -q "same commit" <<<"$o"; expect "base == head -> not measurable" $? "rc=$rc $o"
+o=$(python3 "$KIT/scripts/bite" --test ./run.sh --src x --tests y --cwd /tmp 2>&1); rc=$?
+[ $rc = 2 ]; expect "absolute cwd refused" $? "rc=$rc $o"
+printf '#!/usr/bin/env bash\nsleep 20\n' > slow.sh && chmod +x slow.sh && g add -A && g commit -qm slow
+python3 "$KIT/scripts/bite" --test ./slow.sh --src app --tests y --base main~2 >/dev/null 2>&1 & bp=$!
+sleep 2; kill -TERM $bp; wait $bp 2>/dev/null
+[ "$(git worktree list | wc -l | tr -d ' ')" = 1 ]; expect "SIGTERM removes the worktree" $? "$(git worktree list)"
+
 echo ""; echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

@@ -5,23 +5,24 @@
 
 Why (Reel, 18/10/2026): 21 of 578 agent-written tests could not catch any bug (copied constants,
 asserting what the test itself set, duplicate proofs); the contract's test rule was words, and the
-reviewer only read code. This turns the rule into numbers, in a throwaway worktree at HEAD (the
-checkout is never touched):
+reviewer only read code. This turns the rule into numbers, in a throwaway worktree at HEAD (source
+and tests in the checkout are never touched; the result is written to evidence/bite/):
 
   1. before: the changed source files go back to BASE, the tests stay at HEAD. A new or edited test
      that still passes there proves nothing about this change (fine for a test that guards old
      behaviour on purpose; say so).
   2. mutants: up to N one-token edits (== -> !=, < -> >=, and -> or, True -> False, n -> n+1 ...)
-     on code lines the change added, outside comments and strings. A mutant no test kills is a
-     changed line no test checks (or an equivalent edit; say why).
+     on code lines the change added, outside comments, strings and docstrings. A mutant no test
+     kills is a changed line no test checks (or an equivalent edit; say why). A mutant after which
+     no test ran (it broke the build) counts as neither.
 
 Settings, strongest first: flags, `.sos.toml` [bite] (test, cwd, src, tests, mutants), defaults
 (base: the merge base with origin/HEAD, else main; mutants 8). Per-test results are read from
-`python -m unittest -v`, pytest `-v` and XCTest output; other runners get the suite verdict only.
-Output: a summary on stdout, the full result in evidence/bite/. Exit 0 measured, 1 not measurable
-(tests red at HEAD, git error), 2 not configured.
+`python -m unittest -v`, `pytest -v` and XCTest output; with another runner the "before" check sees
+only the suite verdict and a mutant counts as killed whenever the run fails.
+Exit 0 measured, 1 not measurable (tests red at HEAD, nothing changed, git error), 2 not configured.
 """
-import argparse, json, os, re, subprocess, sys, tempfile, time
+import argparse, json, re, signal, subprocess, sys, tempfile, time
 from pathlib import Path
 
 MUTATORS = [
@@ -30,13 +31,14 @@ MUTATORS = [
     (r"\bTrue\b", "False"), (r"\bFalse\b", "True"), (r"\btrue\b", "false"), (r"\bfalse\b", "true"),
     (r"\bnot ", ""), (r"(?<=\s)\+(?=\s)", "-"), (r"(?<=\s)-(?=\s)", "+"), (r"(?<![\w.])(\d+)(?![\w.])", None),
 ]
-SKIP = re.compile(r"^\s*(#|//|import |from \S+ import|\"\"\"|'''|@|log|print\(|logger\.)")
+SKIP = re.compile(r"^\s*(#|//|import |from \S+ import|\"\"\"|'''|@|print\(|(?:log|logger|logging|os_log|NSLog)\b[.(])")
+DIFF = ["diff", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/"]
 
 
 def sh(cmd, cwd, timeout=900):
     t = time.time()
     try:
-        r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, errors="replace", timeout=timeout)
         return r.returncode, r.stdout + r.stderr, time.time() - t
     except subprocess.TimeoutExpired:
         return 124, "timeout", time.time() - t
@@ -44,6 +46,14 @@ def sh(cmd, cwd, timeout=900):
 
 def git(*a, cwd):
     return subprocess.run(["git", *a], cwd=cwd, capture_output=True, text=True, check=True).stdout
+
+
+def read(p: Path):
+    """File text, or None when it is not UTF-8 (such files are left alone)."""
+    try:
+        return p.read_bytes().decode("utf-8")
+    except (UnicodeDecodeError, OSError):
+        return None
 
 
 def in_string(line, pos):
@@ -54,19 +64,19 @@ def in_string(line, pos):
     return q is not None
 
 
-def added_lines(repo, base, head, src):
-    out = {}
-    diff = git("diff", "-U0", f"{base}..{head}", cwd=repo)
-    f = None
-    for l in diff.splitlines():
-        if l.startswith("+++ "):
+def added_lines(repo, base, head, pattern):
+    """{file: [(line number at HEAD, text)]} for lines the change added in files matching pattern."""
+    out, f, prev, n = {}, None, "", 0
+    for l in git(*DIFF, "-U0", f"{base}..{head}", cwd=repo).splitlines():
+        if l.startswith("+++ ") and prev.startswith("--- "):
             f = l[6:] if l.startswith("+++ b/") else None
-            f = f if f and re.search(src, f) else None
-        elif l.startswith("@@") and f:
+            f = f if f and re.search(pattern, f) else None
+        elif l.startswith("@@"):
             n = int(re.search(r"\+(\d+)", l).group(1))
-        elif f and l.startswith("+") and not l.startswith("+++"):
-            out.setdefault(f, []).append((n, l[1:]))
+        elif f and l.startswith("+"):
+            out.setdefault(f, []).append((n, l[1:].rstrip("\r")))
             n += 1
+        prev = l
     return out
 
 
@@ -93,7 +103,10 @@ def docstring_lines(text):
 def mutants(lines, limit, root):
     cands = []
     for f, ls in lines.items():
-        doc = docstring_lines((root / f).read_text())
+        text_all = read(root / f)
+        if text_all is None:
+            continue
+        doc = docstring_lines(text_all)
         for n, text in ls:
             if not text.strip() or SKIP.search(text) or n in doc:
                 continue
@@ -111,40 +124,62 @@ def mutants(lines, limit, root):
     return [cands[int(i * step)] for i in range(limit)]
 
 
+CLASS = re.compile(r"\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|internal|private|fileprivate|open|final)\s+)*class\s+(\w+)")
+TEST_FN = re.compile(r"\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|internal|override|final)\s+)*(?:async\s+)?(?:def|func)\s+(test\w*)")
+indent = lambda l: len(l) - len(l.lstrip())
+
+
 def test_names(added, root):
-    """Class.test for every test function the change added or edited (by enclosing class at HEAD)."""
+    """Class.test for every test function the change added or edited (".test" when not in a class)."""
     out = set()
     for f, ls in added.items():
-        src = (root / f).read_text().split("\n")
+        text = read(root / f)
+        if text is None:
+            continue
+        src = text.split("\n")
         touched = {n for n, _ in ls}
         for i, l in enumerate(src, 1):
-            m = re.match(r"\s*(?:async\s+)?(?:def|func)\s+(test\w*)", l)
+            m = TEST_FN.match(l)
             if not m:
                 continue
-            end = next((j for j in range(i + 1, len(src) + 1) if re.match(r"\s*(?:async\s+)?(?:def|func|class)\s", src[j - 1])
-                        and len(src[j - 1]) - len(src[j - 1].lstrip()) <= len(l) - len(l.lstrip())), len(src) + 1)
+            # The test ends at the next non-blank line indented no deeper than its own header.
+            end = next((j for j in range(i + 1, len(src) + 1) if src[j - 1].strip() and indent(src[j - 1]) <= indent(l)
+                        and not src[j - 1].strip().startswith(("}", ")"))), len(src) + 1)
             while end - 1 > i and not src[end - 2].strip():  # trailing blank lines are not the test
                 end -= 1
             if not touched & set(range(i, end)):
                 continue
-            cls = next((re.match(r"\s*(?:final\s+)?class\s+(\w+)", src[j]).group(1) for j in range(i - 1, -1, -1)
-                        if re.match(r"\s*(?:final\s+)?class\s+\w+", src[j])), "")
+            cls = ""
+            for j in range(i - 2, -1, -1):
+                c = CLASS.match(src[j])
+                if c and indent(src[j]) < indent(l):
+                    cls = c.group(1)
+                    break
+                if src[j].strip() and indent(src[j]) == 0 and not c:
+                    break  # left the enclosing block: a top-level test function
             out.add(f"{cls}.{m.group(1)}")
     return out
 
 
+def _cls(group, name):
+    parts = group.split(".")
+    return parts[-2] if parts[-1] == name and len(parts) > 1 else parts[-1]
+
+
 def results(out):
-    """unittest -v / XCTest lines -> {test name: passed?}"""
+    """unittest -v / pytest -v / XCTest lines -> {Class.test: passed?}"""
     r = {}
-    for m in re.finditer(r"^(test\w+) \(([^)]*)\) \.\.\. (ok|FAIL|ERROR|skipped)", out, re.M):
-        parts = m.group(2).split(".")
-        cls = parts[-2] if parts[-1] == m.group(1) else parts[-1]
-        r[f"{cls}.{m.group(1)}"] = m.group(3) == "ok"
+    # unittest: "test_x (mod.Class.test_x) ... ok" (3.11+) or "(mod.Class)"; a docstring puts a line between.
+    for m in re.finditer(r"^(test\w+) \(([^)]*)\)(?:\n[^\n]*?)? \.\.\. (ok|FAIL|ERROR|skipped|expected failure)", out, re.M):
+        r[f"{_cls(m.group(2), m.group(1))}.{m.group(1)}"] = m.group(3) == "ok"
     for m in re.finditer(r"^(?:FAIL|ERROR): (test\w+) \(([^)]*)\)", out, re.M):  # subTest failures
-        parts = m.group(2).split(".")
-        cls = parts[-2] if parts[-1] == m.group(1) else parts[-1]
-        r[f"{cls}.{m.group(1)}"] = False
-    for m in re.finditer(r"Test Case '-\[\S+?\.?(\w+) (test\w+)\]' (passed|failed)", out):
+        r[f"{_cls(m.group(2), m.group(1))}.{m.group(1)}"] = False
+    # pytest -v: "tests/test_a.py::TestC::test_x PASSED" or "tests/test_a.py::test_x[param] FAILED"
+    for m in re.finditer(r"^\S+?::(?:(\w+)::)?(test\w*)\S* (PASSED|FAILED|ERROR|XFAIL|XPASS)", out, re.M):
+        key = f"{m.group(1) or ''}.{m.group(2)}"
+        r[key] = r.get(key, True) and m.group(3) == "PASSED"
+    # XCTest: "Test Case '-[Mod.Class testA]' passed", "Test case '-[Mod.Class testA()]' passed on …", Linux "'Class.testA'"
+    for m in re.finditer(r"Test [Cc]ase '-?\[?(?:\w+\.)?(\w+)[ .](test\w*)(?:\(\))?\]?' (passed|failed)", out):
         r[f"{m.group(1)}.{m.group(2)}"] = m.group(3) == "passed"
     return r
 
@@ -152,16 +187,22 @@ def results(out):
 def settings(root: Path) -> dict:
     s = {"test": "", "cwd": ".", "src": "", "tests": "", "mutants": 8}
     cfg = root / ".sos.toml"
-    if cfg.exists():
+    if not cfg.exists():
+        return s
+    text = cfg.read_text(errors="replace")
+    try:
+        import tomllib
         try:
-            import tomllib
-            s.update({k: v for k, v in tomllib.loads(cfg.read_text()).get("bite", {}).items() if k in s})
-        except ImportError:  # Python < 3.11
-            sect = re.search(r"^\[bite\]\s*$(.*?)(?=^\[|\Z)", cfg.read_text(), re.M | re.S)
-            for m in re.finditer(r"^\s*(\w+)\s*=\s*(?:'([^']*)'|\"((?:[^\"\\]|\\.)*)\"|(\d+))", sect.group(1) if sect else "", re.M):
-                k = m.group(1)
-                if k in s:
-                    s[k] = int(m.group(4)) if m.group(4) else (m.group(2) if m.group(2) is not None else m.group(3).replace("\\\\", "\\"))
+            s.update({k: v for k, v in tomllib.loads(text).get("bite", {}).items() if k in s})
+        except tomllib.TOMLDecodeError as e:
+            raise SystemExit(f"bite: .sos.toml is not valid TOML ({e}); `sos check` shows where")
+    except ImportError:  # Python < 3.11: read [bite] by hand
+        sect = re.search(r"^\[bite\]\s*$(.*?)(?=^\[|\Z)", text, re.M | re.S)
+        for m in re.finditer(r"^\s*(\w+)\s*=\s*(?:'([^']*)'|\"((?:[^\"\\]|\\.)*)\"|(\d+))", sect.group(1) if sect else "", re.M):
+            k = m.group(1)
+            if k in s:
+                s[k] = (int(m.group(4)) if m.group(4) else m.group(2) if m.group(2) is not None
+                        else re.sub(r"\\(.)", r"\1", m.group(3)))
     return s
 
 
@@ -177,23 +218,27 @@ def measure(root: Path, base: str, head: str, s: dict) -> dict:
     head = git("rev-parse", head, cwd=root).strip()
     base = git("rev-parse", base, cwd=root).strip()
     rep = {"base": base[:10], "head": head[:10], "test": s["test"]}
+    if base == head:
+        rep["error"] = f"base and head are the same commit ({head[:10]}): pass --base <the commit before the change>"
+        return rep
+    subprocess.run(["git", "worktree", "prune"], cwd=root, capture_output=True)  # a run killed by SIGKILL
     wt = Path(tempfile.mkdtemp(prefix="sos-bite-"))
     git("worktree", "add", "-q", "--detach", str(wt), head, cwd=root)
     try:
         run = wt / s["cwd"]
-        rc, out, secs = sh(s["test"], run)
+        rc, head_out, secs = sh(s["test"], run)
         rep["suite_seconds"] = round(secs, 1)
         if rc != 0:
-            rep["error"] = "tests are red at HEAD: " + out.strip()[-600:]
+            rep["error"] = "tests are red at HEAD: " + head_out.strip()[-600:]
             return rep
-        changed = git("diff", "--name-only", f"{base}..{head}", cwd=root).split()
-        is_test = lambda f: bool(re.search(s["tests"], f))
-        src = [f for f in changed if re.search(s["src"], f) and not is_test(f)]
+        per_test = bool(results(head_out))
+        changed = git(*DIFF, "--name-only", "-z", f"{base}..{head}", cwd=root).split("\0")
+        src = [f for f in changed if f and re.search(s["src"], f) and not re.search(s["tests"], f)]
         tadded = {f: ls for f, ls in added_lines(root, base, head, s["tests"]).items() if (wt / f).is_file()}
         new_tests = sorted(test_names(tadded, wt))
         rep["src_files"], rep["tests_touched"] = src, new_tests
         # 1. before: source at BASE, tests at HEAD
-        existed = set(git("ls-tree", "-r", "--name-only", base, cwd=root).split())
+        existed = set(git("ls-tree", "-r", "-z", "--name-only", base, cwd=root).split("\0"))
         for f in src:
             if f in existed:
                 git("checkout", base, "--", f, cwd=wt)
@@ -204,23 +249,27 @@ def measure(root: Path, base: str, head: str, s: dict) -> dict:
         rep["before"] = {"suite_failed": rc != 0,
                          "pass_on_old_code": [t for t in new_tests if res.get(t) is True],
                          "no_verdict": [t for t in new_tests if t not in res]}
-        git("checkout", head, "--", ".", cwd=wt)
+        git("reset", "-q", "--hard", head, cwd=wt)  # also drops base-only files put back above
         # 2. mutants on added source lines
         rep["mutants"] = []
         for f, n, old, new in mutants({f: ls for f, ls in added_lines(root, base, head, s["src"]).items() if f in src},
                                       int(s["mutants"]), wt):
             p = wt / f
-            orig = p.read_text()
-            lines = orig.split("\n")
-            if lines[n - 1] != old:
+            orig = p.read_bytes()
+            lines = orig.decode("utf-8").split("\n")
+            cr = "\r" if lines[n - 1].endswith("\r") else ""
+            if lines[n - 1].rstrip("\r") != old:
                 continue
-            lines[n - 1] = new
-            p.write_text("\n".join(lines))
-            rc, _, secs = sh(s["test"], run)
-            p.write_text(orig)
+            lines[n - 1] = new + cr
+            p.write_bytes("\n".join(lines).encode("utf-8"))
+            rc, out, secs = sh(s["test"], run)
+            p.write_bytes(orig)
+            # A failed run with no test verdict at all did not reach the tests (the mutant broke the build).
+            ran = rc == 0 or not per_test or bool(results(out))
             i = next((j for j, (x, y) in enumerate(zip(old, new)) if x != y), 0)
             rep["mutants"].append({"at": f"{f}:{n}", "from": old[max(0, i - 40):i + 40].strip(),
-                                   "to": new[max(0, i - 40):i + 40].strip(), "killed": rc != 0, "seconds": round(secs, 1)})
+                                   "to": new[max(0, i - 40):i + 40].strip(), "killed": ran and rc != 0,
+                                   "no_tests_ran": not ran, "seconds": round(secs, 1)})
         return rep
     finally:
         subprocess.run(["git", "worktree", "remove", "--force", str(wt)], cwd=root, capture_output=True)
@@ -244,11 +293,18 @@ def main() -> int:
         print(f"bite: set {', '.join(missing)} in .sos.toml [bite] (or --{missing[0]}); see harness-lite/templates/sos.toml",
               file=sys.stderr)
         return 2
+    if Path(s["cwd"]).is_absolute() or ".." in Path(s["cwd"]).parts:
+        print(f"bite: cwd must be a path inside the repo ({s['cwd']!r}): the tests would run outside the throwaway worktree",
+              file=sys.stderr)
+        return 2
+    # SIGTERM/SIGHUP (an agent's timeout, a closed terminal) must still remove the worktree.
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, lambda *_: sys.exit(130))
     base = a.base or default_base(root)
     try:
         rep = measure(root, base, a.head or "HEAD", s)
     except subprocess.CalledProcessError as e:
-        print(f"bite: git failed: {' '.join(e.cmd)}: {e.stderr.strip()[:300]}", file=sys.stderr)
+        print(f"bite: git failed: {' '.join(e.cmd)}: {(e.stderr or '').strip()[:300]}", file=sys.stderr)
         return 1
     (root / "evidence" / "bite").mkdir(parents=True, exist_ok=True)
     rec = root / "evidence" / "bite" / f"{time.strftime('%Y%m%d-%H%M%S')}-{rep['head']}.json"
@@ -257,17 +313,20 @@ def main() -> int:
         print(f"bite: not measured, {rep['error']}", file=sys.stderr)
         return 1
     ms, b = rep["mutants"], rep["before"]
-    k = sum(m["killed"] for m in ms)
-    print(f"bite {rep['base']}..{rep['head']}: {k}/{len(ms)} mutants killed; "
+    counted = [m for m in ms if not m["no_tests_ran"]]
+    print(f"bite {rep['base']}..{rep['head']}: {sum(m['killed'] for m in counted)}/{len(counted)} mutants killed; "
           f"{len(b['pass_on_old_code'])}/{len(rep['tests_touched'])} new or edited tests pass on the old code"
           f" (suite {rep['suite_seconds']} s)")
     for t in b["pass_on_old_code"]:
         print(f"  passes on old code: {t}")
     for t in b["no_verdict"]:
         print(f"  no per-test verdict: {t}" + ("" if b["suite_failed"] else " (the old-code suite passed)"))
-    for m in ms:
+    for m in counted:
         if not m["killed"]:
             print(f"  survived: {m['at']}  {m['from']}  ->  {m['to']}")
+    for m in ms:
+        if m["no_tests_ran"]:
+            print(f"  not counted (no test ran, build broke?): {m['at']}  {m['to']}")
     print(f"  (full result: {rec.relative_to(root)})")
     return 0
 
