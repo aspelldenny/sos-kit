@@ -345,3 +345,23 @@ fn check_warns_on_oversized_entry_and_state() {
     assert!(c.contains("docs/BACKLOG.md first section is 91 lines"), "{c}");
     assert!(c.contains("`doc-rotate cap-check` (now `sos gate docs`)") && !c.contains("`doc-rotate` (now"), "{c}");
 }
+
+#[test]
+fn check_warns_when_the_advisor_cannot_run() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    std::fs::create_dir_all(p.join(".advise-state")).unwrap();
+    let log = |lines: &[&str]| std::fs::write(p.join(".advise-state/calls.jsonl"), lines.join("\n") + "\n").unwrap();
+    let down = r#"{"ts": "2026-10-17T22:59:22", "backend": "claude", "ok": false, "error": "Failed to authenticate", "fix": "run `claude` in a terminal and /login"}"#;
+    let role = r#"{"ts": "2026-10-18T09:00:00", "kind": "role", "role": "reviewer", "ok": true}"#;
+    let fine = r#"{"ts": "2026-10-18T10:00:00", "backend": "claude", "ok": true}"#;
+    let plain = r#"{"ts": "2026-10-18T11:00:00", "backend": "claude", "ok": false, "error": "exit 1", "fix": ""}"#;
+    log(&[down, role]);
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains("advisor's last call (2026-10-17T22:59:22) could not run") && c.contains("/login"), "{c}");
+    log(&[down, fine]);
+    assert!(!out(&sos(p, &["check"])).contains("advisor"), "a later good call clears it");
+    log(&[plain]);
+    assert!(!out(&sos(p, &["check"])).contains("advisor"), "an ordinary failure is not a broken advisor");
+}

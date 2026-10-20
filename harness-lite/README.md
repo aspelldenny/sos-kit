@@ -29,7 +29,7 @@ An adversarial pass by a different model family before acceptance is optional.
 
 **Models.** `.sos.toml` `[roles]` sets backend, model and effort per role; the Claude wrappers in `.claude/agents/` mirror it and `sos check` compares them. `sos role` runs a role from any agent on that table (stdin closed, time limit, logged); use it instead of hand-written `codex exec` / `claude -p` calls.
 
-**Advisor.** After two consecutive failing runs of the same test or build runner, the adapter asks a stronger model (`scripts/advise`) for a direction and adds the answer to the worker's context; the advisor is shown the files the failure and the change point at. Each call needs two more failures; after the second call, the next two failures tell the worker to stop and report. Choose the backend in `.sos.toml` `[advisor]` (`claude`, `codex`, `auto` for the other model family, `off`); calls and costs are logged in `.advise-state/calls.jsonl`.
+**Advisor.** After two consecutive failing runs of the same test or build runner, the adapter asks a stronger model (`scripts/advise`) for a direction and adds the answer to the worker's context; the advisor is shown the files the failure and the change point at. Each call needs two more failures; after the second call, the next two failures tell the worker to stop and report. Choose the backend in `.sos.toml` `[advisor]` (`claude`, `codex`, `auto` for the other model family, `off`); calls and costs are logged in `.advise-state/calls.jsonl`. An advisor that cannot run (its CLI is logged out) does not use up a call: Chủ nhà gets a desktop notification, the worker is told to report it at once, the session-start status and `sos check` repeat it until a call succeeds, and `scripts/advise --check` proves the fix.
 
 ## Commands
 

@@ -2,6 +2,14 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+From a usage check of seven apps on 0.3.7 (20/10/2026): the advisor fired 11 times and 7 of those calls failed in 2 s with "OAuth session expired" (Thirty, TurnSigil, 15–17/10). Each failed call used up one of the streak's two calls, and the one-line notice went unseen.
+
+- **Advisor:** a call that cannot run (the CLI is logged out) exits 3, logs the error and the fix in `.advise-state/calls.jsonl`, and does not count against `max`. The hook sends Chủ nhà a desktop notification (macOS Notification Centre, else `notify-send`; `SOS_NOTIFY=off` turns it off), tells the worker to report it in its next message, then stays quiet for 15 minutes (`ADVISE_UNAVAILABLE_QUIET`) or until `advise --check` succeeds. Only the CLI's own last lines are read for login errors, since `codex exec` echoes the prompt on stderr.
+- **Session-start status** and **`sos check`** say when the last advisor call could not run, with the fix, until a call succeeds.
+- **`advise --check`**: one tiny call that proves the configured advisor answers.
+
 ## v0.3.7 — 2026-10-15
 
 From moving Tarot (web) to v3: its `CLAUDE.md` had grown to 338 lines of reference and its BACKLOG's first section to 558 lines, mostly finished items. Every session loaded both.

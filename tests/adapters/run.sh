@@ -16,12 +16,19 @@ cat > scripts/advise <<'PY'
 import json, os, sys
 if "--config" in sys.argv:
     print(json.dumps({"backend": os.environ.get("STUB_BACKEND", "claude"), "after": 2, "max": 2})); sys.exit(0)
+if os.environ.get("STUB_DOWN"):
+    print("claude failed: OAuth session expired. Fix: run `claude` and /login", file=sys.stderr); sys.exit(3)
 if os.environ.get("STUB_FAIL"):
     print("stub advisor down", file=sys.stderr); sys.exit(1)
 print("STUB ADVICE agent=" + (sys.argv[sys.argv.index("--agent") + 1] if "--agent" in sys.argv else "?"))
 PY
 chmod +x scripts/advise
 export CLAUDE_PROJECT_DIR="$T" ADVISE_AFTER=2 ADVISE_MAX=2
+cat > "$T/notify" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$(dirname "$0")/notified"
+SH
+chmod +x "$T/notify"; export SOS_NOTIFY_CMD="$T/notify"
 pass=0; fail=0
 
 # line <file> <n> [python expression mutating d]
@@ -85,6 +92,17 @@ STUB_BACKEND=off check "claude: backend off -> silent" 0 - claude post-bash <<<"
 STUB_BACKEND=off check "claude: backend off #2 silent" 0 - claude post-bash <<<"$(line $C 1 'd["session_id"]="k7"')"
 check "claude: k8 fail #1"                     0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k8"')"
 STUB_FAIL=1 check "claude: advisor down is visible" 0 "advisor unavailable" claude post-bash <<<"$(line $C 1 'd["session_id"]="k8"')"
+K9='d["session_id"]="k9"'
+check "claude: k9 fail #1"                     0 -          claude post-bash <<<"$(line $C 1 "$K9")"
+STUB_DOWN=1 check "claude: advisor logged out -> told once" 0 "do not leave it for the end" claude post-bash <<<"$(line $C 1 "$K9")"
+if grep -q "advisor cannot run: .*OAuth session expired" "$T/notified" 2>/dev/null; then pass=$((pass + 1)); echo "ok   claude: Chủ nhà notified directly"
+else fail=$((fail + 1)); echo "FAIL claude: no desktop notification: $(cat "$T/notified" 2>/dev/null)"; fi
+rm -f "$T/notified"
+STUB_DOWN=1 check "claude: still down -> quiet period"   0 -   claude post-bash <<<"$(line $C 1 "$K9")"
+[ ! -e "$T/notified" ]; r=$?; if [ $r = 0 ]; then pass=$((pass + 1)); echo "ok   claude: one notification per quiet period"; else fail=$((fail + 1)); echo "FAIL claude: notified again"; fi
+ADVISE_UNAVAILABLE_QUIET=0 check "claude: login fixed -> advice at once" 0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 "$K9")"
+check "claude: k9 fail silent"                 0 -          claude post-bash <<<"$(line $C 1 "$K9")"
+check "claude: k9 2nd advice (down call not counted)" 0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 "$K9")"
 XA='d["session_id"]="x1"; d["tool_input"]["command"]="xcodebuild -scheme T -only-testing:TTests/A test > build/a.log 2>&1"; d["tool_response"]["stdout"]="** TEST FAILED **"'
 XB='d["session_id"]="x1"; d["tool_input"]["command"]="xcodebuild -scheme T -only-testing:TTests/B test -resultBundlePath r.xcresult | tail -5"; d["tool_response"]["stdout"]="** TEST FAILED **"'
 check "claude: xcodebuild test fail #1"        0 -          claude post-bash <<<"$(line $C 1 "$XA")"
@@ -162,6 +180,37 @@ printf '# P\n\n## Hiện tại\n\n%s\n' "$(python3 -c 'print("Kiểm tra hành t
 prompt "advise: long Vietnamese state doc ok"  "Kiểm tra hành trình"
 printf 'Brief: refunds must never go negative\n' > "$A/brief.md"
 ADVISE_BRIEF="$A/brief.md" prompt "advise: ADVISE_BRIEF wins" "refunds must never go negative"
+# A lost login: exit 3, the fix logged, the session-start status says it until a good call.
+cat > "$A/bin/claude" <<'SH'
+#!/usr/bin/env bash
+cat > /dev/null
+if [ -n "${CLAUDE_LOGGED_OUT:-}" ]; then
+  echo '{"result":"Failed to authenticate: OAuth session expired and could not be refreshed","is_error":true}'; exit 1
+fi
+echo '{"result":"OK","is_error":false}'
+SH
+chmod +x "$A/bin/claude"
+expect() { if [ "$2" = 0 ]; then pass=$((pass + 1)); echo "ok   $1"; else fail=$((fail + 1)); echo "FAIL $1: ${3:0:300}"; fi; }
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 python3 "$KIT/scripts/advise" --backend claude "why red?" 2>&1); rc=$?
+[ "$rc" = 3 ] && grep -q "/login" <<<"$o"; expect "advise: lost login -> exit 3 with the fix" $? "rc=$rc $o"
+o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); grep -q "advisor's last call failed" <<<"$o"; expect "status: names the broken advisor" $? "$o"
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" python3 "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
+[ "$rc" = 0 ] && grep -q "answers" <<<"$o"; expect "advise --check: answers after login" $? "rc=$rc $o"
+o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); ! grep -q "advisor" <<<"$o"; expect "status: quiet once the advisor answers" $? "$o"
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 python3 "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
+[ "$rc" = 3 ]; expect "advise --check: logged out -> exit 3" $? "rc=$rc $o"
+mkdir -p "$A/repo/.advise-state" && touch "$A/repo/.advise-state/unavailable"
+(cd "$A/repo" && PATH="$A/bin:$PATH" python3 "$KIT/scripts/advise" --backend claude --check >/dev/null 2>&1)
+[ ! -e "$A/repo/.advise-state/unavailable" ]; expect "advise --check: success lifts the quiet period" $? ""
+# codex echoes the prompt on stderr: login words in the user's failure must not read as a lost login
+cat > "$A/bin/codex" <<'SH'
+#!/usr/bin/env bash
+p=$(cat); printf 'user\n%s\nERROR: 400 model not supported\n' "$p" >&2; exit 1
+SH
+chmod +x "$A/bin/codex"
+printf 'AssertionError: OAuth refresh got 401 unauthorized at /login\n' > "$A/err.txt"
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" python3 "$KIT/scripts/advise" --backend codex --error-file "$A/err.txt" "why red?" 2>&1); rc=$?
+[ "$rc" = 1 ] && ! grep -q "codex login" <<<"$o"; expect "advise: codex echo of auth words is not a lost login" $? "rc=$rc ${o: -200}"
 rm -rf "$A"
 
 echo ""; echo "$pass passed, $fail failed"
