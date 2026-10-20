@@ -31,6 +31,15 @@ effort = ""                # empty: the CLI default
 after = 2
 max = 2
 
+[bite]
+# `harness-lite/scripts/bite`: do the tests of a change catch a wrong version of it? Run by Người soát
+# on slices that add or change logic. Empty `test` = not set up. Per-test verdicts need verbose output.
+test = ""                 # e.g. "python3 -m unittest discover -s tests -t . -v", "swift test", "make test"
+cwd = "."                 # where `test` runs
+src = ''                  # regex of source files to mutate, e.g. '^App/Domain/.*\.swift$'
+tests = ''                # regex of test files, e.g. 'Tests/'
+mutants = 8               # each mutant runs `test` once: keep `test` narrow for slow suites
+
 [state]
 # The doc that says what is being worked on now: session-start status and advisor intent read its first `## ` section.
 file = "docs/BACKLOG.md"

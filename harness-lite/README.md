@@ -22,12 +22,14 @@ An adversarial pass by a different model family before acceptance is optional.
 | Layer | Files | Applies to |
 |---|---|---|
 | **Git gates** (the real boundary) | `hooks/pre-commit` → `sos gate all`; `hooks/pre-push` → `sos gate local-secrets` | Every agent and every person |
-| Agent-neutral scripts | `scripts/env-guard.sh`, `status.sh`, `test-watch.py`, `advise` | Anything that runs a command |
+| Agent-neutral scripts | `scripts/env-guard.sh`, `status.sh`, `test-watch.py`, `advise`, `bite` | Anything that runs a command |
 | Agent adapters (earlier feedback) | `adapters/claude/hook.py`, `adapters/codex/hook.py` | That agent only; see `adapters/README.md` |
 
 `sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps and `FEATURES.json` identity. Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` (executable, project-owned).
 
 **Models.** `.sos.toml` `[roles]` sets backend, model and effort per role; the Claude wrappers in `.claude/agents/` mirror it and `sos check` compares them. `sos role` runs a role from any agent on that table (stdin closed, time limit, logged); use it instead of hand-written `codex exec` / `claude -p` calls.
+
+**Test bite.** `scripts/bite` measures whether a change's tests catch a wrong version of it: with the changed source put back to the base, new or edited tests must fail; and one-token mutants (`==` → `!=`, `<` → `>=`, `n` → `n+1` …) on the changed lines must each turn some test red (a mutant that breaks the build counts as neither). Per-test results come from `unittest -v`, `pytest -v` and XCTest output. Người soát runs it on slices that change logic and reports survivors (`.sos.toml` `[bite]`: test command, source and test regexes; each mutant runs the test command once, so keep it narrow for slow suites).
 
 **Advisor.** After two consecutive failing runs of the same test or build runner, the adapter asks a stronger model (`scripts/advise`) for a direction and adds the answer to the worker's context; the advisor is shown the files the failure and the change point at. Each call needs two more failures; after the second call, the next two failures tell the worker to stop and report. Choose the backend in `.sos.toml` `[advisor]` (`claude`, `codex`, `auto` for the other model family, `off`); calls and costs are logged in `.advise-state/calls.jsonl`. An advisor that cannot run (its CLI is logged out) does not use up a call: Chủ nhà gets a desktop notification, the worker is told to report it at once, the session-start status and `sos check` repeat it until a call succeeds, and `scripts/advise --check` proves the fix.
 
