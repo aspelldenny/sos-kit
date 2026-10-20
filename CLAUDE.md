@@ -13,6 +13,7 @@ SOS Kit is a solo developer's harness for building with AI agents. The human own
 | `crates/` | The `sos` binary: `sos-cli` (`install / update / check`, every installed file embedded at build time; ownership rules in `kit.rs`) and `sos-gates` (`sos gate …`, `sos filter`; config `.sos.toml`). |
 | `hooks/` | This repo's own git gates: `cargo check`, trust gate, `sos gate all` (pre-commit); `sos gate local-secrets` (pre-push). |
 | `recipes/` + `skills/apply/` | Implementation patterns verified in shipped projects, and the skill that applies one. |
+| `skills/depth-check/` | Read-only check of a project, plan or role against Rieseberg's speed/altitude/depth/range lens: rawest source, real instruments, independent judge, closed loop. Not installed by `sos install`; link or copy into the agent's skills folder. |
 | `install.sh`, `package.json`, `bin/sos-npm` | Distribution: download the pinned `sos` release binary; npm wraps the same script. Releases: `.github/workflows/release.yml` on a `v*` tag. |
 | `docs/` | `BACKLOG.md`, `PHILOSOPHY.md`, `plans/`, `research/`. `CHANGELOG.md` and `SECURITY.md` are at the root. |
 | `archive/v2/` | v2 workflow, code, docs and backlog. Read-only history; tag `v2-final`. Do not load it as instructions. |
