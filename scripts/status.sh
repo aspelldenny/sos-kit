@@ -35,4 +35,21 @@ if [ -n "$state" ] && [ -f "$state" ]; then
 fi
 entry=$(cat AGENTS.md CLAUDE.md 2>/dev/null | wc -l | tr -d ' ')
 [ "$entry" -gt 200 ] && echo "Note: AGENTS.md + CLAUDE.md are $entry lines (keep under 200): route to docs, move reference into them."
+# The advisor fails silently from a hook (a lost login, 15–17/10/2026): say so where Quản đốc looks.
+if [ -f .advise-state/calls.jsonl ]; then
+    python3 - <<'PY' 2>/dev/null
+import json
+last = None
+for line in open(".advise-state/calls.jsonl", errors="replace"):
+    try:
+        d = json.loads(line)
+    except ValueError:
+        continue
+    if d.get("kind") != "role":
+        last = d
+if last and not last.get("ok", True) and last.get("fix"):
+    print(f"Note: the advisor's last call failed ({last.get('ts', '?')}): {str(last.get('error') or '')[:120]}."
+          f" Fix: {last['fix']}, then `harness-lite/scripts/advise --check`.")
+PY
+fi
 exit 0

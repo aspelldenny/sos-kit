@@ -18,10 +18,13 @@ Rules (docs/plans/V3_TRIAGE_2026-10-08.md §F):
   - after `after` (default 2) consecutive failures, call scripts/advise;
   - at most `max` (default 2) advisor calls per failing streak; then tell the agent to stop
     and report to Quản đốc instead of calling again;
+  - an advisor that cannot run (advise exit 3: not logged in, CLI unusable) does not use up a call;
+    Chủ nhà gets a desktop notification (SOS_NOTIFY_CMD overrides, SOS_NOTIFY=off disables), the
+    agent is told to report it now, then the hook stays quiet for ADVISE_UNAVAILABLE_QUIET seconds (default 900);
   - settings come from `advise --config` (.sos.toml [advisor], env); backend "off" or
     SOS_ADVISOR=off disables it. An internal error is reported in one line, never raised.
 """
-import argparse, hashlib, json, os, re, shlex, subprocess, sys
+import argparse, hashlib, json, os, re, shlex, shutil, subprocess, sys, time
 from pathlib import Path
 
 FAIL_RE = os.environ.get("ADVISE_FAIL_RE",
@@ -108,6 +111,26 @@ def is_test_command(cmd: str) -> bool:
     return test_segment(cmd) is not None
 
 
+def notify(text: str) -> None:
+    """Tell the human directly: an agent may not pass the message on (Chủ nhà, 20/10/2026:
+    "có lỗi phải báo, không được im lặng")."""
+    if os.environ.get("SOS_NOTIFY") == "off":
+        return
+    title = "SOS Kit: advisor cannot run"
+    if os.environ.get("SOS_NOTIFY_CMD"):
+        cmd = [*shlex.split(os.environ["SOS_NOTIFY_CMD"]), f"{title}: {text}"]
+    elif sys.platform == "darwin" and shutil.which("osascript"):
+        cmd = ["osascript", "-e", f"display notification {json.dumps(text)} with title {json.dumps(title)} sound name \"Basso\""]
+    elif shutil.which("notify-send"):
+        cmd = ["notify-send", "-u", "critical", title, text]
+    else:
+        return
+    try:
+        subprocess.run(cmd, capture_output=True, timeout=10)
+    except Exception:
+        pass
+
+
 def repo_root() -> Path:
     try:
         out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=10)
@@ -158,6 +181,13 @@ def main() -> None:
     count_f.write_text(str(fails))
     if fails < int(cfg.get("after", 2)):
         return
+    try:
+        quiet = int(os.environ.get("ADVISE_UNAVAILABLE_QUIET", "900"))
+    except ValueError:
+        quiet = 900
+    down = state / "unavailable"  # one marker for the repo: a lost login breaks every session
+    if down.exists() and time.time() - down.stat().st_mtime < quiet:
+        return
     calls = int(calls_f.read_text() or 0) if calls_f.exists() else 0
     cap = int(cfg.get("max", 2))
     if calls >= cap:
@@ -175,6 +205,15 @@ def main() -> None:
          "What is the root cause, and should I change approach?")
     r = subprocess.run([sys.executable, str(advise), "--agent", a.agent, "--error-file", str(err), q],
                        cwd=root, capture_output=True, text=True, timeout=270)
+    if r.returncode == 3:
+        calls_f.write_text(str(calls))  # not a consultation: give the call back
+        down.write_text(r.stderr.strip()[:500])
+        notify(f"{root.name}: {r.stderr.strip()[-200:]}")
+        print(f"ADVISOR UNAVAILABLE (no advisor call used): {r.stderr.strip()[:400]}\n"
+              "Tell Chủ nhà now, in your next message, that the advisor needs this fix; "
+              "do not leave it for the end of your report. Then continue on your own evidence.")
+        return
+    down.unlink(missing_ok=True)
     if r.returncode == 0:
         print("ADVISOR (automatic, after repeated test failures). Weigh it against your own evidence; "
               "if you disagree, say why in your report.\n\n" + r.stdout.strip())

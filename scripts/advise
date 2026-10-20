@@ -3,6 +3,7 @@
 
   advise [--backend claude|codex|auto] [--model M] [--agent claude|codex] [--error-file F] "question"
   advise --config        print the resolved advisor settings as JSON
+  advise --check         one tiny call to prove the configured advisor answers (after fixing a login)
 
 Settings, strongest first: command-line flags, env (ADVISE_BACKEND, ADVISE_MODEL, ADVISE_AFTER,
 ADVISE_MAX, SOS_ADVISOR=off), `.sos.toml` [advisor], defaults (backend claude, after 2, max 2).
@@ -13,7 +14,9 @@ The advisor gets a snapshot, not the transcript: the question, the intent (ADVIS
 first section of the state doc, .sos.toml [state] file, and the open features in docs/FEATURES.json), the latest failure, git status, recent commits, the uncommitted diff, and the files that the failure
 and the change mention (or the last commit's files when the tree is clean).
 Output: advice on stdout; a copy in evidence/advice/; one JSON line per call in
-.advise-state/calls.jsonl (backend, model, seconds, ok, cost when the CLI reports it).
+.advise-state/calls.jsonl (backend, model, seconds, ok, cost when the CLI reports it; on failure
+the error and, when known, the fix). Exit 0 advice, 1 failed, 2 off or misconfigured, 3 unavailable
+(the CLI is not logged in or not usable); test-watch does not count an unavailable call against `max`.
 """
 import json, os, re, shutil, subprocess, sys, time
 from pathlib import Path
@@ -81,6 +84,22 @@ def pick_backend(wanted: str, agent: str) -> tuple:
             note = "" if b == order[0] else f"({order[0]} CLI not found; used {b})"
             return b, note
     return None, "neither claude nor codex CLI is on PATH"
+
+
+# Thirty and TurnSigil, 15–17/10/2026: 7 of 11 automatic calls failed in 2 s with
+# "OAuth session expired" and nobody noticed. Name the fix so the session-start status can show it.
+# Matched only against the last lines, the CLI's own error: `codex exec` echoes the whole prompt
+# (diff, failure, files) on stderr before it.
+AUTH_RE = re.compile(r"failed to authenticate|oauth (session|token)|not logged in|log ?in again|please (run )?\S*\s?login"
+                     r"|unauthori[sz]ed|\b401\b|invalid api key", re.I)
+FIX = {"claude": "run `claude` in a terminal and /login (the hook uses the CLI's own login)",
+       "codex": "run `codex login`"}
+
+
+def unavailable_fix(backend: str, text: str) -> str:
+    """The fix for an advisor that cannot run at all, or "" for an ordinary failure."""
+    tail = "\n".join(text.strip().splitlines()[-6:])
+    return FIX.get(backend, "") if AUTH_RE.search(tail) else ""
 
 
 def relevant_files(root: Path, failure: str, diff: str) -> list:
@@ -176,13 +195,16 @@ def call(backend: str, model: str, prompt: str, effort: str = "", tier: str = ""
 def main() -> int:
     args = sys.argv[1:]
     opts = {"--backend": None, "--model": None, "--agent": None, "--error-file": ""}
-    rest = []
+    rest, check = [], False
     while args:
         a = args.pop(0)
         if a == "--config":
             root = repo_root()
             print(json.dumps(load_settings(root)))
             return 0
+        if a == "--check":
+            check = True
+            continue
         if a in opts and args:
             opts[a] = args.pop(0)
         else:
@@ -201,24 +223,35 @@ def main() -> int:
         print(f"advise: {note}", file=sys.stderr)
         return 1
     model = opts["--model"] or s["model"]
-    question = " ".join(rest) or "What is the most likely root cause, and what should change next?"
+    question = "--check" if check else (" ".join(rest) or "What is the most likely root cause, and what should change next?")
+    prompt = "Reply with the single word OK." if check else build_prompt(root, question, opts["--error-file"], s["state"])
     start = time.time()
     try:
-        ok, text, cost, used = call(backend, model, build_prompt(root, question, opts["--error-file"], s["state"]),
-                                    s["effort"], s["service_tier"])
+        ok, text, cost, used = call(backend, model, prompt, "" if check else s["effort"], s["service_tier"])
     except subprocess.TimeoutExpired:
         ok, text, cost, used = False, "timed out after 240 s", None, model
+    except OSError as e:
+        ok, text, cost, used = False, f"could not start the {backend} CLI: {e}", None, model
+    fix = "" if ok else unavailable_fix(backend, text)
     secs = round(time.time() - start, 1)
     (root / ".advise-state").mkdir(exist_ok=True)
     with open(root / ".advise-state" / "calls.jsonl", "a") as log:
         log.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "backend": backend, "model": used, "agent": opts["--agent"],
-                              "seconds": secs, "ok": ok, "cost_usd": cost, "question": question[:160]}) + "\n")
+                              "seconds": secs, "ok": ok, "cost_usd": cost, "question": question[:160],
+                              **({} if ok else {"error": text.strip()[:200], "fix": fix})}) + "\n")
+    if check:
+        if ok:  # the login is fixed: let the hook call again at once
+            (root / ".advise-state" / "unavailable").unlink(missing_ok=True)
+        print(f"advise --check: {backend} {used} {'answers' if ok else 'failed — ' + text.strip()[:300]}"
+              + (f"\nFix: {fix}" if fix else ""), file=sys.stdout if ok else sys.stderr)
+        return 0 if ok else (3 if fix else 1)
     (root / "evidence" / "advice").mkdir(parents=True, exist_ok=True)
     rec = root / "evidence" / "advice" / f"{time.strftime('%Y%m%d-%H%M%S')}-{backend}.md"
     rec.write_text(f"# advice ({backend} {used}, {secs}s, ok={ok})\n\n**Q:** {question}\n\n{text}\n")
     if not ok:
-        print(f"advise: {backend} failed — {text[:300]} (see {rec.relative_to(root)})", file=sys.stderr)
-        return 1
+        print(f"advise: {backend} failed — {text.strip()[:300]} (see {rec.relative_to(root)})"
+              + (f". Fix: {fix}, then `harness-lite/scripts/advise --check`" if fix else ""), file=sys.stderr)
+        return 3 if fix else 1
     print(text)
     tail = f"(advisor: {backend} {used}, {secs}s" + (f", ${cost:.3f}" if cost else "") + f"; logged {rec.relative_to(root)})"
     print("\n" + (note + " " if note else "") + tail)

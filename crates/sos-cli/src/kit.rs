@@ -686,6 +686,9 @@ pub fn check(dir: &Path) -> Result<i32> {
             warns.push(format!("{state} first section is {n} lines (keep under {STATE_MAX}): open items only; done ones go to the changelog"));
         }
     }
+    if let Some(w) = advisor_down(&root) {
+        warns.push(w);
+    }
     for w in &warns {
         say!("warning: {w}");
     }
@@ -723,6 +726,19 @@ const RETIRED: &[(&str, &str)] = &[
     ("doctor runtime-scan", "`sos gate local-secrets`"),
     ("agents/roles/", "harness-lite/roles/"),
 ];
+
+/// The advisor runs from a hook, so a lost login fails unseen (Thirty and TurnSigil, 15–17/10/2026:
+/// 7 of 11 calls). `advise` writes a `fix` only when the advisor could not run at all, so the last
+/// advisor line in `.advise-state/calls.jsonl` carrying one means it is still down.
+fn advisor_down(root: &Path) -> Option<String> {
+    let log = std::fs::read_to_string(root.join(".advise-state/calls.jsonl")).ok()?;
+    let last = log.lines().rev()
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .find(|v| v.get("kind").and_then(|k| k.as_str()) != Some("role"))?;
+    let fix = last.get("fix").and_then(|f| f.as_str()).filter(|f| !f.is_empty())?;
+    let ts = last.get("ts").and_then(|t| t.as_str()).unwrap_or("?");
+    Some(format!("the advisor's last call ({ts}) could not run: {fix}, then `harness-lite/scripts/advise --check`"))
+}
 
 /// `needle` in `text`, not as part of a longer name (`.quality-gate.toml` is still read, and
 /// `harness-lite/agents/roles/` would be someone else's path).
