@@ -29,6 +29,7 @@ jobs:
           gitleaks version
       - run: cargo test --locked --workspace
       - run: tests/adapters/run.sh
+      - run: tests/bite.sh
       - run: cargo build --locked -p sos-cli
       - run: tests/smoke.sh target/debug/sos
       - run: python3 tests/docs-check.py target/debug/sos

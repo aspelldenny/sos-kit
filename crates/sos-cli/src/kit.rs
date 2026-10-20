@@ -58,6 +58,7 @@ pub const KIT_FILES: &[File] = &[
     kit!("harness-lite/scripts/status.sh", "scripts/status.sh", exec),
     kit!("harness-lite/scripts/test-watch.py", "scripts/test-watch.py", exec),
     kit!("harness-lite/scripts/advise", "scripts/advise", exec),
+    kit!("harness-lite/scripts/bite", "scripts/bite", exec),
     kit!("harness-lite/adapters/README.md", "adapters/README.md"),
     kit!("harness-lite/adapters/claude/hook.py", "adapters/claude/hook.py", exec),
     kit!("harness-lite/adapters/codex/hook.py", "adapters/codex/hook.py", exec),
@@ -90,7 +91,7 @@ pub const PROJECT_FILES: &[File] = &[
     kit!(".claude/agents/reviewer.md", "templates/app/claude-agents/reviewer.md"),
 ];
 
-pub const GITIGNORE_LINES: &[&str] = &[".advise-state/", "evidence/advice/", "evidence/roles/", "*.sos-new"];
+pub const GITIGNORE_LINES: &[&str] = &[".advise-state/", "evidence/advice/", "evidence/roles/", "evidence/bite/", "*.sos-new"];
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Upstream {

@@ -30,6 +30,13 @@
 //! effort = ""                      # empty: the CLI default
 //! service_tier = ""                # codex only, e.g. "default" (empty: Codex config)
 //!
+//! [bite]                         # read by harness-lite/scripts/bite (do tests catch a wrong change?)
+//! test = "python3 -m unittest discover -s tests -t . -v"   # per-test verdicts need verbose output
+//! cwd = "server"                   # where `test` runs, relative to the repo root
+//! src = '^server/reel/.*\.py$'    # regex: source files whose changed lines get mutants
+//! tests = '^server/tests/'         # regex: test files
+//! mutants = 8                      # edits per run (each one runs `test`)
+//!
 //! [state]
 //! file = "docs/BACKLOG.md"         # current-work doc: session-start status and advisor intent
 //!
@@ -70,7 +77,25 @@ pub struct Config {
     #[serde(default)]
     pub state: StateConfig,
     #[serde(default)]
+    pub bite: BiteConfig,
+    #[serde(default)]
     pub roles: std::collections::BTreeMap<String, RoleEntry>,
+}
+
+/// Read by `harness-lite/scripts/bite` (Python); validated here so a typo fails `sos check`.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
+pub struct BiteConfig {
+    #[serde(default)]
+    pub test: String,
+    #[serde(default)]
+    pub cwd: String,
+    #[serde(default)]
+    pub src: String,
+    #[serde(default)]
+    pub tests: String,
+    #[serde(default)]
+    pub mutants: Option<u32>,
 }
 
 /// The doc that says what is being worked on now (status at session start, advisor intent).
