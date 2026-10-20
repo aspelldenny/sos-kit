@@ -33,6 +33,18 @@ if [ -n "$state" ] && [ -f "$state" ]; then
     n=$(awk '/^## /{s++} s==1' "$state" | wc -l | tr -d ' ')
     [ "$n" -gt 80 ] && echo "Note: that section is $n lines (keep under 80): open items only; done ones go to the changelog."
 fi
+# A reviewer from the other family runs through `sos role`, not the session's own subagent: say so where
+# Quản đốc looks each session (0.3.6–0.3.7: `sos role` was never called in seven apps).
+if [ -f .sos.toml ]; then
+    route=$(awk '
+        /^[[:space:]]*\[/ { t=$0; sub(/#.*/,"",t); gsub(/[[:space:]]/,"",t) }
+        (t=="[roles.reviewer.claude]" || t=="[roles.reviewer.codex]") && /^[[:space:]]*backend[[:space:]]*=/ {
+            v=$0; sub(/^[^=]*=[[:space:]]*["\047]/,"",v); sub(/["\047].*/,"",v)
+            from=substr(t, 17, length(t) - 17)
+            if (v != from) printf "%s%s-built work → %s", (n++ ? "; " : ""), from, v
+        }' .sos.toml)
+    [ -n "$route" ] && echo "Người soát: ${route} — run it with \`sos role reviewer --from <builder> --brief <file>\`."
+fi
 entry=$(cat AGENTS.md CLAUDE.md 2>/dev/null | wc -l | tr -d ' ')
 [ "$entry" -gt 200 ] && echo "Note: AGENTS.md + CLAUDE.md are $entry lines (keep under 200): route to docs, move reference into them."
 # The advisor fails silently from a hook (a lost login, 15–17/10/2026): say so where Quản đốc looks.

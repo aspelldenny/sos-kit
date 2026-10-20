@@ -37,8 +37,8 @@ file = "docs/BACKLOG.md"
 
 # Model and effort per role, the one table everything follows: `sos role` (runs a role from any agent,
 # prompt on closed stdin, with a timeout), `sos check` (compares .claude/agents/*.md with it).
-# Builders at medium, checks at high. For a reviewer from the other model family, key it by who built
-# the work, e.g. [roles.reviewer.claude] backend = "codex" … and [roles.reviewer.codex] backend = "claude" ….
+# Builders at medium, checks at high. When codex is on PATH, `sos install` writes Người soát from the other
+# model family, keyed by who built the work ([roles.reviewer.claude] backend = "codex", and the reverse).
 [roles.worker]
 backend = "claude"
 model = "sonnet"
