@@ -20,7 +20,7 @@ fn setup() -> tempfile::TempDir {
         [roles.reviewer.claude]\nbackend = \"codex\"\nmodel = \"gpt-x\"\neffort = \"high\"\nsandbox = \"read-only\"\n\
         [roles.reviewer.codex]\nbackend = \"claude\"\nmodel = \"opus\"\neffort = \"high\"\n\
         [roles.worker]\nbackend = \"codex\"\nmodel = \"gpt-y\"\neffort = \"medium\"\n").unwrap();
-    std::fs::write(p.join("docs/PROGRESS.md"), "# Progress\n\n## Current\n\nP5 refund fence\n\n## Done\n\nP1\n").unwrap();
+    std::fs::write(p.join("docs/PROGRESS.md"), "# Progress\n\n## Current\n\nP5 refund fence\n\n## Done\n\nP1 old login screen\n").unwrap();
     std::fs::write(d.path().join("brief.md"), "Check the refund journey.\n").unwrap();
     git(&p, &["add", "-A"]);
     git(&p, &["commit", "-qm", "init"]);
@@ -76,7 +76,8 @@ fn reviewer_for_claude_work_runs_codex_with_stdin_closed() {
     assert!(String::from_utf8_lossy(&o.stdout).contains("REVIEW: 1 blocking"));
     let prompt = std::fs::read_to_string(d.path().join("prompt.txt")).unwrap();
     assert!(prompt.contains("Check the refund journey") && prompt.contains("P5 refund fence"), "{prompt}");
-    assert!(!prompt.contains("P1"), "only the first state section: {prompt}");
+    // Not a bare "P1": a random temp dir in the prompt can contain it (CI, 20/10/2026: .tmpfP1ttq).
+    assert!(!prompt.contains("old login screen"), "only the first state section: {prompt}");
     let log = std::fs::read_to_string(d.path().join("repo/.advise-state/calls.jsonl")).unwrap();
     assert!(log.contains("\"role\":\"reviewer\"") && log.contains("gpt-x"), "{log}");
 }

@@ -2,7 +2,7 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## Unreleased
+## v0.3.8 — 2026-10-20
 
 From a usage check of seven apps on 0.3.7 (20/10/2026): the advisor fired 11 times and 7 of those calls failed in 2 s with "OAuth session expired" (Thirty, TurnSigil, 15–17/10). Each failed call used up one of the streak's two calls, and the one-line notice went unseen.
 
