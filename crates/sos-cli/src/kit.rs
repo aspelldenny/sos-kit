@@ -152,6 +152,36 @@ fn write(root: &Path, f: &File, path: &str) -> Result<()> {
     Ok(())
 }
 
+/// Chủ nhà, TurnSigil 14/10/2026: every role on Claude except Người soát, which stays on Codex. A
+/// reviewer from the other family is a more independent judge; with both CLIs installed it is the
+/// default. `SOS_REVIEWER=same|other` overrides the PATH check.
+fn other_family_reviewer() -> bool {
+    match std::env::var("SOS_REVIEWER").as_deref() {
+        Ok("same") => false,
+        Ok("other") => true,
+        _ => std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| d.join("codex").is_file())),
+    }
+}
+
+const SAME_FAMILY_REVIEWER: &str = "[roles.reviewer]\nbackend = \"claude\"\nmodel = \"opus\"\neffort = \"high\"\n";
+
+fn cross_family_reviewer(template: &str) -> String {
+    template.replacen(SAME_FAMILY_REVIEWER, "\
+# Người soát is from the other family than the builder: run it with
+# `sos role reviewer --from <family that built the work> --brief <file>`.
+[roles.reviewer.claude]   # Claude built it: Codex reviews
+backend = \"codex\"
+model = \"gpt-6-astra\"
+effort = \"high\"
+sandbox = \"read-only\"
+
+[roles.reviewer.codex]    # Codex built it: Claude reviews
+backend = \"claude\"
+model = \"opus\"
+effort = \"high\"
+", 1)
+}
+
 fn git_out(root: &Path, args: &[&str]) -> Option<String> {
     let o = Command::new("git").current_dir(root).args(args).output().ok()?;
     // Strip only the trailing newline: paths may legitimately end in spaces.
@@ -475,7 +505,13 @@ pub fn install(dir: &Path, o: &Opts) -> Result<i32> {
     for (path, act) in &p.project {
         if *act == Act::Create {
             let f = PROJECT_FILES.iter().find(|f| f.path == path).expect("project file");
-            write(&root, f, f.path)?;
+            if f.path == ".sos.toml" && other_family_reviewer() {
+                let body = cross_family_reviewer(f.body);
+                std::fs::write(safe_path(&root, f.path)?, body).with_context(|| format!("writing {}", f.path))?;
+                say!("  .sos.toml: Người soát runs on the other model family (codex is on PATH): `sos role reviewer --from <builder>`");
+            } else {
+                write(&root, f, f.path)?;
+            }
         }
     }
     let added = ensure_gitignore(&root)?;

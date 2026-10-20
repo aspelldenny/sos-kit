@@ -6,7 +6,8 @@ use std::process::{Command, Output};
 
 fn sos(dir: &Path, args: &[&str]) -> Output {
     // A hung run must fail its test by name, not stall the whole suite.
-    let mut child = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args)
+    // Same-family reviewer unless a test asks: the default depends on whether codex is on PATH.
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args).env("SOS_REVIEWER", "same")
         .stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
     let start = std::time::Instant::now();
     while child.try_wait().unwrap().is_none() {
@@ -364,4 +365,35 @@ fn check_warns_when_the_advisor_cannot_run() {
     assert!(!out(&sos(p, &["check"])).contains("advisor"), "a later good call clears it");
     log(&[plain]);
     assert!(!out(&sos(p, &["check"])).contains("advisor"), "an ordinary failure is not a broken advisor");
+}
+
+fn sos_env(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Output {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_sos"));
+    c.current_dir(dir).args(args);
+    for (k, v) in env {
+        c.env(k, v);
+    }
+    c.output().unwrap()
+}
+
+#[test]
+fn install_sets_a_reviewer_from_the_other_family_when_both_clis_exist() {
+    let d = repo();
+    let p = d.path();
+    let o = sos_env(p, &["install"], &[("SOS_REVIEWER", "other")]);
+    assert!(o.status.success(), "{}", out(&o));
+    let toml = std::fs::read_to_string(p.join(".sos.toml")).unwrap();
+    assert!(toml.contains("[roles.reviewer.claude]   # Claude built it: Codex reviews\nbackend = \"codex\""), "{toml}");
+    assert!(toml.contains("[roles.reviewer.codex]") && !toml.contains("[roles.reviewer]\n"), "{toml}");
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains("sos check: ok") && !c.contains("reviewer"), "{c}");
+    std::fs::write(p.join("b.md"), "review it").unwrap();
+    let r = out(&sos(p, &["role", "reviewer", "--from", "claude", "--brief", "b.md", "--dry-run"]));
+    assert!(r.contains("\"codex\",\"exec\",\"-m\",\"gpt-6-astra\""), "{r}");
+    assert!(r.contains("\"-s\",\"read-only\""), "{r}");
+
+    let d2 = repo();
+    assert!(sos_env(d2.path(), &["install"], &[("SOS_REVIEWER", "same")]).status.success());
+    let same = std::fs::read_to_string(d2.path().join(".sos.toml")).unwrap();
+    assert!(same.contains("[roles.reviewer]\nbackend = \"claude\"") && !same.contains("Claude built it: Codex reviews"), "{same}");
 }

@@ -125,6 +125,12 @@ seq 210 > AGENTS.md
 check "claude: status notes oversized state"   0 "section is 91 lines" claude session-start <<<"{}"
 check "claude: status notes oversized entry"   0 "are 210 lines" claude session-start <<<"{}"
 rm -rf docs AGENTS.md
+printf '[roles.reviewer.claude]   # Claude built it\nbackend = "codex"\nmodel = "m"\n\n[roles.reviewer.codex]\nbackend = "claude"\n' > .sos.toml
+check "claude: status names the cross-family reviewer" 0 "claude-built work → codex; codex-built work → claude" claude session-start <<<"{}"
+printf '[roles.reviewer]\nbackend = "claude"\n' > .sos.toml
+out=$(python3 adapters/claude/hook.py session-start <<<"{}" 2>&1)
+if grep -q "Người soát" <<<"$out"; then fail=$((fail + 1)); echo "FAIL status: same-family reviewer named"; else pass=$((pass + 1)); echo "ok   status: quiet for a same-family reviewer"; fi
+rm -f .sos.toml
 
 # ── Codex ────────────────────────────────────────────────────
 check "codex: real apply_patch allowed"        0 -          codex pre-edit <<<"$(line $X 4)"
