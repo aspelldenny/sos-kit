@@ -12,8 +12,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-22.04]
+        os: [macos-14, ubuntu-22.04, windows-2022]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash   # Git Bash on Windows, like the git hooks there
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -22,6 +25,11 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = macOS ]; then
             brew install gitleaks
+          elif [ "$RUNNER_OS" = Windows ]; then
+            V=8.30.1
+            curl -fsSL -o "$RUNNER_TEMP/gl.zip" "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_windows_x64.zip"
+            mkdir -p "$HOME/bin" && unzip -o -q "$RUNNER_TEMP/gl.zip" gitleaks.exe -d "$HOME/bin"
+            echo "$HOME/bin" >> "$GITHUB_PATH"; export PATH="$HOME/bin:$PATH"
           else
             V=8.30.1
             curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${V}/gitleaks_${V}_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks
@@ -32,5 +40,6 @@ jobs:
       - run: tests/bite.sh
       - run: cargo build --locked -p sos-cli
       - run: tests/smoke.sh target/debug/sos
-      - run: python3 tests/docs-check.py target/debug/sos
-      - run: tests/npm.sh
+      - run: py=python3; $py -c '' 2>/dev/null || py=python; $py tests/docs-check.py target/debug/sos
+      - run: tests/npm.sh   # the npm wrapper is POSIX sh; on Windows install through Git Bash + install.sh
+        if: runner.os != 'Windows'

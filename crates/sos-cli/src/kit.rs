@@ -33,8 +33,17 @@ pub const HOOKS_PATH: &str = "harness-lite/hooks";
 
 pub struct File {
     pub path: &'static str,
-    pub body: &'static str,
+    body: &'static str,
+    #[cfg_attr(not(unix), allow(dead_code))] // Windows has no exec bit; Git Bash runs hooks regardless
     pub exec: bool,
+}
+
+impl File {
+    /// The embedded text with LF line endings: a kit checked out as CRLF (Windows, core.autocrlf)
+    /// must not ship `#!/usr/bin/env bash\r` hooks or record CRLF hashes (POD-agent, 23/10/2026).
+    pub fn text(&self) -> std::borrow::Cow<'static, str> {
+        if self.body.contains('\r') { self.body.replace("\r\n", "\n").into() } else { self.body.into() }
+    }
 }
 
 macro_rules! kit {
@@ -49,6 +58,7 @@ macro_rules! kit {
 /// Kit-owned files: destination in the target repo ← source in sos-kit.
 pub const KIT_FILES: &[File] = &[
     kit!("harness-lite/README.md", "harness-lite/README.md"),
+    kit!("harness-lite/.gitattributes", "templates/app/harness-lite.gitattributes"),
     kit!("harness-lite/CONTRACT.md", "harness-lite/CONTRACT.md"),
     kit!("harness-lite/roles/orchestrator.md", "harness-lite/roles/orchestrator.md"),
     kit!("harness-lite/roles/architect.md", "harness-lite/roles/architect.md"),
@@ -121,6 +131,11 @@ fn sha_file(p: &Path) -> Result<Option<String>> {
     }
 }
 
+/// A kit script checked out with CRLF line endings (`#!/usr/bin/env bash\r` does not run).
+fn crlf_script(root: &Path, f: &File) -> bool {
+    f.exec && std::fs::read(root.join(f.path)).is_ok_and(|b| b.contains(&b'\r'))
+}
+
 /// Resolve a repo-relative path for writing or deleting: no absolute paths or `..`, no
 /// symlink at the target, and the parent directory must resolve inside the repository
 /// (so a symlinked file or directory cannot redirect a write or delete outside it).
@@ -146,7 +161,7 @@ fn safe_path(root: &Path, rel: &str) -> Result<PathBuf> {
 
 fn write(root: &Path, f: &File, path: &str) -> Result<()> {
     let p = safe_path(root, path)?;
-    std::fs::write(&p, f.body).with_context(|| format!("writing {path}"))?;
+    std::fs::write(&p, f.text().as_bytes()).with_context(|| format!("writing {path}"))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -163,7 +178,29 @@ fn other_family_reviewer() -> bool {
     match std::env::var("SOS_REVIEWER").as_deref() {
         Ok("same") => false,
         Ok("other") => true,
-        _ => std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| d.join("codex").is_file())),
+        _ => find_program("codex").is_some(),
+    }
+}
+
+/// `name` on PATH, as the OS would run it. Windows also tries PATHEXT (`codex.cmd` from npm):
+/// `Command::new("codex")` there only adds `.exe` (POD-agent, 23/10/2026).
+pub fn find_program(name: &str) -> Option<PathBuf> {
+    let exts: Vec<String> = if cfg!(windows) {
+        let pe = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
+        pe.split(';').filter(|e| !e.is_empty()).map(str::to_string).collect()
+    } else {
+        vec![String::new()]
+    };
+    let path = std::env::var_os("PATH")?;
+    // is_executable: a non-executable `codex` earlier on PATH must not hide a working one (exec(3) skips it).
+    std::env::split_paths(&path).flat_map(|d| exts.iter().map(move |e| d.join(format!("{name}{e}")))).find(|p| is_executable(p))
+}
+
+/// A path as people read it: Windows' canonical `\\?\C:\…` without the `\\?\`.
+pub fn plain(p: &Path) -> PathBuf {
+    match p.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
+        _ => p.to_path_buf(),
     }
 }
 
@@ -203,6 +240,44 @@ fn shell_word(s: &str) -> Result<String> {
         bail!("SOS_PYTHON may not contain a single quote: {s}");
     }
     Ok(format!("'{s}'"))
+}
+
+/// Codex hooks on Windows. Which shell Codex starts them with there is not documented, and
+/// `"$(git rev-parse …)"` works in bash and PowerShell but not in cmd. This form has no `$`, `%`, `!`,
+/// backslash or nested double quote, so cmd, PowerShell and bash all hand it to Python unchanged
+/// (tested in all three, 23/10/2026). Outside a repo, or with the adapter missing, it blocks pre-edit.
+fn codex_hooks_any_shell(body: &str, py: &str) -> Result<String> {
+    if !py.chars().all(|c| c.is_ascii_alphanumeric() || "_./:-".contains(c)) {
+        bail!("SOS_PYTHON for Codex hooks on Windows must be one word with forward slashes \
+               (e.g. C:/Python312/python.exe): {py}");
+    }
+    let mut out = body.to_string();
+    for ev in ["session-start", "pre-edit", "post-bash"] {
+        let old = format!("python3 \\\"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\\\" {ev}");
+        // d() blocks the way the adapter's block() does on Windows: deny JSON (ASCII, the console
+        // may be cp1252) and exit 0; for pre-edit it writes nothing else, so no stderr failure can
+        // stop it. The excepthook sends a crash here to d(); git's output is decoded as UTF-8
+        // (cp1252 crashed on `C:\work\Ápp`). The adapter runs as a UTF-8 child, so its own Windows
+        // re-exec never happens, and a crash in it at any level is a nonzero exit, also d()
+        // (review 23/10/2026).
+        let new = format!("{py} -c \"import json,os,subprocess,sys;a='{ev}';\
+            d=lambda m:a=='pre-edit' and (print(json.dumps({{'hookSpecificOutput':{{'hookEventName':'PreToolUse','permissionDecision':'deny','permissionDecisionReason':m}}}})),\
+            sys.stdout.flush(),os._exit(0)) or (print(ascii(m)[1:-1],file=sys.stderr),os._exit(1));\
+            sys.excepthook=lambda t,v,b:d('BLOCKED: SOS Kit hook failed: '+repr(v));\
+            r=subprocess.run('git rev-parse --show-toplevel',shell=True,capture_output=True,encoding='utf-8');\
+            p=r.stdout.strip()+'/harness-lite/adapters/codex/hook.py';\
+            r.returncode and d('BLOCKED: SOS Kit hook: not inside a git repository (or git is missing)');\
+            os.path.isfile(p) or d('BLOCKED: SOS Kit hook: '+p+' not found');\
+            c=subprocess.run([sys.executable,p,a],stdout=subprocess.PIPE,env=dict(os.environ,PYTHONUTF8='1'));\
+            c.returncode and d('BLOCKED: SOS Kit hook: '+p+' exited '+str(c.returncode));\
+            sys.stdout.buffer.write(c.stdout)\"");
+        if !out.contains(&old) {
+            bail!("internal: .codex/hooks.json template has no {ev} command to rewrite");
+        }
+        let json = serde_json::to_string(&new)?;
+        out = out.replace(&old, &json[1..json.len() - 1]);
+    }
+    Ok(out)
 }
 
 /// The interpreters the installed agent hooks call (first word of each harness-lite adapter command);
@@ -245,9 +320,9 @@ fn git_out(root: &Path, args: &[&str]) -> Option<String> {
 pub fn repo_root(dir: &Path) -> Result<PathBuf> {
     let top = git_out(dir, &["rev-parse", "--show-toplevel"])
         .with_context(|| format!("{} is not inside a git repository (run `git init` first)", dir.display()))?;
-    let top = PathBuf::from(top).canonicalize()?;
-    if top != dir.canonicalize()? {
-        bail!("run sos from the repository top level: {}", top.display());
+    let top = plain(&PathBuf::from(top).canonicalize()?);
+    if top != plain(&dir.canonicalize()?) {
+        bail!("run sos from the repository top level: {}", show(&top));
     }
     Ok(top)
 }
@@ -298,10 +373,12 @@ pub fn plan(root: &Path, prev: Option<&Upstream>) -> Result<Plan> {
     let mut kit = Vec::new();
     for f in KIT_FILES {
         let local = sha_file(&root.join(f.path))?;
-        let new = sha(f.body);
+        let new = sha(&f.text());
         let recorded = prev.and_then(|u| u.files.get(f.path));
         let act = match (local.as_deref(), recorded) {
             (None, _) => Act::Add,
+            // Same text but a CRLF checkout of a script: bash cannot run it, so write it back with LF.
+            (Some(l), _) if l == new && crlf_script(root, f) => Act::Update,
             (Some(l), _) if l == new => Act::Same,
             (Some(l), Some(r)) if l == r => Act::Update, // unmodified since last write
             (Some(_), Some(r)) if r == &new => Act::KeptEdited, // edited locally, kit unchanged
@@ -363,6 +440,20 @@ fn hooks_path(root: &Path) -> Option<String> {
     git_out(root, &["config", "--get", "core.hooksPath"])
 }
 
+/// The directory git runs hooks from, as git resolves it: `~/`, relative paths, and on Windows
+/// `/custom/hooks` (under the Git install, not the repo's drive) all mean what git means.
+fn hooks_dir(root: &Path) -> Option<PathBuf> {
+    let gp = PathBuf::from(git_out(root, &["rev-parse", "--git-path", "hooks"])?);
+    Some(if gp.is_absolute() { gp } else { root.join(gp) })
+}
+
+/// A path for messages: no `\\?\`, and on Windows forward slashes like git prints
+/// (`E:\Extension\hooks/pre-commit` read as two styles at once).
+pub fn show(p: &Path) -> String {
+    let s = plain(p).display().to_string();
+    if cfg!(windows) { s.replace('\\', "/") } else { s }
+}
+
 pub struct Opts {
     pub dry_run: bool,
     pub force_hooks: bool,
@@ -399,7 +490,7 @@ fn apply_kit(root: &Path, p: &Plan) -> Result<BTreeMap<String, String>> {
             _ => {}
         }
         if let Some(f) = file {
-            recorded.insert(f.path.to_string(), sha(f.body));
+            recorded.insert(f.path.to_string(), sha(&f.text()));
         }
     }
     Ok(recorded)
@@ -469,16 +560,7 @@ fn hook_plan(root: &Path, force: bool) -> Result<HookPlan> {
     if configured.as_deref() == Some(HOOKS_PATH) {
         return Ok(HookPlan::Already);
     }
-    let dir = match &configured {
-        Some(h) if h.starts_with("~/") => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(&h[2..]),
-        Some(h) if Path::new(h).is_absolute() => PathBuf::from(h),
-        Some(h) => root.join(h),
-        None => {
-            let gp = git_out(root, &["rev-parse", "--git-path", "hooks"]).context("locating .git/hooks")?;
-            let gp = PathBuf::from(gp);
-            if gp.is_absolute() { gp } else { root.join(gp) }
-        }
-    };
+    let dir = hooks_dir(root).context("locating the git hooks directory")?;
     let hooks: Vec<String> = GIT_HOOKS.iter().filter(|h| is_executable(&dir.join(h))).map(|h| h.to_string()).collect();
     if configured.is_none() && hooks.is_empty() {
         return Ok(HookPlan::Set);
@@ -496,7 +578,7 @@ fn hook_plan(root: &Path, force: bool) -> Result<HookPlan> {
         let src = dir.join(h);
         if let Ok(existing) = std::fs::read(root.join(&dst)) {
             if existing != std::fs::read(&src)? {
-                bail!("{dst} already exists and differs from {} — merge them by hand, then rerun", src.display());
+                bail!("{dst} already exists and differs from {} — merge them by hand, then rerun", show(&src));
             }
         }
         copies.push((src, dst));
@@ -510,17 +592,17 @@ fn describe(hp: &HookPlan) -> String {
         HookPlan::Already => "git core.hooksPath already set".into(),
         HookPlan::Keep { dir, hooks } if hooks.is_empty() => format!(
             "git core.hooksPath stays {} (set by you): call `sos gate all` from its pre-commit and `sos gate local-secrets` from its pre-push, or rerun with --force-hooks",
-            dir.display()
+            show(dir)
         ),
         HookPlan::Keep { dir, hooks } => format!(
             "existing hooks in {} stay active ({}); sos gates are NOT wired yet: rerun with --force-hooks to keep them as harness-lite/hooks/*.local and switch, or call `sos gate all` from your pre-commit and `sos gate local-secrets` from your pre-push",
-            dir.display(),
+            show(dir),
             hooks.join(", ")
         ),
-        HookPlan::Migrate { dir, copies } if copies.is_empty() => format!("git core.hooksPath {} → {HOOKS_PATH} (--force-hooks)", dir.display()),
+        HookPlan::Migrate { dir, copies } if copies.is_empty() => format!("git core.hooksPath {} → {HOOKS_PATH} (--force-hooks)", show(dir)),
         HookPlan::Migrate { dir, copies } => format!(
             "git core.hooksPath {} → {HOOKS_PATH} (--force-hooks); your hooks keep running: {}",
-            dir.display(),
+            show(dir),
             copies.iter().map(|(s, d)| format!("{} → {d}", s.file_name().unwrap_or_default().to_string_lossy())).collect::<Vec<_>>().join(", ")
         ),
     }
@@ -543,7 +625,7 @@ pub fn install(dir: &Path, o: &Opts) -> Result<i32> {
     let p = plan(&root, None)?;
     let hp = hook_plan(&root, o.force_hooks)?;
     read_gitignore(&root)?;
-    say!("sos install {VERSION} ({COMMIT}) → {}", root.display());
+    say!("sos install {VERSION} ({COMMIT}) → {}", show(&root));
     print_plan(&p);
     say!("  {}", describe(&hp));
     let conflicts = p.kit.iter().filter(|(_, a)| *a == Act::Conflict).count();
@@ -559,13 +641,17 @@ pub fn install(dir: &Path, o: &Opts) -> Result<i32> {
         if *act == Act::Create {
             let f = PROJECT_FILES.iter().find(|f| f.path == path).expect("project file");
             if f.path == ".sos.toml" && other_family_reviewer() {
-                let body = cross_family_reviewer(f.body);
+                let body = cross_family_reviewer(&f.text());
                 std::fs::write(safe_path(&root, f.path)?, body).with_context(|| format!("writing {}", f.path))?;
                 say!("  .sos.toml: Người soát runs on the other model family (codex is on PATH): `sos role reviewer --from <builder>`");
+            } else if f.path == ".codex/hooks.json" && cfg!(windows) {
+                let body = codex_hooks_any_shell(&f.text(), &hook_python())?;
+                std::fs::write(safe_path(&root, f.path)?, body).with_context(|| format!("writing {}", f.path))?;
+                say!("  {}: hooks run {} from any shell (cmd, PowerShell or Git Bash)", f.path, hook_python());
             } else if matches!(f.path, ".claude/settings.json" | ".codex/hooks.json") && hook_python() != "python3" {
                 let word = shell_word(&hook_python())?;
                 let json = serde_json::to_string(&word)?; // "…" with \ and \" escaped
-                let body = f.body.replace("python3 \\\"", &format!("{} \\\"", &json[1..json.len() - 1])); // JSON: python3 \"…
+                let body = f.text().replace("python3 \\\"", &format!("{} \\\"", &json[1..json.len() - 1])); // JSON: python3 \"…
                 std::fs::write(safe_path(&root, f.path)?, body).with_context(|| format!("writing {}", f.path))?;
                 say!("  {}: hooks run {word}", f.path);
             } else {
@@ -621,7 +707,10 @@ fn finish(root: &Path, notes: &[String], conflicts: usize) -> Result<i32> {
     if conflicts > 0 {
         say!("{conflicts} conflict(s): compare each <file> with <file>.sos-new, keep what you want, delete the .sos-new.");
     }
-    say!("Next: `sos check` in {}, review the diff, commit. Reload running agent sessions so they pick up the hooks.", root.display());
+    say!("Next: `sos check` in {}, review the diff, commit. Reload running agent sessions so they pick up the hooks.", show(root));
+    if root.join(".codex/hooks.json").exists() {
+        say!("Codex runs .codex/hooks.json only once trusted: open `codex` here and accept them in /hooks (`sos check` cannot see this).");
+    }
     Ok(if conflicts > 0 { 1 } else { 0 })
 }
 
@@ -652,16 +741,21 @@ pub fn check(dir: &Path) -> Result<i32> {
                     warns.push(format!("{path}.sos-new pending: merge it, then delete it"));
                 }
             }
+            for f in KIT_FILES.iter().filter(|f| crlf_script(&root, f)) {
+                errors.push(format!("{} has CRLF line endings, which bash cannot run — `sos update` rewrites it with LF \
+                                     (harness-lite/.gitattributes keeps new checkouts LF)", f.path));
+            }
         }
     }
     let hp = hooks_path(&root).unwrap_or_default();
     let hook_dir = if hp.is_empty() { ".git/hooks".to_string() } else { hp.clone() };
-    let pre_commit = std::fs::read_to_string(root.join(&hook_dir).join("pre-commit")).unwrap_or_default();
+    let hooks = hooks_dir(&root).unwrap_or_else(|| root.join(&hook_dir));
+    let pre_commit = std::fs::read_to_string(hooks.join("pre-commit")).unwrap_or_default();
     let runs_gates = pre_commit.lines().map(str::trim).any(|l| !l.starts_with('#') && l.contains("sos gate all"));
     if !runs_gates {
         errors.push(format!("{hook_dir}/pre-commit does not run `sos gate all` — `git config core.hooksPath {HOOKS_PATH}`"));
     }
-    let pre_push = std::fs::read_to_string(root.join(&hook_dir).join("pre-push")).unwrap_or_default();
+    let pre_push = std::fs::read_to_string(hooks.join("pre-push")).unwrap_or_default();
     if !pre_push.lines().map(str::trim).any(|l| !l.starts_with('#') && l.contains("sos gate local-secrets")) {
         errors.push(format!("{hook_dir}/pre-push does not run `sos gate local-secrets`"));
     }
@@ -669,7 +763,7 @@ pub fn check(dir: &Path) -> Result<i32> {
     {
         use std::os::unix::fs::PermissionsExt;
         for h in ["pre-commit", "pre-push"] {
-            let p = root.join(&hook_dir).join(h);
+            let p = hooks.join(h);
             if let Ok(m) = std::fs::metadata(&p) {
                 if m.permissions().mode() & 0o111 == 0 {
                     errors.push(format!("{hook_dir}/{h} is not executable — chmod +x it (git skips it silently)"));

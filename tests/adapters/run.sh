@@ -24,15 +24,22 @@ print("STUB ADVICE agent=" + (sys.argv[sys.argv.index("--agent") + 1] if "--agen
 PY
 chmod +x scripts/advise
 export CLAUDE_PROJECT_DIR="$T" ADVISE_AFTER=2 ADVISE_MAX=2
-cat > "$T/notify" <<'SH'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$(dirname "$0")/notified"
-SH
-chmod +x "$T/notify"; export SOS_NOTIFY_CMD="$T/notify"
 pass=0; fail=0
+# Windows: `python3` is often the Store alias that only fails; use the interpreter that runs.
+PY=$(for p in python3 python; do "$p" -c '' >/dev/null 2>&1 && { echo "$p"; break; }; done)
+export PYTHONUTF8=1  # Windows: the helpers below print Vietnamese into pipes
+WIN=
+case "$(uname -s)" in
+MINGW*|MSYS*|CYGWIN*)  # Windows cannot exec a bash script; a Windows path with backslashes, quoted
+    printf 'import os, sys\nopen(os.path.join(os.path.dirname(__file__), "notified"), "a").write(" ".join(sys.argv[1:]) + "\\n")\n' > "$T/notify.py"
+    export SOS_NOTIFY_CMD="\"$(cygpath -w "$(command -v "$PY")")\" \"$(cygpath -w "$T/notify.py")\""; WIN=1 ;;
+*)
+    printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> "$(dirname "$0")/notified"\n' > "$T/notify"
+    chmod +x "$T/notify"; export SOS_NOTIFY_CMD="$T/notify" ;;
+esac
 
 # line <file> <n> [python expression mutating d]
-line() { python3 - "$FIX/$1" "$2" "${3:-}" <<'EOF'
+line() { "$PY" - "$FIX/$1" "$2" "${3:-}" <<'EOF'
 import json, sys
 d = json.loads(open(sys.argv[1]).read().splitlines()[int(sys.argv[2]) - 1])
 if sys.argv[3]: exec(sys.argv[3])
@@ -42,7 +49,11 @@ EOF
 # check <name> <want-exit> <want-substring|-> <agent> <sub> <<< payload
 check() {
     local name=$1 want=$2 grep_for=$3 agent=$4 sub=$5 out rc
-    out=$(python3 "adapters/$agent/hook.py" "$sub" 2>&1); rc=$?
+    out=$("$PY" "adapters/$agent/hook.py" "$sub" 2>&1); rc=$?
+    # Windows: the Codex adapter blocks with deny JSON and exit 0 (`powershell -Command` turns exit 2 into 1).
+    if [ "$agent/$sub/$want" = codex/pre-edit/2 ] && [ -n "$WIN" ]; then
+        want=0; grep -q '"permissionDecision": "deny"' <<<"$out" || rc="$rc, no deny JSON"
+    fi
     local match=1
     if [ "$grep_for" = "-" ]; then [ -z "$out" ] && match=0; else grep -q -- "$grep_for" <<<"$out" && match=0; fi
     if [ "$rc" = "$want" ] && [ "$match" = 0 ]; then
@@ -85,7 +96,7 @@ check "claude: .Env.Local (case) blocked"      2 "BLOCKED"  claude pre-edit <<<"
 check "claude: k5 fail #1 silent"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"')"
 check "claude: quoted ';pytest' not a test"    0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"; d["tool_input"]["command"]="echo \"hello; pytest\" && printf \"a|pytest\""; d["tool_response"]["stdout"]="hello; pytest"')"
 check "claude: k5 fail #2 -> advice"           0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"')"
-PY3=$(command -v python3); mkdir -p "$T/win"
+PY3=$(command -v "$PY"); mkdir -p "$T/win"
 printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$T/win/python3"; chmod +x "$T/win/python3"
 pl=$(line $C 1 'd["session_id"]="kwin"')  # built first: the here-string would see the stub PATH
 for n in 1 2; do o=$(PATH="$T/win:$PATH" "$PY3" adapters/claude/hook.py post-bash <<<"$pl" 2>&1); done
@@ -97,7 +108,7 @@ check "own: 'node scripts/check.mjs' fail #1"    0 -           claude post-bash 
 check "own: fail #2 (with a flag) -> advice"     0 "STUB ADVICE" claude post-bash <<<"$(own o1 'node scripts/check.mjs --full')"
 check "own: 'node scripts/check.mjsx' not a run" 0 -           claude post-bash <<<"$(own o2 'node scripts/check.mjsx')"
 check "own: second fail of it still not a run"   0 -           claude post-bash <<<"$(own o2 'node scripts/check.mjsx')"
-for c in 'make e2e' 'cd web && make e2e'; do o=$(python3 -c '
+for c in 'make e2e' 'cd web && make e2e'; do o=$("$PY" -c '
 import runpy, sys
 sys.modules["tomllib"] = None  # Python < 3.11: no tomllib, the [advisor] table is read by hand
 sys.argv = ["test-watch.py", "--key", "o3", "--cmd", sys.argv[1], "--exit", "1", "--agent", "claude"]
@@ -106,7 +117,7 @@ grep -q "STUB ADVICE" <<<"$o" && pass=$((pass + 1)) && echo "ok   own: read with
 check "own: a passing run resets the streak #1"  0 -   claude post-bash <<<"$(own o4 'node scripts/check.mjs')"
 check "own: passing run"                        0 -   claude post-bash <<<"$(line $C 1 'd["session_id"]="o4"; d["tool_input"]["command"]="node scripts/check.mjs"; d["tool_response"]["stdout"]="✅ check xanh"')"
 check "own: after the reset, fail #1 silent"    0 -   claude post-bash <<<"$(own o4 'node scripts/check.mjs')"
-o=$(python3 "$KIT/tests/adapters/test_watch_units.py" "$KIT/scripts/test-watch.py" 2>&1)
+o=$("$PY" "$KIT/tests/adapters/test_watch_units.py" "$KIT/scripts/test-watch.py" 2>&1)
 [ "$o" = ok ] && pass=$((pass + 1)) && echo "ok   test-watch units: TOML reader, own-command match" || { fail=$((fail + 1)); echo "FAIL test-watch units: $o"; }
 rm .sos.toml
 check "claude: k6 pytest fail #1"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
@@ -155,7 +166,7 @@ rm -rf docs AGENTS.md
 printf '[roles.reviewer.claude]   # Claude built it\nbackend = "codex"\nmodel = "m"\n\n[roles.reviewer.codex]\nbackend = "claude"\n' > .sos.toml
 check "claude: status names the cross-family reviewer" 0 "claude-built work → codex; codex-built work → claude" claude session-start <<<"{}"
 printf '[roles.reviewer]\nbackend = "claude"\n' > .sos.toml
-out=$(python3 adapters/claude/hook.py session-start <<<"{}" 2>&1)
+out=$("$PY" adapters/claude/hook.py session-start <<<"{}" 2>&1)
 if grep -q "Người soát" <<<"$out"; then fail=$((fail + 1)); echo "FAIL status: same-family reviewer named"; else pass=$((pass + 1)); echo "ok   status: quiet for a same-family reviewer"; fi
 rm -f .sos.toml
 
@@ -183,17 +194,26 @@ check "codex: session-start gives context"     0 "additionalContext" codex sessi
 
 # ── advise: the prompt carries intent (real scripts/advise, fake claude CLI) ──
 A=$(mktemp -d); mkdir -p "$A/bin" "$A/repo"
-cat > "$A/bin/claude" <<'SH'
+# fakecli <name> <<< script: a stub CLI first on PATH. Windows resolves CLIs through PATHEXT
+# (scripts/advise uses shutil.which), so an extensionless stub alone is skipped and the REAL
+# claude/codex gets called (23/10/2026); a <name>.cmd wrapper runs the stub instead.
+fakecli() {
+    cat > "$A/bin/$1"; chmod +x "$A/bin/$1"
+    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*)
+        printf '@"%s" "%%~dp0%s" %%*
+' "$(cygpath -w "$(command -v bash)")" "$1" > "$A/bin/$1.cmd" ;;
+    esac
+}
+fakecli claude <<'SH'
 #!/usr/bin/env bash
 cat > "$ADVISE_PROMPT_OUT"
 echo '{"result":"VERDICT: continue","is_error":false}'
 SH
-chmod +x "$A/bin/claude"
 ( cd "$A/repo" && git init -q && git commit -q --allow-empty -m init )
 # prompt <name> <want-substring>: run advise in $A/repo and grep the prompt it sent
 prompt() {
     local name=$1 want=$2
-    (cd "$A/repo" && PATH="$A/bin:$PATH" ADVISE_PROMPT_OUT="$A/prompt" python3 "$KIT/scripts/advise" --backend claude "why red?" >/dev/null 2>&1)
+    (cd "$A/repo" && PATH="$A/bin:$PATH" ADVISE_PROMPT_OUT="$A/prompt" "$PY" "$KIT/scripts/advise" --backend claude "why red?" >/dev/null 2>&1)
     if grep -q -- "$want" "$A/prompt" 2>/dev/null; then pass=$((pass + 1)); echo "ok   $name"
     else fail=$((fail + 1)); echo "FAIL $name (want $want): $(head -c 300 "$A/prompt" 2>/dev/null)"; fi
 }
@@ -209,12 +229,12 @@ printf '[state]\nfile = "docs/PROGRESS.md"\n' > "$A/repo/.sos.toml"
 printf '# P\n\n## Current\n\nP5 refund fence open\n' > "$A/repo/docs/PROGRESS.md"
 prompt "advise: [state] file is the intent"   "P5 refund fence open"
 if grep -q "export splits shifts" "$A/prompt"; then fail=$((fail + 1)); echo "FAIL advise: BACKLOG used despite [state]"; else pass=$((pass + 1)); echo "ok   advise: BACKLOG not used when [state] names another"; fi
-printf '# P\n\n## Hiện tại\n\n%s\n' "$(python3 -c 'print("Kiểm tra hành trình hoàn tiền. " * 200)')" > "$A/repo/docs/PROGRESS.md"
+printf '# P\n\n## Hiện tại\n\n%s\n' "$("$PY" -c 'print("Kiểm tra hành trình hoàn tiền. " * 200)')" > "$A/repo/docs/PROGRESS.md"
 prompt "advise: long Vietnamese state doc ok"  "Kiểm tra hành trình"
 printf 'Brief: refunds must never go negative\n' > "$A/brief.md"
 ADVISE_BRIEF="$A/brief.md" prompt "advise: ADVISE_BRIEF wins" "refunds must never go negative"
 # A lost login: exit 3, the fix logged, the session-start status says it until a good call.
-cat > "$A/bin/claude" <<'SH'
+fakecli claude <<'SH'
 #!/usr/bin/env bash
 cat > /dev/null
 if [ -n "${CLAUDE_LOGGED_OUT:-}" ]; then
@@ -222,32 +242,30 @@ if [ -n "${CLAUDE_LOGGED_OUT:-}" ]; then
 fi
 echo '{"result":"OK","is_error":false}'
 SH
-chmod +x "$A/bin/claude"
 expect() { if [ "$2" = 0 ]; then pass=$((pass + 1)); echo "ok   $1"; else fail=$((fail + 1)); echo "FAIL $1: ${3:0:300}"; fi; }
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 python3 "$KIT/scripts/advise" --backend claude "why red?" 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 "$PY" "$KIT/scripts/advise" --backend claude "why red?" 2>&1); rc=$?
 [ "$rc" = 3 ] && grep -q "/login" <<<"$o"; expect "advise: lost login -> exit 3 with the fix" $? "rc=$rc $o"
 o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); grep -q "advisor's last call failed" <<<"$o"; expect "status: names the broken advisor" $? "$o"
 # Windows: `python3` on PATH is the Store alias that only fails; the adapter passes its own interpreter.
-PY3=$(command -v python3); mkdir -p "$A/win"
+PY3=$(command -v "$PY"); mkdir -p "$A/win"
 printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$A/win/python3"; chmod +x "$A/win/python3"
 o=$(cd "$A/repo" && PATH="$A/win:$PATH" CLAUDE_PROJECT_DIR="$A/repo" "$PY3" "$KIT/adapters/claude/hook.py" session-start <<<"{}" 2>&1)
 grep -q "advisor's last call failed" <<<"$o"; expect "windows: session-start status runs without a working python3" $? "$o"
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" python3 "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
 [ "$rc" = 0 ] && grep -q "answers" <<<"$o"; expect "advise --check: answers after login" $? "rc=$rc $o"
 o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); ! grep -q "advisor" <<<"$o"; expect "status: quiet once the advisor answers" $? "$o"
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 python3 "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 "$PY" "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
 [ "$rc" = 3 ]; expect "advise --check: logged out -> exit 3" $? "rc=$rc $o"
 mkdir -p "$A/repo/.advise-state" && touch "$A/repo/.advise-state/unavailable"
-(cd "$A/repo" && PATH="$A/bin:$PATH" python3 "$KIT/scripts/advise" --backend claude --check >/dev/null 2>&1)
+(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend claude --check >/dev/null 2>&1)
 [ ! -e "$A/repo/.advise-state/unavailable" ]; expect "advise --check: success lifts the quiet period" $? ""
 # codex echoes the prompt on stderr: login words in the user's failure must not read as a lost login
-cat > "$A/bin/codex" <<'SH'
+fakecli codex <<'SH'
 #!/usr/bin/env bash
 p=$(cat); printf 'user\n%s\nERROR: 400 model not supported\n' "$p" >&2; exit 1
 SH
-chmod +x "$A/bin/codex"
 printf 'AssertionError: OAuth refresh got 401 unauthorized at /login\n' > "$A/err.txt"
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" python3 "$KIT/scripts/advise" --backend codex --error-file "$A/err.txt" "why red?" 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend codex --error-file "$A/err.txt" "why red?" 2>&1); rc=$?
 [ "$rc" = 1 ] && ! grep -q "codex login" <<<"$o"; expect "advise: codex echo of auth words is not a lost login" $? "rc=$rc ${o: -200}"
 rm -rf "$A"
 

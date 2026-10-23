@@ -49,7 +49,10 @@ entry=$(cat AGENTS.md CLAUDE.md 2>/dev/null | wc -l | tr -d ' ')
 [ "$entry" -gt 200 ] && echo "Note: AGENTS.md + CLAUDE.md are $entry lines (keep under 200): route to docs, move reference into them."
 # The advisor fails silently from a hook (a lost login, 15–17/10/2026): say so where Quản đốc looks.
 if [ -f .advise-state/calls.jsonl ]; then
-    "${SOS_PYTHON:-python3}" - <<'PY' 2>/dev/null  # the adapters pass their own interpreter (Windows)
+    # The adapters pass their own interpreter; run by hand on Windows, `python3` is often the Store alias.
+    py=${SOS_PYTHON:-}
+    [ -n "$py" ] || for p in python3 python; do "$p" -c '' >/dev/null 2>&1 && { py=$p; break; }; done
+    "${py:-python3}" - <<'PY' 2>/dev/null
 import json
 last = None
 for line in open(".advise-state/calls.jsonl", errors="replace"):

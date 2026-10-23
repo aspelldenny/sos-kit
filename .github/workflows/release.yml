@@ -1,8 +1,8 @@
 # Release CI — prebuilt `sos` binaries for the sos-kit installer (P081 Stage 1).
-# Trigger: push a tag `v*` (e.g. v0.1.0). Builds the 2 Stage-1 targets
-# (mac-arm64 tested / linux-x64 build-only) and attaches them to a GitHub
-# Release. Windows is not built yet — add it back
-# when Stage 1 has run for real ≥1 release.
+# Trigger: push a tag `v*` (e.g. v0.1.0). Builds mac-arm64, linux-x64 and windows-x64
+# (each tested in ci.yml on every PR) and attaches them to a GitHub Release.
+# Windows: the POD-agent machine built from source until v0.3.11; install.sh in Git Bash now
+# downloads sos-x86_64-pc-windows-msvc.exe.
 # Asset naming contract (consumed by sos-kit install.sh): <bin>-<target-triple>[.exe]
 name: release
 
@@ -35,6 +35,8 @@ jobs:
             os: macos-14
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-22.04
+          - target: x86_64-pc-windows-msvc
+            os: windows-2022
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5

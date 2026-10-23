@@ -21,8 +21,19 @@ Wiring templates for app repos: `templates/app/claude-settings.json` and `templa
 | Hook | Claude Code | Codex | Calls |
 |---|---|---|---|
 | Session start | `SessionStart` → stdout to context | `SessionStart` → `additionalContext` | `scripts/status.sh` |
-| Before an edit | `PreToolUse` Edit/Write/MultiEdit/NotebookEdit, `file_path` | `PreToolUse` `apply_patch`, every path in the patch; unparseable patch is blocked | `scripts/env-guard.sh` (exit 2 blocks) |
+| Before an edit | `PreToolUse` Edit/Write/MultiEdit/NotebookEdit, `file_path` | `PreToolUse` `apply_patch`, every path in the patch; unparseable patch is blocked | `scripts/env-guard.sh` (exit 2 blocks; Codex on Windows: `permissionDecision` "deny", exit 0) |
 | After a shell command (optional advisor) | `PostToolUse` + `PostToolUseFailure` Bash; key = session + `agent_id` | `PostToolUse` Bash (no failure event, no exit code; detected from output) | `scripts/test-watch.py` → `scripts/advise` |
+
+**Codex runs a project's hooks only after you trust them:** open `codex` in the repo and accept
+them in `/hooks` (again after any change to `.codex/hooks.json`). `sos check` reads the file, not
+Codex's trust store, so it cannot tell you whether they run.
+
+**Codex on Windows.** Which shell Codex starts hook commands with there is not documented, and
+`"$(git rev-parse …)"` is bash and PowerShell only, so `sos install` on Windows writes a
+`python -c "…"` command that cmd, PowerShell and Git Bash all pass through unchanged. A block is
+the PreToolUse `permissionDecision` "deny" with exit 0, because `powershell -Command` turns exit 2
+into 1 and exit 1 does not block. Tested from cmd and PowerShell (`crates/sos-cli/tests/kit.rs`);
+not yet seen in a live Windows Codex session.
 
 Payload shapes were captured live on 2026-10-09 (Claude Code, Codex 0.162) and are the test
 fixtures: `tests/adapters/fixtures/`. Run `tests/adapters/run.sh` (advisor stubbed, no model call).

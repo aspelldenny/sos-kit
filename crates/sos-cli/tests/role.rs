@@ -31,19 +31,45 @@ fn setup() -> tempfile::TempDir {
                  cat > \"$STUB_DIR/prompt.txt\"\n[ -n \"$STUB_SLEEP\" ] && sleep \"$STUB_SLEEP\"\necho 'REVIEW: 1 blocking' > \"$out\"\n";
     let claude = "#!/usr/bin/env bash\ncat > \"$STUB_DIR/prompt.txt\"\necho \"$@\" > \"$STUB_DIR/args.txt\"\n\
                   echo '{\"result\":\"CLAUDE REVIEW ok\",\"is_error\":false}'\n";
-    for (name, body) in [("codex", codex), ("claude", claude)] {
-        std::fs::write(bin.join(name), body).unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(bin.join(name), std::fs::Permissions::from_mode(0o755)).unwrap();
-        }
-    }
+    // Windows runs neither: npm installs `codex.cmd` / `claude.cmd`, so the stubs are batch files there.
+    let codex_cmd = r#"@echo off
+setlocal
+:a
+if "%~1"=="" goto b
+if "%~1"=="-o" set "OUT=%~2"
+shift
+goto a
+:b
+findstr "^" > "%STUB_DIR%\prompt.txt"
+if defined STUB_SLEEP ping -n %STUB_SLEEP% 127.0.0.1 >nul
+echo REVIEW: 1 blocking> "%OUT%"
+"#;
+    let claude_cmd = r#"@echo off
+findstr "^" > "%STUB_DIR%\prompt.txt"
+echo %*> "%STUB_DIR%\args.txt"
+echo {"result":"CLAUDE REVIEW ok","is_error":false}
+"#;
+    stub(&bin, "codex", codex, codex_cmd);
+    stub(&bin, "claude", claude, claude_cmd);
     d
 }
 
+fn stub(bin: &Path, name: &str, sh: &str, cmd: &str) {
+    if cfg!(windows) {
+        std::fs::write(bin.join(format!("{name}.cmd")), cmd.replace('\n', "\r\n")).unwrap();
+        return;
+    }
+    std::fs::write(bin.join(name), sh).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(bin.join(name), std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+}
+
 fn sos(d: &Path, args: &[&str], extra: &[(&str, &str)]) -> Output {
-    let path = format!("{}:{}", d.join("bin").display(), std::env::var("PATH").unwrap());
+    let rest = std::env::var_os("PATH").unwrap();
+    let path = std::env::join_paths(std::iter::once(d.join("bin")).chain(std::env::split_paths(&rest))).unwrap();
     let mut c = Command::new(env!("CARGO_BIN_EXE_sos"));
     c.current_dir(d.join("repo")).args(args).env("PATH", path).env("STUB_DIR", d);
     for (k, v) in extra {
@@ -82,6 +108,20 @@ fn reviewer_for_claude_work_runs_codex_with_stdin_closed() {
     assert!(log.contains("\"role\":\"reviewer\"") && log.contains("gpt-x"), "{log}");
 }
 
+#[cfg(unix)]
+#[test]
+fn a_non_executable_cli_earlier_on_path_is_skipped() {
+    // exec(3) semantics, which the Windows PATHEXT lookup must not lose (review 23/10/2026).
+    let d = setup();
+    let first = d.path().join("first");
+    std::fs::create_dir_all(&first).unwrap();
+    std::fs::write(first.join("codex"), "not a program\n").unwrap();
+    let path = format!("{}:{}:{}", first.display(), d.path().join("bin").display(), std::env::var("PATH").unwrap());
+    let brief = d.path().join("brief.md");
+    let o = sos(d.path(), &["role", "reviewer", "--from", "claude", "--brief", brief.to_str().unwrap()], &[("PATH", &path)]);
+    assert!(o.status.success() && String::from_utf8_lossy(&o.stdout).contains("REVIEW: 1 blocking"), "{}", out(&o));
+}
+
 #[test]
 fn reviewer_for_codex_work_runs_claude_read_only() {
     let d = setup();
@@ -89,7 +129,8 @@ fn reviewer_for_codex_work_runs_claude_read_only() {
     let o = sos(d.path(), &["role", "reviewer", "--from", "codex", "--brief", brief.to_str().unwrap()], &[]);
     assert!(o.status.success(), "{}", out(&o));
     assert!(String::from_utf8_lossy(&o.stdout).contains("CLAUDE REVIEW ok"));
-    let args = std::fs::read_to_string(d.path().join("args.txt")).unwrap();
+    // Windows: a .cmd gets `"Read,Glob,Grep,Bash"` quoted (commas); node's argv drops the quotes.
+    let args = std::fs::read_to_string(d.path().join("args.txt")).unwrap().replace('"', "");
     assert!(args.contains("--model opus") && args.contains("--effort high") && args.contains("--tools Read,Glob,Grep"), "{args}");
 }
 
@@ -125,7 +166,8 @@ fn long_vietnamese_state_and_claude_error_are_handled() {
     let brief = d.path().join("brief.md");
     let o = sos(d.path(), &["role", "reviewer", "--from", "claude", "--brief", brief.to_str().unwrap()], &[]);
     assert!(o.status.success(), "{}", out(&o));
-    std::fs::write(d.path().join("bin/claude"), "#!/usr/bin/env bash\ncat >/dev/null\necho '{\"result\":\"Reached max turns ế\",\"is_error\":true}'\n").unwrap();
+    stub(&d.path().join("bin"), "claude", "#!/usr/bin/env bash\ncat >/dev/null\necho '{\"result\":\"Reached max turns ế\",\"is_error\":true}'\n",
+         "@echo off\nfindstr \"^\" >nul\necho {\"result\":\"Reached max turns\",\"is_error\":true}\n");
     let o = sos(d.path(), &["role", "reviewer", "--from", "codex", "--brief", brief.to_str().unwrap()], &[]);
     assert_eq!(o.status.code(), Some(1), "{}", out(&o));
     assert!(out(&o).contains("Reached max turns"), "{}", out(&o));

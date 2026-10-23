@@ -52,6 +52,8 @@ WRAPPER = re.compile(r"^(?:\w+=\S*\s+|(?:timeout|gtimeout)\s+\S+\s+|time\s+|(?:u
 
 def token_segments(cmd: str):
     """Command segments as word lists, split on ; && || | outside quotes (shell grammar, not a regex)."""
+    if os.name == "nt":  # PowerShell paths (`node .\scripts\check.mjs`): POSIX shlex would eat the backslashes
+        cmd = re.sub(r"(?<=[\w.:])\\(?=[\w.])", "/", cmd)
     lex = shlex.shlex(cmd, posix=True, punctuation_chars=";&|")
     lex.whitespace_split = True
     seg = []
@@ -176,9 +178,28 @@ def test_segment(cmd: str, own=()):
             return runner(" ".join(s.split()))
         words = unwrap(words)
         for t in own:
-            if words[:len(t)] == t:
+            if starts_with(words, t):
                 return shlex.join(t)
     return None
+
+
+def starts_with(words: list, t: list) -> bool:
+    """`words` run the configured command `t`. `./scripts/x` = `scripts/x`. A bare program name also
+    matches that program by path (`node` = `C:/Program Files/nodejs/node.exe`, from PowerShell's
+    `& "…\\node.exe" …`); one given with a directory must match it (`./tools/check.sh` is not
+    `./scripts/check.sh`, review 23/10/2026)."""
+    def norm(w):
+        return w[2:] if w.startswith("./") else w
+
+    def name(w):
+        return re.sub(r"(?i)\.exe$", "", w.rsplit("/", 1)[-1])
+    if not t or len(words) < len(t):
+        return False
+    if "/" in t[0]:  # decided before norm(): `./check.sh` names a directory too
+        same = norm(words[0]) == norm(t[0])
+    else:
+        same = name(words[0]) == name(t[0])
+    return same and [norm(w) for w in words[1:len(t)]] == [norm(w) for w in t[1:]]
 
 
 def is_script(cmd: str) -> bool:
@@ -211,6 +232,13 @@ WIN_TOAST = (
     ".Show([Windows.UI.Notifications.ToastNotification]::new($x))")
 
 
+def split_cmd(s: str) -> list:
+    """A command line as argv. Windows: POSIX shlex would eat the backslashes of C:\\tools\\x.exe."""
+    if os.name != "nt":
+        return shlex.split(s)
+    return [t[1:-1] if len(t) > 1 and t[0] == t[-1] == '"' else t for t in shlex.split(s, posix=False)]
+
+
 def notify(text: str) -> None:
     """Tell the human directly: an agent may not pass the message on (Chủ nhà, 20/10/2026:
     "có lỗi phải báo, không được im lặng")."""
@@ -219,7 +247,7 @@ def notify(text: str) -> None:
     title = "SOS Kit: advisor cannot run"
     try:  # never raise: the message to the worker comes after this
         if os.environ.get("SOS_NOTIFY_CMD"):
-            cmd = [*shlex.split(os.environ["SOS_NOTIFY_CMD"]), f"{title}: {text}"]
+            cmd = [*split_cmd(os.environ["SOS_NOTIFY_CMD"]), f"{title}: {text}"]
         elif sys.platform == "darwin" and shutil.which("osascript"):
             cmd = ["osascript", "-e", f"display notification {json.dumps(text)} with title {json.dumps(title)} sound name \"Basso\""]
         elif shutil.which("notify-send"):

@@ -53,7 +53,7 @@ def exists(rel: str, md: Path) -> bool:
 problems = []
 for md in files:
     rel_md = md.relative_to(ROOT)
-    text = md.read_text()
+    text = md.read_text(encoding="utf-8")  # Windows defaults to cp1252
     for n, line in enumerate(text.splitlines(), 1):
         for link in re.findall(r"\]\(([^)\s]+)\)", line):
             if re.match(r"^(https?:|mailto:|#)", link):

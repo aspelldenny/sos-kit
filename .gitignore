@@ -20,3 +20,4 @@ thanhtra-reports/
 # Advisor trigger state (scripts/test-watch.py) and logged advice
 .advise-state/
 evidence/advice/
+evidence/roles/

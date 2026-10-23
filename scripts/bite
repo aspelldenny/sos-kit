@@ -30,7 +30,7 @@ TAP and `cargo test` output; with another runner the "before" check sees
 only the suite verdict and a mutant counts as killed whenever the run fails.
 Exit 0 measured, 1 not measurable (tests red at HEAD, nothing changed, git error), 2 not configured.
 """
-import argparse, json, os, re, signal, subprocess, sys, tempfile, time
+import argparse, json, os, re, shutil, signal, subprocess, sys, tempfile, time
 from pathlib import Path
 
 if os.name == "nt" and not sys.flags.utf8_mode:  # Windows: files, pipes and stdout in UTF-8, not cp1252
@@ -48,10 +48,22 @@ SKIP = re.compile(r"^\s*(#|//|/\*|\*(?:\s|/|$)|import |from \S+ import|use |\"\"
 DIFF = ["diff", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/"]
 
 
+def bash():
+    """Windows: Git's own bash, so a test command reads the same as on macOS/Linux (`./run.sh`,
+    `A=1 make test`); shell=True there is cmd.exe. A bare "bash" may be WSL's System32/bash.exe."""
+    core = subprocess.run(["git", "--exec-path"], capture_output=True, text=True).stdout.strip()
+    for rel in ("../../../bin/bash.exe", "../../../usr/bin/bash.exe"):  # <Git>/mingw64/libexec/git-core
+        p = os.path.normpath(os.path.join(core, rel))
+        if core and os.path.isfile(p):
+            return p
+    return shutil.which("bash") or "bash"
+
+
 def sh(cmd, cwd, timeout=900):
     t = time.time()
     try:
-        r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, errors="replace", timeout=timeout)
+        argv = [bash(), "-c", cmd] if os.name == "nt" else cmd
+        r = subprocess.run(argv, shell=os.name != "nt", cwd=cwd, capture_output=True, text=True, errors="replace", timeout=timeout)
         return r.returncode, r.stdout + r.stderr, time.time() - t
     except subprocess.TimeoutExpired:
         return 124, "timeout", time.time() - t
@@ -269,22 +281,64 @@ def settings(root: Path) -> dict:
 CACHES = {".cache", ".vite", ".vitest", ".vite-temp", ".tmp"}
 
 
-def link_deps(root: Path, wt: Path, cwd: str):
+def link_deps(root: Path, wt: Path, cwd: str, links: list):
     """Installed dependencies are not in git. The worktree gets its own node_modules folder whose entries
     link to the checkout's (or the main checkout's, when this one is a worktree without them); the runners'
-    cache folders stay real folders in the worktree, so a run does not write into the checkout's."""
+    cache folders stay real folders in the worktree, so a run does not write into the checkout's. Each link
+    made is appended to `links`, for remove_worktree()."""
     main = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=root).strip()).parent
-    for d in {Path("node_modules"), Path(cwd) / "node_modules"}:
+    for d in sorted({Path("node_modules"), Path(cwd) / "node_modules"}, key=lambda d: len(d.parts)):
         src = next((r / d for r in (root, main) if (r / d).is_dir()), None)
-        if not src or (wt / d).exists():
+        # `cwd` under a linked package resolves into the checkout: never create anything there.
+        if not src or (wt / d).exists() or not inside(wt, (wt / d).parent):
             continue
         try:
             (wt / d).mkdir(parents=True)
             for e in src.iterdir():
                 if e.name not in CACHES:
-                    (wt / d / e.name).symlink_to(e, target_is_directory=e.is_dir())
+                    link(e, wt / d / e.name)
+                    links.append(wt / d / e.name)
         except OSError:
-            pass  # Windows without symlink rights: the test command fails and says why
+            pass  # the test command fails and says why
+
+
+def inside(wt: Path, p: Path) -> bool:
+    """p, with every symlink and junction resolved, is in the throwaway worktree."""
+    return p.resolve().is_relative_to(wt.resolve())
+
+
+def link(src: Path, dst: Path):
+    """dst -> src. A Windows symlink needs Developer Mode or admin rights; without them a folder gets a
+    junction and a file a copy (no node_modules reached the worktree there, 23/10/2026)."""
+    try:
+        dst.symlink_to(src, target_is_directory=src.is_dir())
+    except OSError:
+        if os.name != "nt":
+            raise
+        if src.is_dir():
+            import _winapi
+            _winapi.CreateJunction(str(src), str(dst))
+        else:
+            shutil.copy2(src, dst)
+
+
+def remove_worktree(root: Path, wt: Path, links: list):
+    """Git for Windows' `worktree remove` deletes through a junction: it emptied the checkout's own
+    node_modules (23/10/2026). The links link_deps() made are removed first, the link only, and only
+    where the folder holding it is still in the worktree. A run killed outright (TerminateProcess,
+    SIGKILL) skips this: remove a leftover sos-bite-* worktree by hand, links first."""
+    for e in reversed(links):
+        if is_link(e) and inside(wt, e.parent):
+            (os.unlink if e.is_symlink() else os.rmdir)(e)  # a POSIX symlink to a folder is not rmdir'able; a junction is
+    subprocess.run(["git", "worktree", "remove", "--force", str(wt)], cwd=root, capture_output=True)
+
+
+def is_link(p: Path) -> bool:
+    """A symlink or a Windows junction (Path.is_junction() is Python 3.12+)."""
+    try:
+        return p.is_symlink() or bool(getattr(os.lstat(p), "st_file_attributes", 0) & 0x400)  # REPARSE_POINT
+    except OSError:
+        return False
 
 
 def default_base(root: Path) -> str:
@@ -305,9 +359,13 @@ def measure(root: Path, base: str, head: str, s: dict) -> dict:
     subprocess.run(["git", "worktree", "prune"], cwd=root, capture_output=True)  # a run killed by SIGKILL
     wt = Path(tempfile.mkdtemp(prefix="sos-bite-"))
     git("worktree", "add", "-q", "--detach", str(wt), head, cwd=root)
+    links = []
     try:
-        link_deps(root, wt, s["cwd"])
+        link_deps(root, wt, s["cwd"], links)
         run = wt / s["cwd"]
+        if not inside(wt, run):
+            rep["error"] = f"cwd {s['cwd']!r} resolves outside the throwaway worktree (through a link): not run"
+            return rep
         rc, head_out, secs = sh(s["test"], run)
         rep["suite_seconds"] = round(secs, 1)
         if rc != 0:
@@ -355,7 +413,7 @@ def measure(root: Path, base: str, head: str, s: dict) -> dict:
                                    "no_tests_ran": not ran, "seconds": round(secs, 1)})
         return rep
     finally:
-        subprocess.run(["git", "worktree", "remove", "--force", str(wt)], cwd=root, capture_output=True)
+        remove_worktree(root, wt, links)
 
 
 def audit(root: Path, head: str, s: dict) -> dict:
@@ -365,9 +423,13 @@ def audit(root: Path, head: str, s: dict) -> dict:
     subprocess.run(["git", "worktree", "prune"], cwd=root, capture_output=True)
     wt = Path(tempfile.mkdtemp(prefix="sos-bite-"))
     git("worktree", "add", "-q", "--detach", str(wt), head, cwd=root)
+    links = []
     try:
-        link_deps(root, wt, s["cwd"])
+        link_deps(root, wt, s["cwd"], links)
         run = wt / s["cwd"]
+        if not inside(wt, run):
+            rep["error"] = f"cwd {s['cwd']!r} resolves outside the throwaway worktree (through a link): not run"
+            return rep
         rc, out, secs = sh(s["test"], run)
         rep["suite_seconds"] = round(secs, 1)
         if rc != 0:
@@ -409,7 +471,7 @@ def audit(root: Path, head: str, s: dict) -> dict:
                              and (set(kills[t]) < set(kills[o]) or o < t)}
         return rep
     finally:
-        subprocess.run(["git", "worktree", "remove", "--force", str(wt)], cwd=root, capture_output=True)
+        remove_worktree(root, wt, links)
 
 
 def main() -> int:
@@ -431,13 +493,15 @@ def main() -> int:
         print(f"bite: set {', '.join(missing)} in .sos.toml [bite] (or --{missing[0]}); see harness-lite/templates/sos.toml",
               file=sys.stderr)
         return 2
-    if Path(s["cwd"]).is_absolute() or ".." in Path(s["cwd"]).parts:
+    if Path(s["cwd"]).is_absolute() or Path(s["cwd"]).anchor or ".." in Path(s["cwd"]).parts:  # Windows: \repo
         print(f"bite: cwd must be a path inside the repo ({s['cwd']!r}): the tests would run outside the throwaway worktree",
               file=sys.stderr)
         return 2
     # SIGTERM/SIGHUP (an agent's timeout, a closed terminal) must still remove the worktree.
-    for sig in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(sig, lambda *_: sys.exit(130))
+    # Windows has no SIGHUP (bite died on it, POD-agent 23/10/2026); a closed console sends SIGBREAK.
+    for name in ("SIGTERM", "SIGHUP", "SIGBREAK"):
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), lambda *_: sys.exit(130))
     if a.audit and a.mutants is None:
         s["mutants"] = max(int(s["mutants"]), 30)
     try:

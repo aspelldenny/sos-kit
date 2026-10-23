@@ -133,7 +133,7 @@ pub fn run(a: &Args) -> Result<i32> {
     let spec = resolve(&cfg, &a.role, &a.from)?;
     let brief = std::fs::read_to_string(&a.brief).with_context(|| format!("reading brief {}", a.brief.display()))?;
     let stamp = chrono_stamp();
-    let out = a.out.clone().unwrap_or_else(|| root.join("evidence/roles").join(format!("{stamp}-{}-{}.md", a.role, spec.backend)));
+    let out = a.out.clone().unwrap_or_else(|| root.join("evidence").join("roles").join(format!("{stamp}-{}-{}.md", a.role, spec.backend)));
     let text = prompt(&root, &a.role, &spec, &state_excerpt(&root, &cfg.state.file), &brief);
     let cmd = command(&root, &a.role, &spec, &out);
     let timeout = a.timeout.or(spec.timeout_secs).unwrap_or(DEFAULT_TIMEOUT);
@@ -150,7 +150,10 @@ pub fn run(a: &Args) -> Result<i32> {
         std::fs::create_dir_all(dir)?;
     }
     let started = Instant::now();
-    let mut c = Command::new(&cmd[0]);
+    // Windows: npm installs `codex.cmd`/`claude.cmd`, which Command::new("codex") never finds.
+    let program = crate::kit::find_program(&cmd[0])
+        .with_context(|| format!("{} CLI not found on PATH (no fallback to another model family)", cmd[0]))?;
+    let mut c = Command::new(&program);
     c.args(&cmd[1..]).current_dir(&root).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(unix)]
     {
@@ -158,7 +161,7 @@ pub fn run(a: &Args) -> Result<i32> {
         use std::os::unix::process::CommandExt;
         c.process_group(0);
     }
-    let mut child = c.spawn().with_context(|| format!("{} CLI not found on PATH (no fallback to another model family)", cmd[0]))?;
+    let mut child = c.spawn().with_context(|| format!("starting {}", crate::kit::show(&program)))?;
     // Write the prompt and close stdin (dropped at the end of the thread), so the CLI never waits
     // for more input; a thread, so a CLI that does not read stdin cannot block us before the timer.
     let mut stdin = child.stdin.take().expect("piped stdin");
@@ -230,8 +233,11 @@ fn kill_group(pid: u32) {
     unsafe {
         libc::kill(-(pid as i32), libc::SIGKILL);
     }
-    #[cfg(not(unix))]
-    let _ = pid;
+    // Windows has no process groups to signal: `codex.cmd` is cmd.exe running node, so killing
+    // the child alone leaves node holding the pipes. taskkill /T stops the whole tree.
+    #[cfg(windows)]
+    let _ = Command::new("taskkill").args(["/T", "/F", "/PID", &pid.to_string()])
+        .stdout(Stdio::null()).stderr(Stdio::null()).status();
 }
 
 fn log(root: &Path, role: &str, from: &str, s: &RoleSpec, secs: u64, ok: bool) {
@@ -246,9 +252,13 @@ fn log(root: &Path, role: &str, from: &str, s: &RoleSpec, secs: u64, ok: bool) {
     }
 }
 
-/// Local time as YYYYmmdd-HHMMSS without a date crate: ask `date`.
+/// Local time as YYYYmmdd-HHMMSS without a date crate: ask `date` (Git for Windows ships one,
+/// but outside Git Bash `date` is cmd's builtin). Else Unix seconds, so two runs never share a file.
 fn chrono_stamp() -> String {
     Command::new("date").arg("+%Y%m%d-%H%M%S").output().ok()
+        .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .filter(|s| !s.is_empty()).unwrap_or_else(|| "now".into())
+        .filter(|s| s.len() == 15).unwrap_or_else(|| {
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0).to_string()
+        })
 }

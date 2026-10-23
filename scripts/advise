@@ -176,10 +176,16 @@ def build_prompt(root: Path, question: str, errfile: str, state: str = "docs/BAC
     return "\n".join(parts)
 
 
+def exe(name: str) -> str:
+    """Full path of a CLI: on Windows `subprocess.run(["codex"])` finds codex.exe only, not npm's
+    codex.cmd (POD-agent, 23/10/2026); shutil.which also tries PATHEXT."""
+    return shutil.which(name) or name
+
+
 def call(backend: str, model: str, prompt: str, effort: str = "", tier: str = "") -> tuple:
     """Returns (ok, text, cost_usd or None, model_used)."""
     if backend == "claude":
-        r = subprocess.run(["claude", "-p", "--model", model or "opus", *(["--effort", effort] if effort else []),
+        r = subprocess.run([exe("claude"), "-p", "--model", model or "opus", *(["--effort", effort] if effort else []),
                             "--tools", "", "--output-format", "json",
                             "--strict-mcp-config", "--disable-slash-commands", "--setting-sources", "",
                             "--system-prompt", SYSTEM], input=prompt, capture_output=True, text=True, timeout=240)
@@ -189,7 +195,7 @@ def call(backend: str, model: str, prompt: str, effort: str = "", tier: str = ""
                     ",".join(d.get("modelUsage", {}).keys()) or model or "opus")
         except (ValueError, IndexError):
             return False, (r.stderr or r.stdout).strip()[-500:], None, model or "opus"
-    r = subprocess.run(["codex", "exec", *(["-m", model] if model else []),
+    r = subprocess.run([exe("codex"), "exec", *(["-m", model] if model else []),
                         *(["-c", f'model_reasoning_effort="{effort}"'] if effort else []),
                         *(["-c", f'service_tier="{tier}"'] if tier else []), "--sandbox", "read-only",
                         "--skip-git-repo-check", "-"], input=prompt, capture_output=True, text=True, timeout=240)
