@@ -2,7 +2,7 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## Unreleased
+## v0.3.10 — 2026-10-23
 
 - **`.sos.toml` `[advisor] tests`**: the project's own test commands (e.g. `["node scripts/check.mjs"]`), counted by the advisor hook like `pytest` or `cargo test`. A command that starts with one is a run of it (`node scripts/check.mjs --full` counts, `node scripts/check.mjsx` does not); a failed run is one that exits non-zero. Why: POD-agent's only gate is `node scripts/check.mjs`, which matched none of the built-in runners, so its advisor could never fire.
 - **Windows desktop notification** when the advisor cannot run (a PowerShell toast), as on macOS and Linux. Windows had none, so a lost login there went unseen again.
