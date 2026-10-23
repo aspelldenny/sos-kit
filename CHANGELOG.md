@@ -2,7 +2,11 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## v0.3.11 — 2026-10-23
+## v0.3.12 — 2026-10-23
+
+- **Release fix; v0.3.11 was tagged but never published.** The three build jobs each created a draft release (a race); the publish job published the empty one, and GitHub releases here are immutable, so the tag `v0.3.11` cannot get another release. The build jobs now only upload artifacts; one job checks that all six files are there and creates the release with them. v0.3.12 is v0.3.11's code (below) plus this fix.
+
+## v0.3.11 — 2026-10-23 (tagged, not published)
 
 - **Windows native, tested on Windows** (first run of the whole suite on the POD-agent machine, 23/10/2026; every fault below was reproduced there first):
   - A Windows build shipped **CRLF kit files**: with `core.autocrlf=true` git checked out the extensionless scripts (`scripts/advise`, `scripts/bite`, `templates/app/hooks/*`) as CRLF and `sos` embeds what it is built from, so apps got `#!/usr/bin/env bash\r` hooks and CRLF hashes that `sos check` called local edits. `.gitattributes` is now `* text=auto eol=lf` (the per-extension list missed them twice) and `sos` writes and hashes the embedded files with LF whatever the checkout.
