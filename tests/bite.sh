@@ -128,7 +128,7 @@ test('tautology', () => {
 });
 JS
 g add -A && g commit -qm change
-J="python3 $KIT/scripts/bite --test 'node --test --test-reporter=spec test/' --src '\.mjs\$' --tests '^test/'"
+J="python3 $KIT/scripts/bite --test 'node --test --test-reporter=spec test/*.test.mjs' --src '\.mjs\$' --tests '^test/'"
 o=$(eval "$J --base main~1" 2>&1); rc=$?
 [ $rc = 0 ] && grep -q "passes on old code: .tautology" <<<"$o" && ! grep -q "passes on old code: .low end" <<<"$o"
 expect "node --test: the tautology passes on the old code, the real tests do not" $? "rc=$rc $o"
@@ -152,7 +152,7 @@ printf 'export const outside = 1 < 2;\n' > "$T/outside.mjs" && ln -s "$T/outside
 o=$(eval "$J --audit" 2>&1); rc=$?
 [ $rc = 0 ] && ! grep -q "linked.mjs" "$(ls -t evidence/bite/*.json | head -1)" && [ "$(cat "$T/outside.mjs")" = "export const outside = 1 < 2;" ]
 expect "--audit leaves tracked symlinks and their targets alone" $? "rc=$rc $o"
-o=$(python3 "$KIT/scripts/bite" --test 'node --test --test-reporter=dot test/' --src '\.mjs$' --tests '^test/' --audit 2>&1); rc=$?
+o=$(python3 "$KIT/scripts/bite" --test 'node --test --test-reporter=dot test/*.test.mjs' --src '\.mjs$' --tests '^test/' --audit 2>&1); rc=$?
 [ $rc = 1 ] && grep -q "no per-test verdicts" <<<"$o"; expect "--audit without per-test verdicts -> not measured" $? "rc=$rc $o"
 
 echo ""; echo "$pass passed, $fail failed"
