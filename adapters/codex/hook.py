@@ -13,8 +13,13 @@ Bash tool_response is the output string; no exit code and no PostToolUseFailure.
 Known gap: Codex does not run hooks inside custom-role subagents (openai/codex#21753);
 the git pre-commit is the backstop.
 """
-import json, re, subprocess, sys
+import json, os, re, subprocess, sys
 from pathlib import Path
+
+if os.name == "nt" and not sys.flags.utf8_mode:  # Windows: files, pipes and stdout in UTF-8, not cp1252
+    os.environ["PYTHONUTF8"] = "1"                  # (Vietnamese status text broke the hook, 23/10/2026)
+    sys.exit(subprocess.run([sys.executable, *sys.argv]).returncode)
+os.environ.setdefault("SOS_PYTHON", sys.executable)  # for status.sh
 
 # The kit's files sit two levels above this file: the sos-kit repo root, or an app's
 # vendored harness-lite/. The project root is the git top level of the session.
@@ -80,7 +85,7 @@ def post_bash():
         return
     resp = d.get("tool_response")
     out = resp if isinstance(resp, str) else json.dumps(resp)
-    cmd = ["python3", str(SCRIPTS / "test-watch.py"), "--key", f"codex-{d.get('session_id', '')}",
+    cmd = [sys.executable, str(SCRIPTS / "test-watch.py"), "--key", f"codex-{d.get('session_id', '')}",
            "--cmd", (d.get("tool_input") or {}).get("command", ""), "--agent", "codex"]
     m = re.match(r"Exit code: (\d+)", out or "")
     if m:

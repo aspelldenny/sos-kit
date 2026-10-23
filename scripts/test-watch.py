@@ -27,6 +27,10 @@ Rules (docs/plans/V3_TRIAGE_2026-10-08.md §F):
 import argparse, hashlib, json, os, re, shlex, shutil, subprocess, sys, time
 from pathlib import Path
 
+if os.name == "nt" and not sys.flags.utf8_mode:  # Windows: files, pipes and stdout in UTF-8, not cp1252
+    os.environ["PYTHONUTF8"] = "1"                  # (Vietnamese status text broke the hook, 23/10/2026)
+    sys.exit(subprocess.run([sys.executable, *sys.argv]).returncode)
+
 FAIL_RE = os.environ.get("ADVISE_FAIL_RE",
     r"FAILED \(|^FAILED |^FAIL:|^ERROR:|\*\* TEST FAILED \*\*|Test Suite .* failed|test result: FAILED|"
     r"Tests? failed|BUILD FAILED|failures?=[1-9]|errors?=[1-9]|\b[1-9]\d* failed")

@@ -12,6 +12,11 @@ Payload shape (Claude Code): tool_input.file_path / notebook_path; Bash tool_res
 import json, os, subprocess, sys
 from pathlib import Path
 
+if os.name == "nt" and not sys.flags.utf8_mode:  # Windows: files, pipes and stdout in UTF-8, not cp1252
+    os.environ["PYTHONUTF8"] = "1"                  # (Vietnamese status text broke the hook, 23/10/2026)
+    sys.exit(subprocess.run([sys.executable, *sys.argv]).returncode)
+os.environ.setdefault("SOS_PYTHON", sys.executable)  # for status.sh
+
 # The kit's files sit two levels above this file: the sos-kit repo root, or an app's
 # vendored harness-lite/. The project root is where Claude Code runs.
 KIT = Path(__file__).resolve().parents[2]
@@ -56,7 +61,7 @@ def post_bash():
     if event == "PostToolUseFailure":
         out = (d.get("error") or "") + "\n" + out
     key = f"claude-{d.get('session_id', '')}-{d.get('agent_id', 'main')}"
-    cmd = ["python3", str(SCRIPTS / "test-watch.py"), "--key", key,
+    cmd = [sys.executable, str(SCRIPTS / "test-watch.py"), "--key", key,
            "--cmd", (d.get("tool_input") or {}).get("command", ""), "--agent", "claude"]
     if event == "PostToolUseFailure":
         cmd += ["--exit", "1"]

@@ -2,6 +2,10 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+- **Windows (Git for Windows + native Python):** first real install, POD-agent on 23/10/2026. Three faults: `python3` there is the Microsoft Store alias, which exists on PATH but only prints "Python was not found", so every agent hook did nothing; Python decoded the hooks' UTF-8 output as cp1252, so the Vietnamese session-start status crashed the hook; `sos check` accepted the alias because it only checked that the command started. Now the Python scripts rerun themselves in UTF-8 mode on Windows; the adapters call `test-watch.py` and the status script's Python with their own interpreter; `sos install` writes `python` (on Windows) or `$SOS_PYTHON`, quoted for bash, into new `.claude/settings.json` and `.codex/hooks.json`; and `sos check` requires the interpreter those hooks name to run. Scripts started by their shebang (`harness-lite/scripts/bite`, `advise`) still look for `python3`: on Windows run them as `python harness-lite/scripts/bite`. No Windows binary yet: `cargo install --git https://github.com/aspelldenny/sos-kit --tag <tag> sos-cli`.
+
 ## v0.3.8 — 2026-10-20
 
 From a usage check of seven apps on 0.3.7 (20/10/2026): the advisor fired 11 times and 7 of those calls failed in 2 s with "OAuth session expired" (Thirty, TurnSigil, 15–17/10). Each failed call used up one of the streak's two calls, and the one-line notice went unseen.

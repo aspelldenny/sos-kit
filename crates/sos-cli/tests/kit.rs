@@ -7,7 +7,7 @@ use std::process::{Command, Output};
 fn sos(dir: &Path, args: &[&str]) -> Output {
     // A hung run must fail its test by name, not stall the whole suite.
     // Same-family reviewer unless a test asks: the default depends on whether codex is on PATH.
-    let mut child = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args).env("SOS_REVIEWER", "same")
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args).env("SOS_REVIEWER", "same").env_remove("SOS_PYTHON")
         .stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
     let start = std::time::Instant::now();
     while child.try_wait().unwrap().is_none() {
@@ -374,6 +374,31 @@ fn sos_env(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Output {
         c.env(k, v);
     }
     c.output().unwrap()
+}
+
+#[cfg(unix)]
+#[test]
+fn install_writes_the_hook_interpreter_and_check_runs_it() {
+    // Windows: `python3` is the Store alias that exists on PATH but only fails (POD-agent, 23/10/2026).
+    use std::os::unix::fs::PermissionsExt;
+    let d = repo();
+    let p = d.path();
+    std::fs::create_dir(p.join("Store Python")).unwrap();
+    let fake = p.join("Store Python/python");
+    std::fs::write(&fake, "#!/bin/sh\necho 'Python was not found' >&2; exit 49\n").unwrap();
+    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let py = fake.to_str().unwrap();
+    let o = sos_env(p, &["install"], &[("SOS_PYTHON", py)]);
+    assert!(o.status.success(), "{}", out(&o));
+    for (f, rest) in [(".claude/settings.json", " \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py"),
+                      (".codex/hooks.json", " \"$(git rev-parse")] {
+        let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(p.join(f)).unwrap()).unwrap();
+        let text = v.to_string();
+        assert!(text.contains(&format!("'{py}'{}", rest.replace('"', "\\\""))) && !text.contains("python3 "), "{f}: {text}");
+    }
+    // `sos check` runs the interpreter the hooks name, whatever the environment says now.
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains(&format!("{py} not found on PATH, or it does not run")), "{c}");
 }
 
 #[test]
