@@ -2,6 +2,12 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+- **`bite` reads Node and Rust tests**: per-test verdicts from `node --test`, `vitest --reporter=verbose`, `jest --verbose`, TAP and `cargo test`; test names from `it(…)`/`test(…)` and Rust `#[test]` functions. The throwaway worktree gets a `node_modules` folder linking each entry of the checkout's (or the main checkout's, from a worktree), with the runners' cache folders kept local so a run writes nothing into the checkout; without it no Node suite ran there. Leaf tests only: suites, a test file that did not load, and a title two tests share get no verdict. Tracked symlinks are never mutated (their target may be outside the worktree). Codex review (gpt-6-astra, high) found the last four. First real run, Tarot `src/lib/iap/` (23/10/2026), found three faults in `bite` itself, now fixed: `!==` was mutated to `!!=`; TypeScript generics (`Promise<T>`) were mutated as comparisons (`<` and `>` now need a space on both sides); a red run in which no test failed (a test file no longer loaded) counted as a kill or a survivor instead of a broken build.
+- **`bite --audit`**: mutants spread over a module's existing code, then the tests that killed none and those that killed only what one other test killed. Candidates for a test audit, not deletions: on Tarot's IAP module the eight tests that killed none were all rejection checks (wrong token, bundle, environment) the sample did not reach. Why: OpenClaw reported deleting ~400k lines of its own tests with little coverage change; coverage counts lines run, not lines checked.
+- **CONTRACT**: a test that kills no sampled mutant is a candidate, not proof of waste; independent contracts (security, API, protocol, migration, storage, config defaults) stay.
+
 ## v0.3.10 — 2026-10-23
 
 - **`.sos.toml` `[advisor] tests`**: the project's own test commands (e.g. `["node scripts/check.mjs"]`), counted by the advisor hook like `pytest` or `cargo test`. A command that starts with one is a run of it (`node scripts/check.mjs --full` counts, `node scripts/check.mjsx` does not); a failed run is one that exits non-zero. Why: POD-agent's only gate is `node scripts/check.mjs`, which matched none of the built-in runners, so its advisor could never fire.

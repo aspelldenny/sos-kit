@@ -2,6 +2,7 @@
 """bite — do the tests of a change catch a wrong version of that change? Agent-neutral CLI.
 
   bite [--base REF] [--head REF] [--test CMD] [--cwd DIR] [--src REGEX] [--tests REGEX] [--mutants N]
+  bite --audit [--head REF] [--test CMD] [--src REGEX] [--tests REGEX] [--mutants N]
 
 Why (Reel, 18/10/2026): 21 of 578 agent-written tests could not catch any bug (copied constants,
 asserting what the test itself set, duplicate proofs); the contract's test rule was words, and the
@@ -16,9 +17,16 @@ and tests in the checkout are never touched; the result is written to evidence/b
      kills is a changed line no test checks (or an equivalent edit; say why). A mutant after which
      no test ran (it broke the build) counts as neither.
 
+  --audit: no change, the tests that already exist. Up to N mutants (default 30) spread over all code
+     lines of --src at HEAD; lists tests that killed none, and tests whose kills another test also made.
+     Why: OpenClaw (10/2026) reported deleting ~400k lines of its own tests with little coverage change; coverage
+     counts lines run, not lines checked. These are candidates for review, not deletions: narrow --src
+     and --test to one module so the sample means something.
+
 Settings, strongest first: flags, `.sos.toml` [bite] (test, cwd, src, tests, mutants), defaults
 (base: the merge base with origin/HEAD, else main; mutants 8). Per-test results are read from
-`python -m unittest -v`, `pytest -v` and XCTest output; with another runner the "before" check sees
+`python -m unittest -v`, `pytest -v`, XCTest, `node --test`, `vitest --reporter=verbose`, `jest --verbose`,
+TAP and `cargo test` output; with another runner the "before" check sees
 only the suite verdict and a mutant counts as killed whenever the run fails.
 Exit 0 measured, 1 not measurable (tests red at HEAD, nothing changed, git error), 2 not configured.
 """
@@ -30,12 +38,13 @@ if os.name == "nt" and not sys.flags.utf8_mode:  # Windows: files, pipes and std
     sys.exit(subprocess.run([sys.executable, *sys.argv]).returncode)
 
 MUTATORS = [
-    (r"==", "!="), (r"!=", "=="), (r"<=", ">"), (r">=", "<"), (r"(?<![<>=!-])<(?![<=])", ">="),
-    (r"(?<![<>=-])>(?![>=])", "<="), (r"\band\b", "or"), (r"\bor\b", "and"), (r"&&", "||"), (r"\|\|", "&&"),
+    (r"===", "!=="), (r"!==", "==="), (r"(?<![!=])==(?!=)", "!="), (r"!=(?!=)", "=="), (r"<=", ">"), (r">=", "<"), (r"(?<=\s)<(?=\s)", ">="),
+    (r"(?<=\s)>(?=\s)", "<="), (r"\band\b", "or"), (r"\bor\b", "and"), (r"&&", "||"), (r"\|\|", "&&"),
     (r"\bTrue\b", "False"), (r"\bFalse\b", "True"), (r"\btrue\b", "false"), (r"\bfalse\b", "true"),
     (r"\bnot ", ""), (r"(?<=\s)\+(?=\s)", "-"), (r"(?<=\s)-(?=\s)", "+"), (r"(?<![\w.])(\d+)(?![\w.])", None),
 ]
-SKIP = re.compile(r"^\s*(#|//|import |from \S+ import|\"\"\"|'''|@|print\(|(?:log|logger|logging|os_log|NSLog)\b[.(])")
+SKIP = re.compile(r"^\s*(#|//|/\*|\*(?:\s|/|$)|import |from \S+ import|use |\"\"\"|'''|@|print\(|"
+                  r"(?:log|logger|logging|os_log|NSLog|console)\b[.(]|(?:e?println|dbg)!)")
 DIFF = ["diff", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/"]
 
 
@@ -63,7 +72,7 @@ def read(p: Path):
 def in_string(line, pos):
     q = None
     for i, c in enumerate(line[:pos]):
-        if c in "\"'" and (i == 0 or line[i - 1] != "\\"):
+        if c in "\"'`" and (i == 0 or line[i - 1] != "\\"):
             q = None if q == c else (c if q is None else q)
     return q is not None
 
@@ -107,7 +116,10 @@ def docstring_lines(text):
 def mutants(lines, limit, root):
     cands = []
     for f, ls in lines.items():
-        text_all = read(root / f)
+        p = root / f
+        if p.is_symlink() or root.resolve() not in p.resolve().parents:
+            continue  # writing it would change a file outside the throwaway worktree
+        text_all = read(p)
         if text_all is None:
             continue
         doc = docstring_lines(text_all)
@@ -130,6 +142,10 @@ def mutants(lines, limit, root):
 
 CLASS = re.compile(r"\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|internal|private|fileprivate|open|final)\s+)*class\s+(\w+)")
 TEST_FN = re.compile(r"\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:(?:public|internal|override|final)\s+)*(?:async\s+)?(?:def|func)\s+(test\w*)")
+# node:test / vitest / jest: it('title', …) or test("title", …); Rust: fn after #[test] or #[tokio::test].
+JS_TEST = re.compile(r"\s*(?:it|test)(?:\.(?:only|skip|todo|concurrent|fails))?\(\s*(['\"`])(.*?)(?<!\\)\1")
+RUST_FN = re.compile(r"\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+(\w+)")
+RUST_TEST = re.compile(r"\s*#\[(?:\w+::)*test\b")
 indent = lambda l: len(l) - len(l.lstrip())
 
 
@@ -143,8 +159,12 @@ def test_names(added, root):
         src = text.split("\n")
         touched = {n for n, _ in ls}
         for i, l in enumerate(src, 1):
-            m = TEST_FN.match(l)
-            if not m:
+            m, key = TEST_FN.match(l), None
+            if not m and (j := JS_TEST.match(l)):
+                key = "." + j.group(2)
+            elif not m and (r := RUST_FN.match(l)) and any(RUST_TEST.match(x) for x in src[max(0, i - 4):i - 1]):
+                key = "." + r.group(1)
+            if not m and not key:
                 continue
             # The test ends at the next non-blank line indented no deeper than its own header.
             end = next((j for j in range(i + 1, len(src) + 1) if src[j - 1].strip() and indent(src[j - 1]) <= indent(l)
@@ -152,6 +172,9 @@ def test_names(added, root):
             while end - 1 > i and not src[end - 2].strip():  # trailing blank lines are not the test
                 end -= 1
             if not touched & set(range(i, end)):
+                continue
+            if key:
+                out.add(key)
                 continue
             cls = ""
             for j in range(i - 2, -1, -1):
@@ -165,13 +188,45 @@ def test_names(added, root):
     return out
 
 
+def leaf_runs(out):
+    """node:test, vitest, jest, TAP and cargo test output -> {title: [passed?, …]}, one entry per run of that title.
+    node prints a failing test again under "failing tests:"; a suite ("▶ name", TAP type 'suite') and a file
+    that did not load ("✖ test/a.test.mjs") are not tests. results() gives no verdict to a title run twice."""
+    out_once = re.split(r"^✖ failing tests:$", out, maxsplit=1, flags=re.M)[0]
+    suites = set(re.findall(r"^\s*▶ (.+)$", out_once, re.M))
+    named = []  # (title, passed)
+    for m in re.finditer(r"^(\s*)([✓✔√]|[×✕✖]) (.+?)(?: \(?\d+(?:\.\d+)? ?m?s\)?)?[ \t]*$", out_once, re.M):
+        if m.group(3) not in suites:
+            named.append((m.group(3).split(" > ")[-1], m.group(2) in "✓✔√"))
+    for m in re.finditer(r"^(\s*)(not ok|ok) \d+ - (.+?)(\s+#\s*(?:SKIP|TODO)\b.*)?\n((?:\1 +.*\n)*)", out + "\n", re.M):
+        if not m.group(4) and "type: 'suite'" not in m.group(5):
+            named.append((m.group(3), m.group(2) == "ok"))
+    for m in re.finditer(r"^test (\S+) \.\.\. (ok|FAILED)$", out, re.M):
+        named.append((m.group(1).split("::")[-1], m.group(2) == "ok"))
+    seen = {}
+    for title, ok in named:
+        if not re.fullmatch(r"(?:\S+|.*/.*|.*\.(?:test|spec))\.[cm]?[jt]sx?", title):  # else a file that did not load
+            seen.setdefault(title, []).append(ok)
+    return seen
+
+
+def has_verdicts(out):
+    return bool(results(out)) or bool(leaf_runs(out))
+
+
+def any_failed(out):
+    """Did some test fail (a kill), as opposed to a red run in which no test failed (a broken build)?"""
+    return False in results(out).values() or any(False in oks for oks in leaf_runs(out).values())
+
+
 def _cls(group, name):
     parts = group.split(".")
     return parts[-2] if parts[-1] == name and len(parts) > 1 else parts[-1]
 
 
 def results(out):
-    """unittest -v / pytest -v / XCTest lines -> {Class.test: passed?}"""
+    """unittest -v / pytest -v / XCTest lines -> {Class.test: passed?}; node:test, vitest, jest, TAP and
+    cargo test lines -> {.title: passed?} (a title seen twice passes only if it passed every time)."""
     r = {}
     # unittest: "test_x (mod.Class.test_x) ... ok" (3.11+) or "(mod.Class)"; a docstring puts a line between.
     for m in re.finditer(r"^(test\w+) \(([^)]*)\)(?:\n[^\n]*?)? \.\.\. (ok|FAIL|ERROR|skipped|expected failure)", out, re.M):
@@ -185,6 +240,7 @@ def results(out):
     # XCTest: "Test Case '-[Mod.Class testA]' passed", "Test case '-[Mod.Class testA()]' passed on …", Linux "'Class.testA'"
     for m in re.finditer(r"Test [Cc]ase '-?\[?(?:\w+\.)?(\w+)[ .](test\w*)(?:\(\))?\]?' (passed|failed)", out):
         r[f"{m.group(1)}.{m.group(2)}"] = m.group(3) == "passed"
+    r.update({"." + t: oks[0] for t, oks in leaf_runs(out).items() if len(oks) == 1})
     return r
 
 
@@ -210,6 +266,27 @@ def settings(root: Path) -> dict:
     return s
 
 
+CACHES = {".cache", ".vite", ".vitest", ".vite-temp", ".tmp"}
+
+
+def link_deps(root: Path, wt: Path, cwd: str):
+    """Installed dependencies are not in git. The worktree gets its own node_modules folder whose entries
+    link to the checkout's (or the main checkout's, when this one is a worktree without them); the runners'
+    cache folders stay real folders in the worktree, so a run does not write into the checkout's."""
+    main = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=root).strip()).parent
+    for d in {Path("node_modules"), Path(cwd) / "node_modules"}:
+        src = next((r / d for r in (root, main) if (r / d).is_dir()), None)
+        if not src or (wt / d).exists():
+            continue
+        try:
+            (wt / d).mkdir(parents=True)
+            for e in src.iterdir():
+                if e.name not in CACHES:
+                    (wt / d / e.name).symlink_to(e, target_is_directory=e.is_dir())
+        except OSError:
+            pass  # Windows without symlink rights: the test command fails and says why
+
+
 def default_base(root: Path) -> str:
     for ref in ("origin/HEAD", "origin/main", "main", "master"):
         r = subprocess.run(["git", "merge-base", "HEAD", ref], cwd=root, capture_output=True, text=True)
@@ -229,13 +306,14 @@ def measure(root: Path, base: str, head: str, s: dict) -> dict:
     wt = Path(tempfile.mkdtemp(prefix="sos-bite-"))
     git("worktree", "add", "-q", "--detach", str(wt), head, cwd=root)
     try:
+        link_deps(root, wt, s["cwd"])
         run = wt / s["cwd"]
         rc, head_out, secs = sh(s["test"], run)
         rep["suite_seconds"] = round(secs, 1)
         if rc != 0:
             rep["error"] = "tests are red at HEAD: " + head_out.strip()[-600:]
             return rep
-        per_test = bool(results(head_out))
+        per_test = has_verdicts(head_out)
         changed = git(*DIFF, "--name-only", "-z", f"{base}..{head}", cwd=root).split("\0")
         src = [f for f in changed if f and re.search(s["src"], f) and not re.search(s["tests"], f)]
         tadded = {f: ls for f, ls in added_lines(root, base, head, s["tests"]).items() if (wt / f).is_file()}
@@ -268,12 +346,67 @@ def measure(root: Path, base: str, head: str, s: dict) -> dict:
             p.write_bytes("\n".join(lines).encode("utf-8"))
             rc, out, secs = sh(s["test"], run)
             p.write_bytes(orig)
-            # A failed run with no test verdict at all did not reach the tests (the mutant broke the build).
-            ran = rc == 0 or not per_test or bool(results(out))
+            # With per-test verdicts a kill is a test that failed; a red run without one did not reach the
+            # tests (the mutant broke the build, or a test file no longer loads).
+            ran = rc == 0 or not per_test or any_failed(out)
             i = next((j for j, (x, y) in enumerate(zip(old, new)) if x != y), 0)
             rep["mutants"].append({"at": f"{f}:{n}", "from": old[max(0, i - 40):i + 40].strip(),
                                    "to": new[max(0, i - 40):i + 40].strip(), "killed": ran and rc != 0,
                                    "no_tests_ran": not ran, "seconds": round(secs, 1)})
+        return rep
+    finally:
+        subprocess.run(["git", "worktree", "remove", "--force", str(wt)], cwd=root, capture_output=True)
+
+
+def audit(root: Path, head: str, s: dict) -> dict:
+    """Which existing tests kill no mutant, or only mutants another test also kills? Candidates for removal."""
+    head = git("rev-parse", head, cwd=root).strip()
+    rep = {"head": head[:10], "test": s["test"], "audit": True}
+    subprocess.run(["git", "worktree", "prune"], cwd=root, capture_output=True)
+    wt = Path(tempfile.mkdtemp(prefix="sos-bite-"))
+    git("worktree", "add", "-q", "--detach", str(wt), head, cwd=root)
+    try:
+        link_deps(root, wt, s["cwd"])
+        run = wt / s["cwd"]
+        rc, out, secs = sh(s["test"], run)
+        rep["suite_seconds"] = round(secs, 1)
+        if rc != 0:
+            rep["error"] = "tests are red at HEAD: " + out.strip()[-600:]
+            return rep
+        green = sorted(t for t, ok in results(out).items() if ok)
+        if not has_verdicts(out):
+            rep["error"] = "no per-test verdicts in the test output: the audit needs one of the runners listed at the top of scripts/bite"
+            return rep
+        files = [f for f in git("ls-files", "-z", cwd=wt).split("\0")
+                 if f and re.search(s["src"], f) and not re.search(s["tests"], f)]
+        lines = {}
+        for f in files:
+            text = read(wt / f)
+            if text is not None:
+                lines[f] = [(n, l.rstrip("\r")) for n, l in enumerate(text.split("\n"), 1)]
+        kills, rep["mutants"] = {t: [] for t in green}, []
+        for f, n, old, new in mutants(lines, int(s["mutants"]), wt):
+            p = wt / f
+            orig = p.read_bytes()
+            ls = orig.decode("utf-8").split("\n")
+            ls[n - 1] = new + ("\r" if ls[n - 1].endswith("\r") else "")
+            p.write_bytes("\n".join(ls).encode("utf-8"))
+            rc, out, secs = sh(s["test"], run)
+            p.write_bytes(orig)
+            res = results(out)
+            by = [t for t in green if res.get(t) is False]
+            i = next((j for j, (x, y) in enumerate(zip(old, new)) if x != y), 0)
+            killed = rc != 0 and any_failed(out)
+            rep["mutants"].append({"at": f"{f}:{n}", "to": new[max(0, i - 40):i + 40].strip(), "killed_by": by,
+                                   "killed": killed, "no_tests_ran": rc != 0 and not killed, "seconds": round(secs, 1)})
+            for t in by:
+                kills[t].append(f"{f}:{n}")
+        rep["kills"] = kills
+        rep["killed_nothing"] = [t for t in green if not kills[t]]
+        # A test whose kills are all killed by one other test adds no proof on this sample.
+        rep["covered_by"] = {t: o for t in green if kills[t] for o in green
+                             if o != t and set(kills[t]) <= set(kills[o])
+                             and (set(kills[t]) < set(kills[o]) or o < t)}
         return rep
     finally:
         subprocess.run(["git", "worktree", "remove", "--force", str(wt)], cwd=root, capture_output=True)
@@ -284,6 +417,7 @@ def main() -> int:
     for k in ("base", "head", "test", "cwd", "src", "tests"):
         ap.add_argument(f"--{k}")
     ap.add_argument("--mutants", type=int)
+    ap.add_argument("--audit", action="store_true", help="mutate all of --src at HEAD and list tests that add no kill")
     a = ap.parse_args()
     try:
         root = Path(git("rev-parse", "--show-toplevel", cwd=Path.cwd()).strip())
@@ -304,9 +438,10 @@ def main() -> int:
     # SIGTERM/SIGHUP (an agent's timeout, a closed terminal) must still remove the worktree.
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, lambda *_: sys.exit(130))
-    base = a.base or default_base(root)
+    if a.audit and a.mutants is None:
+        s["mutants"] = max(int(s["mutants"]), 30)
     try:
-        rep = measure(root, base, a.head or "HEAD", s)
+        rep = audit(root, a.head or "HEAD", s) if a.audit else measure(root, a.base or default_base(root), a.head or "HEAD", s)
     except subprocess.CalledProcessError as e:
         print(f"bite: git failed: {' '.join(e.cmd)}: {(e.stderr or '').strip()[:300]}", file=sys.stderr)
         return 1
@@ -316,6 +451,22 @@ def main() -> int:
     if "error" in rep:
         print(f"bite: not measured, {rep['error']}", file=sys.stderr)
         return 1
+    if a.audit:
+        ms = [m for m in rep["mutants"] if not m["no_tests_ran"]]
+        print(f"bite --audit {rep['head']}: {len(rep['kills'])} tests, {sum(m['killed'] for m in ms)}/{len(ms)} "
+              f"mutants killed; {len(rep['killed_nothing'])} tests killed none; {len(rep['covered_by'])} killed only "
+              f"what one other test also killed (listed in the result file) (suite {rep['suite_seconds']} s)")
+        for t in rep["killed_nothing"]:
+            print(f"  killed none: {t}")
+        for m in ms:
+            if not m["killed"]:
+                print(f"  survived: {m['at']}  ->  {m['to']}")
+        for m in rep["mutants"]:
+            if m["no_tests_ran"]:
+                print(f"  not counted (no test failed, build broke?): {m['at']}  {m['to']}")
+        print("  (candidates, not verdicts: a test may guard lines this sample missed or a contract no mutant reaches;"
+              f" full result: {rec.relative_to(root)})")
+        return 0
     ms, b = rep["mutants"], rep["before"]
     counted = [m for m in ms if not m["no_tests_ran"]]
     print(f"bite {rep['base']}..{rep['head']}: {sum(m['killed'] for m in counted)}/{len(counted)} mutants killed; "

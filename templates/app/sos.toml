@@ -35,7 +35,7 @@ tests = []                # your own test commands besides pytest, npm test, car
 [bite]
 # `harness-lite/scripts/bite`: do the tests of a change catch a wrong version of it? Run by Người soát
 # on slices that add or change logic. Empty `test` = not set up. Per-test verdicts need verbose output.
-test = ""                 # e.g. "python3 -m unittest discover -s tests -t . -v", "swift test", "make test"
+test = ""                 # e.g. "python3 -m unittest discover -s tests -t . -v", "swift test", "npx vitest run --reporter=verbose src/lib/", "cargo test -p core"
 cwd = "."                 # where `test` runs
 src = ''                  # regex of source files to mutate, e.g. '^App/Domain/.*\.swift$'
 tests = ''                # regex of test files, e.g. 'Tests/'
