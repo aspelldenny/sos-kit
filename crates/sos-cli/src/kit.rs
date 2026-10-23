@@ -110,8 +110,11 @@ fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
+/// Line endings do not count: git with core.autocrlf=true (Windows) checks the kit's LF files out
+/// as CRLF, which would otherwise read as a local edit of every file.
 fn sha_file(p: &Path) -> Result<Option<String>> {
     match std::fs::read(p) {
+        Ok(b) if b.contains(&b'\r') => Ok(Some(hex(&Sha256::digest(String::from_utf8_lossy(&b).replace("\r\n", "\n").as_bytes())))),
         Ok(b) => Ok(Some(hex(&Sha256::digest(&b)))),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e).with_context(|| format!("reading {}", p.display())),

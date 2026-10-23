@@ -150,6 +150,25 @@ fn update_replaces_unmodified_keeps_edited_and_removes_dropped() {
 }
 
 #[test]
+fn crlf_checkout_is_not_a_local_edit() {
+    // Windows, core.autocrlf=true: git checks the kit's LF files out as CRLF (POD-agent, 23/10/2026).
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let advise = p.join("harness-lite/scripts/advise");
+    std::fs::write(&advise, std::fs::read_to_string(&advise).unwrap().replace('\n', "\r\n")).unwrap();
+    let c = out(&sos(p, &["check"]));
+    assert!(!c.contains("edited locally"), "{c}");
+    let mut u = upstream(p);
+    u["files"].as_object_mut().unwrap().insert("harness-lite/roles/worker.md".into(), sha(b"old worker\n").into());
+    std::fs::write(p.join("harness-lite/UPSTREAM.json"), serde_json::to_string(&u).unwrap()).unwrap();
+    std::fs::write(p.join("harness-lite/roles/worker.md"), "old worker\r\n").unwrap();
+    let o = sos(p, &["update"]);
+    assert!(o.status.success() && !p.join("harness-lite/roles/worker.md.sos-new").exists(), "{}", out(&o));
+    assert_ne!(std::fs::read_to_string(p.join("harness-lite/roles/worker.md")).unwrap(), "old worker\r\n");
+}
+
+#[test]
 fn not_a_repo_or_not_top_level_is_an_error() {
     let d = tempfile::tempdir().unwrap();
     assert_eq!(sos(d.path(), &["install"]).status.code(), Some(2));
