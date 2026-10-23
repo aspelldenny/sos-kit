@@ -90,6 +90,25 @@ printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$T/w
 pl=$(line $C 1 'd["session_id"]="kwin"')  # built first: the here-string would see the stub PATH
 for n in 1 2; do o=$(PATH="$T/win:$PATH" "$PY3" adapters/claude/hook.py post-bash <<<"$pl" 2>&1); done
 grep -q "STUB ADVICE" <<<"$o" && pass=$((pass + 1)) && echo "ok   windows: advice without a working python3" || { fail=$((fail + 1)); echo "FAIL windows: advice without a working python3: ${o:0:300}"; }
+# The project's own test command (.sos.toml [advisor] tests), e.g. POD-agent's `node scripts/check.mjs`.
+printf '[advisor]\ntests = ["node scripts/check.mjs", '"'"'make e2e'"'"']\n\n[state]\nfile = "x"\n' > .sos.toml
+own() { line $C 1 "d[\"session_id\"]=\"$1\"; d[\"tool_input\"][\"command\"]=\"$2\"; d[\"tool_response\"][\"stdout\"]=\"⛔ check đỏ (1 lỗi)\"; d[\"hook_event_name\"]=\"PostToolUseFailure\"; d[\"error\"]=\"Exit code 1\""; }
+check "own: 'node scripts/check.mjs' fail #1"    0 -           claude post-bash <<<"$(own o1 'node scripts/check.mjs')"
+check "own: fail #2 (with a flag) -> advice"     0 "STUB ADVICE" claude post-bash <<<"$(own o1 'node scripts/check.mjs --full')"
+check "own: 'node scripts/check.mjsx' not a run" 0 -           claude post-bash <<<"$(own o2 'node scripts/check.mjsx')"
+check "own: second fail of it still not a run"   0 -           claude post-bash <<<"$(own o2 'node scripts/check.mjsx')"
+for c in 'make e2e' 'cd web && make e2e'; do o=$(python3 -c '
+import runpy, sys
+sys.modules["tomllib"] = None  # Python < 3.11: no tomllib, the [advisor] table is read by hand
+sys.argv = ["test-watch.py", "--key", "o3", "--cmd", sys.argv[1], "--exit", "1", "--agent", "claude"]
+runpy.run_path("scripts/test-watch.py", run_name="__main__")' "$c" <<<"FAILED" 2>&1); done
+grep -q "STUB ADVICE" <<<"$o" && pass=$((pass + 1)) && echo "ok   own: read without tomllib" || { fail=$((fail + 1)); echo "FAIL own: read without tomllib: ${o:0:300}"; }
+check "own: a passing run resets the streak #1"  0 -   claude post-bash <<<"$(own o4 'node scripts/check.mjs')"
+check "own: passing run"                        0 -   claude post-bash <<<"$(line $C 1 'd["session_id"]="o4"; d["tool_input"]["command"]="node scripts/check.mjs"; d["tool_response"]["stdout"]="✅ check xanh"')"
+check "own: after the reset, fail #1 silent"    0 -   claude post-bash <<<"$(own o4 'node scripts/check.mjs')"
+o=$(python3 "$KIT/tests/adapters/test_watch_units.py" "$KIT/scripts/test-watch.py" 2>&1)
+[ "$o" = ok ] && pass=$((pass + 1)) && echo "ok   test-watch units: TOML reader, own-command match" || { fail=$((fail + 1)); echo "FAIL test-watch units: $o"; }
+rm .sos.toml
 check "claude: k6 pytest fail #1"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
 check "claude: k6 other suite passes, no reset" 0 -         claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"; d["tool_input"]["command"]="cargo test"; d["tool_response"]["stdout"]="test result: ok. 3 passed"')"
 check "claude: k6 pytest fail #2 -> advice"    0 "agent=claude" claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
@@ -105,6 +124,9 @@ else fail=$((fail + 1)); echo "FAIL claude: no desktop notification: $(cat "$T/n
 rm -f "$T/notified"
 STUB_DOWN=1 check "claude: still down -> quiet period"   0 -   claude post-bash <<<"$(line $C 1 "$K9")"
 [ ! -e "$T/notified" ]; r=$?; if [ $r = 0 ]; then pass=$((pass + 1)); echo "ok   claude: one notification per quiet period"; else fail=$((fail + 1)); echo "FAIL claude: notified again"; fi
+rm -rf .advise-state/unavailable
+check "claude: kn fail #1 silent" 0 - claude post-bash <<<"$(line $C 1 'd["session_id"]="kn"')"
+SOS_NOTIFY_CMD='broken "quote' STUB_DOWN=1 check "claude: a bad notify command still tells the worker" 0 "do not leave it for the end" claude post-bash <<<"$(line $C 1 'd["session_id"]="kn"')"
 ADVISE_UNAVAILABLE_QUIET=0 check "claude: login fixed -> advice at once" 0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 "$K9")"
 check "claude: k9 fail silent"                 0 -          claude post-bash <<<"$(line $C 1 "$K9")"
 check "claude: k9 2nd advice (down call not counted)" 0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 "$K9")"
