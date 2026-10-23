@@ -157,8 +157,10 @@ fn crlf_checkout_is_not_a_local_edit() {
     assert!(sos(p, &["install"]).status.success());
     let advise = p.join("harness-lite/scripts/advise");
     std::fs::write(&advise, std::fs::read_to_string(&advise).unwrap().replace('\n', "\r\n")).unwrap();
+    let worker = p.join(".claude/agents/worker.md");
+    std::fs::write(&worker, std::fs::read_to_string(&worker).unwrap().replace('\n', "\r\n")).unwrap();
     let c = out(&sos(p, &["check"]));
-    assert!(!c.contains("edited locally"), "{c}");
+    assert!(!c.contains("edited locally") && !c.contains("worker.md sets no"), "{c}");
     let mut u = upstream(p);
     u["files"].as_object_mut().unwrap().insert("harness-lite/roles/worker.md".into(), sha(b"old worker\n").into());
     std::fs::write(p.join("harness-lite/UPSTREAM.json"), serde_json::to_string(&u).unwrap()).unwrap();

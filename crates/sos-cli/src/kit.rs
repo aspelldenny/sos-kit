@@ -722,6 +722,7 @@ pub fn check(dir: &Path) -> Result<i32> {
             }
             continue;
         };
+        let src = src.replace("\r\n", "\n"); // CRLF checkout (Windows)
         let front = src.strip_prefix("---\n").and_then(|r| r.split("\n---").next()).unwrap_or("");
         let get = |k: &str| front.lines().find_map(|l| l.trim().strip_prefix(&format!("{k}:")).map(|v| v.trim().trim_matches('"').to_string()));
         let missing: Vec<&str> = ["model", "effort"].into_iter().filter(|k| get(k).is_none()).collect();
