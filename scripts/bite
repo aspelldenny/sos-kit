@@ -22,7 +22,7 @@ Settings, strongest first: flags, `.sos.toml` [bite] (test, cwd, src, tests, mut
 only the suite verdict and a mutant counts as killed whenever the run fails.
 Exit 0 measured, 1 not measurable (tests red at HEAD, nothing changed, git error), 2 not configured.
 """
-import argparse, json, os, re, signal, subprocess, sys, tempfile, time
+import argparse, json, os, re, shutil, signal, subprocess, sys, tempfile, time
 from pathlib import Path
 
 if os.name == "nt" and not sys.flags.utf8_mode:  # Windows: files, pipes and stdout in UTF-8, not cp1252
@@ -39,10 +39,22 @@ SKIP = re.compile(r"^\s*(#|//|import |from \S+ import|\"\"\"|'''|@|print\(|(?:lo
 DIFF = ["diff", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/"]
 
 
+def bash():
+    """Windows: Git's own bash, so a test command reads the same as on macOS/Linux (`./run.sh`,
+    `A=1 make test`); shell=True there is cmd.exe. A bare "bash" may be WSL's System32/bash.exe."""
+    core = subprocess.run(["git", "--exec-path"], capture_output=True, text=True).stdout.strip()
+    for rel in ("../../../bin/bash.exe", "../../../usr/bin/bash.exe"):  # <Git>/mingw64/libexec/git-core
+        p = os.path.normpath(os.path.join(core, rel))
+        if core and os.path.isfile(p):
+            return p
+    return shutil.which("bash") or "bash"
+
+
 def sh(cmd, cwd, timeout=900):
     t = time.time()
     try:
-        r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, errors="replace", timeout=timeout)
+        argv = [bash(), "-c", cmd] if os.name == "nt" else cmd
+        r = subprocess.run(argv, shell=os.name != "nt", cwd=cwd, capture_output=True, text=True, errors="replace", timeout=timeout)
         return r.returncode, r.stdout + r.stderr, time.time() - t
     except subprocess.TimeoutExpired:
         return 124, "timeout", time.time() - t
@@ -302,8 +314,10 @@ def main() -> int:
               file=sys.stderr)
         return 2
     # SIGTERM/SIGHUP (an agent's timeout, a closed terminal) must still remove the worktree.
-    for sig in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(sig, lambda *_: sys.exit(130))
+    # Windows has no SIGHUP (bite died on it, POD-agent 23/10/2026); a closed console sends SIGBREAK.
+    for name in ("SIGTERM", "SIGHUP", "SIGBREAK"):
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), lambda *_: sys.exit(130))
     base = a.base or default_base(root)
     try:
         rep = measure(root, base, a.head or "HEAD", s)

@@ -161,6 +161,9 @@ fn crlf_checkout_is_not_a_local_edit() {
     std::fs::write(&worker, std::fs::read_to_string(&worker).unwrap().replace('\n', "\r\n")).unwrap();
     let c = out(&sos(p, &["check"]));
     assert!(!c.contains("edited locally") && !c.contains("worker.md sets no"), "{c}");
+    // But a CRLF script does not run under bash: check says so and update writes it back as LF.
+    assert!(c.contains("harness-lite/scripts/advise has CRLF line endings"), "{c}");
+    assert!(std::fs::read_to_string(p.join("harness-lite/.gitattributes")).unwrap().contains("eol=lf"));
     let mut u = upstream(p);
     u["files"].as_object_mut().unwrap().insert("harness-lite/roles/worker.md".into(), sha(b"old worker\n").into());
     std::fs::write(p.join("harness-lite/UPSTREAM.json"), serde_json::to_string(&u).unwrap()).unwrap();
@@ -168,6 +171,8 @@ fn crlf_checkout_is_not_a_local_edit() {
     let o = sos(p, &["update"]);
     assert!(o.status.success() && !p.join("harness-lite/roles/worker.md.sos-new").exists(), "{}", out(&o));
     assert_ne!(std::fs::read_to_string(p.join("harness-lite/roles/worker.md")).unwrap(), "old worker\r\n");
+    assert!(!std::fs::read(&advise).unwrap().contains(&b'\r'), "update rewrote the CRLF script as LF");
+    assert!(!out(&sos(p, &["check"])).contains("CRLF"));
 }
 
 #[test]
@@ -238,7 +243,8 @@ fn global_hooks_path_counts_as_in_use() {
     let o = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(p).arg("install")
         .env("HOME", home.path()).env("XDG_CONFIG_HOME", home.path()).env("GIT_CONFIG_NOSYSTEM", "1").output().unwrap();
     assert!(o.status.success(), "{}", out(&o));
-    assert!(out(&o).contains("stays /custom/hooks"), "{}", out(&o));
+    // Git for Windows reads `/custom/hooks` under its install dir: the message names git's own answer.
+    assert!(out(&o).contains("/custom/hooks (set by you)") && !out(&o).contains(r"\\?\"), "{}", out(&o));
     let local = Command::new("git").current_dir(p).args(["config", "--local", "--get", "core.hooksPath"]).output().unwrap();
     assert!(!local.status.success(), "no local override written");
 }
@@ -420,6 +426,57 @@ fn install_writes_the_hook_interpreter_and_check_runs_it() {
     // `sos check` runs the interpreter the hooks name, whatever the environment says now.
     let c = out(&sos(p, &["check"]));
     assert!(c.contains(&format!("{py} not found on PATH, or it does not run")), "{c}");
+}
+
+#[cfg(windows)]
+#[test]
+fn codex_hooks_on_windows_run_from_cmd_and_powershell() {
+    // Which shell Codex starts hooks with on Windows is not documented; the command must work in each.
+    // Under a non-ASCII folder with Python's UTF-8 mode off: git's UTF-8 output must not crash it (review 23/10/2026).
+    let d = tempfile::tempdir().unwrap();
+    let p = &d.path().join("Ápp");
+    std::fs::create_dir(p).unwrap();
+    git(p, &["init", "-q"]);
+    let o = sos(p, &["install"]);
+    assert!(o.status.success(), "{}", out(&o));
+    let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(p.join(".codex/hooks.json")).unwrap()).unwrap();
+    let cmd = v["hooks"]["PreToolUse"][0]["hooks"][0]["command"].as_str().unwrap().to_string();
+    assert!(cmd.starts_with("python -c ") && !cmd.contains('$'), "{cmd}");
+    std::fs::create_dir_all(p.join("sub")).unwrap();
+    let patch = |file: &str| format!(r#"{{"tool_name":"apply_patch","tool_input":{{"command":"*** Begin Patch\n*** Add File: {file}\n+x\n*** End Patch"}}}}"#);
+    let run = |shell: &[&str], dir: &Path, input: String| {
+        use std::io::Write;
+        use std::os::windows::process::CommandExt;
+        let mut c = Command::new(shell[0]);
+        c.args(&shell[1..]);
+        // cmd reads its command line as is; PowerShell parses argv, which undoes Rust's quoting.
+        if shell[0] == "cmd" { c.raw_arg(&cmd) } else { c.arg(&cmd) };
+        c.current_dir(dir).env_remove("PYTHONUTF8").env_remove("PYTHONIOENCODING")
+            .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+        let mut child = c.spawn().unwrap();
+        child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();
+        child.wait_with_output().unwrap()
+    };
+    let outside = tempfile::tempdir().unwrap();
+    // A block is deny JSON with exit 0: `powershell -Command` turns exit 2 into 1, which does not block.
+    let denied = |o: &Output| o.status.code() == Some(0)
+        && String::from_utf8_lossy(&o.stdout).contains(r#""permissionDecision": "deny""#);
+    for shell in [&["cmd", "/d", "/c"][..], &["powershell", "-NoProfile", "-Command"][..]] {
+        let o = run(shell, &p.join("sub"), patch(".env"));
+        assert!(denied(&o) && out(&o).contains("must not edit real .env"), "{shell:?} .env: {:?} {}", o.status, out(&o));
+        let o = run(shell, &p.join("sub"), patch("notes.md"));
+        assert!(o.status.code() == Some(0) && !out(&o).contains("deny"), "{shell:?} notes.md: {}", out(&o));
+        let o = run(shell, outside.path(), patch(".env"));
+        assert!(denied(&o) && out(&o).contains("not inside a git repository"), "{shell:?} outside a repo: {:?} {}", o.status, out(&o));
+    }
+    // An adapter that crashes at import (UTF-8 child included) still blocks.
+    let adapter = p.join("harness-lite/adapters/codex/hook.py");
+    let good = std::fs::read_to_string(&adapter).unwrap();
+    std::fs::write(&adapter, format!("raise RuntimeError('boom')\n{good}")).unwrap();
+    for shell in [&["cmd", "/d", "/c"][..], &["powershell", "-NoProfile", "-Command"][..]] {
+        let o = run(shell, &p.join("sub"), patch("notes.md"));
+        assert!(denied(&o) && out(&o).contains("exited 1"), "{shell:?} crashing adapter: {:?} {}", o.status, out(&o));
+    }
 }
 
 #[test]

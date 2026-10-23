@@ -65,4 +65,4 @@ Anything else lives in the code and the changelog. `sos check` and the session-s
 
 ## Limits
 
-Role behavior is guidance, not enforcement; gates and runtime permissions are the boundary. Agent hooks do not see shell writes, and Codex runs no hooks inside custom-role subagents (`openai/codex#21753`); the git gates cover both. History of this harness: SOS Kit `docs/research/` (pilot 2026-10-05, survey 2026-10-08).
+Codex runs `.codex/hooks.json` only once you trust it (`codex` → `/hooks`); `sos check` cannot see that. Role behavior is guidance, not enforcement; gates and runtime permissions are the boundary. Agent hooks do not see shell writes, and Codex runs no hooks inside custom-role subagents (`openai/codex#21753`); the git gates cover both. History of this harness: SOS Kit `docs/research/` (pilot 2026-10-05, survey 2026-10-08).

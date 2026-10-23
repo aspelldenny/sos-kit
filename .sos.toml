@@ -4,3 +4,15 @@ files = ["docs/BACKLOG.md", "CHANGELOG.md"]
 
 [git]
 protect_default_branch = true
+
+# Người soát from the other model family: `sos role reviewer --from <builder> --brief <file>`.
+[roles.reviewer.claude]   # Claude built it: Codex reviews
+backend = "codex"
+model = "gpt-6-astra"
+effort = "high"
+sandbox = "read-only"
+
+[roles.reviewer.codex]    # Codex built it: Claude reviews
+backend = "claude"
+model = "opus"
+effort = "high"

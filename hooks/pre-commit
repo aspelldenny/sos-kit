@@ -45,8 +45,10 @@ gate "2/4 trust gate" "review the auto-exec diff shown above; if it is intended,
 gate "3/4 sos gates" "follow the → How to fix lines above; config lives in .sos.toml" \
     cargo run --quiet -p sos-cli -- gate all
 
+# Windows: `python3` is often the Store alias that only fails.
+PY=python3; "$PY" -c '' >/dev/null 2>&1 || PY=python
 gate "4/4 docs match the repo" "fix the path or command named above (or move the doc to archive/ if it is history)" \
-    python3 tests/docs-check.py target/debug/sos
+    "$PY" tests/docs-check.py target/debug/sos
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then

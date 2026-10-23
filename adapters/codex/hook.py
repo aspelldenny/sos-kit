@@ -3,7 +3,8 @@
 tools, and their results back into Codex hook output. No policy lives here.
 
   hook.py session-start   SessionStart                   -> scripts/status.sh
-  hook.py pre-edit        PreToolUse apply_patch          -> scripts/env-guard.sh (exit 2 blocks)
+  hook.py pre-edit        PreToolUse apply_patch          -> scripts/env-guard.sh (block(): exit 2,
+                                                             Windows: deny JSON, exit 0)
   hook.py post-bash       PostToolUse Bash                -> scripts/test-watch.py (additionalContext)
 
 Payload shape (Codex 0.162, captured live 2026-10-09, tests/adapters/fixtures/codex-*.jsonl):
@@ -13,7 +14,7 @@ Bash tool_response is the output string; no exit code and no PostToolUseFailure.
 Known gap: Codex does not run hooks inside custom-role subagents (openai/codex#21753);
 the git pre-commit is the backstop.
 """
-import json, os, re, subprocess, sys
+import json, os, re, shutil, subprocess, sys
 from pathlib import Path
 
 if os.name == "nt" and not sys.flags.utf8_mode:  # Windows: files, pipes and stdout in UTF-8, not cp1252
@@ -25,7 +26,10 @@ os.environ.setdefault("SOS_PYTHON", sys.executable)  # for status.sh
 # vendored harness-lite/. The project root is the git top level of the session.
 KIT = Path(__file__).resolve().parents[2]
 SCRIPTS = KIT / "scripts"
-_top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+try:  # no git on PATH must not crash the hook: a crash (exit 1) does not block an edit
+    _top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+except OSError:
+    _top = subprocess.CompletedProcess([], 1, "", "")
 ROOT = Path(_top.stdout.strip()) if _top.returncode == 0 else KIT
 def patch_paths(patch: str) -> list:
     """Every path named on any '*** <header>: <path>' line. Deliberately broader than the V4A
@@ -43,6 +47,44 @@ def patch_paths(patch: str) -> list:
     return out
 
 
+def bash():
+    """bash for scripts/*.sh. Windows: Git's own bash. A bare "bash" there is WSL's System32/bash.exe
+    (CreateProcess looks in System32 before PATH) or missing when PATH has only Git/cmd, as from
+    cmd or PowerShell (23/10/2026: the .env guard then crashed, which does not block)."""
+    if os.name != "nt":
+        return "bash"
+    core = subprocess.run(["git", "--exec-path"], capture_output=True, text=True).stdout.strip()
+    for rel in ("../../../bin/bash.exe", "../../../usr/bin/bash.exe"):  # <Git>/mingw64/libexec/git-core
+        p = os.path.normpath(os.path.join(core, rel))
+        if core and os.path.isfile(p):
+            return p
+    return shutil.which("bash") or "bash"
+
+
+def run_script(name, *args, **kw):
+    try:
+        return subprocess.run([bash(), str(SCRIPTS / name), *args], capture_output=True, text=True, **kw)
+    except OSError as e:
+        return subprocess.CompletedProcess([name], 127, "", f"BLOCKED: cannot run {name} ({e}); install Git for Windows (Git Bash).\n")
+
+
+def block(msg):
+    """Refuse the edit. Codex blocks on exit 2 with the reason on stderr. On Windows the hook may run
+    under `powershell -Command`, which turns any nonzero exit into 1, and exit 1 does not block
+    (23/10/2026); there it answers with PreToolUse permissionDecision "deny" and exit 0 instead."""
+    msg = msg.strip()
+    if os.name == "nt":
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                                 "permissionDecisionReason": msg}}), flush=True)
+        try:  # the reason is in the JSON; a broken stderr must not turn the block into a crash
+            print(msg, file=sys.stderr)
+        except Exception:
+            pass
+        sys.exit(0)
+    print(msg, file=sys.stderr)
+    sys.exit(2)
+
+
 def payload():
     try:
         return json.load(sys.stdin)
@@ -55,7 +97,7 @@ def context(event, text):
 
 
 def session_start():
-    r = subprocess.run(["bash", str(SCRIPTS / "status.sh")], cwd=ROOT, capture_output=True, text=True)
+    r = run_script("status.sh", cwd=ROOT)
     if r.stdout.strip():
         context("SessionStart", r.stdout.strip())
 
@@ -63,20 +105,17 @@ def session_start():
 def pre_edit():
     d = payload()
     if d is None:
-        print("BLOCKED: adapters/codex/hook.py could not read the hook payload.", file=sys.stderr)
-        sys.exit(2)
+        block("BLOCKED: adapters/codex/hook.py could not read the hook payload.")
     if d.get("tool_name") != "apply_patch":
         return
     patch = (d.get("tool_input") or {}).get("command", "")
     paths = patch_paths(patch)
     if not paths:  # a patch we cannot parse might touch anything: block rather than guess
-        print("BLOCKED: could not find file paths in this apply_patch; re-issue it as a standard "
-              "'*** Begin Patch' patch.", file=sys.stderr)
-        sys.exit(2)
-    r = subprocess.run(["bash", str(SCRIPTS / "env-guard.sh"), *paths], capture_output=True, text=True)
+        block("BLOCKED: could not find file paths in this apply_patch; re-issue it as a standard "
+              "'*** Begin Patch' patch.")
+    r = run_script("env-guard.sh", *paths)
     if r.returncode != 0:
-        sys.stderr.write(r.stderr)
-        sys.exit(2)
+        block(r.stderr or f"BLOCKED: env-guard.sh failed (exit {r.returncode})")
 
 
 def post_bash():
@@ -96,4 +135,9 @@ def post_bash():
 
 
 if __name__ == "__main__":
-    {"session-start": session_start, "pre-edit": pre_edit, "post-bash": post_bash}[sys.argv[1]]()
+    try:
+        {"session-start": session_start, "pre-edit": pre_edit, "post-bash": post_bash}[sys.argv[1]]()
+    except Exception as e:  # a crash (exit 1) would let the edit through
+        if sys.argv[1:2] != ["pre-edit"]:
+            raise
+        block(f"BLOCKED: adapters/codex/hook.py failed ({type(e).__name__}: {e})")
