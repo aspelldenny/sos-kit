@@ -58,38 +58,40 @@ jobs:
           else
             shasum -a 256 "${BIN}-${{ matrix.target }}${EXT}" > "${BIN}-${{ matrix.target }}${EXT}.sha256"
           fi
-      - uses: softprops/action-gh-release@v3
+      - uses: actions/upload-artifact@v4
         with:
-          draft: true
-          prerelease: ${{ contains(github.ref_name, '-rc') }}
-          files: |
+          name: ${{ env.ASSET }}
+          path: |
             ${{ env.ASSET }}
             ${{ env.ASSET }}.sha256
+          if-no-files-found: error
 
+  # One job creates the release with every asset. v0.3.11: three build jobs each created a draft
+  # (a race), the empty one was published, and releases are immutable, so that tag cannot be reused.
   publish:
     needs: build
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/github-script@v8
+      - uses: actions/download-artifact@v4
         with:
-          script: |
-            const tag = context.ref.replace('refs/tags/', '');
-            const releases = await github.rest.repos.listReleases({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-            const draft = releases.data.find(r => r.tag_name === tag && r.draft);
-            if (!draft) {
-              core.setFailed(`No draft release found for tag ${tag}`);
-              return;
-            }
-            await github.rest.repos.updateRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              release_id: draft.id,
-              draft: false,
-            });
-            console.log(`Published release ${draft.id} for tag ${tag}`);
+          path: dist
+          merge-multiple: true
+      - name: All assets present
+        run: |
+          for t in aarch64-apple-darwin x86_64-unknown-linux-gnu x86_64-pc-windows-msvc.exe; do
+            for f in "dist/sos-$t" "dist/sos-$t.sha256"; do
+              [ -s "$f" ] || { echo "missing $f"; exit 1; }
+            done
+          done
+      # Draft first, published only once every asset is on it: a published release is immutable.
+      - name: Create and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          pre=""; [[ "$TAG" == *-rc* ]] && pre="--prerelease"
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --draft --title "$TAG" $pre
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
 
   # The npm package against the release just published: installed without its install
   # script (npm 12's default), the first `sos` call must fetch and run this version.
