@@ -110,8 +110,11 @@ fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
+/// Line endings do not count: git with core.autocrlf=true (Windows) checks the kit's LF files out
+/// as CRLF, which would otherwise read as a local edit of every file.
 fn sha_file(p: &Path) -> Result<Option<String>> {
     match std::fs::read(p) {
+        Ok(b) if b.contains(&b'\r') => Ok(Some(hex(&Sha256::digest(String::from_utf8_lossy(&b).replace("\r\n", "\n").as_bytes())))),
         Ok(b) => Ok(Some(hex(&Sha256::digest(&b)))),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e).with_context(|| format!("reading {}", p.display())),
@@ -181,6 +184,55 @@ backend = \"claude\"
 model = \"opus\"
 effort = \"high\"
 ", 1)
+}
+
+/// The interpreter the agent hook commands call. On Windows `python3` is usually the Microsoft
+/// Store alias that only prints "Python was not found" (POD-agent, 23/10/2026), so the hooks
+/// silently did nothing; `python` is the real one there. `SOS_PYTHON` overrides.
+fn hook_python() -> String {
+    std::env::var("SOS_PYTHON").ok().filter(|s| !s.is_empty())
+        .unwrap_or_else(|| if cfg!(windows) { "python" } else { "python3" }.into())
+}
+
+/// A path as one bash word (hooks run through bash, Git Bash on Windows): single-quoted unless plain.
+fn shell_word(s: &str) -> Result<String> {
+    if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "_./:-".contains(c)) {
+        return Ok(s.to_string());
+    }
+    if s.contains('\'') {
+        bail!("SOS_PYTHON may not contain a single quote: {s}");
+    }
+    Ok(format!("'{s}'"))
+}
+
+/// The interpreters the installed agent hooks call (first word of each harness-lite adapter command);
+/// the default when no hook file names one.
+fn hook_interpreters(root: &Path) -> Vec<String> {
+    fn commands(v: &serde_json::Value, out: &mut Vec<String>) {
+        match v {
+            serde_json::Value::Object(m) => m.iter().for_each(|(k, v)| match v {
+                serde_json::Value::String(c) if k == "command" && c.contains("harness-lite/adapters/") => out.push(c.clone()),
+                _ => commands(v, out),
+            }),
+            serde_json::Value::Array(a) => a.iter().for_each(|v| commands(v, out)),
+            _ => {}
+        }
+    }
+    let mut cmds = Vec::new();
+    for f in [".claude/settings.json", ".codex/hooks.json"] {
+        if let Some(v) = std::fs::read_to_string(root.join(f)).ok().and_then(|t| serde_json::from_str(&t).ok()) {
+            commands(&v, &mut cmds);
+        }
+    }
+    let mut out: Vec<String> = cmds.iter().filter_map(|c| match c.strip_prefix('\'') {
+        Some(rest) => rest.split('\'').next().map(str::to_string),
+        None => c.split_whitespace().next().map(str::to_string),
+    }).collect();
+    out.dedup();
+    if out.is_empty() {
+        out.push(hook_python());
+    }
+    out
 }
 
 fn git_out(root: &Path, args: &[&str]) -> Option<String> {
@@ -510,6 +562,12 @@ pub fn install(dir: &Path, o: &Opts) -> Result<i32> {
                 let body = cross_family_reviewer(f.body);
                 std::fs::write(safe_path(&root, f.path)?, body).with_context(|| format!("writing {}", f.path))?;
                 say!("  .sos.toml: Người soát runs on the other model family (codex is on PATH): `sos role reviewer --from <builder>`");
+            } else if matches!(f.path, ".claude/settings.json" | ".codex/hooks.json") && hook_python() != "python3" {
+                let word = shell_word(&hook_python())?;
+                let json = serde_json::to_string(&word)?; // "…" with \ and \" escaped
+                let body = f.body.replace("python3 \\\"", &format!("{} \\\"", &json[1..json.len() - 1])); // JSON: python3 \"…
+                std::fs::write(safe_path(&root, f.path)?, body).with_context(|| format!("writing {}", f.path))?;
+                say!("  {}: hooks run {word}", f.path);
             } else {
                 write(&root, f, f.path)?;
             }
@@ -567,8 +625,9 @@ fn finish(root: &Path, notes: &[String], conflicts: usize) -> Result<i32> {
     Ok(if conflicts > 0 { 1 } else { 0 })
 }
 
+/// Runs and succeeds: Windows' Store `python3` alias exists on PATH but only fails.
 fn on_path(bin: &str) -> bool {
-    Command::new(bin).arg("--version").output().is_ok()
+    Command::new(bin).arg("--version").output().is_ok_and(|o| o.status.success())
 }
 
 /// Health of an installed repo. Exit 1 on any error.
@@ -618,9 +677,11 @@ pub fn check(dir: &Path) -> Result<i32> {
             }
         }
     }
-    for (bin, why) in [("gitleaks", "secret gates"), ("python3", "agent adapters and advisor")] {
+    let mut bins = vec![("gitleaks".to_string(), "secret gates")];
+    bins.extend(hook_interpreters(&root).into_iter().map(|p| (p, "agent adapters and advisor")));
+    for (bin, why) in &bins {
         if !on_path(bin) {
-            errors.push(format!("{bin} not found on PATH (needed by {why})"));
+            errors.push(format!("{bin} not found on PATH, or it does not run (needed by {why})"));
         }
     }
     match sos_gates::config::load(&root) {
@@ -661,6 +722,7 @@ pub fn check(dir: &Path) -> Result<i32> {
             }
             continue;
         };
+        let src = src.replace("\r\n", "\n"); // CRLF checkout (Windows)
         let front = src.strip_prefix("---\n").and_then(|r| r.split("\n---").next()).unwrap_or("");
         let get = |k: &str| front.lines().find_map(|l| l.trim().strip_prefix(&format!("{k}:")).map(|v| v.trim().trim_matches('"').to_string()));
         let missing: Vec<&str> = ["model", "effort"].into_iter().filter(|k| get(k).is_none()).collect();

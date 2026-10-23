@@ -7,7 +7,7 @@ use std::process::{Command, Output};
 fn sos(dir: &Path, args: &[&str]) -> Output {
     // A hung run must fail its test by name, not stall the whole suite.
     // Same-family reviewer unless a test asks: the default depends on whether codex is on PATH.
-    let mut child = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args).env("SOS_REVIEWER", "same")
+    let mut child = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args).env("SOS_REVIEWER", "same").env_remove("SOS_PYTHON")
         .stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
     let start = std::time::Instant::now();
     while child.try_wait().unwrap().is_none() {
@@ -147,6 +147,27 @@ fn update_replaces_unmodified_keeps_edited_and_removes_dropped() {
     assert!(p.join("harness-lite/scripts/gone-edited.sh").exists(), "dropped + edited kept");
     let u = upstream(p);
     assert!(u["files"].get("harness-lite/scripts/gone.sh").is_none());
+}
+
+#[test]
+fn crlf_checkout_is_not_a_local_edit() {
+    // Windows, core.autocrlf=true: git checks the kit's LF files out as CRLF (POD-agent, 23/10/2026).
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let advise = p.join("harness-lite/scripts/advise");
+    std::fs::write(&advise, std::fs::read_to_string(&advise).unwrap().replace('\n', "\r\n")).unwrap();
+    let worker = p.join(".claude/agents/worker.md");
+    std::fs::write(&worker, std::fs::read_to_string(&worker).unwrap().replace('\n', "\r\n")).unwrap();
+    let c = out(&sos(p, &["check"]));
+    assert!(!c.contains("edited locally") && !c.contains("worker.md sets no"), "{c}");
+    let mut u = upstream(p);
+    u["files"].as_object_mut().unwrap().insert("harness-lite/roles/worker.md".into(), sha(b"old worker\n").into());
+    std::fs::write(p.join("harness-lite/UPSTREAM.json"), serde_json::to_string(&u).unwrap()).unwrap();
+    std::fs::write(p.join("harness-lite/roles/worker.md"), "old worker\r\n").unwrap();
+    let o = sos(p, &["update"]);
+    assert!(o.status.success() && !p.join("harness-lite/roles/worker.md.sos-new").exists(), "{}", out(&o));
+    assert_ne!(std::fs::read_to_string(p.join("harness-lite/roles/worker.md")).unwrap(), "old worker\r\n");
 }
 
 #[test]
@@ -374,6 +395,31 @@ fn sos_env(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Output {
         c.env(k, v);
     }
     c.output().unwrap()
+}
+
+#[cfg(unix)]
+#[test]
+fn install_writes_the_hook_interpreter_and_check_runs_it() {
+    // Windows: `python3` is the Store alias that exists on PATH but only fails (POD-agent, 23/10/2026).
+    use std::os::unix::fs::PermissionsExt;
+    let d = repo();
+    let p = d.path();
+    std::fs::create_dir(p.join("Store Python")).unwrap();
+    let fake = p.join("Store Python/python");
+    std::fs::write(&fake, "#!/bin/sh\necho 'Python was not found' >&2; exit 49\n").unwrap();
+    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let py = fake.to_str().unwrap();
+    let o = sos_env(p, &["install"], &[("SOS_PYTHON", py)]);
+    assert!(o.status.success(), "{}", out(&o));
+    for (f, rest) in [(".claude/settings.json", " \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py"),
+                      (".codex/hooks.json", " \"$(git rev-parse")] {
+        let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(p.join(f)).unwrap()).unwrap();
+        let text = v.to_string();
+        assert!(text.contains(&format!("'{py}'{}", rest.replace('"', "\\\""))) && !text.contains("python3 "), "{f}: {text}");
+    }
+    // `sos check` runs the interpreter the hooks name, whatever the environment says now.
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains(&format!("{py} not found on PATH, or it does not run")), "{c}");
 }
 
 #[test]

@@ -85,6 +85,11 @@ check "claude: .Env.Local (case) blocked"      2 "BLOCKED"  claude pre-edit <<<"
 check "claude: k5 fail #1 silent"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"')"
 check "claude: quoted ';pytest' not a test"    0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"; d["tool_input"]["command"]="echo \"hello; pytest\" && printf \"a|pytest\""; d["tool_response"]["stdout"]="hello; pytest"')"
 check "claude: k5 fail #2 -> advice"           0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"')"
+PY3=$(command -v python3); mkdir -p "$T/win"
+printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$T/win/python3"; chmod +x "$T/win/python3"
+pl=$(line $C 1 'd["session_id"]="kwin"')  # built first: the here-string would see the stub PATH
+for n in 1 2; do o=$(PATH="$T/win:$PATH" "$PY3" adapters/claude/hook.py post-bash <<<"$pl" 2>&1); done
+grep -q "STUB ADVICE" <<<"$o" && pass=$((pass + 1)) && echo "ok   windows: advice without a working python3" || { fail=$((fail + 1)); echo "FAIL windows: advice without a working python3: ${o:0:300}"; }
 check "claude: k6 pytest fail #1"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
 check "claude: k6 other suite passes, no reset" 0 -         claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"; d["tool_input"]["command"]="cargo test"; d["tool_response"]["stdout"]="test result: ok. 3 passed"')"
 check "claude: k6 pytest fail #2 -> advice"    0 "agent=claude" claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
@@ -200,6 +205,11 @@ expect() { if [ "$2" = 0 ]; then pass=$((pass + 1)); echo "ok   $1"; else fail=$
 o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 python3 "$KIT/scripts/advise" --backend claude "why red?" 2>&1); rc=$?
 [ "$rc" = 3 ] && grep -q "/login" <<<"$o"; expect "advise: lost login -> exit 3 with the fix" $? "rc=$rc $o"
 o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); grep -q "advisor's last call failed" <<<"$o"; expect "status: names the broken advisor" $? "$o"
+# Windows: `python3` on PATH is the Store alias that only fails; the adapter passes its own interpreter.
+PY3=$(command -v python3); mkdir -p "$A/win"
+printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$A/win/python3"; chmod +x "$A/win/python3"
+o=$(cd "$A/repo" && PATH="$A/win:$PATH" CLAUDE_PROJECT_DIR="$A/repo" "$PY3" "$KIT/adapters/claude/hook.py" session-start <<<"{}" 2>&1)
+grep -q "advisor's last call failed" <<<"$o"; expect "windows: session-start status runs without a working python3" $? "$o"
 o=$(cd "$A/repo" && PATH="$A/bin:$PATH" python3 "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
 [ "$rc" = 0 ] && grep -q "answers" <<<"$o"; expect "advise --check: answers after login" $? "rc=$rc $o"
 o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); ! grep -q "advisor" <<<"$o"; expect "status: quiet once the advisor answers" $? "$o"

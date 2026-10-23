@@ -21,6 +21,10 @@ the error and, when known, the fix). Exit 0 advice, 1 failed, 2 off or misconfig
 import json, os, re, shutil, subprocess, sys, time
 from pathlib import Path
 
+if os.name == "nt" and not sys.flags.utf8_mode:  # Windows: files, pipes and stdout in UTF-8, not cp1252
+    os.environ["PYTHONUTF8"] = "1"                  # (Vietnamese status text broke the hook, 23/10/2026)
+    sys.exit(subprocess.run([sys.executable, *sys.argv]).returncode)
+
 DEFAULTS = {"backend": "claude", "model": "", "after": 2, "max": 2, "effort": "", "service_tier": "", "state": "docs/BACKLOG.md"}
 SYSTEM = ("You are a senior engineer advising a coding agent. You see a snapshot of its work; "
           "you do not edit files. Follow the requested answer format exactly.")
