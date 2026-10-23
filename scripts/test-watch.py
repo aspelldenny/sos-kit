@@ -50,20 +50,37 @@ OUTPUT_SUITES = [
 WRAPPER = re.compile(r"^(?:\w+=\S*\s+|(?:timeout|gtimeout)\s+\S+\s+|time\s+|(?:uv|poetry|pipenv) run\s+|bundle exec\s+)*")
 
 
-def segments(cmd: str):
-    """Command segments split on ; && || | outside quotes (shell grammar, not a regex)."""
+def token_segments(cmd: str):
+    """Command segments as word lists, split on ; && || | outside quotes (shell grammar, not a regex)."""
     lex = shlex.shlex(cmd, posix=True, punctuation_chars=";&|")
     lex.whitespace_split = True
     seg = []
     try:
         for tok in lex:
             if tok and set(tok) <= set(";&|"):
-                yield " ".join(seg); seg = []
+                yield seg; seg = []
             else:
                 seg.append(tok)
     except ValueError:  # unbalanced quotes: not something we can classify
         return
-    yield " ".join(seg)
+    yield seg
+
+
+def segments(cmd: str):
+    for seg in token_segments(cmd):
+        yield " ".join(seg)
+
+
+def unwrap(words: list) -> list:
+    """The words after env assignments and wrappers (`CI=1 timeout 60 x` -> `x`), as WRAPPER does."""
+    while words:
+        if re.fullmatch(r"\w+=.*", words[0], re.S) or words[0] == "time":
+            words = words[1:]
+        elif words[0] in ("timeout", "gtimeout") or words[:2] in (["uv", "run"], ["poetry", "run"], ["pipenv", "run"], ["bundle", "exec"]):
+            words = words[2:]
+        else:
+            return words
+    return words
 
 
 def runner(seg: str) -> str:
@@ -86,12 +103,81 @@ def runner(seg: str) -> str:
     return " ".join(head) or words[0]
 
 
-def test_segment(cmd: str):
-    """The streak key of the first test-running segment of the command, or None."""
-    for s in segments(cmd):
-        s = WRAPPER.sub("", s.strip())
+def toml_string_array(text: str, table: str, key: str) -> list:
+    """`key = [ "…", '…' ]` in `[table]`, for Python < 3.11 (no tomllib): strings and comments
+    are read as TOML has them, so `#` or `]` inside a string and strings inside comments are right."""
+    lines = text.splitlines()
+    start = next((i for i, l in enumerate(lines) if re.fullmatch(rf"\s*\[{table}\]\s*(#.*)?", l)), None)
+    if start is None:
+        return []
+    rest = []
+    for l in lines[start + 1:]:
+        if re.match(r"\s*\[", l):
+            break
+        rest.append(l)
+    m = re.search(rf"^\s*{key}\s*=\s*\[", "\n".join(rest), re.M)
+    if not m:
+        return []
+    body, out, i = "\n".join(rest)[m.end():], [], 0
+    while i < len(body):
+        c = body[i]
+        if c == "]":
+            return out
+        if c == "#":
+            nl = body.find("\n", i)
+            i = len(body) if nl < 0 else nl
+            continue
+        if c in "\"'":
+            j, buf = i + 1, []
+            while j < len(body) and body[j] != c:
+                if c == '"' and body[j] == "\\" and j + 1 < len(body):
+                    j += 1
+                buf.append(body[j]); j += 1
+            out.append("".join(buf)); i = j + 1
+            continue
+        i += 1
+    return []  # no closing bracket: not something to guess at
+
+
+def project_tests() -> list:
+    """`.sos.toml` [advisor] tests as word lists: the project's own test commands (POD-agent's
+    `node scripts/check.mjs` never reached the advisor, 23/10/2026). Read here, not through
+    `advise --config`, so a non-test command costs no extra process."""
+    f = next((d / ".sos.toml" for d in (Path.cwd(), *Path.cwd().parents) if (d / ".sos.toml").is_file()), None)
+    if f is None:
+        return []
+    text = f.read_text(errors="replace")
+    try:
+        import tomllib
+        tests = tomllib.loads(text).get("advisor", {}).get("tests", [])
+    except ImportError:
+        tests = toml_string_array(text, "advisor", "tests")
+    except ValueError:
+        return []
+    if not isinstance(tests, list):  # `sos check` reports a wrong type; the hook just ignores it
+        return []
+    out = []
+    for t in tests:
+        try:
+            words = shlex.split(t) if isinstance(t, str) else []
+        except ValueError:
+            words = []
+        if words:
+            out.append(words)
+    return out
+
+
+def test_segment(cmd: str, own=()):
+    """The streak key of the first test-running segment of the command, or None. `own` are
+    the project's test commands (word lists): a segment whose words start with one is a run of it."""
+    for words in token_segments(cmd):
+        s = WRAPPER.sub("", " ".join(words).strip())
         if re.match(TEST_RE, s):
             return runner(" ".join(s.split()))
+        words = unwrap(words)
+        for t in own:
+            if words[:len(t)] == t:
+                return shlex.join(t)
     return None
 
 
@@ -115,22 +201,34 @@ def is_test_command(cmd: str) -> bool:
     return test_segment(cmd) is not None
 
 
+WIN_TOAST = (
+    "$n=[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime];"
+    "$x=$n::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02);"
+    "$t=$x.GetElementsByTagName('text');"
+    "[void]$t.Item(0).AppendChild($x.CreateTextNode($env:SOS_TITLE));"
+    "[void]$t.Item(1).AppendChild($x.CreateTextNode($env:SOS_TEXT));"
+    "$n::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe')"
+    ".Show([Windows.UI.Notifications.ToastNotification]::new($x))")
+
+
 def notify(text: str) -> None:
     """Tell the human directly: an agent may not pass the message on (Chủ nhà, 20/10/2026:
     "có lỗi phải báo, không được im lặng")."""
     if os.environ.get("SOS_NOTIFY") == "off":
         return
     title = "SOS Kit: advisor cannot run"
-    if os.environ.get("SOS_NOTIFY_CMD"):
-        cmd = [*shlex.split(os.environ["SOS_NOTIFY_CMD"]), f"{title}: {text}"]
-    elif sys.platform == "darwin" and shutil.which("osascript"):
-        cmd = ["osascript", "-e", f"display notification {json.dumps(text)} with title {json.dumps(title)} sound name \"Basso\""]
-    elif shutil.which("notify-send"):
-        cmd = ["notify-send", "-u", "critical", title, text]
-    else:
-        return
-    try:
-        subprocess.run(cmd, capture_output=True, timeout=10)
+    try:  # never raise: the message to the worker comes after this
+        if os.environ.get("SOS_NOTIFY_CMD"):
+            cmd = [*shlex.split(os.environ["SOS_NOTIFY_CMD"]), f"{title}: {text}"]
+        elif sys.platform == "darwin" and shutil.which("osascript"):
+            cmd = ["osascript", "-e", f"display notification {json.dumps(text)} with title {json.dumps(title)} sound name \"Basso\""]
+        elif shutil.which("notify-send"):
+            cmd = ["notify-send", "-u", "critical", title, text]
+        elif os.name == "nt" and shutil.which("powershell"):  # Windows toast, shown as from PowerShell
+            cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", WIN_TOAST]
+        else:
+            return
+        subprocess.run(cmd, capture_output=True, timeout=10, env={**os.environ, "SOS_TITLE": title, "SOS_TEXT": text})
     except Exception:
         pass
 
@@ -154,7 +252,7 @@ def main() -> None:
     a = ap.parse_args()
     if os.environ.get("SOS_ADVISOR", "on") == "off":
         return
-    seg = test_segment(a.cmd)
+    seg = test_segment(a.cmd, project_tests())
     output = sys.stdin.read() if not sys.stdin.isatty() else ""
     if seg is None:
         found = suite_from_output(output) if is_script(a.cmd) else None

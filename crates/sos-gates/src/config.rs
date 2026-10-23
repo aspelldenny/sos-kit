@@ -29,6 +29,7 @@
 //! max = 2                          # advice calls per failing streak, then "stop and report"
 //! effort = ""                      # empty: the CLI default
 //! service_tier = ""                # codex only, e.g. "default" (empty: Codex config)
+//! tests = ["node scripts/check.mjs"]  # the project's own test commands, besides the built-in runners
 //!
 //! [bite]                         # read by harness-lite/scripts/bite (do tests catch a wrong change?)
 //! test = "python3 -m unittest discover -s tests -t . -v"   # per-test verdicts need verbose output
@@ -175,11 +176,15 @@ pub struct AdvisorConfig {
     pub effort: String,
     #[serde(default)]
     pub service_tier: String,
+    /// The project's own test commands (prefixes, e.g. "node scripts/check.mjs"), counted like
+    /// the built-in runners. POD-agent's check never reached the advisor (23/10/2026).
+    #[serde(default)]
+    pub tests: Vec<String>,
 }
 
 impl Default for AdvisorConfig {
     fn default() -> Self {
-        Self { backend: advisor_backend(), model: String::new(), after: 2, max: 2, effort: String::new(), service_tier: String::new() }
+        Self { backend: advisor_backend(), model: String::new(), after: 2, max: 2, effort: String::new(), service_tier: String::new(), tests: Vec::new() }
     }
 }
 
@@ -303,6 +308,9 @@ pub fn parse(src: &str) -> Result<Config> {
     if cfg.advisor.after == 0 {
         bail!("[advisor] after must be at least 1");
     }
+    if cfg.advisor.tests.iter().any(|t| t.trim().is_empty()) {
+        bail!("[advisor] tests: an entry is empty (each is the start of a test command, e.g. \"node scripts/check.mjs\")");
+    }
     for (role, entry) in &cfg.roles {
         if !ROLES.contains(&role.as_str()) {
             bail!("[roles.{role}]: unknown role (use {})", ROLES.join(", "));
@@ -401,6 +409,8 @@ mod tests {
         assert_eq!((c.advisor.backend.as_str(), c.advisor.after, c.advisor.max), ("auto", 3, 2));
         assert!(parse("[advisor]\nbackend = \"gpt\"\n").is_err());
         assert!(parse("[advisor]\nafter = 0\n").is_err());
+        assert_eq!(parse("[advisor]\ntests = [\"node scripts/check.mjs\"]\n").unwrap().advisor.tests, ["node scripts/check.mjs"]);
+        assert!(parse("[advisor]\ntests = [\" \"]\n").is_err());
     }
 
     #[test]

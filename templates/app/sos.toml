@@ -30,6 +30,7 @@ model = ""                # empty: opus for claude, the Codex config default for
 effort = ""                # empty: the CLI default
 after = 2
 max = 2
+tests = []                # your own test commands besides pytest, npm test, cargo test …, e.g. ["node scripts/check.mjs"]
 
 [bite]
 # `harness-lite/scripts/bite`: do the tests of a change catch a wrong version of it? Run by Người soát

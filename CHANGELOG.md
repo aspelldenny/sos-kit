@@ -2,6 +2,11 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+- **`.sos.toml` `[advisor] tests`**: the project's own test commands (e.g. `["node scripts/check.mjs"]`), counted by the advisor hook like `pytest` or `cargo test`. A command that starts with one is a run of it (`node scripts/check.mjs --full` counts, `node scripts/check.mjsx` does not); a failed run is one that exits non-zero. Why: POD-agent's only gate is `node scripts/check.mjs`, which matched none of the built-in runners, so its advisor could never fire.
+- **Windows desktop notification** when the advisor cannot run (a PowerShell toast), as on macOS and Linux. Windows had none, so a lost login there went unseen again.
+
 ## v0.3.9 — 2026-10-23
 
 - **Windows (Git for Windows + native Python):** first real install, POD-agent on 23/10/2026. Three faults: `python3` there is the Microsoft Store alias, which exists on PATH but only prints "Python was not found", so every agent hook did nothing; Python decoded the hooks' UTF-8 output as cp1252, so the Vietnamese session-start status crashed the hook; `sos check` accepted the alias because it only checked that the command started. Now the Python scripts rerun themselves in UTF-8 mode on Windows; the adapters call `test-watch.py` and the status script's Python with their own interpreter; `sos install` writes `python` (on Windows) or `$SOS_PYTHON`, quoted for bash, into new `.claude/settings.json` and `.codex/hooks.json`; and `sos check` requires the interpreter those hooks name to run. Kit files and Claude agent wrappers checked out as CRLF (`core.autocrlf=true`) no longer read as local edits or as wrappers without a model. Scripts started by their shebang (`harness-lite/scripts/bite`, `advise`) still look for `python3`: on Windows run them as `python harness-lite/scripts/bite`. No Windows binary yet: `cargo install --git https://github.com/aspelldenny/sos-kit --tag <tag> sos-cli`.
