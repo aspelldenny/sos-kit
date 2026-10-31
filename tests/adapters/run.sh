@@ -253,9 +253,11 @@ check "claude: unbalanced quote run blocked"    2 "BLOCKED"  claude pre-bash <<<
 check "claude: echo/grep of xcodebuild allowed" 0 -          claude pre-bash <<<"$(cb "echo xcodebuild test; rg 'xcodebuild test' AGENTS.md")"
 check "claude: xcodebuild build allowed"        0 -          claude pre-bash <<<"$(cb "xcodebuild build -scheme X -destination 'platform=iOS Simulator,name=A'")"
 touch "$P/busy"
+if [ -z "$WIN" ]; then  # Windows cannot run the fake `ps` script (and has no xcodebuild to guard)
 check "claude: second run while one runs blocked" 2 "already running" claude pre-bash <<<"$(cb "$OK")"
-check "claude: non-test command while busy allowed" 0 -      claude pre-bash <<<"$(cb "git status")"
 check "codex: second run while one runs blocked"  2 "4242"   codex pre-bash <<<"$(xb "$OK")"
+else echo "skip running-test checks (Windows: no exec of the fake ps)"; fi
+check "claude: non-test command while busy allowed" 0 -      claude pre-bash <<<"$(cb "git status")"
 rm "$P/busy"
 check "codex: Bash pre-tool pytest allowed"     0 -          codex pre-bash <<<"$(line $X 2)"
 check "codex: xcodebuild test, no flag blocked" 2 "How to fix" codex pre-bash <<<"$(xb "xcodebuild -scheme X test")"
