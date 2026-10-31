@@ -1,0 +1,282 @@
+#!/usr/bin/env python3
+"""sim-guard — agent-neutral check: may this shell command start an iOS test run?
+
+  scripts/sim-guard --cmd "<shell command>"
+  Exit 0 = allowed. Exit 2 with "BLOCKED:" on stderr = blocked (it says why and how to fix).
+
+An `xcodebuild test` (or `test-without-building`) run must
+  - pass `-parallel-testing-enabled NO`: without it Xcode clones the simulator once per test
+    worker (tap-luyen 29/10 and 31/10/2026: 4 clones, load 490, CPU 98% on the 8 GB Mac);
+  - name at most one `-destination`;
+  - not share a command that sends something to the background (`&`) with another run;
+  - start only when no other `xcodebuild test` is running (two sessions on one machine, 31/10/2026).
+Commands without xcodebuild pass untouched. Called by adapters/<agent>/hook.py before a shell
+command and by scripts/bite before its test runs. The command is read the way the shell reads it
+(quotes, comments, heredocs, line continuations, `sh -c "…"`); a command inside a script file is not seen.
+"""
+import argparse, os, re, subprocess, sys
+
+FIX = "-parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1"
+ACTIONS = {"test", "test-without-building"}
+# xcodebuild options that take no value, so an action word may follow them (`-quiet test`).
+BOOL_OPTS = {"-quiet", "-verbose", "-json", "-allowProvisioningUpdates", "-allowProvisioningDeviceRegistration",
+             "-skipMacroValidation", "-skipPackagePluginValidation", "-showBuildTimingSummary",
+             "-hideShellScriptEnvironment", "-skipUnavailableActions", "-disableAutomaticPackageResolution"}
+OPS = sorted([";;", ";", "&&", "&>>", "&>", "&", "||", "|&", "|", "(", ")", "<<<", "<<-", "<<", "<&", "<>", "<",
+              ">>", ">&", ">|", ">"], key=len, reverse=True)
+SEPARATORS = {";", ";;", "&", "&&", "||", "|", "|&", "(", ")", "\n"}
+PREFIX = {"{", "}", "!", "if", "then", "elif", "else", "while", "until", "do", "time", "exec", "nohup", "command"}
+SHELLS = {"sh", "bash", "zsh", "dash"}
+SHELL_ARG_OPTS = {"-o", "+o", "-O", "+O", "--rcfile", "--init-file"}
+# Wrappers before the real program, with their options that take a value.
+WRAPPERS = {"env": {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"},
+            "timeout": {"-s", "--signal", "-k", "--kill-after"}, "gtimeout": {"-s", "--signal", "-k", "--kill-after"},
+            "xcrun": {"--sdk", "-sdk", "--toolchain", "-toolchain"}, "sudo": {"-u", "-g", "-h", "-p", "-D", "-C", "-U"},
+            "nice": {"-n", "--adjustment"}, "caffeinate": {"-t", "-w"}}
+
+
+def lex(s: str) -> list:
+    """(tokens, substitutions): tokens are ("w", word with quotes removed) and ("op", operator or "\\n");
+    substitutions are the commands inside `$(…)` and backticks that the shell would run (not in single
+    quotes, nor in a heredoc with a quoted tag). Comments and heredoc bodies are dropped; an unclosed
+    quote runs to the end."""
+    toks, subs, i, n, word, heredocs = [], [], 0, len(s), None, []  # word: list of pieces (no quadratic +=)
+
+    def end():
+        nonlocal word
+        if word is not None:
+            toks.append(("w", "".join(word)))
+            word = None
+
+    def add(piece):
+        nonlocal word
+        word = [] if word is None else word
+        word.append(piece)
+
+    def substitution(i):
+        """The end of a `$(…)` or backtick substitution starting at i (its command goes to subs), or None."""
+        if s.startswith("`", i):
+            j = s.find("`", i + 1)
+            j = n if j < 0 else j
+            subs.append(s[i + 1:j])
+            return j + 1
+        if s.startswith("$(", i):
+            depth, j = 1, i + 2
+            while j < n and depth:
+                if s[j] in "'\"":  # a quoted ( or ) does not count
+                    k = s.find(s[j], j + 1)
+                    j = n if k < 0 else k + 1
+                    continue
+                depth += {"(": 1, ")": -1}.get(s[j], 0)
+                j += 1 + (s[j] == "\\")
+            subs.append(s[i + 2:j - 1 if not depth else j])
+            return j
+        return None
+
+    while i < n:
+        c = s[i]
+        e = substitution(i) if c in "`$" else None
+        if e is not None:
+            add(s[i:e])
+            i = e
+        elif c == "\\":
+            if s.startswith("\n", i + 1):  # line continuation: one word stream across the lines
+                i += 2
+                continue
+            add(s[i + 1:i + 2])
+            i += 2
+        elif c == "'":
+            j = s.find("'", i + 1)
+            j = n if j < 0 else j
+            add(s[i + 1:j])
+            i = j + 1
+        elif c == '"':
+            j, buf = i + 1, ""
+            while j < n and s[j] != '"':
+                e = substitution(j) if s[j] in "`$" else None
+                if e is not None:
+                    buf += s[j:e]
+                    j = e
+                    continue
+                if s[j] == "\\" and j + 1 < n:
+                    if s[j + 1] != "\n":
+                        buf += s[j + 1] if s[j + 1] in '"\\$`' else s[j:j + 2]
+                    j += 2
+                    continue
+                buf += s[j]
+                j += 1
+            add(buf)
+            i = j + 1
+        elif c == "#" and word is None:
+            while i < n and s[i] != "\n":
+                i += 1
+        elif c in " \t\r":
+            end()
+            i += 1
+        elif c == "\n":
+            end()
+            toks.append(("op", "\n"))
+            i += 1
+            for tag, tabs, quoted in heredocs:  # the body is data up to its tag line; unquoted, it still expands
+                start = body_end = i
+                while i < n:
+                    j = s.find("\n", i)
+                    line, i = (s[i:], n) if j < 0 else (s[i:j], j + 1)
+                    if (line.lstrip("\t") if tabs else line) == tag:
+                        break
+                    body_end = i
+                k = start
+                while not quoted and k < body_end:
+                    e = substitution(k) if s[k] in "`$" else None
+                    k = e if e is not None else k + 1 + (s[k] == "\\")
+            heredocs = []
+        elif s.startswith("((", i) and word is None:  # arithmetic `(( n << 2 ))`: no command, no heredoc
+            j = s.find("))", i + 2)
+            i = n if j < 0 else j + 2
+        elif c in ";&|()<>":
+            if c in "<>" and word is not None and "".join(word).isdigit():
+                word = None  # `2>`: a number glued to a redirect is the file descriptor, not a word
+            end()
+            op = next(o for o in OPS if s.startswith(o, i))
+            i += len(op)
+            toks.append(("op", op))
+            if op in ("<<", "<<-"):
+                while i < n and s[i] in " \t":
+                    i += 1
+                m = re.match(r"""(?:'[^']*'|"[^"]*"|\\.|[^\s;&|()<>'"\\])+""", s[i:])
+                if m:  # the tag with its quotes removed: E"OF" is EOF
+                    heredocs.append((re.sub(r"""'([^']*)'|"([^"]*)"|\\(.)""", lambda q: q.group(1) or q.group(2) or q.group(3) or "",
+                                            m.group(0)), op == "<<-", bool(re.search(r"['\"\\\\]", m.group(0)))))
+                    i += m.end()
+        else:
+            add(c)
+            i += 1
+    end()
+    return toks, subs
+
+
+def simple_commands(toks: list):
+    """Word lists of the simple commands, redirects and their targets removed."""
+    seg, skip = [], False
+    for kind, t in toks:
+        if kind == "op" and t in SEPARATORS:
+            yield seg
+            seg, skip = [], False
+        elif kind == "op":  # a redirect: its target is the next word (a heredoc tag was taken by lex())
+            skip = t not in ("<<", "<<-")
+        elif skip:
+            skip = False
+        else:
+            seg.append(t)
+    yield seg
+
+
+def command_words(words: list) -> list:
+    """The program a simple command runs, after assignments, keywords and wrappers
+    (`CI=1 env timeout -s TERM 600 xcrun --sdk iphonesimulator xcodebuild …` -> `xcodebuild …`)."""
+    while words:
+        w = os.path.basename(words[0])
+        if re.fullmatch(r"\w+=.*", words[0], re.S) or words[0] in PREFIX:
+            words = words[1:]
+        elif w in WRAPPERS:
+            words = words[1:]
+            while words and (words[0].startswith("-") or re.fullmatch(r"\w+=.*", words[0], re.S)):
+                takes = words[0] in WRAPPERS[w] and "=" not in words[0]
+                words = words[2:] if takes else words[1:]
+            if w in ("timeout", "gtimeout") and words:
+                words = words[1:]  # the duration
+        else:
+            return words
+    return words
+
+
+def is_test_run(words: list) -> bool:
+    if not words or os.path.basename(words[0]) != "xcodebuild":
+        return False
+    # An action word that is not the value of the option before it (`-scheme test` is a scheme);
+    # `-only-testing:X` carries its own value.
+    return any(w in ACTIONS and (not words[i].startswith("-") or words[i] in BOOL_OPTS or ":" in words[i])
+               for i, w in enumerate(words[1:]))
+
+
+def test_runs(cmd: str, depth: int = 0) -> tuple:
+    """(xcodebuild test runs as word lists, does any part go to the background?), `sh -c "…"` included."""
+    toks, inner = lex(cmd)
+    runs, background = [], ("op", "&") in toks
+    for seg in simple_commands(toks):
+        words = command_words(seg)
+        if is_test_run(words):
+            runs.append(words)
+        elif words and os.path.basename(words[0]) in SHELLS:  # sh -c, bash -lc, bash -e -c '…'
+            k, has_c = 1, False
+            while k < len(words) and words[k][:1] in "-+" and words[k] != "--":
+                has_c = has_c or ("c" in words[k] and not words[k].startswith(("--", "+")))
+                k += 2 if words[k] in SHELL_ARG_OPTS else 1
+            if has_c and k < len(words):
+                inner.append(words[k])
+    if depth < 3:
+        for sub in inner:
+            more, bg = test_runs(sub, depth + 1)
+            runs += more
+            background = background or bg
+    return runs, background
+
+
+def problems(words: list) -> list:
+    out = []
+    vals = [words[i + 1].lower() for i, w in enumerate(words[:-1]) if w == "-parallel-testing-enabled"]
+    if vals != ["no"]:
+        out.append("it does not pass `-parallel-testing-enabled NO`, so Xcode clones the simulator once per test worker")
+    if sum(w == "-destination" for w in words) > 1:
+        out.append("it names more than one -destination: each one boots its own simulator")
+    return out
+
+
+def running_tests() -> list:
+    """`pid command` of every xcodebuild test run on this machine (empty where `ps` is missing)."""
+    try:
+        ps = subprocess.run(["ps", "-axo", "pid=,args="], capture_output=True, text=True, errors="replace",
+                            timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    found = []
+    for line in ps.splitlines():
+        pid, _, cmd = line.strip().partition(" ")
+        cmd = cmd.strip()
+        m = re.match(r"(?:.*/)?xcodebuild(?:\s|$)", cmd)  # the path may hold spaces (`Xcode 26.app`)
+        if m and is_test_run(["xcodebuild", *cmd[m.end():].split()]):
+            found.append(f"{pid} {cmd[:160]}")
+    return found
+
+
+def check(cmd: str) -> str:
+    """The block message for `cmd`, or "" when it may run."""
+    runs, background = test_runs(cmd)
+    if not runs:
+        return ""
+    why = [p for w in runs for p in problems(w)]
+    if len(runs) > 1 and background:
+        why.append("it has more than one xcodebuild test run and sends work to the background (`&`), so they may overlap")
+    busy = running_tests()
+    if busy:
+        why.append("another xcodebuild test is already running on this machine:\n    " + "\n    ".join(busy))
+    if not why:
+        return ""
+    return ("BLOCKED: this xcodebuild test would start more than one simulator: " + "; ".join(why) + ".\n"
+            "Why: every extra simulator is a full iOS instance; on Chủ nhà's 8 GB Mac a few of them stall the machine.\n"
+            f"How to fix: run one xcodebuild test at a time, with one -destination and `{FIX}`; "
+            "if another run is going, wait for it to finish (do not kill another session's run).")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="sim-guard")
+    ap.add_argument("--cmd", required=True)
+    msg = check(ap.parse_args().cmd)
+    if msg:
+        print(msg, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

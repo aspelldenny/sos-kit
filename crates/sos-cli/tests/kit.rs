@@ -500,3 +500,18 @@ fn install_sets_a_reviewer_from_the_other_family_when_both_clis_exist() {
     let same = std::fs::read_to_string(d2.path().join(".sos.toml")).unwrap();
     assert!(same.contains("[roles.reviewer]\nbackend = \"claude\"") && !same.contains("Claude built it: Codex reviews"), "{same}");
 }
+
+#[test]
+fn check_flags_hook_wiring_without_the_simulator_guard() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    assert!(p.join("harness-lite/scripts/sim-guard").exists());
+    assert!(!out(&sos(p, &["check"])).contains("pre-bash"), "template wiring has the guard");
+    let old = std::fs::read_to_string(p.join(".claude/settings.json")).unwrap();
+    let mut v: serde_json::Value = serde_json::from_str(&old).unwrap();
+    v["hooks"]["PreToolUse"].as_array_mut().unwrap().retain(|m| m["matcher"] != "Bash");
+    std::fs::write(p.join(".claude/settings.json"), v.to_string()).unwrap();
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains(".claude/settings.json has no PreToolUse Bash hook") && !c.contains(".codex/hooks.json has no PreToolUse"), "{c}");
+}

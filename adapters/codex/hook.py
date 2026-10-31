@@ -5,6 +5,7 @@ tools, and their results back into Codex hook output. No policy lives here.
   hook.py session-start   SessionStart                   -> scripts/status.sh
   hook.py pre-edit        PreToolUse apply_patch          -> scripts/env-guard.sh (block(): exit 2,
                                                              Windows: deny JSON, exit 0)
+  hook.py pre-bash        PreToolUse Bash                 -> scripts/sim-guard (blocks like pre-edit)
   hook.py post-bash       PostToolUse Bash                -> scripts/test-watch.py (additionalContext)
 
 Payload shape (Codex 0.162, captured live 2026-10-09, tests/adapters/fixtures/codex-*.jsonl):
@@ -118,6 +119,20 @@ def pre_edit():
         block(r.stderr or f"BLOCKED: env-guard.sh failed (exit {r.returncode})")
 
 
+def pre_bash():
+    d = payload()
+    if d is None:
+        block("BLOCKED: adapters/codex/hook.py could not read the hook payload.")
+    if d.get("tool_name") != "Bash":
+        return
+    r = subprocess.run([sys.executable, str(SCRIPTS / "sim-guard"), "--cmd", (d.get("tool_input") or {}).get("command", "")],
+                       capture_output=True, text=True)
+    # A guard that crashed or is missing (python exits 2 too) blocks only where a simulator exists:
+    # elsewhere it would stop every command.
+    if (r.returncode == 2 and "BLOCKED:" in r.stderr) or (r.returncode != 0 and sys.platform == "darwin"):
+        block(r.stderr or f"BLOCKED: sim-guard failed (exit {r.returncode})")
+
+
 def post_bash():
     d = payload()
     if not d or d.get("tool_name") != "Bash":
@@ -136,8 +151,8 @@ def post_bash():
 
 if __name__ == "__main__":
     try:
-        {"session-start": session_start, "pre-edit": pre_edit, "post-bash": post_bash}[sys.argv[1]]()
-    except Exception as e:  # a crash (exit 1) would let the edit through
-        if sys.argv[1:2] != ["pre-edit"]:
+        {"session-start": session_start, "pre-edit": pre_edit, "pre-bash": pre_bash, "post-bash": post_bash}[sys.argv[1]]()
+    except Exception as e:  # a crash (exit 1) would let the edit or command through
+        if sys.argv[1:2] != ["pre-edit"] and not (sys.argv[1:2] == ["pre-bash"] and sys.platform == "darwin"):
             raise
         block(f"BLOCKED: adapters/codex/hook.py failed ({type(e).__name__}: {e})")
