@@ -2,7 +2,7 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## Unreleased
+## v0.3.13 — 2026-10-31
 
 - **Simulator guard (`scripts/sim-guard`).** An agent's `xcodebuild test` without `-parallel-testing-enabled NO` makes Xcode clone the simulator once per test worker: in tap-luyen this happened on 29/10 and again on 31/10/2026 (4 clones, load 490, CPU 98% on the 8 GB Mac), because the flag lived only in the agent's memory and a cross-session message. A `PreToolUse` Bash hook (Claude and Codex) now blocks, with the fix, an `xcodebuild test`/`test-without-building` that lacks the flag, names two `-destination`s, starts two runs, or starts while another `xcodebuild test` runs on the machine. `bite` checks its `[bite] test` command the same way, since its runs do not pass through the hook. A command inside a script is not seen. Wiring in `.claude/settings.json` and `.codex/hooks.json` is project-owned: `sos check` warns when it lacks the `pre-bash` hook; merge it from `harness-lite/templates/`.
 
@@ -134,7 +134,7 @@ Hardening after a whole-repo Codex review (`docs/research/CODEX_REVIEW_2026-10-0
 - v3 step 2.2: Lite roles — worker consults an advisor at decision points and reports its risks; Người soát reviews outside-in on the running combined build (journeys, data lifecycle, promises, edges, pre-mortem, silence, proof) and is called on events, not per slice (triggers override skips); optional cross-model adversarial pass before acceptance; reports to Chủ nhà open with a real-use status line and evidence buckets. Fresh-context review found 8 issues (subagent can't type `/advisor`, advisor risks not surfaced, trigger/skip overlap, test-proof check lost, simulator lease, mobile-only status line…), all fixed.
 - Advisor lab (`docs/research/advisor-lab/`): DIY `advise` CLI (Claude/Codex backends, readable logged advice, VERDICT/WHY/NEXT/RISKS/CHECK) + `advise-on-fail` hook (consecutive failing test runs → advice via additionalContext). E2E with a Sonnet 5.5 worker: hook fires, worker follows advice. Findings: pipes mask exit codes (detect failure from output); `claude -p` loads ~77k default tokens (lean flags → ~36x cheaper, ~$0.04/Opus call); exclude evidence/ from advisor context. Not yet in the harness.
 - Kit prompt package remains a pilot, without a CLI profile or native agent registration. Separate local tool/app migration is recorded in the Lite README; the legacy SOS workflow remains unchanged. Behavioral effectiveness requires a real-project pilot; Markdown checks alone do not establish it.
-## Unreleased — prompt audit (Opus 5.5 / Sonnet 5.5) — 2026-10-08
+## v0.3.13 — 2026-10-31 — prompt audit (Opus 5.5 / Sonnet 5.5) — 2026-10-08
 
 - Fixed `/security-review` INV-LOCAL extraction: regex now matches `##` and `###` headings (`^#{2,3}\s*INV-LOCAL-`); the repo's own `### INV-LOCAL-1` was silently replaced by "N/A".
 - Fixed `/advisory-scan` sentinel mismatch: Trinh sát now emits `<!-- INBOX_APPEND_START/END -->`, the markers the `advisory-inbox` binary parses (`src/sentinel.rs`); `docs/HANDOFF.md` + `templates/advisory-inbox.md` describe the binary pipe.
