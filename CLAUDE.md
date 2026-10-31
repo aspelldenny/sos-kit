@@ -7,7 +7,7 @@ SOS Kit is a solo developer's harness for building with AI agents. The human own
 | Path | What it is |
 |---|---|
 | `harness-lite/` | **The core prompts.** `CONTRACT.md` (shared rules) + `roles/` (orchestrator, architect, worker, reviewer) + the README apps receive. `sos install` copies it into a repo's `harness-lite/` together with `scripts/`, `adapters/` and `templates/app/hooks/`. |
-| `scripts/` | Agent-neutral scripts shipped into apps (`env-guard.sh`, `status.sh`, `advise`, `test-watch.py`, `bite`) plus kit-only tooling (`trust-gate.sh`, `install-hooks.sh`, npm postinstall). |
+| `scripts/` | Agent-neutral scripts shipped into apps (`env-guard.sh`, `sim-guard`, `status.sh`, `advise`, `test-watch.py`, `bite`) plus kit-only tooling (`trust-gate.sh`, `install-hooks.sh`, npm postinstall). |
 | `adapters/` | One thin translator per agent (`claude/`, `codex/`): hook payload → `scripts/` call. No policy; every check has a git backstop. Tests: `tests/adapters/run.sh`. |
 | `templates/app/` | What `sos install` writes besides the core: app git hooks, `AGENTS.md`/`CLAUDE.md`/`.sos.toml` templates, Claude/Codex wiring, Claude agent wrappers. |
 | `crates/` | The `sos` binary: `sos-cli` (`install / update / check`, every installed file embedded at build time; ownership rules in `kit.rs`) and `sos-gates` (`sos gate …`, `sos filter`; config `.sos.toml`). |

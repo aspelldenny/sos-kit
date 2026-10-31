@@ -4,6 +4,7 @@ scripts/ tools, and their results back into Claude Code's hook output. No policy
 
   hook.py session-start   SessionStart          -> scripts/status.sh (stdout becomes context)
   hook.py pre-edit        PreToolUse Edit|Write  -> scripts/env-guard.sh (exit 2 blocks)
+  hook.py pre-bash        PreToolUse Bash        -> scripts/sim-guard (exit 2 blocks)
   hook.py post-bash       PostToolUse(+Failure) Bash -> scripts/test-watch.py (additionalContext)
 
 Payload shape (Claude Code): tool_input.file_path / notebook_path; Bash tool_response is
@@ -72,6 +73,22 @@ def pre_edit():
         sys.exit(2)
 
 
+def pre_bash():
+    d = payload()
+    if d is None:
+        print("BLOCKED: adapters/claude/hook.py could not read the hook payload.", file=sys.stderr)
+        sys.exit(2)
+    if d.get("tool_name") != "Bash":
+        return
+    r = subprocess.run([sys.executable, str(SCRIPTS / "sim-guard"), "--cmd", (d.get("tool_input") or {}).get("command", "")],
+                       capture_output=True, text=True)
+    # A guard that crashed or is missing (python exits 2 too) blocks only where a simulator exists:
+    # elsewhere it would stop every command.
+    if (r.returncode == 2 and "BLOCKED:" in r.stderr) or (r.returncode != 0 and sys.platform == "darwin"):
+        sys.stderr.write(r.stderr or f"BLOCKED: sim-guard failed (exit {r.returncode})\n")
+        sys.exit(2)
+
+
 def post_bash():
     d = payload()
     if not d or d.get("tool_name") != "Bash":
@@ -92,4 +109,4 @@ def post_bash():
 
 
 if __name__ == "__main__":
-    {"session-start": session_start, "pre-edit": pre_edit, "post-bash": post_bash}[sys.argv[1]]()
+    {"session-start": session_start, "pre-edit": pre_edit, "pre-bash": pre_bash, "post-bash": post_bash}[sys.argv[1]]()

@@ -99,6 +99,8 @@ o=$("$PY" "$KIT/scripts/bite" --test ./run.sh --src x --tests y --base HEAD 2>&1
 [ $rc = 1 ] && grep -q "same commit" <<<"$o"; expect "base == head -> not measurable" $? "rc=$rc $o"
 o=$("$PY" "$KIT/scripts/bite" --test ./run.sh --src x --tests y --cwd /tmp 2>&1); rc=$?
 [ $rc = 2 ]; expect "absolute cwd refused" $? "rc=$rc $o"
+o=$("$PY" "$KIT/scripts/bite" --test 'xcodebuild test -scheme X' --src x --tests y --base main~1 2>&1); rc=$?
+[ $rc = 2 ] && grep -q "parallel-testing-enabled NO" <<<"$o"; expect "xcodebuild test that would clone the simulator refused by sim-guard" $? "rc=$rc $o"
 printf '#!/usr/bin/env bash\nsleep 20\n' > slow.sh && chmod +x slow.sh && g add -A && g commit -qm slow
 case "$(uname -s)" in
 MINGW*|MSYS*|CYGWIN*)  # Windows has no SIGTERM to catch: bash's kill on a native process is TerminateProcess

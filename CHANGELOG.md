@@ -2,6 +2,10 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+- **Simulator guard (`scripts/sim-guard`).** An agent's `xcodebuild test` without `-parallel-testing-enabled NO` makes Xcode clone the simulator once per test worker: in tap-luyen this happened on 29/10 and again on 31/10/2026 (4 clones, load 490, CPU 98% on the 8 GB Mac), because the flag lived only in the agent's memory and a cross-session message. A `PreToolUse` Bash hook (Claude and Codex) now blocks, with the fix, an `xcodebuild test`/`test-without-building` that lacks the flag, names two `-destination`s, starts two runs, or starts while another `xcodebuild test` runs on the machine. `bite` checks its `[bite] test` command the same way, since its runs do not pass through the hook. A command inside a script is not seen. Wiring in `.claude/settings.json` and `.codex/hooks.json` is project-owned: `sos check` warns when it lacks the `pre-bash` hook; merge it from `harness-lite/templates/`.
+
 ## v0.3.12 — 2026-10-23
 
 - **Release fix; v0.3.11 was tagged but never published.** The three build jobs each created a draft release (a race); the publish job published the empty one, and GitHub releases here are immutable, so the tag `v0.3.11` cannot get another release. The build jobs now only upload artifacts; one job checks that all six files are there and creates the release with them. v0.3.12 is v0.3.11's code (below) plus this fix.

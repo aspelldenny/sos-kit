@@ -69,6 +69,7 @@ pub const KIT_FILES: &[File] = &[
     kit!("harness-lite/scripts/test-watch.py", "scripts/test-watch.py", exec),
     kit!("harness-lite/scripts/advise", "scripts/advise", exec),
     kit!("harness-lite/scripts/bite", "scripts/bite", exec),
+    kit!("harness-lite/scripts/sim-guard", "scripts/sim-guard", exec),
     kit!("harness-lite/adapters/README.md", "adapters/README.md"),
     kit!("harness-lite/adapters/claude/hook.py", "adapters/claude/hook.py", exec),
     kit!("harness-lite/adapters/codex/hook.py", "adapters/codex/hook.py", exec),
@@ -245,14 +246,15 @@ fn shell_word(s: &str) -> Result<String> {
 /// Codex hooks on Windows. Which shell Codex starts them with there is not documented, and
 /// `"$(git rev-parse …)"` works in bash and PowerShell but not in cmd. This form has no `$`, `%`, `!`,
 /// backslash or nested double quote, so cmd, PowerShell and bash all hand it to Python unchanged
-/// (tested in all three, 23/10/2026). Outside a repo, or with the adapter missing, it blocks pre-edit.
+/// (tested in all three, 23/10/2026). Outside a repo, or with the adapter missing, it blocks pre-edit;
+/// pre-bash only reports, since the simulator guard has no xcodebuild to stop on Windows.
 fn codex_hooks_any_shell(body: &str, py: &str) -> Result<String> {
     if !py.chars().all(|c| c.is_ascii_alphanumeric() || "_./:-".contains(c)) {
         bail!("SOS_PYTHON for Codex hooks on Windows must be one word with forward slashes \
                (e.g. C:/Python312/python.exe): {py}");
     }
     let mut out = body.to_string();
-    for ev in ["session-start", "pre-edit", "post-bash"] {
+    for ev in ["session-start", "pre-edit", "pre-bash", "post-bash"] {
         let old = format!("python3 \\\"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\\\" {ev}");
         // d() blocks the way the adapter's block() does on Windows: deny JSON (ASCII, the console
         // may be cp1252) and exit 0; for pre-edit it writes nothing else, so no stderr failure can
@@ -799,6 +801,10 @@ pub fn check(dir: &Path) -> Result<i32> {
                 });
                 if !wired {
                     warns.push(format!("{file} has no hook calling {needle} (template: harness-lite/templates/)"));
+                } else if !src.contains("pre-bash") {
+                    // Wiring from before 0.3.13: the simulator guard never runs (tap-luyen 31/10/2026).
+                    warns.push(format!("{file} has no PreToolUse Bash hook (`{needle} pre-bash`, the simulator guard): \
+                                        merge it from harness-lite/templates/"));
                 }
             }
         }

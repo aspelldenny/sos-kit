@@ -497,6 +497,12 @@ def main() -> int:
         print(f"bite: cwd must be a path inside the repo ({s['cwd']!r}): the tests would run outside the throwaway worktree",
               file=sys.stderr)
         return 2
+    guard = Path(__file__).resolve().parent / "sim-guard"  # bite's test runs bypass the agent hooks
+    if guard.exists():
+        g = subprocess.run([sys.executable, str(guard), "--cmd", s["test"]], capture_output=True, text=True)
+        if g.returncode != 0:
+            print(f"bite: {g.stderr.strip() or 'sim-guard failed'}", file=sys.stderr)
+            return 2
     # SIGTERM/SIGHUP (an agent's timeout, a closed terminal) must still remove the worktree.
     # Windows has no SIGHUP (bite died on it, POD-agent 23/10/2026); a closed console sends SIGBREAK.
     for name in ("SIGTERM", "SIGHUP", "SIGBREAK"):

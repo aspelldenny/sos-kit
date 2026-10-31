@@ -6,7 +6,7 @@ payload into a call to them and translates the answer back. No rule is decided h
 | Layer | What | Works with |
 |---|---|---|
 | **Git gates** (`hooks/pre-commit`, `hooks/pre-push`) | Secrets, `.env` commits, case collisions, branch rule, product gates | Every agent and a human at the keyboard. **This is the real gate.** |
-| **Neutral CLIs** (`scripts/`) | `env-guard.sh`, `test-watch.py` (advisor trigger), `advise`, `status.sh` | Anything that can run a command |
+| **Neutral CLIs** (`scripts/`) | `env-guard.sh`, `sim-guard` (one simulator per `xcodebuild test`), `test-watch.py` (advisor trigger), `advise`, `status.sh` | Anything that can run a command |
 | **Prompts** (`AGENTS.md` → `harness-lite/`) | Contract + roles | Codex reads `AGENTS.md`; Claude via `CLAUDE.md` importing it; most other harnesses read `AGENTS.md` |
 | **Adapters** (`adapters/<agent>/`) | Earlier feedback inside the agent loop | Only that agent |
 
@@ -22,6 +22,7 @@ Wiring templates for app repos: `templates/app/claude-settings.json` and `templa
 |---|---|---|---|
 | Session start | `SessionStart` → stdout to context | `SessionStart` → `additionalContext` | `scripts/status.sh` |
 | Before an edit | `PreToolUse` Edit/Write/MultiEdit/NotebookEdit, `file_path` | `PreToolUse` `apply_patch`, every path in the patch; unparseable patch is blocked | `scripts/env-guard.sh` (exit 2 blocks; Codex on Windows: `permissionDecision` "deny", exit 0) |
+| Before a shell command | `PreToolUse` Bash, `tool_input.command` | `PreToolUse` Bash, `tool_input.command` | `scripts/sim-guard` (blocks an `xcodebuild test` without `-parallel-testing-enabled NO`, with two destinations, or while another one runs; `bite` checks its own test command the same way. Codex on Windows: a broken hook there only reports) |
 | After a shell command (optional advisor) | `PostToolUse` + `PostToolUseFailure` Bash; key = session + `agent_id` | `PostToolUse` Bash (no failure event, no exit code; detected from output) | `scripts/test-watch.py` → `scripts/advise` |
 
 **Codex runs a project's hooks only after you trust them:** open `codex` in the repo and accept
@@ -48,4 +49,4 @@ CLI calls, add its captured payloads to `tests/adapters/fixtures/`, and extend `
 
 `.sos.toml` `[advisor]`: `backend` (`claude` | `codex` | `auto` = the other model family than the agent at work, falling back to the same family when the other CLI is missing | `off`), `model`, `after` (consecutive failing test runs before a call, 2), `max` (calls per failing streak before "stop and report", 2). Env overrides for one session: `ADVISE_BACKEND`, `ADVISE_MODEL`, `ADVISE_AFTER`, `ADVISE_MAX`, `SOS_ADVISOR=off`. Each call is logged in `.advise-state/calls.jsonl` (backend, model, seconds, cost when reported) and the advice in `evidence/advice/`.
 
-sos-kit itself wires only session start and the edit guard (`.claude/settings.json`, `.codex/hooks.json`); the app templates also wire the advisor.
+sos-kit itself wires only session start and the edit guard (it has no simulator) (`.claude/settings.json`, `.codex/hooks.json`); the app templates also wire the advisor.

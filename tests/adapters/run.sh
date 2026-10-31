@@ -9,7 +9,7 @@ FIX="$KIT/tests/adapters/fixtures"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 cd "$T" && git init -q && git commit -q --allow-empty -m init
 mkdir -p scripts adapters
-cp "$KIT"/scripts/{env-guard.sh,test-watch.py,status.sh} scripts/
+cp "$KIT"/scripts/{env-guard.sh,test-watch.py,status.sh,sim-guard} scripts/
 cp -R "$KIT"/adapters/claude "$KIT"/adapters/codex adapters/
 cat > scripts/advise <<'PY'
 #!/usr/bin/env python3
@@ -38,8 +38,8 @@ MINGW*|MSYS*|CYGWIN*)  # Windows cannot exec a bash script; a Windows path with 
     chmod +x "$T/notify"; export SOS_NOTIFY_CMD="$T/notify" ;;
 esac
 
-# line <file> <n> [python expression mutating d]
-line() { "$PY" - "$FIX/$1" "$2" "${3:-}" <<'EOF'
+# line <file> <n> [python expression mutating d] [value it may read as sys.argv[4]]
+line() { "$PY" - "$FIX/$1" "$2" "${3:-}" "${4:-}" <<'EOF'
 import json, sys
 d = json.loads(open(sys.argv[1]).read().splitlines()[int(sys.argv[2]) - 1])
 if sys.argv[3]: exec(sys.argv[3])
@@ -51,7 +51,7 @@ check() {
     local name=$1 want=$2 grep_for=$3 agent=$4 sub=$5 out rc
     out=$("$PY" "adapters/$agent/hook.py" "$sub" 2>&1); rc=$?
     # Windows: the Codex adapter blocks with deny JSON and exit 0 (`powershell -Command` turns exit 2 into 1).
-    if [ "$agent/$sub/$want" = codex/pre-edit/2 ] && [ -n "$WIN" ]; then
+    if [ "$agent/${sub%-*}/$want" = codex/pre/2 ] && [ -n "$WIN" ]; then
         want=0; grep -q '"permissionDecision": "deny"' <<<"$out" || rc="$rc, no deny JSON"
     fi
     local match=1
@@ -191,6 +191,78 @@ check "codex: piped fail #2 -> advice"         0 "agent=codex" codex post-bash <
 check "codex: exit-code-only fail #1 silent"   0 -          codex post-bash <<<"$(line $X 3 'd["session_id"]="s3"; d["tool_response"]="Exit code: 1\nOutput:\nboom"')"
 check "codex: exit-code-only fail #2 advice"   0 "STUB ADVICE"          codex post-bash <<<"$(line $X 3 'd["session_id"]="s3"; d["tool_response"]="Exit code: 1\nOutput:\nboom"')"
 check "codex: session-start gives context"     0 "additionalContext" codex session-start <<<"$(line $X 1)"
+
+# ── sim-guard: one simulator per xcodebuild test (tap-luyen 29/10 and 31/10/2026) ──
+# A fake `ps` first on PATH stands in for the machine's process list.
+P=$(mktemp -d); printf '#!/bin/sh\n[ -f "%s/busy" ] && echo "4242 /Applications/Xcode 26.app/Contents/Developer/usr/bin/xcodebuild test -scheme X"\necho "77 /usr/bin/xcodebuild build -scheme test"\necho "78 rg xcodebuild test AGENTS.md"\nexit 0\n' "$P" > "$P/ps"; chmod +x "$P/ps"
+OK="xcodebuild test -scheme X -destination 'platform=iOS Simulator,name=A' -parallel-testing-enabled NO"
+cb() { line $C 3 "d['tool_name']='Bash'; d['tool_input']={'command': sys.argv[4]}" "$1"; }
+xb() { line $X 2 "d['tool_input']['command']=sys.argv[4]" "$1"; }
+export PATH="$P:$PATH"
+check "claude: pytest allowed by sim-guard"     0 -          claude pre-bash <<<"$(line $X 2)"
+check "claude: xcodebuild test, no flag blocked" 2 "parallel-testing-enabled NO" claude pre-bash <<<"$(cb "cd app && xcodebuild test -scheme X -destination 'platform=iOS Simulator,name=A' -only-testing:T > /tmp/l 2>&1")"
+check "claude: one sim, flag set allowed"       0 -          claude pre-bash <<<"$(cb "cd app && $OK | tail -5")"
+check "claude: flag YES blocked"                2 "BLOCKED"  claude pre-bash <<<"$(cb "${OK% NO} YES")"
+check "claude: two destinations blocked"        2 "more than one -destination" claude pre-bash <<<"$(cb "$OK -destination 'platform=iOS Simulator,name=B'")"
+check "claude: two runs side by side blocked"  2 "background" claude pre-bash <<<"$(cb "$OK & $OK")"
+check "claude: two runs one after another allowed" 0 -       claude pre-bash <<<"$(cb "$OK && $OK; $OK")"
+check "claude: comment line then run blocked"   2 "BLOCKED"  claude pre-bash <<<"$(cb "$(printf '# tests\nxcodebuild test -scheme X')")"
+check "claude: line continuation run blocked"   2 "BLOCKED"  claude pre-bash <<<"$(cb "$(printf 'xcodebuild \\\ntest -scheme X')")"
+check "claude: continuation onto the flag allowed" 0 -       claude pre-bash <<<"$(cb "$(printf 'xcodebuild test -scheme X \\\n  -parallel-testing-enabled NO')")"
+check "claude: env/timeout/xcrun options blocked" 2 "BLOCKED" claude pre-bash <<<"$(cb "env CI=1 timeout --signal=TERM 600 xcrun --sdk iphonesimulator xcodebuild test")"
+check "claude: redirect first blocked"          2 "BLOCKED"  claude pre-bash <<<"$(cb ">/tmp/log xcodebuild test")"
+check "claude: glued redirect blocked"          2 "BLOCKED"  claude pre-bash <<<"$(cb "xcodebuild test>/tmp/log 2>&1")"
+check "claude: heredoc text allowed"            0 -          claude pre-bash <<<"$(cb "$(printf "cat <<'EOF'\nxcodebuild test\nEOF\necho done")")"
+check "claude: run after heredoc blocked"       2 "BLOCKED"  claude pre-bash <<<"$(cb "$(printf "cat <<EOF > n.md\nx\nEOF\nxcodebuild test")")"
+check "claude: scheme named test is a build"    0 -          claude pre-bash <<<"$(cb "xcodebuild build -scheme test")"
+check "claude: -quiet test still a test"        2 "BLOCKED"  claude pre-bash <<<"$(cb "xcodebuild -scheme X -quiet test")"
+check "claude: -only-testing:X test blocked"   2 "BLOCKED"  claude pre-bash <<<"$(cb "cd app && xcodebuild -scheme X -derivedDataPath /tmp/dd -only-testing:XTests test 2>&1 | tail -30")"
+check "claude: bash -c / sudo run blocked"      2 "BLOCKED"  claude pre-bash <<<"$(cb "bash -c 'cd app && sudo xcodebuild test'")"
+check "claude: run inside { } blocked (31/10)"  2 "BLOCKED"  claude pre-bash <<<"$(cb "mkdir /tmp/x.lock && { xcodebuild test -scheme X -only-testing:T > /tmp/l 2>&1; rmdir /tmp/x.lock; }")"
+check "claude: run in if/for blocked"           2 "BLOCKED"  claude pre-bash <<<"$(cb "for i in 1 2; do xcodebuild test -scheme X; done")"
+check "claude: quoted <<EOF is not a heredoc"   2 "BLOCKED"  claude pre-bash <<<"$(cb "$(printf "echo '<<EOF'\nxcodebuild test")")"
+check "claude: here-string is not a heredoc"    2 "BLOCKED"  claude pre-bash <<<"$(cb "$(printf "cat <<< 'hi'\nxcodebuild test")")"
+check "claude: backgrounded group + run blocked" 2 "background" claude pre-bash <<<"$(cb "{ $OK; } & $OK")"
+check "claude: piped runs in sequence allowed"  0 -          claude pre-bash <<<"$(cb "$OK | tee /tmp/a; $OK | tail -3")"
+check "claude: sudo -n / bash -lc / if blocked" 2 "BLOCKED"  claude pre-bash <<<"$(cb "sudo -n true; bash -lc 'if xcodebuild test; then echo ok; fi'")"
+check "claude: word split by continuation blocked" 2 "BLOCKED" claude pre-bash <<<"$(cb "$(printf 'xcodebu\\\nild test')")"
+check "claude: multiline quoted text allowed"   0 -          claude pre-bash <<<"$(cb "$(printf "echo 'hello\nxcodebuild test\nbye'")")"
+check "claude: \$(xcodebuild test) blocked"     2 "BLOCKED"  claude pre-bash <<<"$(cb 'echo $(xcodebuild test)')"
+check "claude: comment naming a run allowed"   0 -          claude pre-bash <<<"$(cb "ls app  # later; xcodebuild test")"
+check "claude: \"\$(…)\" run blocked"         2 "BLOCKED"  claude pre-bash <<<"$(cb 'echo "built: $(xcodebuild test)"')"
+check "claude: backtick run blocked"            2 "BLOCKED"  claude pre-bash <<<"$(cb 'echo `xcodebuild -scheme X test`')"
+check "claude: heredoc tag E\"OF\" then run blocked" 2 "BLOCKED" claude pre-bash <<<"$(cb "$(printf 'cat <<E"OF"\nhello\nEOF\nxcodebuild test')")"
+check "claude: arithmetic << then run blocked"  2 "BLOCKED"  claude pre-bash <<<"$(cb "$(printf 'echo $((1 << 2))\nxcodebuild test')")"
+check "claude: nice -n / caffeinate -i / bash -e -c blocked" 2 "BLOCKED" claude pre-bash <<<"$(cb "nice -n 10 caffeinate -i true; bash -e -c 'xcodebuild test'")"
+check "claude: caffeinate -i run blocked"       2 "BLOCKED"  claude pre-bash <<<"$(cb "caffeinate -i xcodebuild test")"
+check "claude: number before a spaced redirect kept" 2 "BLOCKED" claude pre-bash <<<"$(cb "xcodebuild -destination-timeout 60 >/dev/null test")"
+check "claude: markdown brief in quoted heredoc allowed" 0 - claude pre-bash <<<"$(cb "$(printf "cat > b.md <<'EOF'\nRun \`xcodebuild test\` and \$(xcodebuild test)\nEOF")")"
+check "claude: unquoted heredoc substitution blocked" 2 "BLOCKED" claude pre-bash <<<"$(cb "$(printf 'cat <<EOF\n$(xcodebuild test)\nEOF')")"
+check "claude: single-quoted \$(…) allowed"     0 -          claude pre-bash <<<"$(cb "echo '\$(xcodebuild test)'")"
+check "claude: bash -o pipefail -c run blocked" 2 "BLOCKED"  claude pre-bash <<<"$(cb "bash -o pipefail -c 'xcodebuild test'")"
+check "claude: 2>/dev/null first, run blocked"  2 "BLOCKED"  claude pre-bash <<<"$(cb "2>/dev/null xcodebuild test")"
+check "claude: (( a << 2 )) then run blocked"    2 "BLOCKED"  claude pre-bash <<<"$(cb "$(printf '((n = 1 << 2))\nxcodebuild test')")"
+check "claude: quoted ( in \$(…), run after blocked" 2 "BLOCKED" claude pre-bash <<<"$(cb "echo \"\$(printf '%s' '(')\"; xcodebuild test")"
+check "claude: sudo -n run blocked"             2 "BLOCKED"  claude pre-bash <<<"$(cb "sudo -n xcodebuild test")"
+check "claude: multiline \$( in heredoc blocked" 2 "BLOCKED" claude pre-bash <<<"$(cb "$(printf 'cat <<EOF\n$(\nxcodebuild test\n)\nEOF')")"
+check "claude: escaped \\\$( in heredoc allowed" 0 -         claude pre-bash <<<"$(cb "$(printf 'cat <<EOF\n\\$(xcodebuild test)\nEOF')")"
+check "claude: quoted # is not a comment"       2 "BLOCKED"  claude pre-bash <<<"$(cb "echo '#'; xcodebuild test")"
+check "claude: xcrun/env/timeout wrapped blocked" 2 "BLOCKED" claude pre-bash <<<"$(cb "CI=1 timeout 600 xcrun xcodebuild -scheme X test-without-building")"
+check "claude: newline-separated run blocked"   2 "BLOCKED"  claude pre-bash <<<"$(cb "$(printf 'cd app\n/usr/bin/xcodebuild -scheme X test')")"
+check "claude: unbalanced quote run blocked"    2 "BLOCKED"  claude pre-bash <<<"$(cb "xcodebuild test -scheme 'X")"
+check "claude: echo/grep of xcodebuild allowed" 0 -          claude pre-bash <<<"$(cb "echo xcodebuild test; rg 'xcodebuild test' AGENTS.md")"
+check "claude: xcodebuild build allowed"        0 -          claude pre-bash <<<"$(cb "xcodebuild build -scheme X -destination 'platform=iOS Simulator,name=A'")"
+touch "$P/busy"
+check "claude: second run while one runs blocked" 2 "already running" claude pre-bash <<<"$(cb "$OK")"
+check "claude: non-test command while busy allowed" 0 -      claude pre-bash <<<"$(cb "git status")"
+check "codex: second run while one runs blocked"  2 "4242"   codex pre-bash <<<"$(xb "$OK")"
+rm "$P/busy"
+check "codex: Bash pre-tool pytest allowed"     0 -          codex pre-bash <<<"$(line $X 2)"
+check "codex: xcodebuild test, no flag blocked" 2 "How to fix" codex pre-bash <<<"$(xb "xcodebuild -scheme X test")"
+check "codex: one sim, flag set allowed"        0 -          codex pre-bash <<<"$(xb "$OK")"
+check "codex: apply_patch ignored by pre-bash"  0 -          codex pre-bash <<<"$(line $X 4)"
+check "claude: unreadable Bash payload blocked" 2 "BLOCKED"  claude pre-bash <<<"not json"
+export PATH="${PATH#"$P:"}"; rm -rf "$P"
 
 # ── advise: the prompt carries intent (real scripts/advise, fake claude CLI) ──
 A=$(mktemp -d); mkdir -p "$A/bin" "$A/repo"
