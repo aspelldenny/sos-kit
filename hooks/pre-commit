@@ -49,7 +49,7 @@ gate "3/4 sos gates" "follow the → How to fix lines above; config lives in .so
     cargo run --quiet -p sos-cli -- gate all
 
 gate "4/4 docs match the repo" "fix the path or command named above (or move the doc to archive/ if it is history)" \
-    cargo run --quiet -p sos-dev -- docs-check target/debug/sos
+    cargo run --quiet -p sos-dev -- docs-check "${CARGO_TARGET_DIR:-target}/debug/sos"
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then
