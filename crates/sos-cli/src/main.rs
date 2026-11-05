@@ -16,6 +16,7 @@ mod hook;
 mod kit;
 mod predict;
 mod role;
+mod sessions;
 mod sim;
 mod status;
 mod usage;
@@ -119,6 +120,12 @@ enum Cmd {
     /// Relative links and heading anchors in every Markdown file under a folder: the linked file
     /// must exist and a `#anchor` must match a heading. Exits 1 and lists what is broken.
     CheckLinks(check_links::Args),
+    /// The Claude desktop app's Code sessions, read from its session files: which have gone quiet
+    /// (`idle`), and how many are active (`count --max N` exits 2 at N, for a hook). Read-only.
+    Sessions {
+        #[command(subcommand)]
+        which: sessions::SessionsCmd,
+    },
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
@@ -140,6 +147,7 @@ fn main() {
         Cmd::Sim { which } => sim::run(which),
         Cmd::Predict(a) => predict::run(a),
         Cmd::CheckLinks(a) => check_links::run(a),
+        Cmd::Sessions { which } => sessions::run(which),
         Cmd::Filter => Ok(gate::filter()),
     };
     match code {
