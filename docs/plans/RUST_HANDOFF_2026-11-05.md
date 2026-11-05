@@ -1,4 +1,4 @@
-# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau 2.5)
+# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau 2.7)
 
 Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (Sếp duyệt 05/11). Ghi chú này đủ để làm tiếp mà không cần đọc transcript cũ.
 
@@ -27,7 +27,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
      - tarot: `merge-guard.toml` thay `block-unsafe-merge.sh`, kèm một helper `scripts/merge-check <PR>` (phần gọi `gh`; trong ca kiểm nó là `fake`);
      - mọi repo: `hub-audit.toml` thay `~/.claude/hooks/hub-audit.sh`.
      Điều kiện: bản `sos` có `sos hook … rules` đã phát hành và cài (bản 0.3.13 trả exit 2 với lệnh lạ = chặn mọi thứ). Không đụng lucilius, reel.
-  2. Tiếp theo trong sos-kit: 2.6, 2.7 (chỉ ghi) → đợt 3 (3.1 `sos predict`, 3.2 `sos check-links`; 3.3–3.5 chỉ ghi).
+  2. Tiếp theo trong sos-kit: đợt 3 (3.1 `sos predict`, 3.2 `sos check-links`; 3.3–3.5 chỉ ghi).
 - **Bản 1d hẹp hơn đặc tả §2** (không allow/scope, first_positional, case_insensitive, when.file_exists/env; ask bị từ chối): ghi ở `RUST_ARCHITECTURE_2026-11-05.md`, đoạn «Bản 1d hẹp hơn đặc tả». Thêm khi một luật thật cần.
 
 ## File cần đọc
@@ -63,6 +63,9 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 1. **2.5 — đổi chỗ gọi simulator** sang `sos sim …` khi bản có `sos sim` đã phát hành và cài:
    - tally và turnsigil: `tools/sim-boot.sh <udid> [log]` → `sos sim boot <udid> [--log F]`; `tools/wait-settled.sh <label> [log]` → `sos sim settle <label> [--log F]` (biến `SETTLE_*` vẫn đọc được);
    - lucilius: `scripts/resolve-simulator-destination.sh` → giữ một wrapper nhỏ đọc `LUCILIUS_DESTINATION`, còn lại gọi `sos sim destination --name "${LUCILIUS_SIMULATOR_NAME:-Lucilius P004 Delivery Oracle}"`. Lưu ý: bản Rust khớp nguyên tên, không khớp tiền tố.
+
+2. **2.6 — turnsigil bỏ `tools/agent_role.py`** (kế hoạch ghi «bỏ»: trùng `sos role`). Chỗ gọi: `tools/agent-bin/claude`, `tools/agent_hook.py`, `.codex/config.toml`, `AGENTS.md`, test `tools/tests/test_agent_harness.py`. Đổi sang `sos role`, so lệnh sinh ra bằng `sos role --dry-run` trước khi xoá.
+3. **2.7 — tarot** (`scripts/security-gate.sh`, `scripts/check-hardcoded-secrets.py`, `scripts/refresh-docs-stats.sh`; gọi từ `package.json`, `docs/TOOLS.md`, `docs/security/INVARIANTS.md`, `scripts/test-inv004-history.sh`): bỏ phần tìm khoá trùng `sos gate secrets` (gitleaks); INV-001→010 còn lại thành luật `sos-rules` nếu đủ, không thì Rust trong tarot. Chứng minh: chạy INV cả hai bản trên cùng cây và trên các commit cũ từng bị bắt.
 
 ## Việc còn mở (không chặn đợt sau)
 
