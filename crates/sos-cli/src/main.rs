@@ -7,6 +7,7 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod advise;
 mod gate;
 mod guards;
 mod hook;
@@ -14,6 +15,7 @@ mod kit;
 mod role;
 mod status;
 mod usage;
+mod watch;
 mod wiring;
 
 #[derive(Parser)]
@@ -91,6 +93,10 @@ enum Cmd {
     /// Token use by role × model from local Claude Code transcripts (and Codex rollouts), with a
     /// comparison price and suggestions. Read-only: nothing is sent, written or run.
     Usage(usage::Args),
+    /// Ask a stronger model (the other family by default) for direction on the current work, from
+    /// a snapshot: question, intent, latest failure, git state, relevant files. Exit 0 advice,
+    /// 1 failed, 2 off or misconfigured, 3 unavailable (CLI not logged in). Settings: .sos.toml [advisor].
+    Advise(advise::Args),
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
@@ -107,6 +113,7 @@ fn main() {
             role::run(&role::Args { role, from, brief, out, timeout, dry_run }),
         Cmd::Hook { which } => Ok(hook::run(which)),
         Cmd::Usage(a) => usage::run(a),
+        Cmd::Advise(a) => advise::run(a),
         Cmd::Filter => Ok(gate::filter()),
     };
     match code {

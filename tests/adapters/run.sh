@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Adapter tests: real hook payloads (captured live 2026-10-09 from Claude Code and Codex 0.162)
 # plus mutations of them, run through adapters/<agent>/hook.py in a throwaway git repo.
-# scripts/advise is replaced by a stub, so no model is called.
+# scripts/advise is replaced by a stub, so no model is called (`sos hook` reaches it through
+# SOS_ADVISE_CMD); the advise section runs the real advisor (`sos advise` with SOS_HOOK_BIN) on fake CLIs.
 # Usage: tests/adapters/run.sh
 #        SOS_HOOK_BIN=target/debug/sos tests/adapters/run.sh   # same cases through `sos hook` (Rust port)
 set -uo pipefail
@@ -43,6 +44,12 @@ MINGW*|MSYS*|CYGWIN*)  # Windows cannot exec a bash script; a Windows path with 
     printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> "$(dirname "$0")/notified"\n' > "$T/notify"
     chmod +x "$T/notify"; export SOS_NOTIFY_CMD="$T/notify" ;;
 esac
+# `sos hook` runs the advisor in-process; the streak cases drive it with the stub above instead.
+# An absolute interpreter: one case puts a failing `python3` first on PATH.
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    if [ -n "$WIN" ]; then export SOS_ADVISE_CMD="\"$(cygpath -w "$(command -v "$PY")")\" \"$(cygpath -w "$T/scripts/advise")\""
+    else export SOS_ADVISE_CMD="$(command -v "$PY") $T/scripts/advise"; fi
+fi
 
 # line <file> <n> [python expression mutating d] [value it may read as sys.argv[4]]
 line() { "$PY" - "$FIX/$1" "$2" "${3:-}" "${4:-}" <<'EOF'
@@ -159,6 +166,12 @@ check "own: after the reset, fail #1 silent"    0 -   claude post-bash <<<"$(own
 o=$("$PY" "$KIT/tests/adapters/test_watch_units.py" "$KIT/scripts/test-watch.py" 2>&1)
 [ "$o" = ok ] && pass=$((pass + 1)) && echo "ok   test-watch units: TOML reader, own-command match" || { fail=$((fail + 1)); echo "FAIL test-watch units: $o"; }
 rm .sos.toml
+# A Python-only pattern (lookaround) in ADVISE_TEST_RE: `sos hook` uses the default and says so.
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    LA='d["session_id"]="la"; d["tool_input"]["command"]="cargo test"; d["tool_response"]["stdout"]="test result: FAILED. 0 passed; 1 failed"'
+    ADVISE_TEST_RE='cargo test(?=\s|$)' check "sos hook: lookaround ADVISE_TEST_RE #1 silent" 0 - claude post-bash <<<"$(line $C 1 "$LA")"
+    ADVISE_TEST_RE='cargo test(?=\s|$)' check "sos hook: lookaround ADVISE_TEST_RE -> default + note" 0 "syntax sos cannot read" claude post-bash <<<"$(line $C 1 "$LA")"
+fi
 check "claude: k6 pytest fail #1"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
 check "claude: k6 other suite passes, no reset" 0 -         claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"; d["tool_input"]["command"]="cargo test"; d["tool_response"]["stdout"]="test result: ok. 3 passed"')"
 check "claude: k6 pytest fail #2 -> advice"    0 "agent=claude" claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
@@ -356,10 +369,13 @@ cat > "$ADVISE_PROMPT_OUT"
 echo '{"result":"VERDICT: continue","is_error":false}'
 SH
 ( cd "$A/repo" && git init -q && git commit -q --allow-empty -m init )
+expect() { if [ "$2" = 0 ]; then pass=$((pass + 1)); echo "ok   $1"; else fail=$((fail + 1)); echo "FAIL $1: ${3:0:300}"; fi; }
+# adv <args>: the advisor under test (`sos advise` with SOS_HOOK_BIN, else scripts/advise)
+adv() { if [ -n "${SOS_HOOK_BIN:-}" ]; then "$SOS_HOOK_BIN" advise "$@"; else "$PY" "$KIT/scripts/advise" "$@"; fi; }
 # prompt <name> <want-substring>: run advise in $A/repo and grep the prompt it sent
 prompt() {
     local name=$1 want=$2
-    (cd "$A/repo" && PATH="$A/bin:$PATH" ADVISE_PROMPT_OUT="$A/prompt" "$PY" "$KIT/scripts/advise" --backend claude "why red?" >/dev/null 2>&1)
+    (cd "$A/repo" && PATH="$A/bin:$PATH" ADVISE_PROMPT_OUT="$A/prompt" adv --backend claude "why red?" >/dev/null 2>&1)
     if grep -q -- "$want" "$A/prompt" 2>/dev/null; then pass=$((pass + 1)); echo "ok   $name"
     else fail=$((fail + 1)); echo "FAIL $name (want $want): $(head -c 300 "$A/prompt" 2>/dev/null)"; fi
 }
@@ -379,6 +395,19 @@ printf '# P\n\n## Hiện tại\n\n%s\n' "$("$PY" -c 'print("Kiểm tra hành tr�
 prompt "advise: long Vietnamese state doc ok"  "Kiểm tra hành trình"
 printf 'Brief: refunds must never go negative\n' > "$A/brief.md"
 ADVISE_BRIEF="$A/brief.md" prompt "advise: ADVISE_BRIEF wins" "refunds must never go negative"
+# End to end in `sos`: two failing runs -> the in-process advisor -> the (fake) claude CLI -> context.
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    rm -f "$A/prompt"; mkdir -p "$A/repo/sub"; printf 'E2E-BRIEF-SENTINEL\n' > "$A/repo/e2e-brief.md"
+    # From a subfolder with a relative ADVISE_BRIEF: read from the project root, as before (review 05/11/2026).
+    for n in 1 2; do o=$(cd "$A/repo/sub" && env -u SOS_ADVISE_CMD PATH="$A/bin:$PATH" ADVISE_PROMPT_OUT="$A/prompt" CLAUDE_PROJECT_DIR="$A/repo" \
+        ADVISE_BRIEF=e2e-brief.md "$SOS_HOOK_BIN" hook claude post-bash <<<"$(line $C 1 'd["session_id"]="e2e"')" 2>&1); done
+    grep -q "ADVISOR (automatic" <<<"$o" && grep -q "VERDICT: continue" <<<"$o" && grep -q "failed 2 times in a row" "$A/prompt" 2>/dev/null
+    expect "sos hook: two failures -> sos advise -> claude CLI -> advice" $? "$o"
+    grep -q "E2E-BRIEF-SENTINEL" "$A/prompt" 2>/dev/null; expect "sos hook: relative ADVISE_BRIEF read from the project root" $? "$(head -c 300 "$A/prompt" 2>/dev/null)"
+    grep -l "failed 2 times in a row" "$A/repo/evidence/advice/"*-claude.md >/dev/null 2>&1
+    expect "sos hook: this advice is kept in evidence/advice" $? "$(ls -R "$A/repo/evidence" 2>&1)"
+    rm -rf "$A/repo/sub" "$A/repo/e2e-brief.md"
+fi
 # A lost login: exit 3, the fix logged, the session-start status says it until a good call.
 fakecli claude <<'SH'
 #!/usr/bin/env bash
@@ -388,8 +417,7 @@ if [ -n "${CLAUDE_LOGGED_OUT:-}" ]; then
 fi
 echo '{"result":"OK","is_error":false}'
 SH
-expect() { if [ "$2" = 0 ]; then pass=$((pass + 1)); echo "ok   $1"; else fail=$((fail + 1)); echo "FAIL $1: ${3:0:300}"; fi; }
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 "$PY" "$KIT/scripts/advise" --backend claude "why red?" 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 adv --backend claude "why red?" 2>&1); rc=$?
 [ "$rc" = 3 ] && grep -q "/login" <<<"$o"; expect "advise: lost login -> exit 3 with the fix" $? "rc=$rc $o"
 o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); grep -q "advisor's last call failed" <<<"$o"; expect "status: names the broken advisor" $? "$o"
 if [ -n "${SOS_HOOK_BIN:-}" ]; then
@@ -401,16 +429,16 @@ printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$A/w
 if [ -n "${SOS_HOOK_BIN:-}" ]; then o=$(cd "$A/repo" && PATH="$A/win:$PATH" CLAUDE_PROJECT_DIR="$A/repo" "$SOS_HOOK_BIN" hook claude session-start <<<"{}" 2>&1)
 else o=$(cd "$A/repo" && PATH="$A/win:$PATH" CLAUDE_PROJECT_DIR="$A/repo" "$PY3" "$KIT/adapters/claude/hook.py" session-start <<<"{}" 2>&1); fi
 grep -q "advisor's last call failed" <<<"$o"; expect "windows: session-start status runs without a working python3" $? "$o"
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" adv --backend claude --check 2>&1); rc=$?
 [ "$rc" = 0 ] && grep -q "answers" <<<"$o"; expect "advise --check: answers after login" $? "rc=$rc $o"
 o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); ! grep -q "advisor" <<<"$o"; expect "status: quiet once the advisor answers" $? "$o"
 if [ -n "${SOS_HOOK_BIN:-}" ]; then
     o=$(cd "$A/repo" && "$SOS_HOOK_BIN" hook status); ! grep -q "advisor" <<<"$o"; expect "sos hook status: quiet once the advisor answers" $? "$o"
 fi
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 "$PY" "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 adv --backend claude --check 2>&1); rc=$?
 [ "$rc" = 3 ]; expect "advise --check: logged out -> exit 3" $? "rc=$rc $o"
 mkdir -p "$A/repo/.advise-state" && touch "$A/repo/.advise-state/unavailable"
-(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend claude --check >/dev/null 2>&1)
+(cd "$A/repo" && PATH="$A/bin:$PATH" adv --backend claude --check >/dev/null 2>&1)
 [ ! -e "$A/repo/.advise-state/unavailable" ]; expect "advise --check: success lifts the quiet period" $? ""
 # codex echoes the prompt on stderr: login words in the user's failure must not read as a lost login
 fakecli codex <<'SH'
@@ -418,7 +446,7 @@ fakecli codex <<'SH'
 p=$(cat); printf 'user\n%s\nERROR: 400 model not supported\n' "$p" >&2; exit 1
 SH
 printf 'AssertionError: OAuth refresh got 401 unauthorized at /login\n' > "$A/err.txt"
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend codex --error-file "$A/err.txt" "why red?" 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" adv --backend codex --error-file "$A/err.txt" "why red?" 2>&1); rc=$?
 [ "$rc" = 1 ] && ! grep -q "codex login" <<<"$o"; expect "advise: codex echo of auth words is not a lost login" $? "rc=$rc ${o: -200}"
 rm -rf "$A"
 

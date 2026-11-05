@@ -1,6 +1,7 @@
 //! Codex payloads: apply_patch V4A, and the Windows deny-JSON block.
 
-use super::{context_json, payload, project_root, s, test_watch, tool_input, Event};
+use super::{context_json, payload, project_root, s, tool_input, Event};
+use crate::watch;
 use crate::guards::{env::env_guard, sim as sim_guard};
 use crate::status;
 use serde_json::Value;
@@ -72,17 +73,12 @@ pub(crate) fn codex(event: Event) -> i32 {
                 Some(v) => v.to_string(),
                 None => "null".into(),
             };
-            let mut args = vec![
-                "--key".into(), format!("codex-{}", s(&d, "session_id")),
-                "--cmd".into(), s(&tool_input(&d), "command").to_string(),
-                "--agent".into(), "codex".into(),
-            ];
-            if let Some(code) = out.strip_prefix("Exit code: ").map(|r| r.chars().take_while(char::is_ascii_digit).collect::<String>()) {
-                if !code.is_empty() {
-                    args.extend(["--exit".into(), code]);
-                }
-            }
-            let text = test_watch(&root, &args, &out);
+            let key = format!("codex-{}", s(&d, "session_id"));
+            let exit = out.strip_prefix("Exit code: ")
+                .and_then(|r| r.chars().take_while(char::is_ascii_digit).collect::<String>().parse().ok());
+            let input = tool_input(&d);
+            let call = watch::Call { key: &key, cmd: s(&input, "command"), exit, agent: "codex" };
+            let text = watch::run(&root, &call, &out);
             if !text.trim().is_empty() {
                 println!("{}", context_json("PostToolUse", text.trim()));
             }

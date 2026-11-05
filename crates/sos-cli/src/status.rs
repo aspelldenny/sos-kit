@@ -94,7 +94,7 @@ fn advisor_note(root: &Path) -> Option<String> {
     let ts = last.get("ts").map(as_text).unwrap_or_else(|| "?".into());
     let err = last.get("error").filter(|e| truthy(Some(e), false)).map(as_text).unwrap_or_default();
     Some(format!(
-        "Note: the advisor's last call failed ({ts}): {}. Fix: {}, then `harness-lite/scripts/advise --check`.",
+        "Note: the advisor's last call failed ({ts}): {}. Fix: {}, then `sos advise --check`.",
         err.chars().take(120).collect::<String>(),
         as_text(&last["fix"])
     ))

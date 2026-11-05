@@ -6,7 +6,7 @@
 //!   sos hook claude|codex session-start   status lines (Claude: stdout; Codex: additionalContext)
 //!   sos hook claude|codex pre-edit        refuse edits of real .env files
 //!   sos hook claude|codex pre-bash        refuse xcodebuild test runs that clone the simulator
-//!   sos hook claude|codex post-bash       advisor trigger: still scripts/test-watch.py (wave 2)
+//!   sos hook claude|codex post-bash       advisor trigger (watch.rs, in-process; asks `sos advise`)
 //!   sos hook env-guard <path>…  |  sim-guard --cmd <command>  |  status   agent-neutral forms
 //!
 //! Blocking: exit 2 with the reason on stderr. Codex on Windows may run hooks under
@@ -85,6 +85,17 @@ fn protocol_ok(p: u32) -> bool {
 pub const GUARD_DEADLINE: Duration = Duration::from_secs(30);
 
 fn guard_deadline(event: Event, codex: bool) {
+    if event == Event::PostBash {
+        // The advisor never blocks: past its budget the hook just ends, silently, before the
+        // agent's own 320 s limit. The advisor's deadline counts from the same start (reading the
+        // payload included), so every child it runs is stopped before this exit (review 05/11/2026).
+        crate::advise::set_deadline(Instant::now() + crate::watch::BUDGET);
+        std::thread::spawn(|| {
+            std::thread::sleep(crate::watch::BUDGET + Duration::from_secs(20));
+            std::process::exit(0);
+        });
+        return;
+    }
     if !matches!(event, Event::PreEdit | Event::PreBash) {
         return;
     }
@@ -155,9 +166,13 @@ pub(crate) fn context_json(event: &str, text: &str) -> String {
     format!("{{\"hookSpecificOutput\": {{\"hookEventName\": {}, \"additionalContext\": {}}}}}", q(event), q(text))
 }
 
+/// The git top level of `dir`. Bounded (10 s, git stopped with its children): a hung git must not
+/// outlive the hook (review 05/11/2026).
 fn git_top(dir: &Path) -> Option<PathBuf> {
-    let o = Command::new("git").current_dir(dir).args(["rev-parse", "--show-toplevel"]).output().ok()?;
-    o.status.success().then(|| PathBuf::from(String::from_utf8_lossy(&o.stdout).trim_end_matches(['\n', '\r'])))
+    let mut c = Command::new("git");
+    c.current_dir(dir).args(["rev-parse", "--show-toplevel"]);
+    let o = crate::role::capture(&mut c, String::new(), Duration::from_secs(10)).ok()?;
+    o.status.is_some_and(|s| s.success()).then(|| PathBuf::from(o.stdout.trim_end_matches(['\n', '\r'])))
 }
 
 /// Claude: $CLAUDE_PROJECT_DIR; Codex (and fallback): the git top level, else the current directory.
@@ -171,26 +186,6 @@ pub(crate) fn project_root(claude: bool) -> PathBuf {
         }
     }
     git_top(&cwd).map(|t| cwd.join(t)).unwrap_or(cwd)
-}
-
-/// The kit's scripts/ for this project: $SOS_KIT_DIR, an app's harness-lite/, or the kit repo itself.
-fn scripts_dir(root: &Path) -> Option<PathBuf> {
-    let mut cands: Vec<PathBuf> = std::env::var_os("SOS_KIT_DIR").map(|d| vec![PathBuf::from(d)]).unwrap_or_default();
-    cands.push(root.join("harness-lite"));
-    cands.push(root.to_path_buf());
-    let cwd = std::env::current_dir().unwrap_or_default();
-    cands.into_iter().map(|k| cwd.join(k).join("scripts")).find(|s| s.join("test-watch.py").is_file())
-}
-
-/// $SOS_PYTHON, else the first of python3/python that runs (Windows: `python3` is often the Store
-/// alias that only fails; the Python adapters used their own interpreter, which always ran).
-fn python() -> String {
-    if let Some(p) = std::env::var("SOS_PYTHON").ok().filter(|p| !p.is_empty()) {
-        return p;
-    }
-    let order: &[&str] = if cfg!(windows) { &["python", "python3"] } else { &["python3", "python"] };
-    order.iter().find(|p| run_limited(Command::new(p).args(["-c", ""]), b"", Duration::from_secs(10))
-        .is_some_and(|(ok, _)| ok)).unwrap_or(&order[0]).to_string()
 }
 
 /// Run `cmd` with `input` on stdin, within `limit` for the process AND for reading its output (a
@@ -226,16 +221,5 @@ pub fn run_limited(cmd: &mut Command, input: &[u8], limit: Duration) -> Option<(
     };
     let out = rx.recv_timeout(deadline.saturating_duration_since(Instant::now())).ok()?;
     Some((status.success(), out))
-}
-
-/// scripts/test-watch.py with `out` on stdin; its stdout, or nothing (the advisor never blocks).
-pub(crate) fn test_watch(root: &Path, args: &[String], out: &str) -> String {
-    let Some(scripts) = scripts_dir(root) else { return String::new() };
-    let py = python();
-    let mut cmd = Command::new(&py);
-    cmd.arg(scripts.join("test-watch.py")).args(args).current_dir(root)
-        .env("PYTHONUTF8", "1").env("SOS_PYTHON", &py);
-    run_limited(&mut cmd, out.as_bytes(), Duration::from_secs(300))
-        .map(|(_, o)| String::from_utf8_lossy(&o).into_owned()).unwrap_or_default()
 }
 

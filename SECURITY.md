@@ -25,7 +25,7 @@ The v2 policy (sister-tool binaries, Codex adapter guards, rendered backstop hoo
 | Written | Owner | Runs when |
 |---|---|---|
 | `harness-lite/hooks/pre-commit`, `pre-push` (+ `core.hooksPath`) | Kit | Every commit / push: `sos gate all`, `sos gate local-secrets` |
-| `harness-lite/scripts/*`, `harness-lite/adapters/*` | Kit | Called by agent hooks; `scripts/advise` calls the `claude` or `codex` CLI after repeated test failures (disable: `SOS_ADVISOR=off`) |
+| `harness-lite/scripts/*`, `harness-lite/adapters/*` | Kit | Called by older agent hook wiring (current wiring calls `sos hook`); `scripts/advise` calls the `claude` or `codex` CLI after repeated test failures (disable: `SOS_ADVISOR=off`) |
 | `.claude/settings.json`, `.codex/hooks.json` | Project (created only if missing) | Agent sessions |
 
 It never overwrites an existing project file (it appends three lines to `.gitignore`), never changes an existing `core.hooksPath` without `--force-hooks`, and records the SHA-256 of every kit file in `harness-lite/UPSTREAM.json`. `sos update` replaces only kit files whose hash still matches that record; an edited file is kept and the new version is written beside it as `.sos-new`.

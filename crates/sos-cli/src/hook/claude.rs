@@ -1,6 +1,7 @@
 //! Claude Code payloads: tool_input.file_path/notebook_path, tool_response{stdout,stderr}, agent_id.
 
-use super::{context_json, payload, project_root, s, test_watch, tool_input, Event};
+use super::{context_json, payload, project_root, s, tool_input, Event};
+use crate::watch;
 use crate::guards::{env::env_guard, sim as sim_guard};
 use crate::status;
 use serde_json::Value;
@@ -59,15 +60,10 @@ pub(crate) fn claude(event: Event) -> i32 {
                 out = format!("{}\n{out}", s(&d, "error"));
             }
             let agent = match s(&d, "agent_id") { "" => "main", a => a };
-            let mut args = vec![
-                "--key".into(), format!("claude-{}-{agent}", s(&d, "session_id")),
-                "--cmd".into(), s(&tool_input(&d), "command").to_string(),
-                "--agent".into(), "claude".into(),
-            ];
-            if failure {
-                args.extend(["--exit".into(), "1".into()]);
-            }
-            let text = test_watch(&root, &args, &out);
+            let key = format!("claude-{}-{agent}", s(&d, "session_id"));
+            let input = tool_input(&d);
+            let call = watch::Call { key: &key, cmd: s(&input, "command"), exit: failure.then_some(1), agent: "claude" };
+            let text = watch::run(&root, &call, &out);
             if !text.trim().is_empty() {
                 println!("{}", context_json(&event, text.trim()));
             }

@@ -16,6 +16,7 @@ anyhow = { workspace = true }
 sha2 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["preserve_order"] }  # `sos update --wiring` keeps the key order of project files
+regex = "1"
 sos-gates = { path = "../sos-gates" }
 toml = { workspace = true }
 

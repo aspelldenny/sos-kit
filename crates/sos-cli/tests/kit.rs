@@ -413,7 +413,7 @@ fn sos_env(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Output {
 
 #[cfg(unix)]
 #[test]
-fn hooks_call_sos_and_check_runs_the_advisor_interpreter() {
+fn hooks_call_sos_and_need_no_python() {
     // Windows: `python3` is the Store alias that exists on PATH but only fails (POD-agent, 23/10/2026).
     use std::os::unix::fs::PermissionsExt;
     let d = repo();
@@ -429,9 +429,9 @@ fn hooks_call_sos_and_check_runs_the_advisor_interpreter() {
         let text = std::fs::read_to_string(p.join(f)).unwrap();
         assert!(text.contains(&format!("sos hook {agent} pre-edit --protocol 1")) && !text.contains("python") && !text.contains("hook.py"), "{f}: {text}");
     }
-    // The advisor (test-watch.py) still runs on the Python `sos hook` would pick.
+    // The advisor runs inside `sos` now: current wiring needs no Python at all.
     let c = out(&sos_env(p, &["check"], &[("SOS_PYTHON", py)]));
-    assert!(c.contains(&format!("{py} not found on PATH, or it does not run")), "{c}");
+    assert!(!c.contains(&format!("{py} not found on PATH")), "{c}");
     // No sos on PATH while the hooks call it: every edit would be blocked.
     let c = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(p).arg("check").env("PATH", "/usr/bin:/bin").output().unwrap();
     assert!(out(&c).contains("sos is not on PATH"), "{}", out(&c));

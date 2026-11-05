@@ -52,6 +52,8 @@ Existing files are never overwritten; the only change to an existing file is thr
 
 `sos hook claude|codex <session-start|pre-edit|pre-bash|post-bash> --protocol 1` is what the agent hooks call (payload on stdin, exit 2 blocks); the guards (pre-edit, pre-bash) block when `sos` is missing, too old or fails. Apps installed before call `harness-lite/adapters/*/hook.py`: `sos update --wiring` rewrites those commands in `.claude/settings.json` and `.codex/hooks.json` (shown first, `--dry-run` to only look; other entries untouched), and `sos check` warns until it is done. The project-owned files are otherwise never overwritten by `sos update`.
 
+`sos advise [question]` asks a stronger model for direction from a snapshot of the work (question, intent from the state doc, latest failure, git state, the files they mention); `sos hook … post-bash` calls it by itself after `[advisor] after` failing runs of the same test command. `--check` proves the configured CLI answers after a login fix; `--config` prints the settings.
+
 `sos role <worker|reviewer|architect> --from <claude|codex> --brief <file>` runs a role on the model and effort `.sos.toml` `[roles]` names (for a reviewer, keyed by the family that built the work), from any agent: prompt on stdin with stdin closed, a time limit, the final message in `evidence/roles/`, one line in `.advise-state/calls.jsonl`.
 
 ## How work runs

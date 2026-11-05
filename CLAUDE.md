@@ -10,7 +10,7 @@ SOS Kit is a solo developer's harness for building with AI agents. The human own
 | `scripts/` | Agent-neutral scripts shipped into apps (`env-guard.sh`, `sim-guard`, `status.sh`, `advise`, `test-watch.py`, `bite`) plus kit-only tooling (`trust-gate.sh`, `install-hooks.sh`, npm postinstall). |
 | `adapters/` | One thin translator per agent (`claude/`, `codex/`): hook payload → `scripts/` call. No policy; every check has a git backstop. Tests: `tests/adapters/run.sh`. |
 | `templates/app/` | What `sos install` writes besides the core: app git hooks, `AGENTS.md`/`CLAUDE.md`/`.sos.toml` templates, Claude/Codex wiring, Claude agent wrappers. |
-| `crates/` | The `sos` binary: `sos-cli` (`install / update / check`, every installed file embedded at build time; ownership rules in `kit.rs`; `sos hook`; `sos usage` in `usage/`) and `sos-gates` (`sos gate …`, `sos filter`; config `.sos.toml`). |
+| `crates/` | The `sos` binary: `sos-cli` (`install / update / check`, every installed file embedded at build time; ownership rules in `kit.rs`; `sos hook`; `sos advise` and its trigger `watch.rs`; `sos usage` in `usage/`) and `sos-gates` (`sos gate …`, `sos filter`; config `.sos.toml`). |
 | `hooks/` | This repo's own git gates: `cargo check`, trust gate, `sos gate all` (pre-commit); `sos gate local-secrets` (pre-push). |
 | `recipes/` + `skills/apply/` | Implementation patterns verified in shipped projects, and the skill that applies one. |
 | `skills/depth-check/` | Read-only check of a project, plan or role against Rieseberg's speed/altitude/depth/range lens: rawest source, real instruments, independent judge, closed loop. Not installed by `sos install`; link or copy into the agent's skills folder. |

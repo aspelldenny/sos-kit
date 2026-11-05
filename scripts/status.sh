@@ -64,7 +64,7 @@ for line in open(".advise-state/calls.jsonl", errors="replace"):
         last = d
 if last and not last.get("ok", True) and last.get("fix"):
     print(f"Note: the advisor's last call failed ({last.get('ts', '?')}): {str(last.get('error') or '')[:120]}."
-          f" Fix: {last['fix']}, then `harness-lite/scripts/advise --check`.")
+          f" Fix: {last['fix']}, then `sos advise --check`.")
 PY
 fi
 exit 0

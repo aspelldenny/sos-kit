@@ -240,8 +240,8 @@ pub fn hook_python() -> String {
 }
 
 /// The interpreters the installed agent hooks call: the one each recognised kit command names (the
-/// Windows Codex launcher, the old Python adapters), else the advisor's default (`sos hook` runs
-/// test-watch.py with it).
+/// Windows Codex launcher, the old Python adapters). Current `sos hook` wiring needs none: the
+/// advisor runs inside `sos`.
 fn hook_interpreters(root: &Path) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for (f, agent) in crate::wiring::FILES {
@@ -254,9 +254,6 @@ fn hook_interpreters(root: &Path) -> Vec<String> {
                 }
             }
         }
-    }
-    if out.is_empty() {
-        out.push(hook_python());
     }
     out
 }
@@ -776,7 +773,7 @@ pub fn check(dir: &Path) -> Result<i32> {
         }
     }
     let mut bins = vec![("gitleaks".to_string(), "secret gates")];
-    bins.extend(hook_interpreters(&root).into_iter().map(|p| (p, "agent adapters and advisor")));
+    bins.extend(hook_interpreters(&root).into_iter().map(|p| (p, "the agent hook commands")));
     for (bin, why) in &bins {
         if !on_path(bin) {
             errors.push(format!("{bin} not found on PATH, or it does not run (needed by {why})"));
@@ -949,7 +946,7 @@ fn advisor_down(root: &Path) -> Option<String> {
         .find(|v| v.get("kind").and_then(|k| k.as_str()) != Some("role"))?;
     let fix = last.get("fix").and_then(|f| f.as_str()).filter(|f| !f.is_empty())?;
     let ts = last.get("ts").and_then(|t| t.as_str()).unwrap_or("?");
-    Some(format!("the advisor's last call ({ts}) could not run: {fix}, then `harness-lite/scripts/advise --check`"))
+    Some(format!("the advisor's last call ({ts}) could not run: {fix}, then `sos advise --check`"))
 }
 
 /// `needle` in `text`, not as part of a longer name (`.quality-gate.toml` is still read, and
