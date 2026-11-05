@@ -1,4 +1,4 @@
-# Rust hoá — bàn giao cho session làm đợt 1d (05/11/2026)
+# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau 1d)
 
 Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (Sếp duyệt 05/11). Ghi chú này đủ để làm tiếp mà không cần đọc transcript cũ.
 
@@ -15,17 +15,18 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 | tách `hook/` | `29fc065` | `hook/{mod,claude,codex}.rs`, `guards/{env,sim}.rs`; không đổi hành vi |
 | 2.1 | `978cda4` | `sos advise` (`advise.rs`) và bộ kích advisor chạy trong `sos hook post-bash` (`watch.rs`): hook không còn gọi Python. Astra soát 4 lượt, MERGE |
 
-- **Việc tiếp theo:** đợt **1d**, máy luật khai báo trong crate mới `crates/sos-rules`, vỏ CLI `sos hook rules --file …`. Đặc tả ở `RUST_ARCHITECTURE_2026-11-05.md` §2: schema TOML, bộ đọc shell riêng (chuyển `lex()` từ `guards/sim.rs`), `Runner` giả, `--cases`. Thứ tự trong 1d:
-  1. vault `chan.toml` thay `chan.py`;
-  2. BOOK `win_heavy_guard.py`;
-  3. soulsign-marketing `worker-guard.sh`;
-  4. tarot `block-unsafe-merge.sh`;
-  5. `hub-audit.sh`.
+| 1d | commit «sos-rules: declarative hook rules» | crate `crates/sos-rules`, `sos hook [claude\|codex] rules --file F`, `--lint/--cases/--explain`; 5 luật dịch sang TOML trong `tests/rules/<tên>/rules.toml`, 111 ca có kết quả bản cũ. Astra soát 6 lượt |
 
-  Quy định:
-  - Mỗi ca phải có kết quả của bản cũ, ghi lại trước khi dịch luật.
-  - Chỗ gọi ở repo khác đi trên nhánh riêng của repo đó.
-  - Không đụng repo mà session khác đang làm (lucilius, reel).
+- **Việc tiếp theo (sau 1d):**
+  1. **Đổi chỗ gọi ở từng repo, mỗi repo một nhánh riêng**, chép `tests/rules/<tên>/rules.toml` sang repo đó, hook gọi `sos hook claude rules --file <đường dẫn>` (Codex: `sos hook codex rules …`), bản cũ để cạnh đến bản phát hành sau:
+     - vault: `chan.toml` thay `chan.py`;
+     - BOOK: `win-heavy.toml` thay `win_heavy_guard.py`;
+     - soulsign-marketing: `worker-guard.toml` thay `worker-guard.sh` (bản cũ fail-open dưới bash 3.2 + locale UTF-8, nên đổi sớm);
+     - tarot: `merge-guard.toml` thay `block-unsafe-merge.sh`, kèm một helper `scripts/merge-check <PR>` (phần gọi `gh`; trong ca kiểm nó là `fake`);
+     - mọi repo: `hub-audit.toml` thay `~/.claude/hooks/hub-audit.sh`.
+     Điều kiện: bản `sos` có `sos hook … rules` đã phát hành và cài (bản 0.3.13 trả exit 2 với lệnh lạ = chặn mọi thứ). Không đụng lucilius, reel.
+  2. Rồi 2.2 (`sos bite`) → 2.3 (crate `sos-dev`: trust-gate, install-hooks, docs-check) → 2.5 (`sos sim boot|settle|destination`).
+- **Bản 1d hẹp hơn đặc tả §2** (không allow/scope, first_positional, case_insensitive, when.file_exists/env; ask bị từ chối): ghi ở `RUST_ARCHITECTURE_2026-11-05.md`, đoạn «Bản 1d hẹp hơn đặc tả». Thêm khi một luật thật cần.
 
 ## File cần đọc
 
@@ -55,7 +56,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
   - một dòng đầu «Nhật ký bảng» trong `~/VibeNotes/10_Projects/README.md`;
   - một dòng trong ghi chú chung `rust-hoa-dot-1a.md` (thư mục side-session-notes của Tổng đài).
 
-## Việc còn mở (không chặn 1d)
+## Việc còn mở (không chặn đợt sau)
 
 1. **WSL thiếu gitleaks.** Vì vậy test `install_sets_a_reviewer_from_the_other_family_when_both_clis_exist` (`crates/sos-cli/tests/kit.rs`) đỏ ở WSL. Đây là chuyện môi trường, không phải lỗi code. Cài gitleaks vào WSL, hoặc để nguyên.
 2. **4 ca Codex trên Windows thật** (sos mới, sos cũ, thiếu sos, sos hỏng) với launcher `python -c` của 1b. Đây là điều kiện trước khi phát hành. Nếu cần Sếp thao tác tay, gom vào một tin CẦN SẾP lúc phát hành.

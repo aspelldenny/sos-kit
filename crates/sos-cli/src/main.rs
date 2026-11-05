@@ -85,7 +85,8 @@ enum Cmd {
         dry_run: bool,
     },
     /// Agent hooks: `sos hook claude|codex <session-start|pre-edit|pre-bash|post-bash>` (payload on
-    /// stdin; exit 2 blocks), plus the agent-neutral `env-guard`, `sim-guard` and `status`.
+    /// stdin; exit 2 blocks), `rules --file F` (declarative rules), plus the agent-neutral
+    /// `env-guard`, `sim-guard`, `status` and `rules --file F [--lint|--cases C]`.
     Hook {
         #[command(subcommand)]
         which: hook::HookCmd,

@@ -41,7 +41,7 @@ pub(crate) fn codex(event: Event) -> i32 {
             let Some(patch) = tool_input(&d).get("command").and_then(Value::as_str).map(str::to_string) else {
                 return codex_block("BLOCKED: this apply_patch has no patch text; re-issue it as a standard '*** Begin Patch' patch.");
             };
-            let paths = patch_paths(&patch);
+            let paths = sos_rules::patch_paths(&patch);
             if paths.is_empty() {  // a patch we cannot parse might touch anything: block rather than guess
                 return codex_block("BLOCKED: could not find file paths in this apply_patch; re-issue it as a standard \
                                     '*** Begin Patch' patch.");
@@ -63,6 +63,8 @@ pub(crate) fn codex(event: Event) -> i32 {
             };
             sim_guard::check(&command).map_or(0, |msg| codex_block(&msg))
         }
+        // Routed to rules.rs by mod.rs (it needs --file); never reaches here.
+        Event::Rules => 2,
         Event::PostBash => {
             let Some(d) = payload() else { return 0 };
             if s(&d, "tool_name") != "Bash" {
@@ -84,33 +86,5 @@ pub(crate) fn codex(event: Event) -> i32 {
             }
             0
         }
-    }
-}
-
-/// Every path named on any '*** <header>: <path>' line of a Codex apply_patch. Deliberately broader
-/// than the V4A grammar: Codex trims any whitespace (incl. Unicode) around headers, so a narrow match
-/// can be bypassed (review 2026-10-09). Split on \n only: Codex keeps U+2028 inside a path.
-fn patch_paths(patch: &str) -> Vec<String> {
-    let ws = |c: char| c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c);
-    patch.split('\n').filter_map(|line| {
-        let s = line.trim_matches(ws);
-        if !s.starts_with("***") {
-            return None;
-        }
-        let path = s.split_once(':')?.1.trim_matches(ws);
-        (!path.is_empty()).then(|| path.to_string())
-    }).collect()
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn patch_paths_reads_every_header() {
-        let p = "*** Begin Patch\n*** Add File: a.txt\n+hi\n\u{a0}*** Update File: dir\u{2028}/.env\n*** Move to: b\n*** End Patch";
-        assert_eq!(patch_paths(p), vec!["a.txt", "dir\u{2028}/.env", "b"]);
-        assert!(patch_paths("garbage").is_empty());
     }
 }

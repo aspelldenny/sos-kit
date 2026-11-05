@@ -1,0 +1,39 @@
+# Cổng Tổng đài cho session chạy trong ~/VibeNotes (thay 10_Projects/tong-dai/chan.py).
+# Vault chỉ đọc, ghi chú và chuyển việc; vận hành, code, máy chủ đi về session đầu mối của repo.
+# Nối: PreToolUse, matcher "Bash|Edit|Write|MultiEdit|NotebookEdit":
+#   sos hook claude rules --file ~/VibeNotes/10_Projects/tong-dai/chan.toml
+version = 1
+
+[[rule]]
+id = "vault-no-infra"
+tools = ["Bash"]
+command.program = ["ssh", "scp", "sftp", "rsync", "sudo", "iptables", "nft", "systemctl", "docker", "docker-compose", "kubectl"]
+decision = "block"
+message = "[Cổng Tổng đài] Chặn: máy chủ / hạ tầng ({program}). Session trong VibeNotes chỉ đọc, ghi bảng và chuyển việc. Mở hoặc nhắn session đầu mối của repo đó (LUAT.md mục «Chuyển việc»); không có đầu mối thì start_session ở repo gần nhất."
+
+[[rule]]
+id = "vault-no-build"
+tools = ["Bash"]
+command.program = ["xcodebuild", "fastlane", "make", "pnpm", "npm", "yarn", "cargo", "pip", "pip3", "uv"]
+command.or = [{ program = ["xcrun"], args = [{ pos = 0, eq = "simctl" }] }]
+decision = "block"
+message = "[Cổng Tổng đài] Chặn: build / cài đặt / chạy dự án ({program}). Session trong VibeNotes chỉ đọc, ghi bảng và chuyển việc. Mở hoặc nhắn session đầu mối của repo đó (LUAT.md mục «Chuyển việc»); không có đầu mối thì start_session ở repo gần nhất."
+
+[[rule]]
+id = "vault-git-other-repo"
+tools = ["Bash"]
+command.program = ["git"]
+command.args = [
+  { pos = 0, eq = "-C" },
+  { pos = 1, path = { outside = ["~/VibeNotes"] } },
+  { pos = 2, one_of = ["add", "commit", "push", "reset", "checkout", "switch", "merge", "rebase", "restore", "stash", "clean"] },
+]
+decision = "block"
+message = "[Cổng Tổng đài] Chặn: git ghi vào repo khác ({arg.1}). Session trong VibeNotes chỉ đọc, ghi bảng và chuyển việc. Mở hoặc nhắn session đầu mối của repo đó (LUAT.md mục «Chuyển việc»); không có đầu mối thì start_session ở repo gần nhất."
+
+[[rule]]
+id = "vault-edit-outside"
+tools = ["Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch"]
+paths.outside = ["~/VibeNotes", "~/.claude/projects"]
+decision = "block"
+message = "[Cổng Tổng đài] Chặn: sửa file ngoài vault ({path}). Session trong VibeNotes chỉ đọc, ghi bảng và chuyển việc. Mở hoặc nhắn session đầu mối của repo đó (LUAT.md mục «Chuyển việc»); không có đầu mối thì start_session ở repo gần nhất."

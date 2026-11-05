@@ -1,0 +1,39 @@
+# Vai không cần canon không đọc tài liệu tầm nhìn (thay scripts/worker-guard.sh, MKT-058).
+# Quản đốc ghi tên vai vào `.mkt-state/role` trước khi gọi agent, xoá sau khi agent trả việc.
+# Nối: PreToolUse, matcher "Read|Glob": sos hook claude rules --file scripts/worker-guard.toml
+version = 1
+
+[[rule]]
+id = "mkt-no-vision-for-worker"
+tools = ["Read", "Glob"]
+when.role = { sources = [{ file = ".mkt-state/role", trim = true }, { file_exists = ".mkt-state/worker-active", value = "mkt-worker" }], one_of = ["tho", "data-analyst", "mkt-worker"] }
+paths.glob = ["**/PRODUCT.md", "**/SOUL.md", "**/NARRATIVE.md", "**/CHARACTER.md", "**/CHARACTER_*.md", "**/VOICE_SACH_CO.md"]
+decision = "block"
+message = """
+🚫 Vai «{when.value}» không đọc canon
+
+Không đọc được: {path}
+Lý do: tài liệu tầm nhìn / triết lý / giọng nhân vật (đọc sẽ ngấm tone)
+
+Làm thay vậy:
+  - Thợ: làm theo STORYBOARD.md + skills/clip/SO_PHONG_CACH.md + skills/clip/MAU.md
+  - Data analyst: đọc số ở launch-tracking/ + research/; không cần giọng nhân vật
+  - Cần thông tin từ canon → ghi vào báo cáo cho Quản đốc
+
+Nếu mày là Quản đốc (main session) mà bị chặn: marker còn sót, chạy `rm -f .mkt-state/role .mkt-state/worker-active`.
+"""
+
+[[rule]]
+id = "mkt-no-ticket-template-for-worker"
+tools = ["Read", "Glob"]
+when.role = { sources = [{ file = ".mkt-state/role", trim = true }, { file_exists = ".mkt-state/worker-active", value = "mkt-worker" }], one_of = ["tho", "data-analyst", "mkt-worker"] }
+paths.glob = ["**/tickets/TICKET_TEMPLATE.md"]
+decision = "block"
+message = """
+🚫 Vai «{when.value}» không đọc canon
+
+Không đọc được: {path}
+Lý do: ticket template — phiếu là hợp đồng, đừng sửa khuôn
+
+Nếu mày là Quản đốc (main session) mà bị chặn: marker còn sót, chạy `rm -f .mkt-state/role .mkt-state/worker-active`.
+"""

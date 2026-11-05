@@ -43,6 +43,8 @@ pub(crate) fn claude(event: Event) -> i32 {
                 None => 0,
             }
         }
+        // Routed to rules.rs by mod.rs (it needs --file); never reaches here.
+        Event::Rules => 2,
         Event::PostBash => {
             let Some(d) = payload() else { return 0 };
             if s(&d, "tool_name") != "Bash" {

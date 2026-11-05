@@ -412,6 +412,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sos-gates",
+ "sos-rules",
  "tempfile",
  "toml",
 ]
@@ -426,6 +427,20 @@ dependencies = [
  "serde_json",
  "tempfile",
  "toml",
+]
+
+[[package]]
+name = "sos-rules"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "regex",
+ "serde",
+ "serde_json",
+ "sos-gates",
+ "tempfile",
+ "toml",
+ "windows-sys",
 ]
 
 [[package]]

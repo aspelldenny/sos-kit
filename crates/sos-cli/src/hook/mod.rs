@@ -7,6 +7,8 @@
 //!   sos hook claude|codex pre-edit        refuse edits of real .env files
 //!   sos hook claude|codex pre-bash        refuse xcodebuild test runs that clone the simulator
 //!   sos hook claude|codex post-bash       advisor trigger (watch.rs, in-process; asks `sos advise`)
+//!   sos hook claude|codex rules --file F  declarative rules (crate sos-rules; rules.rs)
+//!   sos hook rules --file F [--lint | --cases C.jsonl | --explain]   same, agent-neutral, plus lint and cases
 //!   sos hook env-guard <path>…  |  sim-guard --cmd <command>  |  status   agent-neutral forms
 //!
 //! Blocking: exit 2 with the reason on stderr. Codex on Windows may run hooks under
@@ -26,6 +28,7 @@ use crate::status;
 
 mod claude;
 mod codex;
+mod rules;
 
 use claude::claude;
 use codex::{codex, codex_block};
@@ -36,6 +39,8 @@ pub enum Event {
     PreEdit,
     PreBash,
     PostBash,
+    /// Declarative rules from `--file` (pre or post tool use, as the rules file says).
+    Rules,
 }
 
 #[derive(Subcommand)]
@@ -47,12 +52,34 @@ pub enum HookCmd {
         /// versions it knows; an older one rejects the flag, which the launcher turns into a block.
         #[arg(long, default_value_t = PROTOCOL)]
         protocol: u32,
+        /// Rules file(s) for the `rules` event (relative to the project root).
+        #[arg(long)]
+        file: Vec<String>,
+        /// `rules`: print how each rule was weighed, on stderr.
+        #[arg(long)]
+        explain: bool,
     },
     /// Codex hook (payload on stdin): session-start, pre-edit, pre-bash, post-bash.
     Codex {
         event: Event,
         #[arg(long, default_value_t = PROTOCOL)]
         protocol: u32,
+        #[arg(long)]
+        file: Vec<String>,
+        #[arg(long)]
+        explain: bool,
+    },
+    /// Declarative rules (payload on stdin, Claude's exit codes), or check a rules file:
+    /// `--lint` loads it and prints warnings, `--cases C.jsonl` runs recorded cases against it.
+    Rules {
+        #[arg(long, required = true)]
+        file: Vec<String>,
+        #[arg(long, conflicts_with = "cases")]
+        lint: bool,
+        #[arg(long)]
+        cases: Option<String>,
+        #[arg(long)]
+        explain: bool,
     },
     /// Exit 2 when any path is a real .env file (.env.example is allowed).
     EnvGuard { paths: Vec<String> },
@@ -84,6 +111,10 @@ fn protocol_ok(p: u32) -> bool {
 /// here, well inside the `timeout` the templates give the guard entries (60 s; review 05/11/2026 1b, point 1).
 pub const GUARD_DEADLINE: Duration = Duration::from_secs(30);
 
+/// When `guard_deadline`'s timer started: anything that must end before that exit (the rules'
+/// checks) counts from here, not from when it got the payload (review 1d round 2, point 5).
+pub(crate) static GUARD_START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+
 fn guard_deadline(event: Event, codex: bool) {
     if event == Event::PostBash {
         // The advisor never blocks: past its budget the hook just ends, silently, before the
@@ -96,9 +127,10 @@ fn guard_deadline(event: Event, codex: bool) {
         });
         return;
     }
-    if !matches!(event, Event::PreEdit | Event::PreBash) {
+    if !matches!(event, Event::PreEdit | Event::PreBash | Event::Rules) {
         return;
     }
+    let _ = GUARD_START.set(Instant::now());
     std::thread::spawn(move || {
         std::thread::sleep(GUARD_DEADLINE);
         let msg = format!("BLOCKED: SOS Kit hook did not decide within {} s, so the action is blocked. Retry; if it repeats, \
@@ -114,6 +146,18 @@ fn guard_deadline(event: Event, codex: bool) {
 pub fn run(cmd: HookCmd) -> i32 {
     match cmd {
         HookCmd::Claude { protocol, .. } | HookCmd::Codex { protocol, .. } if !protocol_ok(protocol) => 2,
+        HookCmd::Claude { event, file, .. } | HookCmd::Codex { event, file, .. } if event != Event::Rules && !file.is_empty() => {
+            eprintln!("BLOCKED: --file belongs to the `rules` event only (got it with another event); fix the hook command.");
+            2
+        }
+        HookCmd::Claude { event: Event::Rules, file, explain, .. } => {
+            guard_deadline(Event::Rules, false);
+            rules::hook(rules::Agent::Claude, project_root(true), &file, explain)
+        }
+        HookCmd::Codex { event: Event::Rules, file, explain, .. } => {
+            guard_deadline(Event::Rules, true);
+            rules::hook(rules::Agent::Codex, project_root(false), &file, explain)
+        }
         HookCmd::Claude { event, .. } => {
             guard_deadline(event, false);
             claude(event)
@@ -121,6 +165,16 @@ pub fn run(cmd: HookCmd) -> i32 {
         HookCmd::Codex { event, .. } => {
             guard_deadline(event, true);
             codex(event)
+        }
+        HookCmd::Rules { file, lint, cases, explain } => {
+            if lint {
+                rules::lint(&file)
+            } else if let Some(c) = cases {
+                rules::cases(&file, &c)
+            } else {
+                guard_deadline(Event::Rules, false);
+                rules::hook(rules::Agent::Neutral, std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")), &file, explain)
+            }
         }
         HookCmd::EnvGuard { paths } => match env_guard(&paths) {
             Some(msg) => {

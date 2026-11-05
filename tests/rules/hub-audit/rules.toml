@@ -1,0 +1,24 @@
+# Chuông báo sớm khi sửa file .md của Hub (thay ~/.claude/hooks/hub-audit.sh): chỉ chặn khi
+# `hub audit` in dòng ✘ FABRICATED. INCONCLUSIVE thì im — kiểm kỹ là việc của `hub audit --strict`.
+# Phạm vi: cây sách ~/Downloads/Documents/BOOK và gói nghiên cứu Hub chép sang dự án.
+# Nối: PostToolUse, matcher "Write|Edit|MultiEdit": sos hook claude rules --file ~/.claude/hooks/hub-audit.toml
+version = 1
+
+[[rule]]
+id = "hub-fabricated-quote"
+event = "post"
+tools = ["Edit", "Write", "MultiEdit"]
+paths.glob = [
+  "~/Downloads/Documents/BOOK/**/*.md", "~/Downloads/Documents/BOOK/**/*.markdown",
+  "**/docs/research/hub-*/**/*.md", "**/docs/research/hub-*/**/*.markdown",
+]
+paths.exists = true
+# Chỉ soát file có trích kiểu hub (dấu ✔/✘ hoặc [..loc/p./ch./hồi..]); md thường bỏ qua.
+paths.content = '✔|✘|\[[^\]]*(loc |p\.[0-9]|pp\.|tr\.|ch\.[0-9]|chapter |hồi |quyển )'
+# Thiếu hub, hub hỏng, hết giờ → không chặn (hành vi cũ: «lỗi lệnh → không chặn»).
+check = { program = "~/.local/bin/hub", args = ["audit", "{path}", "--quiet"], timeout_secs = 25, fires_on = { output = '(?m)^\s*✘ FABRICATED' }, on_error = "allow" }
+decision = "block"
+message = """
+🚫 hub audit: câu trích BỊA (không có nguyên văn trong kho) ở {path} — sửa/bỏ trước khi tiếp:
+{check.matched}
+(kiểm 1 câu: hub verify "..."  ·  trước khi giao: hub audit --strict "{path}")"""
