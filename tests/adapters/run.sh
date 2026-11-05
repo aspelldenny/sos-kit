@@ -7,6 +7,11 @@
 set -uo pipefail
 KIT=$(cd "$(dirname "$0")/../.." && pwd)
 FIX="$KIT/tests/adapters/fixtures"
+# Absolute before the cd below: CI passes target/debug/sos (review 05/11/2026).
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    case "$SOS_HOOK_BIN" in */*) SOS_HOOK_BIN="$(cd "$(dirname "$SOS_HOOK_BIN")" && pwd)/$(basename "$SOS_HOOK_BIN")" ;;
+                           *) SOS_HOOK_BIN=$(command -v "$SOS_HOOK_BIN") || { echo "SOS_HOOK_BIN not on PATH"; exit 1; } ;; esac
+fi
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 cd "$T" && git init -q && git commit -q --allow-empty -m init
 mkdir -p scripts adapters
@@ -50,14 +55,20 @@ EOF
 # check <name> <want-exit> <want-substring|-> <agent> <sub> <<< payload
 check() {
     local name=$1 want=$2 grep_for=$3 agent=$4 sub=$5 out rc
+    local so
     if [ -n "${SOS_HOOK_BIN:-}" ]; then
-        out=$("$SOS_HOOK_BIN" hook "$agent" "$sub" 2>&1); rc=$?
+        so=$("$SOS_HOOK_BIN" hook "$agent" "$sub" 2>"$T/.stderr"); rc=$?
     else
-        out=$("$PY" "adapters/$agent/hook.py" "$sub" 2>&1); rc=$?
+        so=$("$PY" "$T/adapters/$agent/hook.py" "$sub" 2>"$T/.stderr"); rc=$?
     fi
+    # stdout is what the agent reads: when it is JSON, all of it must be exactly one object (review 05/11/2026).
+    if [ "${so:0:1}" = "{" ] && ! "$PY" -c 'import json,sys; d=json.loads(sys.stdin.read()); assert isinstance(d, dict) and "hookSpecificOutput" in d' <<<"$so" 2>/dev/null; then
+        rc="$rc, stdout is not one JSON object"
+    fi
+    out=$so; [ -s "$T/.stderr" ] && out="${out:+$out$'\n'}$(cat "$T/.stderr")"; rm -f "$T/.stderr"
     # Windows: the Codex adapter blocks with deny JSON and exit 0 (`powershell -Command` turns exit 2 into 1).
     if [ "$agent/${sub%-*}/$want" = codex/pre/2 ] && [ -n "$WIN" ]; then
-        want=0; grep -q '"permissionDecision": "deny"' <<<"$out" || rc="$rc, no deny JSON"
+        want=0; grep -q '"permissionDecision": "deny"' <<<"$so" || rc="$rc, no deny JSON on stdout"
     fi
     local match=1
     if [ "$grep_for" = "-" ]; then [ -z "$out" ] && match=0; else grep -q -- "$grep_for" <<<"$out" && match=0; fi
@@ -106,13 +117,28 @@ check "claude: 'failures=0' is a pass #2"      0 -          claude post-bash <<<
 check "claude: wrapped test cmd counts #1"     0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k4"; d["tool_input"]["command"]="cd app && CI=1 timeout 60 python3 -m pytest -q"')"
 check "claude: wrapped test cmd counts #2"     0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 'd["session_id"]="k4"; d["tool_input"]["command"]="cd app && CI=1 timeout 60 python3 -m pytest -q"')"
 check "claude: .Env.Local (case) blocked"      2 "BLOCKED"  claude pre-edit <<<"$(line $C 3 'd["tool_input"]["file_path"]="/REPO/.Env.Local"')"
+# Review 05/11/2026: on POSIX a backslash is part of the name, so this file IS a .env.* file.
+check "claude: '.env.local\\x' (POSIX name) blocked" 2 "BLOCKED" claude pre-edit <<<"$(line $C 3 'd["tool_input"]["file_path"]="/REPO/.env.local\\notes.txt"')"
+check "claude: notebook '.env.local\\x' blocked" 2 "BLOCKED"   claude pre-edit <<<"$(line $C 3 'd["tool_input"]={"notebook_path":"/REPO/.env.local\\n.ipynb"}')"
+# Intended difference: only `sos hook` also splits on a backslash (Windows paths); bash basename does not.
+[ -n "${SOS_HOOK_BIN:-}" ] && check "sos hook: Windows path to .env blocked" 2 "BLOCKED" claude pre-edit <<<"$(line $C 3 'd["tool_input"]["file_path"]="C:\\work\\app\\.env"')"
+# Relative CLAUDE_PROJECT_DIR from a subfolder: the advisor still runs (review 05/11/2026).
+mkdir -p sub
+for n in 1 2; do o=$(cd sub && CLAUDE_PROJECT_DIR=.. bash -c 'if [ -n "${SOS_HOOK_BIN:-}" ]; then "$SOS_HOOK_BIN" hook claude post-bash; else "$0" "'"$T"'/adapters/claude/hook.py" post-bash; fi' "$PY" <<<"$(line $C 1 'd["session_id"]="krel"')" 2>&1); done
+grep -q "STUB ADVICE" <<<"$o" && pass=$((pass + 1)) && echo "ok   claude: relative project dir from a subfolder -> advice" || { fail=$((fail + 1)); echo "FAIL claude: relative project dir from a subfolder: ${o:0:300}"; }
+rmdir sub
 check "claude: k5 fail #1 silent"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"')"
 check "claude: quoted ';pytest' not a test"    0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"; d["tool_input"]["command"]="echo \"hello; pytest\" && printf \"a|pytest\""; d["tool_response"]["stdout"]="hello; pytest"')"
 check "claude: k5 fail #2 -> advice"           0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"')"
 PY3=$(command -v "$PY"); mkdir -p "$T/win"
 printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$T/win/python3"; chmod +x "$T/win/python3"
+# `sos hook` falls back to the next interpreter that runs (Windows: `python`), so give it one here.
+[ -n "${SOS_HOOK_BIN:-}" ] && ln -sf "$PY3" "$T/win/python"
 pl=$(line $C 1 'd["session_id"]="kwin"')  # built first: the here-string would see the stub PATH
-for n in 1 2; do o=$(PATH="$T/win:$PATH" "$PY3" adapters/claude/hook.py post-bash <<<"$pl" 2>&1); done
+for n in 1 2; do
+    if [ -n "${SOS_HOOK_BIN:-}" ]; then o=$(PATH="$T/win:$PATH" "$SOS_HOOK_BIN" hook claude post-bash <<<"$pl" 2>&1)
+    else o=$(PATH="$T/win:$PATH" "$PY3" adapters/claude/hook.py post-bash <<<"$pl" 2>&1); fi
+done
 grep -q "STUB ADVICE" <<<"$o" && pass=$((pass + 1)) && echo "ok   windows: advice without a working python3" || { fail=$((fail + 1)); echo "FAIL windows: advice without a working python3: ${o:0:300}"; }
 # The project's own test command (.sos.toml [advisor] tests), e.g. POD-agent's `node scripts/check.mjs`.
 printf '[advisor]\ntests = ["node scripts/check.mjs", '"'"'make e2e'"'"']\n\n[state]\nfile = "x"\n' > .sos.toml
@@ -211,6 +237,9 @@ check "codex: CR/VT/EM-space prefix blocked"   2 "BLOCKED"  codex pre-edit <<<"$
 check "codex: .ENV (case) blocked"             2 "BLOCKED"  codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Add File: .ENV\n+T=x\n*** End Patch"')"
 check "codex: U+2028 inside path blocked"     2 "BLOCKED"  codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Update File: dir\u2028/.env\n@@\n-A=1\n+A=2\n*** End Patch"')"
 check "codex: unparseable patch blocked"       2 "could not find" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="garbage"')"
+check "codex: '.env.local\\x' (POSIX name) blocked" 2 "BLOCKED" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Update File: .env.local\\notes.txt\n@@\n-A=1\n+A=2\n*** End Patch"')"
+check "codex: NUL in a path blocked"          2 "BLOCKED"  codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Add File: notes\u0000.txt\n+hi\n*** End Patch"')"
+check "codex: patch text not a string blocked" 2 "BLOCKED" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]=None')"
 for n in 1 2 3; do
 check "codex: P078b3 fixture line $n allowed"  0 -          codex pre-edit <<<"$(sed -n "${n}p" "$FIX/codex-p078b3-apply-patch.jsonl")"
 done
@@ -280,6 +309,15 @@ check "claude: newline-separated run blocked"   2 "BLOCKED"  claude pre-bash <<<
 check "claude: unbalanced quote run blocked"    2 "BLOCKED"  claude pre-bash <<<"$(cb "xcodebuild test -scheme 'X")"
 check "claude: echo/grep of xcodebuild allowed" 0 -          claude pre-bash <<<"$(cb "echo xcodebuild test; rg 'xcodebuild test' AGENTS.md")"
 check "claude: xcodebuild build allowed"        0 -          claude pre-bash <<<"$(cb "xcodebuild build -scheme X -destination 'platform=iOS Simulator,name=A'")"
+check "claude: Unicode digit before a redirect blocked" 2 "BLOCKED" claude pre-bash <<<"$(cb "٢>/dev/null xcodebuild test")"
+if [ -z "$WIN" ]; then  # a hung `ps` costs at most 10 s, then the guard decides without it (review 05/11/2026)
+    mv "$P/ps" "$P/ps.real"; printf '#!/bin/sh\nexec sleep 30\n' > "$P/ps"; chmod +x "$P/ps"
+    t0=$(date +%s)
+    check "claude: hung ps -> still blocks the missing flag" 2 "parallel-testing-enabled NO" claude pre-bash <<<"$(cb "xcodebuild test -scheme X")"
+    dt=$(( $(date +%s) - t0 ))
+    if [ "$dt" -le 20 ]; then pass=$((pass + 1)); echo "ok   hung ps: decided in ${dt}s"; else fail=$((fail + 1)); echo "FAIL hung ps: took ${dt}s"; fi
+    mv "$P/ps.real" "$P/ps"
+fi
 touch "$P/busy"
 if [ -z "$WIN" ]; then  # Windows cannot run the fake `ps` script (and has no xcodebuild to guard)
 check "claude: second run while one runs blocked" 2 "already running" claude pre-bash <<<"$(cb "$OK")"
@@ -291,6 +329,12 @@ check "codex: Bash pre-tool pytest allowed"     0 -          codex pre-bash <<<"
 check "codex: xcodebuild test, no flag blocked" 2 "How to fix" codex pre-bash <<<"$(xb "xcodebuild -scheme X test")"
 check "codex: one sim, flag set allowed"        0 -          codex pre-bash <<<"$(xb "$OK")"
 check "codex: apply_patch ignored by pre-bash"  0 -          codex pre-bash <<<"$(line $X 4)"
+# A non-string command: blocked where a simulator exists (the Python adapter crashed, which blocked there).
+if [ "$(uname -s)" = Darwin ]; then
+    check "codex: Bash command not a string blocked (macOS)" 2 "BLOCKED" codex pre-bash <<<"$(line $X 2 'd["tool_input"]["command"]=None')"
+elif [ -n "${SOS_HOOK_BIN:-}" ]; then
+    check "sos hook: Bash command not a string allowed off macOS" 0 - codex pre-bash <<<"$(line $X 2 'd["tool_input"]["command"]=None')"
+fi
 check "claude: unreadable Bash payload blocked" 2 "BLOCKED"  claude pre-bash <<<"not json"
 export PATH="${PATH#"$P:"}"; rm -rf "$P"
 
@@ -354,7 +398,8 @@ fi
 # Windows: `python3` on PATH is the Store alias that only fails; the adapter passes its own interpreter.
 PY3=$(command -v "$PY"); mkdir -p "$A/win"
 printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$A/win/python3"; chmod +x "$A/win/python3"
-o=$(cd "$A/repo" && PATH="$A/win:$PATH" CLAUDE_PROJECT_DIR="$A/repo" "$PY3" "$KIT/adapters/claude/hook.py" session-start <<<"{}" 2>&1)
+if [ -n "${SOS_HOOK_BIN:-}" ]; then o=$(cd "$A/repo" && PATH="$A/win:$PATH" CLAUDE_PROJECT_DIR="$A/repo" "$SOS_HOOK_BIN" hook claude session-start <<<"{}" 2>&1)
+else o=$(cd "$A/repo" && PATH="$A/win:$PATH" CLAUDE_PROJECT_DIR="$A/repo" "$PY3" "$KIT/adapters/claude/hook.py" session-start <<<"{}" 2>&1); fi
 grep -q "advisor's last call failed" <<<"$o"; expect "windows: session-start status runs without a working python3" $? "$o"
 o=$(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
 [ "$rc" = 0 ] && grep -q "answers" <<<"$o"; expect "advise --check: answers after login" $? "rc=$rc $o"

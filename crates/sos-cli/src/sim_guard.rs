@@ -195,8 +195,8 @@ fn lex(src: &str) -> (Vec<Tok>, Vec<String>) {
         } else if word.is_none() && s[i..].starts_with(&['(', '(']) {  // arithmetic `(( n << 2 ))`
             i = find(&s, i + 2, "))").map_or(n, |j| j + 2);
         } else if ";&|()<>".contains(c) {
-            if (c == '<' || c == '>') && word.as_ref().is_some_and(|w| !w.is_empty() && w.chars().all(|d| d.is_ascii_digit())) {
-                word = None;  // `2>`: a number glued to a redirect is the file descriptor, not a word
+            if (c == '<' || c == '>') && word.as_ref().is_some_and(|w| !w.is_empty() && w.chars().all(char::is_numeric)) {
+                word = None;  // `2>`: a number glued to a redirect is the file descriptor, not a word (any Unicode numeric, a little wider than Python's isdigit, e.g. `½`: wider only blocks more)
             }
             end!();
             let op = *OPS.iter().find(|o| s[i..].starts_with(&o.chars().collect::<Vec<_>>())).expect("op");
@@ -372,10 +372,12 @@ fn xcodebuild_end(cmd: &str) -> Option<usize> {
 
 /// `pid command` of every xcodebuild test run on this machine (empty where `ps` is missing).
 fn running_tests() -> Vec<String> {
-    let Ok(o) = Command::new("ps").args(["-axo", "pid=,args="]).output() else {
+    // Ten seconds, as the Python guard had: a hung `ps` must not hold every shell command.
+    let Some((_, out)) = crate::hook::run_limited(Command::new("ps").args(["-axo", "pid=,args="]), b"",
+                                                   std::time::Duration::from_secs(10)) else {
         return Vec::new();
     };
-    let ps = String::from_utf8_lossy(&o.stdout);
+    let ps = String::from_utf8_lossy(&out);
     let mut found = Vec::new();
     for line in ps.lines() {
         let line = line.trim_matches(py_space);

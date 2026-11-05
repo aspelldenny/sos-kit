@@ -72,11 +72,22 @@ pub fn run(cmd: HookCmd) -> i32 {
 }
 
 /// The block message when any path is a real .env file. Case-insensitive (macOS and Windows
-/// filesystems are), and both separators count, so a Windows path cannot hide the name.
+/// filesystems are). The name is checked both as POSIX reads it (a backslash is part of a file name,
+/// so `.env.local\notes.txt` is one name) and as Windows does (a backslash separates), so neither
+/// form can hide it. A path with a
+/// NUL byte is refused: no tool can write it, and the Python guard crashed on it, which blocked.
 pub fn env_guard(paths: &[String]) -> Option<String> {
-    let blocked: Vec<&str> = paths.iter().map(String::as_str).filter(|p| {
-        let base = p.trim_end_matches('/').rsplit(['/', '\\']).next().unwrap_or("").to_ascii_lowercase();
+    let is_env = |base: &str| {
+        let base = base.to_ascii_lowercase();
         base != ".env.example" && (base == ".env" || base.starts_with(".env."))
+    };
+    if let Some(p) = paths.iter().find(|p| p.contains('\0')) {
+        return Some(format!("BLOCKED: a path to edit contains a NUL byte: {:?}\n\
+                             How to fix: re-issue the edit with a plain file path.", p));
+    }
+    let blocked: Vec<&str> = paths.iter().map(String::as_str).filter(|p| {
+        let p = p.trim_end_matches('/');
+        is_env(p.rsplit('/').next().unwrap_or("")) || is_env(p.rsplit(['/', '\\']).next().unwrap_or(""))
     }).collect();
     if blocked.is_empty() {
         return None;
@@ -133,13 +144,16 @@ fn git_top(dir: &Path) -> Option<PathBuf> {
 }
 
 /// Claude: $CLAUDE_PROJECT_DIR; Codex (and fallback): the git top level, else the current directory.
+/// Always absolute: the advisor script runs with this as its working directory, so a relative
+/// script path found from here would point elsewhere (review 05/11/2026).
 fn project_root(claude: bool) -> PathBuf {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     if claude {
         if let Some(d) = std::env::var_os("CLAUDE_PROJECT_DIR").filter(|d| !d.is_empty()) {
-            return PathBuf::from(d);
+            return cwd.join(d);
         }
     }
-    git_top(Path::new(".")).unwrap_or_else(|| PathBuf::from("."))
+    git_top(&cwd).map(|t| cwd.join(t)).unwrap_or(cwd)
 }
 
 /// The kit's scripts/ for this project: $SOS_KIT_DIR, an app's harness-lite/, or the kit repo itself.
@@ -147,62 +161,65 @@ fn scripts_dir(root: &Path) -> Option<PathBuf> {
     let mut cands: Vec<PathBuf> = std::env::var_os("SOS_KIT_DIR").map(|d| vec![PathBuf::from(d)]).unwrap_or_default();
     cands.push(root.join("harness-lite"));
     cands.push(root.to_path_buf());
-    cands.into_iter().map(|k| k.join("scripts")).find(|s| s.join("test-watch.py").is_file())
+    let cwd = std::env::current_dir().unwrap_or_default();
+    cands.into_iter().map(|k| cwd.join(k).join("scripts")).find(|s| s.join("test-watch.py").is_file())
 }
 
+/// $SOS_PYTHON, else the first of python3/python that runs (Windows: `python3` is often the Store
+/// alias that only fails; the Python adapters used their own interpreter, which always ran).
 fn python() -> String {
-    std::env::var("SOS_PYTHON").ok().filter(|p| !p.is_empty())
-        .unwrap_or_else(|| if cfg!(windows) { "python" } else { "python3" }.into())
+    if let Some(p) = std::env::var("SOS_PYTHON").ok().filter(|p| !p.is_empty()) {
+        return p;
+    }
+    let order: &[&str] = if cfg!(windows) { &["python", "python3"] } else { &["python3", "python"] };
+    order.iter().find(|p| run_limited(Command::new(p).args(["-c", ""]), b"", Duration::from_secs(10))
+        .is_some_and(|(ok, _)| ok)).unwrap_or(&order[0]).to_string()
+}
+
+/// Run `cmd` with `input` on stdin, within `limit` for the process AND for reading its output (a
+/// descendant holding stdout open must not hang the hook). (success, stdout), or None when it could
+/// not start or ran out of time (it is killed).
+pub fn run_limited(cmd: &mut Command, input: &[u8], limit: Duration) -> Option<(bool, Vec<u8>)> {
+    let mut child = cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().ok()?;
+    if let Some(mut stdin) = child.stdin.take() {
+        let input = input.to_vec();
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(&input);
+        });
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    if let Some(mut out) = child.stdout.take() {
+        std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = out.read_to_end(&mut buf);
+            let _ = tx.send(buf);
+        });
+    }
+    let deadline = Instant::now() + limit;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(st)) => break st,
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(10)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    };
+    let out = rx.recv_timeout(deadline.saturating_duration_since(Instant::now())).ok()?;
+    Some((status.success(), out))
 }
 
 /// scripts/test-watch.py with `out` on stdin; its stdout, or nothing (the advisor never blocks).
 fn test_watch(root: &Path, args: &[String], out: &str) -> String {
     let Some(scripts) = scripts_dir(root) else { return String::new() };
-    let child = Command::new(python())
-        .arg(scripts.join("test-watch.py"))
-        .args(args)
-        .current_dir(root)
-        .env("PYTHONUTF8", "1")
-        .env("SOS_PYTHON", python())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn();
-    let Ok(mut child) = child else { return String::new() };
-    if let Some(mut stdin) = child.stdin.take() {
-        let input = out.as_bytes().to_vec();
-        std::thread::spawn(move || {
-            let _ = stdin.write_all(&input);
-        });
-    }
-    let mut stdout = child.stdout.take();
-    let reader = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        if let Some(o) = stdout.as_mut() {
-            let _ = o.read_to_end(&mut buf);
-        }
-        buf
-    });
-    let mut stderr = child.stderr.take();
-    std::thread::spawn(move || {
-        let mut sink = Vec::new();
-        if let Some(e) = stderr.as_mut() {
-            let _ = e.read_to_end(&mut sink);
-        }
-    });
-    let start = Instant::now();
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if start.elapsed() < Duration::from_secs(300) => std::thread::sleep(Duration::from_millis(20)),
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return String::new();
-            }
-        }
-    }
-    String::from_utf8_lossy(&reader.join().unwrap_or_default()).into_owned()
+    let py = python();
+    let mut cmd = Command::new(&py);
+    cmd.arg(scripts.join("test-watch.py")).args(args).current_dir(root)
+        .env("PYTHONUTF8", "1").env("SOS_PYTHON", &py);
+    run_limited(&mut cmd, out.as_bytes(), Duration::from_secs(300))
+        .map(|(_, o)| String::from_utf8_lossy(&o).into_owned()).unwrap_or_default()
 }
 
 fn claude(event: Event) -> i32 {
@@ -307,7 +324,10 @@ fn codex(event: Event) -> i32 {
             if s(&d, "tool_name") != "apply_patch" {
                 return 0;
             }
-            let paths = patch_paths(s(&tool_input(&d), "command"));
+            let Some(patch) = tool_input(&d).get("command").and_then(Value::as_str).map(str::to_string) else {
+                return codex_block("BLOCKED: this apply_patch has no patch text; re-issue it as a standard '*** Begin Patch' patch.");
+            };
+            let paths = patch_paths(&patch);
             if paths.is_empty() {  // a patch we cannot parse might touch anything: block rather than guess
                 return codex_block("BLOCKED: could not find file paths in this apply_patch; re-issue it as a standard \
                                     '*** Begin Patch' patch.");
@@ -319,7 +339,15 @@ fn codex(event: Event) -> i32 {
             if s(&d, "tool_name") != "Bash" {
                 return 0;
             }
-            sim_guard::check(s(&tool_input(&d), "command")).map_or(0, |msg| codex_block(&msg))
+            // The Python adapter crashed on a non-string command, which blocked where a simulator exists.
+            let Some(command) = tool_input(&d).get("command").and_then(Value::as_str).map(str::to_string) else {
+                return if cfg!(target_os = "macos") {
+                    codex_block("BLOCKED: this shell call has no command text.")
+                } else {
+                    0
+                };
+            };
+            sim_guard::check(&command).map_or(0, |msg| codex_block(&msg))
         }
         Event::PostBash => {
             let Some(d) = payload() else { return 0 };
@@ -360,6 +388,8 @@ mod tests {
         assert!(v(&["/r/.env"]));
         assert!(v(&["app/.Env.Local"]));
         assert!(v(&["C:\\work\\app\\.env"]));
+        assert!(v(&["/REPO/.env.local\\notes.txt"]));  // POSIX: one file name
+        assert!(v(&["notes\0.txt"]));
         assert!(!v(&["/r/.env.example", "notes.txt", ".envrc"]));
     }
 
