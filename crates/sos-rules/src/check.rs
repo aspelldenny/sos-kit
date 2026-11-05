@@ -62,7 +62,7 @@ fn kill_group(pid: u32) {
 /// only through a parent that is still alive; review 1d round 2). The check is created suspended,
 /// assigned to the job, then resumed, so it cannot start a child outside the job (review 1d round 3).
 #[cfg(windows)]
-mod job {
+pub mod job {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
     use windows_sys::Win32::System::JobObjects::{

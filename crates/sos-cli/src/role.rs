@@ -195,7 +195,7 @@ pub fn run(a: &Args) -> Result<i32> {
 }
 
 /// SIGKILL the process group led by `pid` (the CLI and whatever it started).
-fn kill_group(pid: u32) {
+pub(crate) fn kill_group(pid: u32) {
     #[cfg(unix)]
     // SAFETY: kill(2) with a negative pid signals that process group; no memory is touched.
     unsafe {

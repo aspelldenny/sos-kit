@@ -1,4 +1,4 @@
-# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau 1d)
+# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau 2.2)
 
 Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (Sếp duyệt 05/11). Ghi chú này đủ để làm tiếp mà không cần đọc transcript cũ.
 
@@ -16,8 +16,9 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 | 2.1 | `978cda4` | `sos advise` (`advise.rs`) và bộ kích advisor chạy trong `sos hook post-bash` (`watch.rs`): hook không còn gọi Python. Astra soát 4 lượt, MERGE |
 
 | 1d | commit «sos-rules: declarative hook rules» | crate `crates/sos-rules`, `sos hook [claude\|codex] rules --file F`, `--lint/--cases/--explain`; 5 luật dịch sang TOML trong `tests/rules/<tên>/rules.toml`, 111 ca có kết quả bản cũ. Astra soát 6 lượt |
+| 2.2 | commit «sos bite: the mutation check in Rust» | `sos bite` (`crates/sos-cli/src/bite.rs`) thay `scripts/bite` (bản Python để cạnh, chưa đổi chỗ gọi). `tests/bite.sh` chạy cả hai bản (`SOS_BITE_BIN=…/sos`), `tests/bite_parsers.py --sos BIN`. Khác có chủ ý: CHANGELOG mục Unreleased. Astra soát 3 lượt, MERGE |
 
-- **Việc tiếp theo (sau 1d):**
+- **Việc tiếp theo (sau 2.2):**
   1. **Đổi chỗ gọi ở từng repo, mỗi repo một nhánh riêng**, chép `tests/rules/<tên>/rules.toml` sang repo đó, hook gọi `sos hook claude rules --file <đường dẫn>` (Codex: `sos hook codex rules …`), bản cũ để cạnh đến bản phát hành sau:
      - vault: `chan.toml` thay `chan.py`;
      - BOOK: `win-heavy.toml` thay `win_heavy_guard.py`;
@@ -25,7 +26,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
      - tarot: `merge-guard.toml` thay `block-unsafe-merge.sh`, kèm một helper `scripts/merge-check <PR>` (phần gọi `gh`; trong ca kiểm nó là `fake`);
      - mọi repo: `hub-audit.toml` thay `~/.claude/hooks/hub-audit.sh`.
      Điều kiện: bản `sos` có `sos hook … rules` đã phát hành và cài (bản 0.3.13 trả exit 2 với lệnh lạ = chặn mọi thứ). Không đụng lucilius, reel.
-  2. Rồi 2.2 (`sos bite`) → 2.3 (crate `sos-dev`: trust-gate, install-hooks, docs-check) → 2.5 (`sos sim boot|settle|destination`).
+  2. Tiếp theo là 2.3 (crate `sos-dev`: trust-gate, install-hooks, docs-check) → 2.5 (`sos sim boot|settle|destination`).
 - **Bản 1d hẹp hơn đặc tả §2** (không allow/scope, first_positional, case_insensitive, when.file_exists/env; ask bị từ chối): ghi ở `RUST_ARCHITECTURE_2026-11-05.md`, đoạn «Bản 1d hẹp hơn đặc tả». Thêm khi một luật thật cần.
 
 ## File cần đọc
@@ -45,7 +46,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
   - `/home/sep/rusthoa` (WSL, `CARGO_TARGET_DIR=/home/sep/rusthoa/target`);
   - `C:\Users\Admin\rusthoa` (Windows native; `cargo test` qua `cmd.exe`; Git Bash ở `/mnt/c/Program Files/Git/bin/bash.exe`).
   - Dọn cả hai khi xong toàn bộ Rust hoá.
-- **Bộ chạy trên Win:** build, `cargo test -p sos-cli`, `tests/adapters/run.sh` hai bản (Python, và `SOS_HOOK_BIN=…/sos`), `tests/docs-check.py <sos>`, clippy; Windows native `cargo test`; Git Bash `run.sh` với `sos.exe`.
+- **Bộ chạy trên Win:** build, `cargo test -p sos-cli`, `tests/adapters/run.sh` hai bản (Python, và `SOS_HOOK_BIN=…/sos`), `tests/bite.sh` hai bản (Python, và `SOS_BITE_BIN=…/sos`), `tests/docs-check.py <sos>`, clippy; Windows native `cargo test` + clippy; Git Bash `run.sh` và `bite.sh` với `sos.exe`.
 - **Soát độc lập:** `sos role reviewer --from claude --brief <file> --out <file>` (Codex gpt-6-astra), chạy nền. Bắt buộc theo luật 4 khi chạm `harness-lite/` hoặc `templates/app/`.
 - **Báo Tổng đài** đúng hai mẫu, mỗi mẫu một dòng:
   - `[Rust hoá] XONG: … · file: …`
@@ -64,7 +65,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 4. **`sos usage`, hai việc đã ghi trong BACKLOG:**
    - đọc kết quả subagent chạy nền (về qua task-notification, chưa đếm);
    - bộ nhớ tăng theo số lần gọi (177 MB với 70 nghìn lần gọi), cần gom chuỗi trùng.
-5. **`run_limited` (hook/mod.rs) không giết process cháu** khi hết giờ. `role::capture` thì có giết. Chỉ `sim-guard` (`ps`) và notify còn dùng `run_limited`. Xem lại trước khi phát hành.
+5. **`run_limited` (hook/mod.rs) không giết process cháu** (`sos bite` đã dùng job object của 1d trên Windows, nhóm process trên Unix; `run_limited` có thể dùng lại cách đó) khi hết giờ. `role::capture` thì có giết. Chỉ `sim-guard` (`ps`) và notify còn dùng `run_limited`. Xem lại trước khi phát hành.
 6. **Git Bash trên Windows, 7 ca đỏ không thuộc advisor** (05/11, chưa kiểm xem có từ trước 2.1 hay không):
    - Rust: 4 ca `same status` (so từng byte status Python với Rust; chữ hiện ra giống nhau, nghi khác ở xuống dòng hoặc encoding);
    - Python: 3 ca `.env.local\x` (tên POSIX, Windows coi `\` là dấu phân cách).

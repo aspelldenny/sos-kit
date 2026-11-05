@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 mod advise;
+mod bite;
 mod gate;
 mod guards;
 mod hook;
@@ -98,6 +99,11 @@ enum Cmd {
     /// a snapshot: question, intent, latest failure, git state, relevant files. Exit 0 advice,
     /// 1 failed, 2 off or misconfigured, 3 unavailable (CLI not logged in). Settings: .sos.toml [advisor].
     Advise(advise::Args),
+    /// Do the tests of a change catch a wrong version of it? Old code against the new tests, and
+    /// one-token mutants of the added lines, in a throwaway worktree. `--audit` lists existing
+    /// tests that kill no mutant. Settings: .sos.toml [bite]. (Same tool as scripts/bite.)
+    #[command(long_about = bite::LONG_ABOUT)]
+    Bite(bite::Args),
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
@@ -115,6 +121,7 @@ fn main() {
         Cmd::Hook { which } => Ok(hook::run(which)),
         Cmd::Usage(a) => usage::run(a),
         Cmd::Advise(a) => advise::run(a),
+        Cmd::Bite(a) => bite::run(a),
         Cmd::Filter => Ok(gate::filter()),
     };
     match code {
