@@ -8,7 +8,7 @@
 # pinned, sha256-verified path (scripts/npm-postinstall.sh), then run it. Setup output goes to
 # stderr so `sos …` output stays clean for pipes.
 #
-# `sos gate` and `sos filter` (git hooks, runtime filters) never download (SECURITY.md
+# `sos gate`, `sos filter` and `sos hook` (git hooks, runtime filters, agent hooks) never download (SECURITY.md
 # INV-TRUST-03): with no binary they fail closed and say how to install; with an older one
 # they run it and print a one-line note. Concurrent first calls each install; install.sh
 # renames atomically, so the last one wins and no caller sees a half-written binary.
@@ -61,7 +61,9 @@ stale() { [ -z "$HAVE" ] || older "$HAVE" "$WANT"; }
 HAVE="$(installed)"
 if stale; then
   case "${1:-}" in
-    gate|filter)
+    gate|filter|hook)
+      # Never download from a hook or gate: they run on every edit/commit and must fail fast;
+      # the agent's launcher turns this exit 1 into a block.
       if [ -z "$HAVE" ]; then
         echo "✗ sos-kit: the sos binary is not installed yet ($TARGET), so this check cannot run." >&2
         echo "  → How to fix: run  sos --version  once (it downloads sos $WANT, checksum-verified), then retry." >&2

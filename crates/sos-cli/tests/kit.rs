@@ -4,10 +4,18 @@ use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::process::{Command, Output};
 
+/// PATH with the sos under test first: the hooks call `sos` by name, and `sos check` looks for it.
+fn path_with_sos() -> std::ffi::OsString {
+    let bin = Path::new(env!("CARGO_BIN_EXE_sos")).parent().unwrap().to_path_buf();
+    let rest = std::env::var_os("PATH").unwrap_or_default();
+    std::env::join_paths(std::iter::once(bin).chain(std::env::split_paths(&rest))).unwrap()
+}
+
 fn sos(dir: &Path, args: &[&str]) -> Output {
     // A hung run must fail its test by name, not stall the whole suite.
     // Same-family reviewer unless a test asks: the default depends on whether codex is on PATH.
     let mut child = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(dir).args(args).env("SOS_REVIEWER", "same").env_remove("SOS_PYTHON")
+        .env("PATH", path_with_sos())
         .stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
     let start = std::time::Instant::now();
     while child.try_wait().unwrap().is_none() {
@@ -396,7 +404,7 @@ fn check_warns_when_the_advisor_cannot_run() {
 
 fn sos_env(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Output {
     let mut c = Command::new(env!("CARGO_BIN_EXE_sos"));
-    c.current_dir(dir).args(args);
+    c.current_dir(dir).args(args).env("PATH", path_with_sos());
     for (k, v) in env {
         c.env(k, v);
     }
@@ -405,7 +413,7 @@ fn sos_env(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Output {
 
 #[cfg(unix)]
 #[test]
-fn install_writes_the_hook_interpreter_and_check_runs_it() {
+fn hooks_call_sos_and_need_no_python() {
     // Windows: `python3` is the Store alias that exists on PATH but only fails (POD-agent, 23/10/2026).
     use std::os::unix::fs::PermissionsExt;
     let d = repo();
@@ -417,15 +425,205 @@ fn install_writes_the_hook_interpreter_and_check_runs_it() {
     let py = fake.to_str().unwrap();
     let o = sos_env(p, &["install"], &[("SOS_PYTHON", py)]);
     assert!(o.status.success(), "{}", out(&o));
-    for (f, rest) in [(".claude/settings.json", " \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py"),
-                      (".codex/hooks.json", " \"$(git rev-parse")] {
-        let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(p.join(f)).unwrap()).unwrap();
-        let text = v.to_string();
-        assert!(text.contains(&format!("'{py}'{}", rest.replace('"', "\\\""))) && !text.contains("python3 "), "{f}: {text}");
+    for (f, agent) in [(".claude/settings.json", "claude"), (".codex/hooks.json", "codex")] {
+        let text = std::fs::read_to_string(p.join(f)).unwrap();
+        assert!(text.contains(&format!("sos hook {agent} pre-edit --protocol 1")) && !text.contains("python") && !text.contains("hook.py"), "{f}: {text}");
     }
-    // `sos check` runs the interpreter the hooks name, whatever the environment says now.
+    // The advisor runs inside `sos` now: current wiring needs no Python at all.
+    let c = out(&sos_env(p, &["check"], &[("SOS_PYTHON", py)]));
+    assert!(!c.contains(&format!("{py} not found on PATH")), "{c}");
+    // No sos on PATH while the hooks call it: every edit would be blocked.
+    // A PATH holding only git: /usr/bin is not enough, Ubuntu runners ship an unrelated
+    // /usr/bin/sos (sosreport).
+    let bare = d.path().join("bare-path");
+    std::fs::create_dir(&bare).unwrap();
+    let real_git = std::env::split_paths(&std::env::var_os("PATH").unwrap()).map(|d| d.join("git")).find(|g| g.is_file()).unwrap();
+    std::os::unix::fs::symlink(real_git, bare.join("git")).unwrap();
+    let c = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(p).arg("check").env("PATH", &bare).output().unwrap();
+    assert!(out(&c).contains("sos is not on PATH"), "{}", out(&c));
+}
+
+/// Runs one hook command the way the agent does (`sh -c`), payload on stdin.
+#[cfg(unix)]
+fn run_hook(dir: &Path, cmd: &str, payload: &str, path: &std::ffi::OsStr) -> Output {
+    use std::io::Write;
+    let mut child = Command::new("sh").arg("-c").arg(cmd).current_dir(dir).env("PATH", path).env("CLAUDE_PROJECT_DIR", dir)
+        .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
+    let _ = child.stdin.take().unwrap().write_all(payload.as_bytes());
+    child.wait_with_output().unwrap()
+}
+
+#[cfg(unix)]
+#[test]
+fn launcher_blocks_whenever_sos_cannot_run() {
+    // Fail-closed (review 05/11/2026 points 1-2): missing, failing, too old, npm shim with no binary.
+    use std::os::unix::fs::PermissionsExt;
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(p.join(".claude/settings.json")).unwrap()).unwrap();
+    let cmd = v["hooks"]["PreToolUse"][0]["hooks"][0]["command"].as_str().unwrap().to_string();
+    let edit = |f: &str| format!(r#"{{"tool_name":"Edit","tool_input":{{"file_path":"{f}"}}}}"#);
+    // The real one: .env blocked with its own message, a normal file allowed.
+    let o = run_hook(p, &cmd, &edit(".env"), &path_with_sos());
+    assert!(o.status.code() == Some(2) && out(&o).contains("must not edit real .env") && !out(&o).contains("could not run"), "{}", out(&o));
+    assert_eq!(run_hook(p, &cmd, &edit("notes.md"), &path_with_sos()).status.code(), Some(0));
+    let fakes = tempfile::tempdir().unwrap();
+    let make = |name: &str, body: &str| {
+        let dir = fakes.path().join(name);
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::write(dir.join("sos"), body).unwrap();
+        std::fs::set_permissions(dir.join("sos"), std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::env::join_paths([dir, "/usr/bin".into(), "/bin".into()]).unwrap()
+    };
+    let missing = std::env::join_paths(["/usr/bin", "/bin"]).unwrap();
+    let failing = make("failing", "#!/bin/sh\nexit 1\n");
+    // 0.3.13: clap does not know `hook` (or `--protocol`) and exits 2 with a usage error.
+    let old = make("old", "#!/bin/sh\necho \"error: unrecognized subcommand 'hook'\" >&2\nexit 2\n");
+    let sh = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../bin/sos-npm");
+    let npm = fakes.path().join("npm");
+    std::fs::create_dir_all(npm.join("pkg/bin")).unwrap();
+    std::fs::copy(&sh, npm.join("pkg/bin/sos-npm")).unwrap();
+    std::fs::write(npm.join("pkg/package.json"), "{\n  \"version\": \"9.9.9\",\n}\n").unwrap();
+    std::fs::create_dir_all(npm.join("pkg/scripts")).unwrap();
+    std::fs::write(npm.join("pkg/scripts/npm-postinstall.sh"), "echo should-not-download >&2; exit 1\n").unwrap();
+    std::fs::create_dir_all(npm.join("bin")).unwrap();
+    std::os::unix::fs::symlink(npm.join("pkg/bin/sos-npm"), npm.join("bin/sos")).unwrap();
+    let shim = std::env::join_paths([npm.join("bin"), "/usr/bin".into(), "/bin".into()]).unwrap();
+    for (name, path) in [("missing", &missing), ("failing", &failing), ("old", &old), ("npm shim, no binary", &shim)] {
+        let mut c = Command::new("sh");
+        c.arg("-c").arg(&cmd).current_dir(p).env("PATH", path).env("SOS_BIN_DIR", npm.join("empty")).env("HOME", npm.join("home"));
+        use std::io::Write;
+        let mut child = c.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
+        // sh may exit before reading (sos missing): a broken pipe is not the failure under test.
+        let _ = child.stdin.take().unwrap().write_all(edit("notes.md").as_bytes());
+        let o = child.wait_with_output().unwrap();
+        assert_eq!(o.status.code(), Some(2), "{name}: {}", out(&o));
+        assert!(!out(&o).contains("should-not-download"), "{name}: a hook must never download: {}", out(&o));
+    }
+    // A protocol this sos does not know is refused, not guessed at.
+    let o = run_hook(p, "sos hook claude pre-edit --protocol 99", &edit("notes.md"), &path_with_sos());
+    assert!(o.status.code() == Some(2) && out(&o).contains("protocol 99"), "{}", out(&o));
+}
+
+/// Wiring an app got from sos 0.3.13: Python adapters, no pre-bash, plus entries of its own.
+const OLD_SETTINGS: &str = r#"{
+  "advisorModel": "opus",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py\" session-start" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [ { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py\" pre-edit" } ] },
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "python3 scripts/money-guard.py", "timeout": 5 } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Bash",
+        "hooks": [ { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py\" post-bash", "timeout": 320 } ] }
+    ]
+  },
+  "permissions": { "allow": ["Bash(git status)"] }
+}
+"#;
+
+#[test]
+fn update_wiring_rewrites_only_kit_commands_and_is_idempotent() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    std::fs::write(p.join(".claude/settings.json"), OLD_SETTINGS).unwrap();
     let c = out(&sos(p, &["check"]));
-    assert!(c.contains(&format!("{py} not found on PATH, or it does not run")), "{c}");
+    assert!(c.contains("still calls harness-lite/adapters/claude/hook.py") && c.contains("no PreToolUse Bash hook"), "{c}");
+    // Dry run: shows, writes nothing.
+    let o = sos(p, &["update", "--wiring", "--dry-run"]);
+    assert!(o.status.success(), "{}", out(&o));
+    assert!(out(&o).contains("PreToolUse: python3") && out(&o).contains("+ pre-bash"), "{}", out(&o));
+    assert_eq!(std::fs::read_to_string(p.join(".claude/settings.json")).unwrap(), OLD_SETTINGS);
+    let o = sos(p, &["update", "--wiring"]);
+    assert!(o.status.success(), "{}", out(&o));
+    let text = std::fs::read_to_string(p.join(".claude/settings.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert!(!text.contains("hook.py"), "{text}");
+    assert_eq!(v["advisorModel"], "opus");
+    assert_eq!(v["permissions"]["allow"][0], "Bash(git status)");
+    // Key order kept: the file reads as before, not re-sorted.
+    assert!(text.find("advisorModel").unwrap() < text.find("\"hooks\"").unwrap() && text.find("\"hooks\"").unwrap() < text.find("permissions").unwrap(), "{text}");
+    let pre = v["hooks"]["PreToolUse"].as_array().unwrap();
+    assert_eq!(pre[1]["hooks"][0]["command"], "python3 scripts/money-guard.py", "foreign entry untouched");
+    assert_eq!(pre[1]["hooks"][0]["timeout"], 5);
+    assert!(pre[0]["hooks"][0]["command"].as_str().unwrap().starts_with("sos hook claude pre-edit --protocol 1; rc=$?"));
+    assert!(pre[2]["hooks"][0]["command"].as_str().unwrap().starts_with("sos hook claude pre-bash --protocol 1"), "{text}");
+    assert_eq!(v["hooks"]["PostToolUse"][0]["hooks"][0]["timeout"], 320);
+    assert_eq!(v["hooks"]["PostToolUseFailure"][0]["hooks"][0]["command"], "sos hook claude post-bash --protocol 1");
+    // Again: nothing to do, nothing duplicated.
+    let o = sos(p, &["update", "--wiring"]);
+    assert!(out(&o).contains(".claude/settings.json: hook wiring up to date"), "{}", out(&o));
+    assert_eq!(std::fs::read_to_string(p.join(".claude/settings.json")).unwrap(), text);
+    let c = out(&sos(p, &["check"]));
+    assert!(!c.contains("hook.py") && !c.contains("PreToolUse Bash"), "{c}");
+    // Broken JSON: reported, left as is, nonzero.
+    std::fs::write(p.join(".codex/hooks.json"), "{ not json").unwrap();
+    let o = sos(p, &["update", "--wiring"]);
+    assert_eq!(o.status.code(), Some(1), "{}", out(&o));
+    assert_eq!(std::fs::read_to_string(p.join(".codex/hooks.json")).unwrap(), "{ not json");
+}
+
+#[test]
+fn update_keeps_a_dropped_file_the_wiring_still_calls() {
+    // Someone jumps straight to the release that drops the adapters (review 05/11/2026, point 9).
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let gone = "harness-lite/adapters/claude/old-hook.py";
+    std::fs::write(p.join(gone), "print('old')\n").unwrap();
+    let mut u = upstream(p);
+    u["files"][gone] = serde_json::Value::String(sha(b"print('old')\n"));
+    std::fs::write(p.join("harness-lite/UPSTREAM.json"), serde_json::to_string_pretty(&u).unwrap()).unwrap();
+    let mut s: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(p.join(".claude/settings.json")).unwrap()).unwrap();
+    s["hooks"]["Stop"] = serde_json::json!([{ "hooks": [{ "type": "command", "command": format!("python3 my-wrapper.py {gone}") }] }]);
+    std::fs::write(p.join(".claude/settings.json"), s.to_string()).unwrap();
+    let o = sos(p, &["update"]);
+    assert_eq!(o.status.code(), Some(1), "{}", out(&o));
+    assert!(out(&o).contains("KEPT") && p.join(gone).exists(), "{}", out(&o));
+    assert!(upstream(p)["files"].get(gone).is_some(), "still recorded, so the next update retries");
+    // Nothing calls it any more: removed.
+    s["hooks"].as_object_mut().unwrap().remove("Stop");
+    std::fs::write(p.join(".claude/settings.json"), s.to_string()).unwrap();
+    let o = sos(p, &["update"]);
+    assert!(o.status.success() && !p.join(gone).exists(), "{}", out(&o));
+}
+
+#[cfg(unix)]
+#[test]
+fn gate_pre_push_runs_the_local_hook_after_the_gates() {
+    use std::os::unix::fs::PermissionsExt;
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    // gitleaks may be missing here; a stand-in that finds nothing.
+    let bin = tempfile::tempdir().unwrap();
+    std::fs::write(bin.path().join("gitleaks"), "#!/bin/sh\nexit 0\n").unwrap();
+    std::fs::set_permissions(bin.path().join("gitleaks"), std::fs::Permissions::from_mode(0o755)).unwrap();
+    let path = std::env::join_paths(std::iter::once(bin.path().to_path_buf()).chain(std::env::split_paths(&path_with_sos()))).unwrap();
+    let hook = |args: &[&str], stdin: &str| {
+        use std::io::Write;
+        let mut child = Command::new("harness-lite/hooks/pre-push").args(args).current_dir(p).env("PATH", &path)
+            .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
+        child.stdin.take().unwrap().write_all(stdin.as_bytes()).unwrap();
+        child.wait_with_output().unwrap()
+    };
+    let o = hook(&["origin", "url"], "");
+    assert!(o.status.success(), "no local hook: {}", out(&o));
+    let local = p.join("harness-lite/hooks/pre-push.local");
+    std::fs::write(&local, "#!/bin/sh\necho \"args=$*\" > got; cat >> got; exit 3\n").unwrap();
+    let o = hook(&["origin", "url"], "refs/heads/x 1 refs/heads/x 2\n");
+    assert_eq!(o.status.code(), Some(1), "present but not executable fails: {}", out(&o));
+    assert!(out(&o).contains("exists but is not executable"), "{}", out(&o));
+    std::fs::set_permissions(&local, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let o = hook(&["origin", "url"], "refs/heads/x 1 refs/heads/x 2\n");
+    assert_eq!(o.status.code(), Some(3), "its exit code decides: {}", out(&o));
+    assert_eq!(std::fs::read_to_string(p.join("got")).unwrap(), "args=origin url\nrefs/heads/x 1 refs/heads/x 2\n");
 }
 
 #[cfg(windows)]
@@ -451,7 +649,7 @@ fn codex_hooks_on_windows_run_from_cmd_and_powershell() {
         c.args(&shell[1..]);
         // cmd reads its command line as is; PowerShell parses argv, which undoes Rust's quoting.
         if shell[0] == "cmd" { c.raw_arg(&cmd) } else { c.arg(&cmd) };
-        c.current_dir(dir).env_remove("PYTHONUTF8").env_remove("PYTHONIOENCODING")
+        c.current_dir(dir).env_remove("PYTHONUTF8").env_remove("PYTHONIOENCODING").env("PATH", path_with_sos())
             .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
         let mut child = c.spawn().unwrap();
         child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();
@@ -459,24 +657,52 @@ fn codex_hooks_on_windows_run_from_cmd_and_powershell() {
     };
     let outside = tempfile::tempdir().unwrap();
     // A block is deny JSON with exit 0: `powershell -Command` turns exit 2 into 1, which does not block.
+    // The whole stdout must be exactly one JSON object (spec §3), not deny text among other output.
     let denied = |o: &Output| o.status.code() == Some(0)
-        && String::from_utf8_lossy(&o.stdout).contains(r#""permissionDecision": "deny""#);
+        && serde_json::from_slice::<serde_json::Value>(&o.stdout).is_ok_and(|v| {
+            v["hookSpecificOutput"]["permissionDecision"] == "deny" && v.as_object().is_some_and(|m| m.len() == 1)
+        });
     for shell in [&["cmd", "/d", "/c"][..], &["powershell", "-NoProfile", "-Command"][..]] {
         let o = run(shell, &p.join("sub"), patch(".env"));
         assert!(denied(&o) && out(&o).contains("must not edit real .env"), "{shell:?} .env: {:?} {}", o.status, out(&o));
         let o = run(shell, &p.join("sub"), patch("notes.md"));
         assert!(o.status.code() == Some(0) && !out(&o).contains("deny"), "{shell:?} notes.md: {}", out(&o));
         let o = run(shell, outside.path(), patch(".env"));
-        assert!(denied(&o) && out(&o).contains("not inside a git repository"), "{shell:?} outside a repo: {:?} {}", o.status, out(&o));
+        assert!(denied(&o) && out(&o).contains("must not edit real .env"), "{shell:?} outside a repo: {:?} {}", o.status, out(&o));
     }
-    // An adapter that crashes at import (UTF-8 child included) still blocks.
-    let adapter = p.join("harness-lite/adapters/codex/hook.py");
-    let good = std::fs::read_to_string(&adapter).unwrap();
-    std::fs::write(&adapter, format!("raise RuntimeError('boom')\n{good}")).unwrap();
-    for shell in [&["cmd", "/d", "/c"][..], &["powershell", "-NoProfile", "-Command"][..]] {
-        let o = run(shell, &p.join("sub"), patch("notes.md"));
-        assert!(denied(&o) && out(&o).contains("exited 1"), "{shell:?} crashing adapter: {:?} {}", o.status, out(&o));
+    // No sos on PATH, or one too old for --protocol: still deny JSON.
+    let fakes = tempfile::tempdir().unwrap();
+    std::fs::write(fakes.path().join("sos.cmd"), "@echo error: unrecognized subcommand 'hook' 1>&2\r\n@exit /b 2\r\n").unwrap();
+    let sysroot = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
+    let base = format!("{sysroot}\\System32;{sysroot};{sysroot}\\System32\\WindowsPowerShell\\v1.0");
+    let py_dir = Command::new("python").args(["-c", "import sys,os;print(os.path.dirname(sys.executable))"]).output().unwrap();
+    let py_dir = String::from_utf8_lossy(&py_dir.stdout).trim().to_string();
+    let git_dir = Command::new("where").arg("git").output().unwrap();
+    let git_dir = Path::new(String::from_utf8_lossy(&git_dir.stdout).lines().next().unwrap().trim()).parent().unwrap().display().to_string();
+    let crash = tempfile::tempdir().unwrap();
+    std::fs::write(crash.path().join("sos.cmd"), "@echo garbage on stdout\r\n@exit /b 101\r\n").unwrap();
+    for (name, path, want) in [("missing", format!("{py_dir};{git_dir};{base}"), "not on PATH"),
+                               ("crashing", format!("{};{py_dir};{git_dir};{base}", crash.path().display()), "exited 101"),
+                               ("too old", format!("{};{py_dir};{git_dir};{base}", fakes.path().display()), "exited 2")] {
+        for shell in [&["cmd", "/d", "/c"][..], &["powershell", "-NoProfile", "-Command"][..]] {
+            let o = run_with_path(shell, &p.join("sub"), patch("notes.md"), &cmd, &path);
+            assert!(denied(&o) && out(&o).contains(want), "{name} {shell:?}: {:?} {}", o.status, out(&o));
+        }
     }
+}
+
+#[cfg(windows)]
+fn run_with_path(shell: &[&str], dir: &Path, input: String, cmd: &str, path: &str) -> Output {
+    use std::io::Write;
+    use std::os::windows::process::CommandExt;
+    let mut c = Command::new(shell[0]);
+    c.args(&shell[1..]);
+    if shell[0] == "cmd" { c.raw_arg(cmd) } else { c.arg(cmd) };
+    c.current_dir(dir).env("PATH", path)
+        .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    let mut child = c.spawn().unwrap();
+    child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();
+    child.wait_with_output().unwrap()
 }
 
 #[test]
@@ -514,4 +740,49 @@ fn check_flags_hook_wiring_without_the_simulator_guard() {
     std::fs::write(p.join(".claude/settings.json"), v.to_string()).unwrap();
     let c = out(&sos(p, &["check"]));
     assert!(c.contains(".claude/settings.json has no PreToolUse Bash hook") && !c.contains(".codex/hooks.json has no PreToolUse"), "{c}");
+}
+
+#[test]
+fn removal_check_reads_backslash_paths_and_keeps_the_dropped_runtime_together() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let mut u = upstream(p);
+    for (f, body) in [("harness-lite/adapters/codex/old.py", "a\n"), ("harness-lite/scripts/old-guard.sh", "b\n")] {
+        std::fs::write(p.join(f), body).unwrap();
+        u["files"][f] = serde_json::Value::String(sha(body.as_bytes()));
+    }
+    std::fs::write(p.join("harness-lite/UPSTREAM.json"), serde_json::to_string_pretty(&u).unwrap()).unwrap();
+    let mut s: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(p.join(".codex/hooks.json")).unwrap()).unwrap();
+    s["hooks"]["Stop"] = serde_json::json!([{ "hooks": [{ "type": "command", "command": "python \"Harness-Lite\\adapters\\codex\\old.py\" stop" }] }]);
+    std::fs::write(p.join(".codex/hooks.json"), s.to_string()).unwrap();
+    let o = sos(p, &["update"]);
+    assert_eq!(o.status.code(), Some(1), "{}", out(&o));
+    assert!(p.join("harness-lite/adapters/codex/old.py").exists() && p.join("harness-lite/scripts/old-guard.sh").exists(), "{}", out(&o));
+}
+
+#[cfg(unix)]
+#[test]
+fn unreadable_wiring_keeps_dropped_files_and_wiring_never_writes_through_symlinks() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let gone = "harness-lite/adapters/claude/old.py";
+    std::fs::write(p.join(gone), "x\n").unwrap();
+    let mut u = upstream(p);
+    u["files"][gone] = serde_json::Value::String(sha(b"x\n"));
+    std::fs::write(p.join("harness-lite/UPSTREAM.json"), serde_json::to_string_pretty(&u).unwrap()).unwrap();
+    std::fs::write(p.join(".claude/settings.json"), b"{\"hooks\": \"\xff\"}").unwrap();
+    let o = sos(p, &["update"]);
+    assert!(o.status.code() == Some(1) && p.join(gone).exists(), "invalid UTF-8 counts as unknown: {}", out(&o));
+    // A .codex folder linked out of the repo is not written (the temp-file case: wiring.rs unit test).
+    std::fs::write(p.join(".claude/settings.json"), OLD_SETTINGS).unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    std::fs::write(outside.path().join("hooks.json"), OLD_SETTINGS.replace("claude", "codex")).unwrap();
+    std::fs::remove_dir_all(p.join(".codex")).unwrap();
+    std::os::unix::fs::symlink(outside.path(), p.join(".codex")).unwrap();
+    let o = sos(p, &["update", "--wiring"]);
+    assert_eq!(o.status.code(), Some(1), "{}", out(&o));
+    assert_eq!(std::fs::read_to_string(outside.path().join("hooks.json")).unwrap(), OLD_SETTINGS.replace("claude", "codex"));
+    assert!(!std::fs::read_to_string(p.join(".claude/settings.json")).unwrap().contains("hook.py"), "the in-repo file is still rewritten");
 }

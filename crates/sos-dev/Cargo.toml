@@ -1,0 +1,20 @@
+[package]
+name = "sos-dev"
+version = "0.1.0"
+edition = "2021"
+description = "SOS Kit's own dev tooling (binary `sos-dev`): trust gate, docs check, install-hooks. Kit only; never shipped to apps."
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "sos-dev"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+regex = "1"
+sha2 = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

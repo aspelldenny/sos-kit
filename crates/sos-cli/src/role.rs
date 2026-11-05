@@ -154,42 +154,10 @@ pub fn run(a: &Args) -> Result<i32> {
     let program = crate::kit::find_program(&cmd[0])
         .with_context(|| format!("{} CLI not found on PATH (no fallback to another model family)", cmd[0]))?;
     let mut c = Command::new(&program);
-    c.args(&cmd[1..]).current_dir(&root).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    #[cfg(unix)]
-    {
-        // Own process group, so a timeout also stops the CLI's children (they hold the pipes).
-        use std::os::unix::process::CommandExt;
-        c.process_group(0);
-    }
-    let mut child = c.spawn().with_context(|| format!("starting {}", crate::kit::show(&program)))?;
-    // Write the prompt and close stdin (dropped at the end of the thread), so the CLI never waits
-    // for more input; a thread, so a CLI that does not read stdin cannot block us before the timer.
-    let mut stdin = child.stdin.take().expect("piped stdin");
-    let prompt_t = std::thread::spawn(move || { let _ = stdin.write_all(text.as_bytes()); });
-    let mut stdout = child.stdout.take().expect("piped stdout");
-    let mut stderr = child.stderr.take().expect("piped stderr");
-    let (out_tx, out_rx) = std::sync::mpsc::channel();
-    let (err_tx, err_rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || { let mut s = String::new(); let _ = stdout.read_to_string(&mut s); let _ = out_tx.send(s); });
-    std::thread::spawn(move || { let mut s = String::new(); let _ = stderr.read_to_string(&mut s); let _ = err_tx.send(s); });
-    let status = loop {
-        if let Some(st) = child.try_wait()? {
-            break Some(st);
-        }
-        if started.elapsed() > Duration::from_secs(timeout) {
-            kill_group(child.id());
-            let _ = child.kill();
-            let _ = child.wait();
-            break None;
-        }
-        std::thread::sleep(Duration::from_millis(200));
-    };
-    // Anything the CLI left running in its group (a server it started) would hold our pipes open:
-    // stop the group, then wait for the readers only briefly.
-    kill_group(child.id());
-    drop(prompt_t);
-    let so = out_rx.recv_timeout(Duration::from_secs(5)).unwrap_or_default();
-    let se = err_rx.recv_timeout(Duration::from_secs(5)).unwrap_or_default();
+    c.args(&cmd[1..]).current_dir(&root);
+    let run = capture(&mut c, text, Duration::from_secs(timeout))
+        .with_context(|| format!("starting {}", crate::kit::show(&program)))?;
+    let (status, so, se) = (run.status, run.stdout, run.stderr);
     let secs = started.elapsed().as_secs();
     let mut ok = status.is_some_and(|s| s.success());
     // Claude prints JSON on stdout; Codex writes its last message to `out` itself.
@@ -227,7 +195,7 @@ pub fn run(a: &Args) -> Result<i32> {
 }
 
 /// SIGKILL the process group led by `pid` (the CLI and whatever it started).
-fn kill_group(pid: u32) {
+pub(crate) fn kill_group(pid: u32) {
     #[cfg(unix)]
     // SAFETY: kill(2) with a negative pid signals that process group; no memory is touched.
     unsafe {
@@ -252,13 +220,99 @@ fn log(root: &Path, role: &str, from: &str, s: &RoleSpec, secs: u64, ok: bool) {
     }
 }
 
-/// Local time as YYYYmmdd-HHMMSS without a date crate: ask `date` (Git for Windows ships one,
-/// but outside Git Bash `date` is cmd's builtin). Else Unix seconds, so two runs never share a file.
+/// Local time as YYYYmmdd-HHMMSS (`local_time` explains how).
 fn chrono_stamp() -> String {
-    Command::new("date").arg("+%Y%m%d-%H%M%S").output().ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .filter(|s| s.len() == 15).unwrap_or_else(|| {
+    local_time("%Y%m%d-%H%M%S")
+}
+
+/// Local time in `date` format `fmt`, without a date crate: ask `date` (Git for Windows ships one,
+/// but outside Git Bash `date` is cmd's builtin). Else Unix seconds, so two runs never share a file.
+pub(crate) fn local_time(fmt: &str) -> String {
+    let mut date = Command::new("date");
+    date.arg(format!("+{fmt}"));
+    capture(&mut date, String::new(), Duration::from_secs(5)).ok()
+        .filter(|o| o.status.is_some_and(|s| s.success()))
+        .map(|o| o.stdout.trim().to_string())
+        .filter(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit() || b"-:T".contains(&b))).unwrap_or_else(|| {
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0).to_string()
         })
+}
+
+/// What `capture` saw: the exit status (None when stopped at the time limit) and both outputs.
+pub(crate) struct Captured {
+    pub status: Option<std::process::ExitStatus>,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+/// The most of each output `capture` keeps (the end: a CLI's verdict or error is last). The rest is
+/// still read, so the child never blocks on a full pipe, but not kept (review 05/11/2026: a CLI
+/// flooding its output must not exhaust the hook's memory).
+const KEEP: usize = 8 << 20;
+
+/// Read `r` to its end, keeping the last KEEP bytes.
+fn read_tail(mut r: impl Read) -> Vec<u8> {
+    let mut kept = Vec::new();
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        match r.read(&mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                kept.extend_from_slice(&buf[..n]);
+                if kept.len() > 2 * KEEP {
+                    kept.drain(..kept.len() - KEEP);
+                }
+            }
+        }
+    }
+    if kept.len() > KEEP {
+        kept.drain(..kept.len() - KEEP);
+    }
+    kept
+}
+
+/// Run `c` with `input` on stdin (then closed), stdout and stderr captured (the last 8 MiB of each),
+/// stopped with its whole process group after `timeout`. Err only when it cannot start.
+pub(crate) fn capture(c: &mut Command, input: String, timeout: Duration) -> std::io::Result<Captured> {
+    c.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(unix)]
+    {
+        // Own process group, so a timeout also stops the CLI's children (they hold the pipes).
+        use std::os::unix::process::CommandExt;
+        c.process_group(0);
+    }
+    let started = Instant::now();
+    let mut child = c.spawn()?;
+    // Write the input and close stdin (dropped at the end of the thread), so the CLI never waits
+    // for more; a thread, so a CLI that does not read stdin cannot block us before the timer.
+    let mut stdin = child.stdin.take().expect("piped stdin");
+    let input_t = std::thread::spawn(move || { let _ = stdin.write_all(input.as_bytes()); });
+    let stdout = child.stdout.take().expect("piped stdout");
+    let stderr = child.stderr.take().expect("piped stderr");
+    let (out_tx, out_rx) = std::sync::mpsc::channel();
+    let (err_tx, err_rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || { let _ = out_tx.send(read_tail(stdout)); });
+    std::thread::spawn(move || { let _ = err_tx.send(read_tail(stderr)); });
+    let status = loop {
+        if let Some(st) = child.try_wait()? {
+            break Some(st);
+        }
+        if started.elapsed() >= timeout {
+            kill_group(child.id());
+            let _ = child.kill();
+            let _ = child.wait();
+            break None;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    // Anything the CLI left running in its group (a server it started) would hold our pipes open:
+    // stop the group, then wait for the readers only briefly.
+    kill_group(child.id());
+    drop(input_t);
+    let text = |b: Vec<u8>| String::from_utf8_lossy(&b).into_owned();
+    Ok(Captured {
+        status,
+        stdout: text(out_rx.recv_timeout(Duration::from_secs(5)).unwrap_or_default()),
+        stderr: text(err_rx.recv_timeout(Duration::from_secs(5)).unwrap_or_default()),
+    })
 }

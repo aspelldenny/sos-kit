@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # Adapter tests: real hook payloads (captured live 2026-10-09 from Claude Code and Codex 0.162)
 # plus mutations of them, run through adapters/<agent>/hook.py in a throwaway git repo.
-# scripts/advise is replaced by a stub, so no model is called.
+# scripts/advise is replaced by a stub, so no model is called (`sos hook` reaches it through
+# SOS_ADVISE_CMD); the advise section runs the real advisor (`sos advise` with SOS_HOOK_BIN) on fake CLIs.
 # Usage: tests/adapters/run.sh
+#        SOS_HOOK_BIN=target/debug/sos tests/adapters/run.sh   # same cases through `sos hook` (Rust port)
 set -uo pipefail
 KIT=$(cd "$(dirname "$0")/../.." && pwd)
 FIX="$KIT/tests/adapters/fixtures"
+# Absolute before the cd below: CI passes target/debug/sos (review 05/11/2026).
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    case "$SOS_HOOK_BIN" in */*) SOS_HOOK_BIN="$(cd "$(dirname "$SOS_HOOK_BIN")" && pwd)/$(basename "$SOS_HOOK_BIN")" ;;
+                           *) SOS_HOOK_BIN=$(command -v "$SOS_HOOK_BIN") || { echo "SOS_HOOK_BIN not on PATH"; exit 1; } ;; esac
+fi
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 cd "$T" && git init -q && git commit -q --allow-empty -m init
 mkdir -p scripts adapters
@@ -37,6 +44,12 @@ MINGW*|MSYS*|CYGWIN*)  # Windows cannot exec a bash script; a Windows path with 
     printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> "$(dirname "$0")/notified"\n' > "$T/notify"
     chmod +x "$T/notify"; export SOS_NOTIFY_CMD="$T/notify" ;;
 esac
+# `sos hook` runs the advisor in-process; the streak cases drive it with the stub above instead.
+# An absolute interpreter: one case puts a failing `python3` first on PATH.
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    if [ -n "$WIN" ]; then export SOS_ADVISE_CMD="\"$(cygpath -w "$(command -v "$PY")")\" \"$(cygpath -w "$T/scripts/advise")\""
+    else export SOS_ADVISE_CMD="$(command -v "$PY") $T/scripts/advise"; fi
+fi
 
 # line <file> <n> [python expression mutating d] [value it may read as sys.argv[4]]
 line() { "$PY" - "$FIX/$1" "$2" "${3:-}" "${4:-}" <<'EOF'
@@ -49,10 +62,20 @@ EOF
 # check <name> <want-exit> <want-substring|-> <agent> <sub> <<< payload
 check() {
     local name=$1 want=$2 grep_for=$3 agent=$4 sub=$5 out rc
-    out=$("$PY" "adapters/$agent/hook.py" "$sub" 2>&1); rc=$?
+    local so
+    if [ -n "${SOS_HOOK_BIN:-}" ]; then
+        so=$("$SOS_HOOK_BIN" hook "$agent" "$sub" 2>"$T/.stderr"); rc=$?
+    else
+        so=$("$PY" "$T/adapters/$agent/hook.py" "$sub" 2>"$T/.stderr"); rc=$?
+    fi
+    # stdout is what the agent reads: when it is JSON, all of it must be exactly one object (review 05/11/2026).
+    if [ "${so:0:1}" = "{" ] && ! "$PY" -c 'import json,sys; d=json.loads(sys.stdin.read()); assert isinstance(d, dict) and "hookSpecificOutput" in d' <<<"$so" 2>/dev/null; then
+        rc="$rc, stdout is not one JSON object"
+    fi
+    out=$so; [ -s "$T/.stderr" ] && out="${out:+$out$'\n'}$(cat "$T/.stderr")"; rm -f "$T/.stderr"
     # Windows: the Codex adapter blocks with deny JSON and exit 0 (`powershell -Command` turns exit 2 into 1).
     if [ "$agent/${sub%-*}/$want" = codex/pre/2 ] && [ -n "$WIN" ]; then
-        want=0; grep -q '"permissionDecision": "deny"' <<<"$out" || rc="$rc, no deny JSON"
+        want=0; grep -q '"permissionDecision": "deny"' <<<"$so" || rc="$rc, no deny JSON on stdout"
     fi
     local match=1
     if [ "$grep_for" = "-" ]; then [ -z "$out" ] && match=0; else grep -q -- "$grep_for" <<<"$out" && match=0; fi
@@ -63,6 +86,15 @@ check() {
     fi
 }
 C=claude-live-2026-10-09.jsonl X=codex-live-2026-10-09.jsonl
+# same_status <name>: with SOS_HOOK_BIN, the Rust session-start prints byte for byte what the Python one does
+# (line endings aside: Python on Windows writes CRLF to a pipe, Rust writes LF).
+same_status() {
+    [ -n "${SOS_HOOK_BIN:-}" ] || return 0
+    local a b
+    a=$("$PY" adapters/claude/hook.py session-start <<<"{}" 2>&1 | tr -d '\r'); b=$("$SOS_HOOK_BIN" hook claude session-start <<<"{}" 2>&1 | tr -d '\r')
+    if [ "$a" = "$b" ]; then pass=$((pass + 1)); echo "ok   same status: $1"
+    else fail=$((fail + 1)); echo "FAIL same status: $1"; diff <(echo "$a") <(echo "$b") | head -20; fi
+}
 
 # ── Claude Code ──────────────────────────────────────────────
 check "claude: Write notes.txt allowed"        0 -          claude pre-edit <<<"$(line $C 3)"
@@ -93,13 +125,29 @@ check "claude: 'failures=0' is a pass #2"      0 -          claude post-bash <<<
 check "claude: wrapped test cmd counts #1"     0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k4"; d["tool_input"]["command"]="cd app && CI=1 timeout 60 python3 -m pytest -q"')"
 check "claude: wrapped test cmd counts #2"     0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 'd["session_id"]="k4"; d["tool_input"]["command"]="cd app && CI=1 timeout 60 python3 -m pytest -q"')"
 check "claude: .Env.Local (case) blocked"      2 "BLOCKED"  claude pre-edit <<<"$(line $C 3 'd["tool_input"]["file_path"]="/REPO/.Env.Local"')"
+# Review 05/11/2026: on POSIX a backslash is part of the name, so this file IS a .env.* file.
+# On Windows it is a separator (notes.txt inside a folder .env.local), so these cases are POSIX only.
+[ -z "$WIN" ] && check "claude: '.env.local\\x' (POSIX name) blocked" 2 "BLOCKED" claude pre-edit <<<"$(line $C 3 'd["tool_input"]["file_path"]="/REPO/.env.local\\notes.txt"')"
+[ -z "$WIN" ] && check "claude: notebook '.env.local\\x' blocked" 2 "BLOCKED"   claude pre-edit <<<"$(line $C 3 'd["tool_input"]={"notebook_path":"/REPO/.env.local\\n.ipynb"}')"
+# Intended difference: only `sos hook` also splits on a backslash (Windows paths); bash basename does not.
+[ -n "${SOS_HOOK_BIN:-}" ] && check "sos hook: Windows path to .env blocked" 2 "BLOCKED" claude pre-edit <<<"$(line $C 3 'd["tool_input"]["file_path"]="C:\\work\\app\\.env"')"
+# Relative CLAUDE_PROJECT_DIR from a subfolder: the advisor still runs (review 05/11/2026).
+mkdir -p sub
+for n in 1 2; do o=$(cd sub && CLAUDE_PROJECT_DIR=.. bash -c 'if [ -n "${SOS_HOOK_BIN:-}" ]; then "$SOS_HOOK_BIN" hook claude post-bash; else "$0" "'"$T"'/adapters/claude/hook.py" post-bash; fi' "$PY" <<<"$(line $C 1 'd["session_id"]="krel"')" 2>&1); done
+grep -q "STUB ADVICE" <<<"$o" && pass=$((pass + 1)) && echo "ok   claude: relative project dir from a subfolder -> advice" || { fail=$((fail + 1)); echo "FAIL claude: relative project dir from a subfolder: ${o:0:300}"; }
+rmdir sub
 check "claude: k5 fail #1 silent"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"')"
 check "claude: quoted ';pytest' not a test"    0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"; d["tool_input"]["command"]="echo \"hello; pytest\" && printf \"a|pytest\""; d["tool_response"]["stdout"]="hello; pytest"')"
 check "claude: k5 fail #2 -> advice"           0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 'd["session_id"]="k5"')"
 PY3=$(command -v "$PY"); mkdir -p "$T/win"
 printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$T/win/python3"; chmod +x "$T/win/python3"
+# `sos hook` falls back to the next interpreter that runs (Windows: `python`), so give it one here.
+[ -n "${SOS_HOOK_BIN:-}" ] && ln -sf "$PY3" "$T/win/python"
 pl=$(line $C 1 'd["session_id"]="kwin"')  # built first: the here-string would see the stub PATH
-for n in 1 2; do o=$(PATH="$T/win:$PATH" "$PY3" adapters/claude/hook.py post-bash <<<"$pl" 2>&1); done
+for n in 1 2; do
+    if [ -n "${SOS_HOOK_BIN:-}" ]; then o=$(PATH="$T/win:$PATH" "$SOS_HOOK_BIN" hook claude post-bash <<<"$pl" 2>&1)
+    else o=$(PATH="$T/win:$PATH" "$PY3" adapters/claude/hook.py post-bash <<<"$pl" 2>&1); fi
+done
 grep -q "STUB ADVICE" <<<"$o" && pass=$((pass + 1)) && echo "ok   windows: advice without a working python3" || { fail=$((fail + 1)); echo "FAIL windows: advice without a working python3: ${o:0:300}"; }
 # The project's own test command (.sos.toml [advisor] tests), e.g. POD-agent's `node scripts/check.mjs`.
 printf '[advisor]\ntests = ["node scripts/check.mjs", '"'"'make e2e'"'"']\n\n[state]\nfile = "x"\n' > .sos.toml
@@ -120,6 +168,12 @@ check "own: after the reset, fail #1 silent"    0 -   claude post-bash <<<"$(own
 o=$("$PY" "$KIT/tests/adapters/test_watch_units.py" "$KIT/scripts/test-watch.py" 2>&1)
 [ "$o" = ok ] && pass=$((pass + 1)) && echo "ok   test-watch units: TOML reader, own-command match" || { fail=$((fail + 1)); echo "FAIL test-watch units: $o"; }
 rm .sos.toml
+# A Python-only pattern (lookaround) in ADVISE_TEST_RE: `sos hook` uses the default and says so.
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    LA='d["session_id"]="la"; d["tool_input"]["command"]="cargo test"; d["tool_response"]["stdout"]="test result: FAILED. 0 passed; 1 failed"'
+    ADVISE_TEST_RE='cargo test(?=\s|$)' check "sos hook: lookaround ADVISE_TEST_RE #1 silent" 0 - claude post-bash <<<"$(line $C 1 "$LA")"
+    ADVISE_TEST_RE='cargo test(?=\s|$)' check "sos hook: lookaround ADVISE_TEST_RE -> default + note" 0 "syntax sos cannot read" claude post-bash <<<"$(line $C 1 "$LA")"
+fi
 check "claude: k6 pytest fail #1"              0 -          claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
 check "claude: k6 other suite passes, no reset" 0 -         claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"; d["tool_input"]["command"]="cargo test"; d["tool_response"]["stdout"]="test result: ok. 3 passed"')"
 check "claude: k6 pytest fail #2 -> advice"    0 "agent=claude" claude post-bash <<<"$(line $C 1 'd["session_id"]="k6"')"
@@ -162,11 +216,26 @@ mkdir -p docs && { echo "## Now"; for i in $(seq 90); do echo "- [ ] item $i"; d
 seq 210 > AGENTS.md
 check "claude: status notes oversized state"   0 "section is 91 lines" claude session-start <<<"{}"
 check "claude: status notes oversized entry"   0 "are 210 lines" claude session-start <<<"{}"
+same_status "oversized state and entry"
+{ echo "intro"; echo "## Now - long line $(printf 'word%.0s' $(seq 80))"; echo "  note"; echo "- [x] done"; echo "free text"; echo "## Later"; echo "- [ ] later"; } > docs/BACKLOG.md
+same_status "section without open items, long line"
+# Intended difference: status.sh cuts at 220 bytes on Linux (GNU cut), splitting Vietnamese letters;
+# `sos hook` cuts at 220 characters, as BSD cut does on macOS.
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    echo "## Hiện tại $(printf 'chữ%.0s' $(seq 100))" > docs/BACKLOG.md
+    o=$("$SOS_HOOK_BIN" hook status | sed -n 2p); n=$("$PY" -c 'import sys; print(len(sys.stdin.read().rstrip("\n")))' <<<"$o")
+    if [ "$n" = 220 ]; then pass=$((pass + 1)); echo "ok   sos hook status: long line cut at 220 characters"
+    else fail=$((fail + 1)); echo "FAIL sos hook status: long line cut at $n characters: $o"; fi
+fi
+printf '[state]\nfile = "docs/P.md" # c\n' > .sos.toml; printf '# P\n\n## Now\n- [ ] p1\n' > docs/P.md
+same_status "[state] file"
+rm -f .sos.toml docs/P.md
 rm -rf docs AGENTS.md
 printf '[roles.reviewer.claude]   # Claude built it\nbackend = "codex"\nmodel = "m"\n\n[roles.reviewer.codex]\nbackend = "claude"\n' > .sos.toml
 check "claude: status names the cross-family reviewer" 0 "claude-built work → codex; codex-built work → claude" claude session-start <<<"{}"
+same_status "cross-family reviewer"
 printf '[roles.reviewer]\nbackend = "claude"\n' > .sos.toml
-out=$("$PY" adapters/claude/hook.py session-start <<<"{}" 2>&1)
+out=$(if [ -n "${SOS_HOOK_BIN:-}" ]; then "$SOS_HOOK_BIN" hook claude session-start; else "$PY" adapters/claude/hook.py session-start; fi <<<"{}" 2>&1)
 if grep -q "Người soát" <<<"$out"; then fail=$((fail + 1)); echo "FAIL status: same-family reviewer named"; else pass=$((pass + 1)); echo "ok   status: quiet for a same-family reviewer"; fi
 rm -f .sos.toml
 
@@ -183,6 +252,9 @@ check "codex: CR/VT/EM-space prefix blocked"   2 "BLOCKED"  codex pre-edit <<<"$
 check "codex: .ENV (case) blocked"             2 "BLOCKED"  codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Add File: .ENV\n+T=x\n*** End Patch"')"
 check "codex: U+2028 inside path blocked"     2 "BLOCKED"  codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Update File: dir\u2028/.env\n@@\n-A=1\n+A=2\n*** End Patch"')"
 check "codex: unparseable patch blocked"       2 "could not find" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="garbage"')"
+[ -z "$WIN" ] && check "codex: '.env.local\\x' (POSIX name) blocked" 2 "BLOCKED" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Update File: .env.local\\notes.txt\n@@\n-A=1\n+A=2\n*** End Patch"')"
+check "codex: NUL in a path blocked"          2 "BLOCKED"  codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Add File: notes\u0000.txt\n+hi\n*** End Patch"')"
+check "codex: patch text not a string blocked" 2 "BLOCKED" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]=None')"
 for n in 1 2 3; do
 check "codex: P078b3 fixture line $n allowed"  0 -          codex pre-edit <<<"$(sed -n "${n}p" "$FIX/codex-p078b3-apply-patch.jsonl")"
 done
@@ -252,6 +324,15 @@ check "claude: newline-separated run blocked"   2 "BLOCKED"  claude pre-bash <<<
 check "claude: unbalanced quote run blocked"    2 "BLOCKED"  claude pre-bash <<<"$(cb "xcodebuild test -scheme 'X")"
 check "claude: echo/grep of xcodebuild allowed" 0 -          claude pre-bash <<<"$(cb "echo xcodebuild test; rg 'xcodebuild test' AGENTS.md")"
 check "claude: xcodebuild build allowed"        0 -          claude pre-bash <<<"$(cb "xcodebuild build -scheme X -destination 'platform=iOS Simulator,name=A'")"
+check "claude: Unicode digit before a redirect blocked" 2 "BLOCKED" claude pre-bash <<<"$(cb "٢>/dev/null xcodebuild test")"
+if [ -z "$WIN" ]; then  # a hung `ps` costs at most 10 s, then the guard decides without it (review 05/11/2026)
+    mv "$P/ps" "$P/ps.real"; printf '#!/bin/sh\nexec sleep 30\n' > "$P/ps"; chmod +x "$P/ps"
+    t0=$(date +%s)
+    check "claude: hung ps -> still blocks the missing flag" 2 "parallel-testing-enabled NO" claude pre-bash <<<"$(cb "xcodebuild test -scheme X")"
+    dt=$(( $(date +%s) - t0 ))
+    if [ "$dt" -le 20 ]; then pass=$((pass + 1)); echo "ok   hung ps: decided in ${dt}s"; else fail=$((fail + 1)); echo "FAIL hung ps: took ${dt}s"; fi
+    mv "$P/ps.real" "$P/ps"
+fi
 touch "$P/busy"
 if [ -z "$WIN" ]; then  # Windows cannot run the fake `ps` script (and has no xcodebuild to guard)
 check "claude: second run while one runs blocked" 2 "already running" claude pre-bash <<<"$(cb "$OK")"
@@ -263,6 +344,12 @@ check "codex: Bash pre-tool pytest allowed"     0 -          codex pre-bash <<<"
 check "codex: xcodebuild test, no flag blocked" 2 "How to fix" codex pre-bash <<<"$(xb "xcodebuild -scheme X test")"
 check "codex: one sim, flag set allowed"        0 -          codex pre-bash <<<"$(xb "$OK")"
 check "codex: apply_patch ignored by pre-bash"  0 -          codex pre-bash <<<"$(line $X 4)"
+# A non-string command: blocked where a simulator exists (the Python adapter crashed, which blocked there).
+if [ "$(uname -s)" = Darwin ]; then
+    check "codex: Bash command not a string blocked (macOS)" 2 "BLOCKED" codex pre-bash <<<"$(line $X 2 'd["tool_input"]["command"]=None')"
+elif [ -n "${SOS_HOOK_BIN:-}" ]; then
+    check "sos hook: Bash command not a string allowed off macOS" 0 - codex pre-bash <<<"$(line $X 2 'd["tool_input"]["command"]=None')"
+fi
 check "claude: unreadable Bash payload blocked" 2 "BLOCKED"  claude pre-bash <<<"not json"
 export PATH="${PATH#"$P:"}"; rm -rf "$P"
 
@@ -284,10 +371,13 @@ cat > "$ADVISE_PROMPT_OUT"
 echo '{"result":"VERDICT: continue","is_error":false}'
 SH
 ( cd "$A/repo" && git init -q && git commit -q --allow-empty -m init )
+expect() { if [ "$2" = 0 ]; then pass=$((pass + 1)); echo "ok   $1"; else fail=$((fail + 1)); echo "FAIL $1: ${3:0:300}"; fi; }
+# adv <args>: the advisor under test (`sos advise` with SOS_HOOK_BIN, else scripts/advise)
+adv() { if [ -n "${SOS_HOOK_BIN:-}" ]; then "$SOS_HOOK_BIN" advise "$@"; else "$PY" "$KIT/scripts/advise" "$@"; fi; }
 # prompt <name> <want-substring>: run advise in $A/repo and grep the prompt it sent
 prompt() {
     local name=$1 want=$2
-    (cd "$A/repo" && PATH="$A/bin:$PATH" ADVISE_PROMPT_OUT="$A/prompt" "$PY" "$KIT/scripts/advise" --backend claude "why red?" >/dev/null 2>&1)
+    (cd "$A/repo" && PATH="$A/bin:$PATH" ADVISE_PROMPT_OUT="$A/prompt" adv --backend claude "why red?" >/dev/null 2>&1)
     if grep -q -- "$want" "$A/prompt" 2>/dev/null; then pass=$((pass + 1)); echo "ok   $name"
     else fail=$((fail + 1)); echo "FAIL $name (want $want): $(head -c 300 "$A/prompt" 2>/dev/null)"; fi
 }
@@ -307,6 +397,19 @@ printf '# P\n\n## Hiện tại\n\n%s\n' "$("$PY" -c 'print("Kiểm tra hành tr�
 prompt "advise: long Vietnamese state doc ok"  "Kiểm tra hành trình"
 printf 'Brief: refunds must never go negative\n' > "$A/brief.md"
 ADVISE_BRIEF="$A/brief.md" prompt "advise: ADVISE_BRIEF wins" "refunds must never go negative"
+# End to end in `sos`: two failing runs -> the in-process advisor -> the (fake) claude CLI -> context.
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    rm -f "$A/prompt"; mkdir -p "$A/repo/sub"; printf 'E2E-BRIEF-SENTINEL\n' > "$A/repo/e2e-brief.md"
+    # From a subfolder with a relative ADVISE_BRIEF: read from the project root, as before (review 05/11/2026).
+    for n in 1 2; do o=$(cd "$A/repo/sub" && env -u SOS_ADVISE_CMD PATH="$A/bin:$PATH" ADVISE_PROMPT_OUT="$A/prompt" CLAUDE_PROJECT_DIR="$A/repo" \
+        ADVISE_BRIEF=e2e-brief.md "$SOS_HOOK_BIN" hook claude post-bash <<<"$(line $C 1 'd["session_id"]="e2e"')" 2>&1); done
+    grep -q "ADVISOR (automatic" <<<"$o" && grep -q "VERDICT: continue" <<<"$o" && grep -q "failed 2 times in a row" "$A/prompt" 2>/dev/null
+    expect "sos hook: two failures -> sos advise -> claude CLI -> advice" $? "$o"
+    grep -q "E2E-BRIEF-SENTINEL" "$A/prompt" 2>/dev/null; expect "sos hook: relative ADVISE_BRIEF read from the project root" $? "$(head -c 300 "$A/prompt" 2>/dev/null)"
+    grep -l "failed 2 times in a row" "$A/repo/evidence/advice/"*-claude.md >/dev/null 2>&1
+    expect "sos hook: this advice is kept in evidence/advice" $? "$(ls -R "$A/repo/evidence" 2>&1)"
+    rm -rf "$A/repo/sub" "$A/repo/e2e-brief.md"
+fi
 # A lost login: exit 3, the fix logged, the session-start status says it until a good call.
 fakecli claude <<'SH'
 #!/usr/bin/env bash
@@ -316,22 +419,28 @@ if [ -n "${CLAUDE_LOGGED_OUT:-}" ]; then
 fi
 echo '{"result":"OK","is_error":false}'
 SH
-expect() { if [ "$2" = 0 ]; then pass=$((pass + 1)); echo "ok   $1"; else fail=$((fail + 1)); echo "FAIL $1: ${3:0:300}"; fi; }
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 "$PY" "$KIT/scripts/advise" --backend claude "why red?" 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 adv --backend claude "why red?" 2>&1); rc=$?
 [ "$rc" = 3 ] && grep -q "/login" <<<"$o"; expect "advise: lost login -> exit 3 with the fix" $? "rc=$rc $o"
 o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); grep -q "advisor's last call failed" <<<"$o"; expect "status: names the broken advisor" $? "$o"
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    o=$(cd "$A/repo" && "$SOS_HOOK_BIN" hook status); grep -q "advisor's last call failed" <<<"$o"; expect "sos hook status: names the broken advisor" $? "$o"
+fi
 # Windows: `python3` on PATH is the Store alias that only fails; the adapter passes its own interpreter.
 PY3=$(command -v "$PY"); mkdir -p "$A/win"
 printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$A/win/python3"; chmod +x "$A/win/python3"
-o=$(cd "$A/repo" && PATH="$A/win:$PATH" CLAUDE_PROJECT_DIR="$A/repo" "$PY3" "$KIT/adapters/claude/hook.py" session-start <<<"{}" 2>&1)
+if [ -n "${SOS_HOOK_BIN:-}" ]; then o=$(cd "$A/repo" && PATH="$A/win:$PATH" CLAUDE_PROJECT_DIR="$A/repo" "$SOS_HOOK_BIN" hook claude session-start <<<"{}" 2>&1)
+else o=$(cd "$A/repo" && PATH="$A/win:$PATH" CLAUDE_PROJECT_DIR="$A/repo" "$PY3" "$KIT/adapters/claude/hook.py" session-start <<<"{}" 2>&1); fi
 grep -q "advisor's last call failed" <<<"$o"; expect "windows: session-start status runs without a working python3" $? "$o"
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" adv --backend claude --check 2>&1); rc=$?
 [ "$rc" = 0 ] && grep -q "answers" <<<"$o"; expect "advise --check: answers after login" $? "rc=$rc $o"
 o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); ! grep -q "advisor" <<<"$o"; expect "status: quiet once the advisor answers" $? "$o"
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 "$PY" "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    o=$(cd "$A/repo" && "$SOS_HOOK_BIN" hook status); ! grep -q "advisor" <<<"$o"; expect "sos hook status: quiet once the advisor answers" $? "$o"
+fi
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 adv --backend claude --check 2>&1); rc=$?
 [ "$rc" = 3 ]; expect "advise --check: logged out -> exit 3" $? "rc=$rc $o"
 mkdir -p "$A/repo/.advise-state" && touch "$A/repo/.advise-state/unavailable"
-(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend claude --check >/dev/null 2>&1)
+(cd "$A/repo" && PATH="$A/bin:$PATH" adv --backend claude --check >/dev/null 2>&1)
 [ ! -e "$A/repo/.advise-state/unavailable" ]; expect "advise --check: success lifts the quiet period" $? ""
 # codex echoes the prompt on stderr: login words in the user's failure must not read as a lost login
 fakecli codex <<'SH'
@@ -339,7 +448,7 @@ fakecli codex <<'SH'
 p=$(cat); printf 'user\n%s\nERROR: 400 model not supported\n' "$p" >&2; exit 1
 SH
 printf 'AssertionError: OAuth refresh got 401 unauthorized at /login\n' > "$A/err.txt"
-o=$(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend codex --error-file "$A/err.txt" "why red?" 2>&1); rc=$?
+o=$(cd "$A/repo" && PATH="$A/bin:$PATH" adv --backend codex --error-file "$A/err.txt" "why red?" 2>&1); rc=$?
 [ "$rc" = 1 ] && ! grep -q "codex login" <<<"$o"; expect "advise: codex echo of auth words is not a lost login" $? "rc=$rc ${o: -200}"
 rm -rf "$A"
 

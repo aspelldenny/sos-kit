@@ -8,10 +8,11 @@ The v2 policy (sister-tool binaries, Codex adapter guards, rendered backstop hoo
 
 | Surface | Trigger | What it does |
 |---|---|---|
-| `hooks/pre-commit` | `git commit` | `cargo check`, the trust gate, `sos gate all` from the freshly built binary, and `tests/docs-check.py` |
+| `hooks/pre-commit` | `git commit` | `cargo check`, the trust gate (`sos-dev trust-gate`), `sos gate all` from the freshly built binary, and the docs check (`sos-dev docs-check`) |
 | `hooks/pre-push` | `git push` | `sos gate local-secrets` |
 | `.claude/settings.json`, `.codex/hooks.json` | Agent session in this folder | Session status line; `.env` edit guard (via `adapters/`) |
 | `scripts/*`, `adapters/*/*` | Called by the hooks above | Agent-neutral checks and payload translators |
+| `crates/sos-dev/*` | Built and run by `hooks/pre-commit` | The trust gate and docs check themselves (kit only; never released or installed into apps) |
 | `install.sh` | `curl … \| sh` | Downloads the `sos` binary for one pinned release tag, verifies its `.sha256`, puts it in `~/.local/bin` |
 | `scripts/npm-postinstall.sh`, `bin/sos-npm` | `npm install -g sos-kit` (when npm runs install scripts); otherwise the first `sos` call from npm other than `sos gate`/`sos filter`, or such a call when the installed binary is older than the package | Fetch `install.sh` from a pinned tag, verify it against `scripts/install-sh.sha256`, run it |
 | `templates/app/hooks/*` | Installed into apps by `sos install` | See below |
@@ -25,14 +26,14 @@ The v2 policy (sister-tool binaries, Codex adapter guards, rendered backstop hoo
 | Written | Owner | Runs when |
 |---|---|---|
 | `harness-lite/hooks/pre-commit`, `pre-push` (+ `core.hooksPath`) | Kit | Every commit / push: `sos gate all`, `sos gate local-secrets` |
-| `harness-lite/scripts/*`, `harness-lite/adapters/*` | Kit | Called by agent hooks; `scripts/advise` calls the `claude` or `codex` CLI after repeated test failures (disable: `SOS_ADVISOR=off`) |
+| `harness-lite/scripts/*`, `harness-lite/adapters/*` | Kit | Called by older agent hook wiring (current wiring calls `sos hook`); `scripts/advise` calls the `claude` or `codex` CLI after repeated test failures (disable: `SOS_ADVISOR=off`) |
 | `.claude/settings.json`, `.codex/hooks.json` | Project (created only if missing) | Agent sessions |
 
 It never overwrites an existing project file (it appends three lines to `.gitignore`), never changes an existing `core.hooksPath` without `--force-hooks`, and records the SHA-256 of every kit file in `harness-lite/UPSTREAM.json`. `sos update` replaces only kit files whose hash still matches that record; an edited file is kept and the new version is written beside it as `.sos-new`.
 
 ## Invariants
 
-**INV-TRUST-01 — Auto-exec content integrity.** The auto-exec surfaces listed in `scripts/trust-gate.sh` (`SURFACE_GLOBS`: agent hook configs, `adapters/`, `scripts/`, git hooks and the app hook templates, `install.sh`, the npm wrapper, `.github/workflows/`, `tests/smoke.sh`) have their SHA-256 in `.sos-trust-baseline`; `scripts/trust-gate.sh` fails the commit on any difference. A reviewed change is accepted only by `scripts/trust-gate.sh rebaseline`, so the diff is visible in the PR.
+**INV-TRUST-01 — Auto-exec content integrity.** The auto-exec surfaces listed in `crates/sos-dev/src/trust.rs` (`SURFACES`, kept equal to `SURFACE_GLOBS` in the older `scripts/trust-gate.sh`: agent hook configs, `adapters/`, `scripts/`, git hooks and the app hook templates, `install.sh`, the npm wrapper, `.github/workflows/`, `tests/smoke.sh`, and `crates/sos-dev/` itself) have their SHA-256 in `.sos-trust-baseline`; `sos-dev trust-gate` fails the commit on any difference. A reviewed change is accepted only by `sos-dev trust-gate rebaseline`, so the diff is visible in the PR.
 
 **INV-TRUST-02 — No hidden Unicode in instruction files.** The trust gate rejects BOM, zero-width characters, bidi marks, overrides and isolates (U+200E/F, U+202A–202E, U+2066–2069) and Unicode tag characters (U+E0000 block) in files agents load as instructions (the "rules file backdoor" vector).
 
@@ -52,7 +53,7 @@ It never overwrites an existing project file (it appends three lines to `.gitign
 
 ```bash
 git add <changed-surface>              # new files must be added first
-scripts/trust-gate.sh rebaseline
+cargo run -q -p sos-dev -- trust-gate rebaseline   # or scripts/trust-gate.sh rebaseline (same file)
 git add .sos-trust-baseline
 git commit
 ```

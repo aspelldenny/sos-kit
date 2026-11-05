@@ -7,9 +7,21 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod advise;
+mod bite;
+mod check_links;
 mod gate;
+mod guards;
+mod hook;
 mod kit;
+mod predict;
 mod role;
+mod sessions;
+mod sim;
+mod status;
+mod usage;
+mod watch;
+mod wiring;
 
 #[derive(Parser)]
 #[command(name = "sos", version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("SOS_KIT_COMMIT"), ")"),
@@ -40,6 +52,10 @@ enum Cmd {
         dir: PathBuf,
         #[arg(long)]
         dry_run: bool,
+        /// Also rewrite the kit's own hook commands in .claude/settings.json and .codex/hooks.json
+        /// (old forms → `sos hook`, missing kit events added); other entries are left alone.
+        #[arg(long)]
+        wiring: bool,
     },
     /// Check an installed repo: kit files, hooks, required tools, .sos.toml, agent wiring.
     Check {
@@ -73,6 +89,43 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Agent hooks: `sos hook claude|codex <session-start|pre-edit|pre-bash|post-bash>` (payload on
+    /// stdin; exit 2 blocks), `rules --file F` (declarative rules), plus the agent-neutral
+    /// `env-guard`, `sim-guard`, `status` and `rules --file F [--lint|--cases C]`.
+    Hook {
+        #[command(subcommand)]
+        which: hook::HookCmd,
+    },
+    /// Token use by role × model from local Claude Code transcripts (and Codex rollouts), with a
+    /// comparison price and suggestions. Read-only: nothing is sent, written or run.
+    Usage(usage::Args),
+    /// Ask a stronger model (the other family by default) for direction on the current work, from
+    /// a snapshot: question, intent, latest failure, git state, relevant files. Exit 0 advice,
+    /// 1 failed, 2 off or misconfigured, 3 unavailable (CLI not logged in). Settings: .sos.toml [advisor].
+    Advise(advise::Args),
+    /// Do the tests of a change catch a wrong version of it? Old code against the new tests, and
+    /// one-token mutants of the added lines, in a throwaway worktree. `--audit` lists existing
+    /// tests that kill no mutant. Settings: .sos.toml [bite]. (Same tool as scripts/bite.)
+    #[command(long_about = bite::LONG_ABOUT)]
+    Bite(bite::Args),
+    /// One iOS simulator, used gently: boot it, wait for the machine to settle before a UI-test
+    /// phase, or print the xcodebuild destination for it. Never creates or erases a device.
+    Sim {
+        #[command(subcommand)]
+        which: sim::SimCmd,
+    },
+    /// List written predictions and pass thresholds in a repo with their age, for the depth-check
+    /// skill: which were later graded against the actual result? Read-only; always exits 0.
+    Predict(predict::Args),
+    /// Relative links and heading anchors in every Markdown file under a folder: the linked file
+    /// must exist and a `#anchor` must match a heading. Exits 1 and lists what is broken.
+    CheckLinks(check_links::Args),
+    /// The Claude desktop app's Code sessions, read from its session files: which have gone quiet
+    /// (`idle`), and how many are active (`count --max N` exits 2 at N, for a hook). Read-only.
+    Sessions {
+        #[command(subcommand)]
+        which: sessions::SessionsCmd,
+    },
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
@@ -81,12 +134,20 @@ enum Cmd {
 fn main() {
     let cli = Cli::parse();
     let code = match cli.command {
-        Cmd::Install { dir, dry_run, force_hooks } => kit::install(&dir, &kit::Opts { dry_run, force_hooks }),
-        Cmd::Update { dir, dry_run } => kit::update(&dir, &kit::Opts { dry_run, force_hooks: false }),
+        Cmd::Install { dir, dry_run, force_hooks } => kit::install(&dir, &kit::Opts { dry_run, force_hooks, wiring: false }),
+        Cmd::Update { dir, dry_run, wiring } => kit::update(&dir, &kit::Opts { dry_run, force_hooks: false, wiring }),
         Cmd::Check { dir } => kit::check(&dir),
         Cmd::Gate { which } => Ok(gate::run(which)),
         Cmd::Role { role, from, brief, out, timeout, dry_run } =>
             role::run(&role::Args { role, from, brief, out, timeout, dry_run }),
+        Cmd::Hook { which } => Ok(hook::run(which)),
+        Cmd::Usage(a) => usage::run(a),
+        Cmd::Advise(a) => advise::run(a),
+        Cmd::Bite(a) => bite::run(a),
+        Cmd::Sim { which } => sim::run(which),
+        Cmd::Predict(a) => predict::run(a),
+        Cmd::CheckLinks(a) => check_links::run(a),
+        Cmd::Sessions { which } => sessions::run(which),
         Cmd::Filter => Ok(gate::filter()),
     };
     match code {

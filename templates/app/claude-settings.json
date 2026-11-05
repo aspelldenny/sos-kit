@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py\" session-start"
+            "command": "sos hook claude session-start --protocol 1"
           }
         ]
       }
@@ -18,7 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py\" pre-edit"
+            "command": "sos hook claude pre-edit --protocol 1; rc=$?; [ \"$rc\" = 0 ] || { [ \"$rc\" = 2 ] || echo \"BLOCKED: SOS Kit hook could not run (sos missing, too old, or failed: exit $rc). Install or upgrade sos: https://github.com/aspelldenny/sos-kit#quick-start\" >&2; exit 2; }",
+            "timeout": 60
           }
         ]
       },
@@ -27,7 +28,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py\" pre-bash"
+            "command": "sos hook claude pre-bash --protocol 1; rc=$?; [ \"$rc\" = 0 ] || { [ \"$rc\" = 2 ] || echo \"BLOCKED: SOS Kit hook could not run (sos missing, too old, or failed: exit $rc). Install or upgrade sos: https://github.com/aspelldenny/sos-kit#quick-start\" >&2; exit 2; }",
+            "timeout": 60
           }
         ]
       }
@@ -38,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py\" post-bash",
+            "command": "sos hook claude post-bash --protocol 1",
             "timeout": 320
           }
         ]
@@ -50,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/harness-lite/adapters/claude/hook.py\" post-bash",
+            "command": "sos hook claude post-bash --protocol 1",
             "timeout": 320
           }
         ]

@@ -1,0 +1,17 @@
+# `gh pr merge <N>` phải qua /security-review khi PR chạm security surface (thay
+# scripts/block-unsafe-merge.sh). Phần hỏi GitHub (diff, comment, verdict) nằm ở
+# scripts/merge-check <N>: thoát 0 = cho merge, khác 0 = chặn với lời in ra stdout.
+# Lệnh kiểm không chạy được → chặn (fail-safe như script cũ khi gh hỏng).
+# Marker `[security-review-skip:<lý do>]` trong lệnh cho qua (Sếp đã xem tay).
+# Nối: PreToolUse, matcher "Bash": sos hook claude rules --file scripts/merge-guard.toml
+version = 1
+
+[[rule]]
+id = "tarot-merge-needs-security-review"
+tools = ["Bash"]
+command.program = ["gh"]
+command.args = [{ pos = 0, eq = "pr" }, { pos = 1, eq = "merge" }, { pos = 2, regex = '^[0-9]+$' }]
+command.not_raw = '\[security-review-skip:[^\]]+\]'
+check = { program = "scripts/merge-check", args = ["{arg.2}"], timeout_secs = 20, fires_on = "failure", on_error = "block" }
+decision = "block"
+message = "{check.output}"

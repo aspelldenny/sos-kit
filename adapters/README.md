@@ -23,7 +23,7 @@ Wiring templates for app repos: `templates/app/claude-settings.json` and `templa
 | Session start | `SessionStart` → stdout to context | `SessionStart` → `additionalContext` | `scripts/status.sh` |
 | Before an edit | `PreToolUse` Edit/Write/MultiEdit/NotebookEdit, `file_path` | `PreToolUse` `apply_patch`, every path in the patch; unparseable patch is blocked | `scripts/env-guard.sh` (exit 2 blocks; Codex on Windows: `permissionDecision` "deny", exit 0) |
 | Before a shell command | `PreToolUse` Bash, `tool_input.command` | `PreToolUse` Bash, `tool_input.command` | `scripts/sim-guard` (blocks an `xcodebuild test` without `-parallel-testing-enabled NO`, with two destinations, or while another one runs; `bite` checks its own test command the same way. Codex on Windows: a broken hook there only reports) |
-| After a shell command (optional advisor) | `PostToolUse` + `PostToolUseFailure` Bash; key = session + `agent_id` | `PostToolUse` Bash (no failure event, no exit code; detected from output) | `scripts/test-watch.py` → `scripts/advise` |
+| After a shell command (optional advisor) | `PostToolUse` + `PostToolUseFailure` Bash; key = session + `agent_id` | `PostToolUse` Bash (no failure event, no exit code; detected from output) | `scripts/test-watch.py` → `scripts/advise` (`sos hook`: the same trigger in-process → `sos advise`) |
 
 **Codex runs a project's hooks only after you trust them:** open `codex` in the repo and accept
 them in `/hooks` (again after any change to `.codex/hooks.json`). `sos check` reads the file, not

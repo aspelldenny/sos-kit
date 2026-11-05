@@ -48,6 +48,12 @@ Existing files are never overwritten; the only change to an existing file is thr
 
 `sos filter` applies the wording rules to text on stdin, for filtering model output at runtime.
 
+`sos usage` shows where tokens went, read from the agents' local transcripts (`~/.claude/projects`, subagent files included, and with `--agent codex|all` the Codex rollouts in `~/.codex/sessions`): calls and tokens by role, model, project, day or session (`--by`), filtered with `--since`, `--until` and `--project`, with an estimated cost from a dated price table (`--prices FILE` to use your own), what each subagent handed back to its parent, and a few savings hints. `--json` for scripts, `--explain` for how each number was found. Read-only: nothing is sent, written or run, and no prompt or tool text is kept, only ids and counts.
+
+`sos hook claude|codex <session-start|pre-edit|pre-bash|post-bash> --protocol 1` is what the agent hooks call (payload on stdin, exit 2 blocks); the guards (pre-edit, pre-bash) block when `sos` is missing, too old or fails. Apps installed before call `harness-lite/adapters/*/hook.py`: `sos update --wiring` rewrites those commands in `.claude/settings.json` and `.codex/hooks.json` (shown first, `--dry-run` to only look; other entries untouched), and `sos check` warns until it is done. The project-owned files are otherwise never overwritten by `sos update`.
+
+`sos advise [question]` asks a stronger model for direction from a snapshot of the work (question, intent from the state doc, latest failure, git state, the files they mention); `sos hook … post-bash` calls it by itself after `[advisor] after` failing runs of the same test command. `--check` proves the configured CLI answers after a login fix; `--config` prints the settings.
+
 `sos role <worker|reviewer|architect> --from <claude|codex> --brief <file>` runs a role on the model and effort `.sos.toml` `[roles]` names (for a reviewer, keyed by the family that built the work), from any agent: prompt on stdin with stdin closed, a time limit, the final message in `evidence/roles/`, one line in `.advise-state/calls.jsonl`.
 
 ## How work runs
@@ -64,7 +70,7 @@ Existing files are never overwritten; the only change to an existing file is thr
 |---|---|
 | [`harness-lite/`](harness-lite/README.md) | Contract and roles (installed into projects) |
 | [`adapters/`](adapters/README.md), `scripts/`, `templates/app/` | Agent adapters, agent-neutral scripts and the templates `sos install` writes |
-| `crates/` | The `sos` binary (installer and gates, Rust) |
+| `crates/` | The `sos` binary (installer and gates, Rust), and `sos-dev`, the kit's own trust gate and docs check (not released) |
 | [`recipes/`](recipes/README.md), `skills/apply/` | Implementation patterns taken from shipped code, and the skill that applies one |
 | [`skills/depth-check/`](skills/depth-check/SKILL.md) | Checks whether a project's expertise is real: rawest source, the field's instruments, a judge outside the model, a closed feedback loop |
 | [`docs/`](docs/PHILOSOPHY.md) | Philosophy, backlog, plans and research behind v3 |

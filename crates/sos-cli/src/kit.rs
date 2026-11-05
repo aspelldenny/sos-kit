@@ -7,7 +7,9 @@
 //!   version is written next to it as `<file>.sos-new`.
 //! - **Project-owned**: `.claude/settings.json`, `.codex/hooks.json`, `AGENTS.md`, `CLAUDE.md`,
 //!   `.sos.toml`, `.claude/agents/*.md`. Created from the templates when missing, never
-//!   overwritten. Their templates also ship under `harness-lite/templates/` for reference.
+//!   overwritten by `sos update`; `sos update --wiring` edits only the kit's own hook commands in
+//!   the two hook files, in place, shown first. Their templates also ship under
+//!   `harness-lite/templates/` for reference.
 //!
 //! Every file the binary installs is embedded at build time, so `sos` needs no kit checkout.
 
@@ -24,6 +26,11 @@ macro_rules! say {
         use std::io::Write;
         let _ = writeln!(std::io::stdout(), $($t)*);
     }};
+}
+
+/// `say!` for other modules.
+pub fn say(s: &str) {
+    say!("{s}");
 }
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -227,87 +234,26 @@ effort = \"high\"
 /// The interpreter the agent hook commands call. On Windows `python3` is usually the Microsoft
 /// Store alias that only prints "Python was not found" (POD-agent, 23/10/2026), so the hooks
 /// silently did nothing; `python` is the real one there. `SOS_PYTHON` overrides.
-fn hook_python() -> String {
+pub fn hook_python() -> String {
     std::env::var("SOS_PYTHON").ok().filter(|s| !s.is_empty())
         .unwrap_or_else(|| if cfg!(windows) { "python" } else { "python3" }.into())
 }
 
-/// A path as one bash word (hooks run through bash, Git Bash on Windows): single-quoted unless plain.
-fn shell_word(s: &str) -> Result<String> {
-    if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "_./:-".contains(c)) {
-        return Ok(s.to_string());
-    }
-    if s.contains('\'') {
-        bail!("SOS_PYTHON may not contain a single quote: {s}");
-    }
-    Ok(format!("'{s}'"))
-}
-
-/// Codex hooks on Windows. Which shell Codex starts them with there is not documented, and
-/// `"$(git rev-parse …)"` works in bash and PowerShell but not in cmd. This form has no `$`, `%`, `!`,
-/// backslash or nested double quote, so cmd, PowerShell and bash all hand it to Python unchanged
-/// (tested in all three, 23/10/2026). Outside a repo, or with the adapter missing, it blocks pre-edit;
-/// pre-bash only reports, since the simulator guard has no xcodebuild to stop on Windows.
-fn codex_hooks_any_shell(body: &str, py: &str) -> Result<String> {
-    if !py.chars().all(|c| c.is_ascii_alphanumeric() || "_./:-".contains(c)) {
-        bail!("SOS_PYTHON for Codex hooks on Windows must be one word with forward slashes \
-               (e.g. C:/Python312/python.exe): {py}");
-    }
-    let mut out = body.to_string();
-    for ev in ["session-start", "pre-edit", "pre-bash", "post-bash"] {
-        let old = format!("python3 \\\"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\\\" {ev}");
-        // d() blocks the way the adapter's block() does on Windows: deny JSON (ASCII, the console
-        // may be cp1252) and exit 0; for pre-edit it writes nothing else, so no stderr failure can
-        // stop it. The excepthook sends a crash here to d(); git's output is decoded as UTF-8
-        // (cp1252 crashed on `C:\work\Ápp`). The adapter runs as a UTF-8 child, so its own Windows
-        // re-exec never happens, and a crash in it at any level is a nonzero exit, also d()
-        // (review 23/10/2026).
-        let new = format!("{py} -c \"import json,os,subprocess,sys;a='{ev}';\
-            d=lambda m:a=='pre-edit' and (print(json.dumps({{'hookSpecificOutput':{{'hookEventName':'PreToolUse','permissionDecision':'deny','permissionDecisionReason':m}}}})),\
-            sys.stdout.flush(),os._exit(0)) or (print(ascii(m)[1:-1],file=sys.stderr),os._exit(1));\
-            sys.excepthook=lambda t,v,b:d('BLOCKED: SOS Kit hook failed: '+repr(v));\
-            r=subprocess.run('git rev-parse --show-toplevel',shell=True,capture_output=True,encoding='utf-8');\
-            p=r.stdout.strip()+'/harness-lite/adapters/codex/hook.py';\
-            r.returncode and d('BLOCKED: SOS Kit hook: not inside a git repository (or git is missing)');\
-            os.path.isfile(p) or d('BLOCKED: SOS Kit hook: '+p+' not found');\
-            c=subprocess.run([sys.executable,p,a],stdout=subprocess.PIPE,env=dict(os.environ,PYTHONUTF8='1'));\
-            c.returncode and d('BLOCKED: SOS Kit hook: '+p+' exited '+str(c.returncode));\
-            sys.stdout.buffer.write(c.stdout)\"");
-        if !out.contains(&old) {
-            bail!("internal: .codex/hooks.json template has no {ev} command to rewrite");
-        }
-        let json = serde_json::to_string(&new)?;
-        out = out.replace(&old, &json[1..json.len() - 1]);
-    }
-    Ok(out)
-}
-
-/// The interpreters the installed agent hooks call (first word of each harness-lite adapter command);
-/// the default when no hook file names one.
+/// The interpreters the installed agent hooks call: the one each recognised kit command names (the
+/// Windows Codex launcher, the old Python adapters). Current `sos hook` wiring needs none: the
+/// advisor runs inside `sos`.
 fn hook_interpreters(root: &Path) -> Vec<String> {
-    fn commands(v: &serde_json::Value, out: &mut Vec<String>) {
-        match v {
-            serde_json::Value::Object(m) => m.iter().for_each(|(k, v)| match v {
-                serde_json::Value::String(c) if k == "command" && c.contains("harness-lite/adapters/") => out.push(c.clone()),
-                _ => commands(v, out),
-            }),
-            serde_json::Value::Array(a) => a.iter().for_each(|v| commands(v, out)),
-            _ => {}
+    let mut out: Vec<String> = Vec::new();
+    for (f, agent) in crate::wiring::FILES {
+        let Some(v) = std::fs::read_to_string(root.join(f)).ok().and_then(|t| serde_json::from_str(&t).ok()) else { continue };
+        for (_, c) in crate::wiring::commands(&v) {
+            if let Some((_, crate::wiring::Form::Old(py) | crate::wiring::Form::OldWindows(py) | crate::wiring::Form::CurrentWindows(py))) =
+                crate::wiring::recognise(agent, &c) {
+                if !out.contains(&py) {
+                    out.push(py);
+                }
+            }
         }
-    }
-    let mut cmds = Vec::new();
-    for f in [".claude/settings.json", ".codex/hooks.json"] {
-        if let Some(v) = std::fs::read_to_string(root.join(f)).ok().and_then(|t| serde_json::from_str(&t).ok()) {
-            commands(&v, &mut cmds);
-        }
-    }
-    let mut out: Vec<String> = cmds.iter().filter_map(|c| match c.strip_prefix('\'') {
-        Some(rest) => rest.split('\'').next().map(str::to_string),
-        None => c.split_whitespace().next().map(str::to_string),
-    }).collect();
-    out.dedup();
-    if out.is_empty() {
-        out.push(hook_python());
     }
     out
 }
@@ -337,6 +283,7 @@ pub enum Act {
     Conflict,
     Remove,
     KeepModified,
+    KeepReferenced,
     KeptEdited,
     Create,
     Exists,
@@ -351,6 +298,7 @@ impl Act {
             Act::Conflict => "CONFLICT (kept yours, new version → .sos-new)",
             Act::Remove => "remove (dropped upstream)",
             Act::KeepModified => "keep (dropped upstream, but you edited it)",
+            Act::KeepReferenced => "KEPT (dropped upstream, but the agent hooks still call it: run `sos update --wiring`, then `sos update`)",
             Act::KeptEdited => "kept (edited locally; kit version unchanged)",
             Act::Create => "create",
             Act::Exists => "exists, left as is",
@@ -360,6 +308,9 @@ impl Act {
 
 pub struct Plan {
     pub kit: Vec<(String, Act)>,
+    /// Dropped files kept because the wiring may still call them: path → recorded hash, carried
+    /// into UPSTREAM.json so the next `sos update` tries again.
+    pub keep: BTreeMap<String, String>,
     pub project: Vec<(String, Act)>,
     pub notes: Vec<String>,
 }
@@ -373,6 +324,7 @@ pub fn plan(root: &Path, prev: Option<&Upstream>) -> Result<Plan> {
         }
     }
     let mut kit = Vec::new();
+    let mut keep = BTreeMap::new();
     for f in KIT_FILES {
         let local = sha_file(&root.join(f.path))?;
         let new = sha(&f.text());
@@ -397,10 +349,29 @@ pub fn plan(root: &Path, prev: Option<&Upstream>) -> Result<Plan> {
             if !path.starts_with("harness-lite/") || p.components().any(|c| !matches!(c, std::path::Component::Normal(_))) {
                 bail!("{UPSTREAM} lists {path:?}, which is outside harness-lite/ — fix or delete that entry");
             }
+            // Checked here, in the repo being updated: a jump straight past the release that rewired
+            // the hooks must not delete a script settings.json still runs (review 05/11/2026, point 9).
             match sha_file(&root.join(path))? {
                 None => {}
+                Some(_) if crate::wiring::references(root, path).is_some() => {
+                    kit.push((path.clone(), Act::KeepReferenced));
+                    keep.insert(path.clone(), recorded.clone());
+                }
                 Some(l) if &l == recorded => kit.push((path.clone(), Act::Remove)),
                 Some(_) => kit.push((path.clone(), Act::KeepModified)),
+            }
+        }
+    }
+    // A kept adapter runs the scripts and hooks dropped with it (env-guard.sh, sim-guard, status.sh):
+    // keep the whole dropped runtime while anything of it is kept (review 1b point 6).
+    let runtime = |p: &str| p.starts_with("harness-lite/adapters/") || p.starts_with("harness-lite/scripts/");
+    if kit.iter().any(|(p, a)| *a == Act::KeepReferenced && runtime(p)) {
+        if let Some(u) = prev {
+            for (path, act) in kit.iter_mut() {
+                if matches!(act, Act::Remove | Act::KeepModified) && runtime(path) {
+                    *act = Act::KeepReferenced;
+                    keep.insert(path.clone(), u.files[path.as_str()].clone());
+                }
             }
         }
     }
@@ -413,7 +384,7 @@ pub fn plan(root: &Path, prev: Option<&Upstream>) -> Result<Plan> {
         }
         notes.extend(wiring_notes(root, true));
     }
-    Ok(Plan { kit, project, notes })
+    Ok(Plan { kit, keep, project, notes })
 }
 
 /// Advice for project-owned files that exist but are not wired to the kit.
@@ -425,14 +396,19 @@ fn wiring_notes(root: &Path, installing: bool) -> Vec<String> {
     if installing && exists("AGENTS.md") && !has("AGENTS.md", "harness-lite") {
         n.push(format!("AGENTS.md {verb} not pointing at harness-lite/: add the \"Harness\" section from harness-lite/templates/AGENTS.md"));
     }
-    if installing && exists(".claude/settings.json") && !has(".claude/settings.json", "harness-lite/adapters/claude/hook.py") {
+    if installing && exists(".claude/settings.json") && !has(".claude/settings.json", "sos hook claude") {
         n.push(format!(".claude/settings.json {verb} not wired: merge the hooks from harness-lite/templates/claude-settings.json (replace old claude-hooks entries)"));
     }
     if exists(".quality-gate.toml") && sos_gates::config::load(root).map(|c| c.text.files.is_empty()).unwrap_or(false) {
         n.push(".quality-gate.toml rules are read, but the wording gate checks nothing until .sos.toml [text].files lists the files (globs) your old hook scanned".into());
     }
-    if installing && exists(".codex/hooks.json") && !has(".codex/hooks.json", "harness-lite/adapters/codex/hook.py") {
+    if installing && exists(".codex/hooks.json") && !has(".codex/hooks.json", "sos hook codex") {
         n.push(format!(".codex/hooks.json {verb} not wired: merge the hooks from harness-lite/templates/codex-hooks.json"));
+    }
+    for (f, agent) in crate::wiring::FILES {
+        if has(f, &format!("harness-lite/adapters/{agent}/hook.py")) {
+            n.push(format!("{f} still calls the Python adapter: `sos update --wiring` rewrites the kit's hook commands to `sos hook {agent}` (shows the change first)"));
+        }
     }
     n
 }
@@ -459,6 +435,8 @@ pub fn show(p: &Path) -> String {
 pub struct Opts {
     pub dry_run: bool,
     pub force_hooks: bool,
+    /// `sos update --wiring`: also rewrite the kit's hook commands in the project's hook files.
+    pub wiring: bool,
 }
 
 fn print_plan(p: &Plan) {
@@ -495,6 +473,7 @@ fn apply_kit(root: &Path, p: &Plan) -> Result<BTreeMap<String, String>> {
             recorded.insert(f.path.to_string(), sha(&f.text()));
         }
     }
+    recorded.extend(p.keep.clone());
     Ok(recorded)
 }
 
@@ -647,15 +626,9 @@ pub fn install(dir: &Path, o: &Opts) -> Result<i32> {
                 std::fs::write(safe_path(&root, f.path)?, body).with_context(|| format!("writing {}", f.path))?;
                 say!("  .sos.toml: Người soát runs on the other model family (codex is on PATH): `sos role reviewer --from <builder>`");
             } else if f.path == ".codex/hooks.json" && cfg!(windows) {
-                let body = codex_hooks_any_shell(&f.text(), &hook_python())?;
+                let body = crate::wiring::codex_windows_template(&f.text(), &hook_python())?;
                 std::fs::write(safe_path(&root, f.path)?, body).with_context(|| format!("writing {}", f.path))?;
-                say!("  {}: hooks run {} from any shell (cmd, PowerShell or Git Bash)", f.path, hook_python());
-            } else if matches!(f.path, ".claude/settings.json" | ".codex/hooks.json") && hook_python() != "python3" {
-                let word = shell_word(&hook_python())?;
-                let json = serde_json::to_string(&word)?; // "…" with \ and \" escaped
-                let body = f.text().replace("python3 \\\"", &format!("{} \\\"", &json[1..json.len() - 1])); // JSON: python3 \"…
-                std::fs::write(safe_path(&root, f.path)?, body).with_context(|| format!("writing {}", f.path))?;
-                say!("  {}: hooks run {word}", f.path);
+                say!("  {}: hooks run `sos hook codex` through {} from any shell (cmd, PowerShell or Git Bash)", f.path, hook_python());
             } else {
                 write(&root, f, f.path)?;
             }
@@ -687,19 +660,29 @@ pub fn update(dir: &Path, o: &Opts) -> Result<i32> {
     let src = std::fs::read_to_string(root.join(UPSTREAM))
         .with_context(|| format!("{UPSTREAM} not found — run `sos install` first"))?;
     let prev: Upstream = serde_json::from_str(&src).with_context(|| format!("parsing {UPSTREAM}"))?;
-    let p = plan(&root, Some(&prev))?;
     say!("sos update {} ({}) → {VERSION} ({COMMIT})", prev.version, prev.commit);
+    let mut problems = 0;
+    // Wiring first: the plan then sees the rewired hooks and can drop files nothing calls any more.
+    if o.wiring {
+        say!("  hook wiring (kit commands only; other entries untouched):");
+        let templates: Vec<(&str, String)> = PROJECT_FILES.iter()
+            .filter(|f| crate::wiring::FILES.iter().any(|(w, _)| *w == f.path))
+            .map(|f| (f.path, f.text().into_owned())).collect();
+        problems = crate::wiring::update(&root, o.dry_run, &templates)?;
+    }
+    let p = plan(&root, Some(&prev))?;
     print_plan(&p);
     if o.dry_run {
         say!("dry run: nothing written.");
-        return Ok(0);
+        return Ok(if problems > 0 { 1 } else { 0 });
     }
     let recorded = apply_kit(&root, &p)?;
     write_upstream(&root, recorded)?;
     ensure_gitignore(&root)?;
     // Unresolved merges from earlier updates count too, so `update` stays non-zero until done.
     let pending = KIT_FILES.iter().filter(|f| root.join(format!("{}.sos-new", f.path)).exists()).count();
-    finish(&root, &wiring_notes(&root, false), pending)
+    let kept = p.kit.iter().filter(|(_, a)| *a == Act::KeepReferenced).count();
+    finish(&root, &wiring_notes(&root, false), pending + kept + problems)
 }
 
 fn finish(root: &Path, notes: &[String], conflicts: usize) -> Result<i32> {
@@ -707,13 +690,29 @@ fn finish(root: &Path, notes: &[String], conflicts: usize) -> Result<i32> {
         say!("  note: {n}");
     }
     if conflicts > 0 {
-        say!("{conflicts} conflict(s): compare each <file> with <file>.sos-new, keep what you want, delete the .sos-new.");
+        say!("{conflicts} item(s) need you: compare each <file> with <file>.sos-new, keep what you want, delete the .sos-new; \
+              a KEPT file goes once `sos update --wiring` has rewired the hooks.");
     }
     say!("Next: `sos check` in {}, review the diff, commit. Reload running agent sessions so they pick up the hooks.", show(root));
     if root.join(".codex/hooks.json").exists() {
         say!("Codex runs .codex/hooks.json only once trusted: open `codex` here and accept them in /hooks (`sos check` cannot see this).");
     }
     Ok(if conflicts > 0 { 1 } else { 0 })
+}
+
+/// The first file named `bin` on PATH (on Windows also `bin` + each PATHEXT suffix, so the npm
+/// shim `sos.cmd` counts, as it does for the shell that runs the hooks).
+fn find_on_path(bin: &str) -> Option<PathBuf> {
+    let exts: Vec<String> = if cfg!(windows) {
+        std::iter::once(String::new())
+            .chain(std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into()).split(';').map(str::to_string))
+            .collect()
+    } else {
+        vec![String::new()]
+    };
+    std::env::split_paths(&std::env::var_os("PATH")?).find_map(|d| {
+        exts.iter().map(|e| d.join(format!("{bin}{e}"))).find(|p| p.is_file())
+    })
 }
 
 /// Runs and succeeds: Windows' Store `python3` alias exists on PATH but only fails.
@@ -753,12 +752,12 @@ pub fn check(dir: &Path) -> Result<i32> {
     let hook_dir = if hp.is_empty() { ".git/hooks".to_string() } else { hp.clone() };
     let hooks = hooks_dir(&root).unwrap_or_else(|| root.join(&hook_dir));
     let pre_commit = std::fs::read_to_string(hooks.join("pre-commit")).unwrap_or_default();
-    let runs_gates = pre_commit.lines().map(str::trim).any(|l| !l.starts_with('#') && l.contains("sos gate all"));
+    let runs_gates = pre_commit.lines().map(str::trim).any(|l| !l.starts_with('#') && (l.contains("sos gate all") || l.contains("sos gate pre-commit")));
     if !runs_gates {
         errors.push(format!("{hook_dir}/pre-commit does not run `sos gate all` — `git config core.hooksPath {HOOKS_PATH}`"));
     }
     let pre_push = std::fs::read_to_string(hooks.join("pre-push")).unwrap_or_default();
-    if !pre_push.lines().map(str::trim).any(|l| !l.starts_with('#') && l.contains("sos gate local-secrets")) {
+    if !pre_push.lines().map(str::trim).any(|l| !l.starts_with('#') && (l.contains("sos gate local-secrets") || l.contains("sos gate pre-push"))) {
         errors.push(format!("{hook_dir}/pre-push does not run `sos gate local-secrets`"));
     }
     #[cfg(unix)]
@@ -774,7 +773,7 @@ pub fn check(dir: &Path) -> Result<i32> {
         }
     }
     let mut bins = vec![("gitleaks".to_string(), "secret gates")];
-    bins.extend(hook_interpreters(&root).into_iter().map(|p| (p, "agent adapters and advisor")));
+    bins.extend(hook_interpreters(&root).into_iter().map(|p| (p, "the agent hook commands")));
     for (bin, why) in &bins {
         if !on_path(bin) {
             errors.push(format!("{bin} not found on PATH, or it does not run (needed by {why})"));
@@ -788,26 +787,37 @@ pub fn check(dir: &Path) -> Result<i32> {
             }
         }
     }
-    for (file, agent) in [(".claude/settings.json", "claude"), (".codex/hooks.json", "codex")] {
+    let mut calls_sos = false;
+    for (file, agent) in crate::wiring::FILES {
         let Ok(src) = std::fs::read_to_string(root.join(file)) else { continue };
         match serde_json::from_str::<serde_json::Value>(&src) {
             Err(e) => errors.push(format!("{file} is not valid JSON ({e}); the agent will ignore its hooks")),
             Ok(v) => {
-                let needle = format!("harness-lite/adapters/{agent}/hook.py");
-                let wired = v.get("hooks").and_then(|h| h.as_object()).is_some_and(|events| {
-                    events.values().flat_map(|e| e.as_array().into_iter().flatten())
-                        .flat_map(|m| m.get("hooks").and_then(|h| h.as_array()).into_iter().flatten())
-                        .any(|h| h.get("command").and_then(|c| c.as_str()).is_some_and(|c| c.contains(&needle)))
-                });
-                if !wired {
-                    warns.push(format!("{file} has no hook calling {needle} (template: harness-lite/templates/)"));
-                } else if !src.contains("pre-bash") {
+                let cmds = crate::wiring::commands(&v);
+                let adapter = format!("harness-lite/adapters/{agent}/hook.py");
+                let new = cmds.iter().any(|(_, c)| c.contains(&format!("sos hook {agent} ")));
+                let old = cmds.iter().any(|(_, c)| c.contains(&adapter));
+                calls_sos |= new;
+                if !new && !old {
+                    warns.push(format!("{file} has no hook calling `sos hook {agent}` (template: harness-lite/templates/)"));
+                    continue;
+                }
+                if old {
+                    warns.push(format!("{file} still calls {adapter} (the Python adapter, removed in a later release): \
+                                        `sos update --wiring` rewrites the kit's commands to `sos hook {agent}`"));
+                }
+                if !cmds.iter().any(|(k, c)| k == "PreToolUse" && c.contains("pre-bash")) {
                     // Wiring from before 0.3.13: the simulator guard never runs (tap-luyen 31/10/2026).
-                    warns.push(format!("{file} has no PreToolUse Bash hook (`{needle} pre-bash`, the simulator guard): \
-                                        merge it from harness-lite/templates/"));
+                    warns.push(format!("{file} has no PreToolUse Bash hook (pre-bash, the simulator guard): \
+                                        `sos update --wiring` adds it"));
                 }
             }
         }
+    }
+    // The guards call `sos` by name from the agent's shell; not found there, every edit is blocked.
+    if calls_sos && find_on_path("sos").is_none() {
+        errors.push("sos is not on PATH, and the agent hooks call `sos hook`: every edit would be blocked — \
+                     put the directory holding sos (or the npm shim) on PATH".into());
     }
     // Role model and effort are decisions; unset, a subagent silently runs the main session's
     // model (TurnSigil's first worker ran Opus). .sos.toml [roles] is the one table they follow.
@@ -936,7 +946,7 @@ fn advisor_down(root: &Path) -> Option<String> {
         .find(|v| v.get("kind").and_then(|k| k.as_str()) != Some("role"))?;
     let fix = last.get("fix").and_then(|f| f.as_str()).filter(|f| !f.is_empty())?;
     let ts = last.get("ts").and_then(|t| t.as_str()).unwrap_or("?");
-    Some(format!("the advisor's last call ({ts}) could not run: {fix}, then `harness-lite/scripts/advise --check`"))
+    Some(format!("the advisor's last call ({ts}) could not run: {fix}, then `sos advise --check`"))
 }
 
 /// `needle` in `text`, not as part of a longer name (`.quality-gate.toml` is still read, and

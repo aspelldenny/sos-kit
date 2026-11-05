@@ -1,12 +1,12 @@
 {
-  "description": "SOS Kit: translates Codex hook payloads to harness-lite/scripts. The git pre-commit is the real gate.",
+  "description": "SOS Kit: Codex hook payloads go to `sos hook codex`. The git pre-commit is the real gate.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\" session-start"
+            "command": "sos hook codex session-start --protocol 1"
           }
         ]
       }
@@ -17,7 +17,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\" pre-edit"
+            "command": "sos hook codex pre-edit --protocol 1; rc=$?; [ \"$rc\" = 0 ] || { [ \"$rc\" = 2 ] || echo \"BLOCKED: SOS Kit hook could not run (sos missing, too old, or failed: exit $rc). Install or upgrade sos: https://github.com/aspelldenny/sos-kit#quick-start\" >&2; exit 2; }",
+            "timeout": 60
           }
         ]
       },
@@ -26,7 +27,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\" pre-bash"
+            "command": "sos hook codex pre-bash --protocol 1; rc=$?; [ \"$rc\" = 0 ] || { [ \"$rc\" = 2 ] || echo \"BLOCKED: SOS Kit hook could not run (sos missing, too old, or failed: exit $rc). Install or upgrade sos: https://github.com/aspelldenny/sos-kit#quick-start\" >&2; exit 2; }",
+            "timeout": 60
           }
         ]
       }
@@ -37,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\" post-bash",
+            "command": "sos hook codex post-bash --protocol 1",
             "timeout": 320
           }
         ]

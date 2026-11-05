@@ -39,7 +39,12 @@ jobs:
       - run: tests/adapters/run.sh
       - run: tests/bite.sh
       - run: cargo build --locked -p sos-cli
+      - run: tests/usage.sh target/debug/sos   # `sos usage` vs the old agent-usage.py, and its memory ceiling
+      - run: SOS_HOOK_BIN=target/debug/sos tests/adapters/run.sh   # the same cases through `sos hook` (Rust port)
+      - run: SOS_BITE_BIN=target/debug/sos tests/bite.sh   # the same cases through `sos bite` (Rust port)
       - run: tests/smoke.sh target/debug/sos
       - run: py=python3; $py -c '' 2>/dev/null || py=python; $py tests/docs-check.py target/debug/sos
+      - run: cargo build --locked -p sos-dev
+      - run: tests/sos-dev.sh target/debug/sos target/debug/sos-dev   # trust gate + docs check (Rust) vs the old scripts
       - run: tests/npm.sh   # the npm wrapper is POSIX sh; on Windows install through Git Bash + install.sh
         if: runner.os != 'Windows'

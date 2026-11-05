@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# scripts/bite on a throwaway Python repo whose change has one good test, one tautology and one
-# unchecked branch: each must show up where it belongs. Usage: tests/bite.sh
+# bite on a throwaway Python repo whose change has one good test, one tautology and one
+# unchecked branch: each must show up where it belongs. Usage: tests/bite.sh runs scripts/bite;
+# SOS_BITE_BIN=path/to/sos tests/bite.sh runs `sos bite` (the Rust version) on the same cases.
 set -uo pipefail
 KIT=$(cd "$(dirname "$0")/.." && pwd)
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -10,6 +11,13 @@ g() { git -c user.name=t -c user.email=t@t "$@"; }
 # Windows: `python3` is often the Store alias that only fails; use the interpreter that runs.
 PY=$(for p in python3 python; do "$p" -c '' >/dev/null 2>&1 && { echo "$p"; break; }; done)
 export PYTHONUTF8=1
+if [ -n "${SOS_BITE_BIN:-}" ]; then
+    case "$SOS_BITE_BIN" in /*|[A-Za-z]:*) ;; *) SOS_BITE_BIN="$KIT/$SOS_BITE_BIN" ;; esac
+    BITE=("$SOS_BITE_BIN" bite); PARSERS=(--sos "$(cygpath -m "$SOS_BITE_BIN" 2>/dev/null || echo "$SOS_BITE_BIN")")  # Python on Windows reads C:/…, not /c/…
+else
+    BITE=("$PY" "$KIT/scripts/bite"); PARSERS=("$KIT/scripts/bite")
+fi
+BQ=$(printf '%q ' "${BITE[@]}")  # for the eval'd command lines below
 
 cd "$T" && g init -q -b main && mkdir tests
 printf 'def clamp(x):\n    return x\n' > calc.py
@@ -50,7 +58,7 @@ class Clamp(unittest.TestCase):
         self.assertEqual(x, 3)
 PY
 g add -A && g commit -qm change
-B="$PY $KIT/scripts/bite --test '$PY -m unittest discover -s tests -t . -v' --src '\.py$' --tests '^tests/' --base main~1"
+B="$BQ--test '$PY -m unittest discover -s tests -t . -v' --src '\.py$' --tests '^tests/' --base main~1"
 
 o=$(eval "$B" 2>&1); rc=$?
 expect "bite: measured" "$([ $rc = 0 ]; echo $?)" "rc=$rc $o"
@@ -64,17 +72,17 @@ at=$("$PY" -c "import json,glob;print(sorted(m['at'] for m in json.load(open(sor
 [ -z "$(git status --porcelain --untracked-files=no)" ] && [ "$(git worktree list | wc -l | tr -d ' ')" = 1 ]
 expect "checkout untouched, worktree removed" $? "$(git status --short; git worktree list)"
 
-o=$("$PY" "$KIT/scripts/bite" 2>&1); rc=$?
+o=$("${BITE[@]}" 2>&1); rc=$?
 [ $rc = 2 ] && grep -q "\[bite\]" <<<"$o"; expect "not configured -> exit 2 with the fix" $? "rc=$rc $o"
 printf "[bite]\ntest = '$PY -m unittest discover -s tests -t . -v'\nsrc = '\\\\.py\$'\ntests = '^tests/'\nmutants = 1\n" > .sos.toml
-o=$("$PY" "$KIT/scripts/bite" --base main~1 2>&1); rc=$?
+o=$("${BITE[@]}" --base main~1 2>&1); rc=$?
 [ $rc = 0 ] && grep -q "/1 mutants killed" <<<"$o"; expect ".sos.toml [bite] is read" $? "rc=$rc $o"
 printf 'import unittest\n\n\nclass Red(unittest.TestCase):\n    def test_red(self):\n        self.fail("red")\n' > tests/test_red.py
 g add -A && g commit -qm red
 o=$(eval "$B~1" 2>&1); rc=$?
 [ $rc = 1 ] && grep -q "red at HEAD" <<<"$o"; expect "red HEAD -> not measured" $? "rc=$rc $o"
 
-o=$("$PY" "$KIT/tests/bite_parsers.py" "$KIT/scripts/bite" 2>&1)
+o=$("$PY" "$KIT/tests/bite_parsers.py" "${PARSERS[@]}" 2>&1)
 [ "$o" = ok ]; expect "parsers: unittest (docstring), pytest, XCTest formats, test bounds and classes" $? "$o"
 
 # A mutant that breaks the build is not a kill; base == head and an outside cwd are refused.
@@ -90,26 +98,33 @@ SH
 chmod +x run.sh && g add -A && g commit -qm base
 printf 'let xs = Array<Int>()\nlet ready = true\nlet n = 3\n++ i == 3\nlet m = 7\n' > app.swift
 g add -A && g commit -qm change
-o=$("$PY" "$KIT/scripts/bite" --test ./run.sh --src 'app\.swift$' --tests 'Tests/' --base main~1 2>&1); rc=$?
+o=$("${BITE[@]}" --test ./run.sh --src 'app\.swift$' --tests 'Tests/' --base main~1 2>&1); rc=$?
 [ $rc = 0 ] && grep -q "1/2 mutants killed" <<<"$o" && grep -q "not counted (no test ran, build broke?): app.swift:2" <<<"$o" \
   && grep -q "not counted (no test ran, build broke?): app.swift:5" <<<"$o"
 expect "build-breaking mutant not counted as a kill, nor a red run where no test failed" $? "rc=$rc $o"
 grep -q "survived: app.swift:4  ++ i == 3  ->  ++ i != 3" <<<"$o"; expect "an added line starting with ++ is read" $? "$o"
-o=$("$PY" "$KIT/scripts/bite" --test ./run.sh --src x --tests y --base HEAD 2>&1); rc=$?
+o=$("${BITE[@]}" --test ./run.sh --src x --tests y --base HEAD 2>&1); rc=$?
 [ $rc = 1 ] && grep -q "same commit" <<<"$o"; expect "base == head -> not measurable" $? "rc=$rc $o"
-o=$("$PY" "$KIT/scripts/bite" --test ./run.sh --src x --tests y --cwd /tmp 2>&1); rc=$?
+o=$("${BITE[@]}" --test ./run.sh --src x --tests y --cwd /tmp 2>&1); rc=$?
 [ $rc = 2 ]; expect "absolute cwd refused" $? "rc=$rc $o"
-o=$("$PY" "$KIT/scripts/bite" --test 'xcodebuild test -scheme X' --src x --tests y --base main~1 2>&1); rc=$?
+o=$("${BITE[@]}" --test 'xcodebuild test -scheme X' --src x --tests y --base main~1 2>&1); rc=$?
 [ $rc = 2 ] && grep -q "parallel-testing-enabled NO" <<<"$o"; expect "xcodebuild test that would clone the simulator refused by sim-guard" $? "rc=$rc $o"
 printf '#!/usr/bin/env bash\nsleep 20\n' > slow.sh && chmod +x slow.sh && g add -A && g commit -qm slow
 case "$(uname -s)" in
 MINGW*|MSYS*|CYGWIN*)  # Windows has no SIGTERM to catch: bash's kill on a native process is TerminateProcess
     echo "skip SIGTERM removes the worktree (Windows: no POSIX signals)" ;;
 *)
-    "$PY" "$KIT/scripts/bite" --test ./slow.sh --src app --tests y --base main~2 >/dev/null 2>&1 & bp=$!
+    "${BITE[@]}" --test ./slow.sh --src app --tests y --base main~2 >/dev/null 2>&1 & bp=$!
     sleep 2; kill -TERM $bp; wait $bp 2>/dev/null
     [ "$(git worktree list | wc -l | tr -d ' ')" = 1 ]; expect "SIGTERM removes the worktree" $? "$(git worktree list)" ;;
 esac
+if [ -n "${SOS_BITE_BIN:-}" ]; then  # Python waits for the pipes until its 900 s limit here
+    s0=$SECONDS
+    o=$("${BITE[@]}" --test 'sleep 61 & exit 0' --src app --tests y --base main~2 2>&1); rc=$?
+    left=$(ps -ef 2>/dev/null | grep -c '[s]leep 61')
+    [ $((SECONDS - s0)) -lt 30 ] && [ "$left" = 0 ] && grep -q "mutants killed" <<<"$o" && ! grep -q "timeout" <<<"$o" && [ "$(git worktree list | wc -l | tr -d ' ')" = 1 ]
+    expect "a background process holding the pipes is killed when the test command exits" $? "rc=$rc left=$left $((SECONDS - s0))s $o"
+fi
 
 # node --test: per-test verdicts by title, and --audit on the tests that already exist.
 mkdir "$T/js" && cd "$T/js" && g init -q -b main && mkdir test
@@ -138,7 +153,7 @@ test('tautology', () => {
 });
 JS
 g add -A && g commit -qm change
-J="$PY $KIT/scripts/bite --test 'node --test --test-reporter=spec test/*.test.mjs' --src '\.mjs\$' --tests '^test/'"
+J="$BQ--test 'node --test --test-reporter=spec test/*.test.mjs' --src '\.mjs\$' --tests '^test/'"
 o=$(eval "$J --base main~1" 2>&1); rc=$?
 [ $rc = 0 ] && grep -q "passes on old code: .tautology" <<<"$o" && ! grep -q "passes on old code: .low end" <<<"$o"
 expect "node --test: the tautology passes on the old code, the real tests do not" $? "rc=$rc $o"
@@ -173,7 +188,7 @@ o=$(eval "$J --audit" 2>&1); rc=$?
 [ $rc = 0 ] && ! grep -q "linked.mjs" "$(ls -t evidence/bite/*.json | head -1)" && [ "$(cat "$T/outside.mjs")" = "export const outside = 1 < 2;" ]
 expect "--audit leaves tracked symlinks and their targets alone" $? "rc=$rc $o"
 else echo "skip --audit leaves tracked symlinks alone (ln -s made a copy: Windows without symlink rights)"; fi
-o=$("$PY" "$KIT/scripts/bite" --test 'node --test --test-reporter=dot test/*.test.mjs' --src '\.mjs$' --tests '^test/' --audit 2>&1); rc=$?
+o=$("${BITE[@]}" --test 'node --test --test-reporter=dot test/*.test.mjs' --src '\.mjs$' --tests '^test/' --audit 2>&1); rc=$?
 [ $rc = 1 ] && grep -q "no per-test verdicts" <<<"$o"; expect "--audit without per-test verdicts -> not measured" $? "rc=$rc $o"
 
 echo ""; echo "$pass passed, $fail failed"

@@ -1,10 +1,46 @@
-"""Parsers of scripts/bite on captured runner output (no pytest or Xcode needed). Run by tests/bite.sh."""
-import importlib.machinery, importlib.util, sys, tempfile
+"""Parsers of bite on captured runner output (no pytest or Xcode needed). Run by tests/bite.sh.
+
+`bite_parsers.py scripts/bite` loads the Python version; `bite_parsers.py --sos path/to/sos` asks
+`sos bite --internal …` the same questions, so both versions answer the same samples."""
+import importlib.machinery, importlib.util, json, subprocess, sys, tempfile
 from pathlib import Path
 
-loader = importlib.machinery.SourceFileLoader("bite", sys.argv[1])
-b = importlib.util.module_from_spec(importlib.util.spec_from_loader("bite", loader))
-loader.exec_module(b)
+
+class Sos:
+    """The functions this file calls, answered by the Rust version."""
+
+    def __init__(self, exe):
+        self.exe = exe
+
+    def _ask(self, kind, data, *extra):
+        r = subprocess.run([self.exe, "bite", "--internal", kind, *extra], input=data.encode(), capture_output=True)
+        if r.returncode:
+            raise SystemExit(f"sos bite --internal {kind}: {r.stderr.decode(errors='replace')}")
+        return json.loads(r.stdout.decode())
+
+    def results(self, out):
+        return self._ask("results", out)["results"]
+
+    def has_verdicts(self, out):
+        return self._ask("results", out)["has_verdicts"]
+
+    def any_failed(self, out):
+        return self._ask("results", out)["any_failed"]
+
+    def test_names(self, lines, root):
+        return set(self._ask("test-names", json.dumps(lines), "--internal-dir", str(root)))
+
+    def mutants(self, lines, limit, root):
+        got = self._ask("mutants", json.dumps(lines), "--internal-dir", str(root), "--mutants", str(limit))
+        return [tuple(m) for m in got]
+
+
+if sys.argv[1] == "--sos":
+    b = Sos(sys.argv[2])
+else:
+    loader = importlib.machinery.SourceFileLoader("bite", sys.argv[1])
+    b = importlib.util.module_from_spec(importlib.util.spec_from_loader("bite", loader))
+    loader.exec_module(b)
 
 OUT = """test_a (tests.t.C.test_a) ... ok
 test_b (tests.t.C)
@@ -145,4 +181,16 @@ if b.mutants({"g.ts": [(1, "const s = new Set<string>(); let f = (a) => a")]}, 9
 got = [new for _, _, _, new in b.mutants({"m.ts": [(i, l) for i, l in enumerate((d / "m.ts").read_text().split("\n")[:4], 1)]}, 9, d)]
 if got != ["if (a === 'x') f()", "if (a !== 1) f()", "if (a != b) f()", "if (a == b) f()"]:
     fails.append(f"equality mutants: {got}")
+# Python's \w is a letter, number or _: a combining mark ends a word, ² does not (review 2.2 round 1).
+(d / "u.ts").write_text("export const tru\u0065\u0301 = x;\nlet n = a\u00b2 + 1\n")
+got = [new for _, _, _, new in b.mutants({"u.ts": [(1, "export const tru\u0065\u0301 = x;"), (2, "let n = a\u00b2 + 1")]}, 9, d)]
+if got != ["export const fals\u0065\u0301 = x;", "let n = a\u00b2 - 1"]:
+    fails.append(f"unicode word edges: {got!r}")
+UNI = "test_x\u00b2 (mod.C.test_x\u00b2) ... FAIL\n"
+if b.results(UNI) != {"C.test_x\u00b2": False} or not b.any_failed(UNI):
+    fails.append(f"unittest name with \u00b2: {b.results(UNI)}")
+for tap, want in (("not ok 1 - a # SKIP\u00e9 later\n", {".a # SKIP\u00e9 later": False}),
+                  ("not ok 1 - a # SKIP\u0301 later\n", {}), ("ok 1 - a # SKIP\nok 2 - b\n", {".b": True})):
+    if b.results(tap) != want:
+        fails.append(f"TAP # SKIP word edge {tap!r}: {b.results(tap)} (want {want})")
 print("\n".join(fails) or "ok")

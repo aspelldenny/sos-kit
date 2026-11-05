@@ -22,7 +22,7 @@
 //! protect_default_branch = false   # true: non-Markdown commits must happen on a branch
 //! default_branch = ""              # empty: origin/HEAD, else main, else master
 //!
-//! [advisor]                        # read by harness-lite/scripts/advise
+//! [advisor]                        # read by `sos advise` (and harness-lite/scripts/advise)
 //! backend = "claude"               # claude | codex | auto (other family than the agent) | off
 //! model = ""                       # empty: opus for claude, Codex config default for codex
 //! after = 2                        # consecutive failing test runs before advice
@@ -160,7 +160,8 @@ impl RoleEntry {
     }
 }
 
-/// Read by `harness-lite/scripts/advise` (Python); validated here so a typo fails `sos check`.
+/// Read by `sos advise` and the advisor trigger in `sos hook` (leniently: a bad value gives the
+/// default there), and by the older `harness-lite/scripts/advise`; validated here so a typo fails `sos check`.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct AdvisorConfig {

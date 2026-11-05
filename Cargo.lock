@@ -372,6 +372,7 @@ version = "1.0.151"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
 dependencies = [
+ "indexmap",
  "itoa",
  "memchr",
  "serde",
@@ -406,10 +407,25 @@ dependencies = [
  "anyhow",
  "clap",
  "libc",
+ "regex",
  "serde",
  "serde_json",
  "sha2",
  "sos-gates",
+ "sos-rules",
+ "tempfile",
+ "toml",
+ "unicode-normalization",
+]
+
+[[package]]
+name = "sos-dev"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "regex",
+ "sha2",
  "tempfile",
 ]
 
@@ -423,6 +439,20 @@ dependencies = [
  "serde_json",
  "tempfile",
  "toml",
+]
+
+[[package]]
+name = "sos-rules"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "regex",
+ "serde",
+ "serde_json",
+ "sos-gates",
+ "tempfile",
+ "toml",
+ "windows-sys",
 ]
 
 [[package]]
@@ -454,6 +484,12 @@ dependencies = [
  "rustix",
  "windows-sys",
 ]
+
+[[package]]
+name = "tinyvec"
+version = "1.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "toml"
@@ -507,6 +543,15 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75cd3fb03d5288b3ba9a1ee103ac7e9cbb59f0b03d64f8ddfcc04dd42758a85d"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "utf8parse"

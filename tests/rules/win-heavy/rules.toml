@@ -1,0 +1,19 @@
+# Việc nặng của BOOK phải chạy trên máy Win (thay _hub/win_heavy_guard.py; luật Sếp 20/10/2026).
+# Lệnh nặng chạy trên Mac bị chặn khi máy Win đang trả lời ssh. Lệnh đi qua `ssh win "…"` không
+# bị xét (chuỗi gửi sang máy khác không phải lệnh chạy ở đây); `MAC_FALLBACK=1` ở đầu lệnh cho qua.
+# Nối: PreToolUse, matcher "Bash": sos hook claude rules --file _hub/win-heavy.toml
+version = 1
+
+[[rule]]
+id = "book-heavy-on-mac"
+tools = ["Bash"]
+command.program = ["ocrmypdf", "tesseract", "pdftoppm", "pdftocairo", "ebook-convert", "gs", "magick"]
+command.or = [
+  { program = ["hub"], args = [{ pos = 0, eq = "ocr" }] },
+  { program = ["python*"], args = [{ any = { basename_regex = '^(inspect_sources|qc_books|check_books)\.py$' } }] },
+]
+command.not_raw = '^\s*MAC_FALLBACK=1\b'
+# Lỗi của chính phép kiểm (ssh treo, không có ssh) không chặn gì, như script cũ.
+check = { program = "ssh", args = ["-o", "ConnectTimeout=3", "-o", "BatchMode=yes", "win", "true"], timeout_secs = 6, fires_on = "success", on_error = "allow" }
+decision = "block"
+message = "Chặn: lệnh nặng (OCR/render/chuyển định dạng/kiểm nguồn: {program}) đang chạy trên Mac trong khi máy Win đang bật. Luật Sếp 20/10: chạy qua `ssh win` (WSL ~/BOOK → E:\\BOOK, .venv/.ocrvenv). Chỉ khi Win tắt mới chạy trên Mac, mở đầu lệnh bằng MAC_FALLBACK=1 và ghi rõ trong báo cáo. Xem CLAUDE.md."

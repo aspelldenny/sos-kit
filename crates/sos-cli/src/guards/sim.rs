@@ -1,0 +1,187 @@
+//! sim-guard — may this shell command start an iOS test run? (port of scripts/sim-guard, 04/11/2026)
+//!
+//! An `xcodebuild test` (or `test-without-building`) run must
+//!   - pass `-parallel-testing-enabled NO`: without it Xcode clones the simulator once per test
+//!     worker (tap-luyen 29/10 and 31/10/2026: 4 clones, load 490, CPU 98% on the 8 GB Mac);
+//!   - name at most one `-destination`;
+//!   - not share a command that sends something to the background (`&`) with another run;
+//!   - start only when no other `xcodebuild test` is running (two sessions on one machine, 31/10/2026).
+//!
+//! Commands without xcodebuild pass untouched. The command is read the way the shell reads it
+//! (quotes, comments, heredocs, line continuations, `sh -c "…"`); a command inside a script file is
+//! not seen. Behaviour matches the Python original case for case (tests/adapters/run.sh runs both).
+
+use std::process::Command;
+
+const FIX: &str = "-parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1";
+const ACTIONS: &[&str] = &["test", "test-without-building"];
+/// xcodebuild options that take no value, so an action word may follow them (`-quiet test`).
+const BOOL_OPTS: &[&str] = &["-quiet", "-verbose", "-json", "-allowProvisioningUpdates", "-allowProvisioningDeviceRegistration",
+    "-skipMacroValidation", "-skipPackagePluginValidation", "-showBuildTimingSummary",
+    "-hideShellScriptEnvironment", "-skipUnavailableActions", "-disableAutomaticPackageResolution"];
+use sos_rules::shell::{basename, command_words, lex, py_space, simple_commands, Tok, SHELLS, SHELL_ARG_OPTS};
+
+fn is_test_run(words: &[String]) -> bool {
+    if words.is_empty() || basename(&words[0]) != "xcodebuild" {
+        return false;
+    }
+    // An action word that is not the value of the option before it (`-scheme test` is a scheme);
+    // `-only-testing:X` carries its own value.
+    words[1..].iter().enumerate().any(|(i, w)| {
+        let prev = &words[i];
+        ACTIONS.contains(&w.as_str()) && (!prev.starts_with('-') || BOOL_OPTS.contains(&prev.as_str()) || prev.contains(':'))
+    })
+}
+
+/// (xcodebuild test runs as word lists, does any part go to the background?), `sh -c "…"` included.
+fn test_runs(cmd: &str, depth: u32) -> (Vec<Vec<String>>, bool) {
+    let (toks, mut inner) = lex(cmd);
+    let mut background = toks.contains(&Tok::Op("&"));
+    let mut runs = Vec::new();
+    for seg in simple_commands(&toks) {
+        let words = command_words(&seg);
+        if is_test_run(words) {
+            runs.push(words.to_vec());
+        } else if !words.is_empty() && SHELLS.contains(&basename(&words[0])) {  // sh -c, bash -lc, bash -e -c '…'
+            let (mut k, mut has_c) = (1, false);
+            while k < words.len() && words[k].chars().next().is_none_or(|c| c == '-' || c == '+') && words[k] != "--" {
+                has_c = has_c || (words[k].contains('c') && !words[k].starts_with("--") && !words[k].starts_with('+'));
+                k += if SHELL_ARG_OPTS.contains(&words[k].as_str()) { 2 } else { 1 };
+            }
+            if has_c && k < words.len() {
+                inner.push(words[k].clone());
+            }
+        }
+    }
+    if depth < 3 {
+        for sub in inner {
+            let (more, bg) = test_runs(&sub, depth + 1);
+            runs.extend(more);
+            background = background || bg;
+        }
+    }
+    (runs, background)
+}
+
+fn problems(words: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    let vals: Vec<String> = words.windows(2).filter(|p| p[0] == "-parallel-testing-enabled").map(|p| p[1].to_lowercase()).collect();
+    if vals != ["no"] {
+        out.push("it does not pass `-parallel-testing-enabled NO`, so Xcode clones the simulator once per test worker".into());
+    }
+    if words.iter().filter(|w| *w == "-destination").count() > 1 {
+        out.push("it names more than one -destination: each one boots its own simulator".into());
+    }
+    out
+}
+
+/// Where the program word `xcodebuild` ends in a `ps` args string (`(?:.*/)?xcodebuild(?:\s|$)`).
+fn xcodebuild_end(cmd: &str) -> Option<usize> {
+    let at = |start: usize| -> Option<usize> {
+        let rest = cmd[start..].strip_prefix("xcodebuild")?;
+        match rest.chars().next() {
+            None => Some(cmd.len()),
+            Some(c) if py_space(c) => Some(cmd.len() - rest.len() + c.len_utf8()),
+            _ => None,
+        }
+    };
+    // Greedy `.*/`: the last slash that works, else the start.
+    cmd.match_indices('/').rev().find_map(|(p, _)| at(p + 1)).or_else(|| at(0))
+}
+
+/// `pid command` of every xcodebuild test run on this machine (empty where `ps` is missing).
+fn running_tests() -> Vec<String> {
+    // Ten seconds, as the Python guard had: a hung `ps` must not hold every shell command.
+    let Some((_, out)) = crate::hook::run_limited(Command::new("ps").args(["-axo", "pid=,args="]), b"",
+                                                   std::time::Duration::from_secs(10)) else {
+        return Vec::new();
+    };
+    let ps = String::from_utf8_lossy(&out);
+    let mut found = Vec::new();
+    for line in ps.lines() {
+        let line = line.trim_matches(py_space);
+        let (pid, cmd) = line.split_once(' ').unwrap_or((line, ""));
+        let cmd = cmd.trim_matches(py_space);
+        if let Some(end) = xcodebuild_end(cmd) {
+            let mut words = vec!["xcodebuild".to_string()];
+            words.extend(cmd[end..].split(py_space).filter(|w| !w.is_empty()).map(String::from));
+            if is_test_run(&words) {
+                found.push(format!("{pid} {}", cmd.chars().take(160).collect::<String>()));
+            }
+        }
+    }
+    found
+}
+
+/// The block message for `cmd`, or None when it may run.
+pub fn check(cmd: &str) -> Option<String> {
+    let (runs, background) = test_runs(cmd, 0);
+    if runs.is_empty() {
+        return None;
+    }
+    let mut why: Vec<String> = runs.iter().flat_map(|w| problems(w)).collect();
+    if runs.len() > 1 && background {
+        why.push("it has more than one xcodebuild test run and sends work to the background (`&`), so they may overlap".into());
+    }
+    let busy = running_tests();
+    if !busy.is_empty() {
+        why.push(format!("another xcodebuild test is already running on this machine:\n    {}", busy.join("\n    ")));
+    }
+    if why.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "BLOCKED: this xcodebuild test would start more than one simulator: {}.\n\
+         Why: every extra simulator is a full iOS instance; on Chủ nhà's 8 GB Mac a few of them stall the machine.\n\
+         How to fix: run one xcodebuild test at a time, with one -destination and `{FIX}`; \
+         if another run is going, wait for it to finish (do not kill another session's run).",
+        why.join("; ")
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn runs(cmd: &str) -> usize {
+        test_runs(cmd, 0).0.len()
+    }
+
+    #[test]
+    fn reads_the_command_like_the_shell() {
+        assert_eq!(runs("xcodebuild test -scheme X"), 1);
+        assert_eq!(runs("xcodebuild build -scheme test"), 0);
+        assert_eq!(runs("xcodebuild -scheme X -quiet test"), 1);
+        assert_eq!(runs("echo xcodebuild test; rg 'xcodebuild test' AGENTS.md"), 0);
+        assert_eq!(runs("cat <<'EOF'\nxcodebuild test\nEOF\necho done"), 0);
+        assert_eq!(runs("cat <<EOF > n.md\nx\nEOF\nxcodebuild test"), 1);
+        assert_eq!(runs("cat <<EOF\n$(xcodebuild test)\nEOF"), 1);
+        assert_eq!(runs("cat <<EOF\n\\$(xcodebuild test)\nEOF"), 0);
+        assert_eq!(runs("cat <<E\"OF\"\nhello\nEOF\nxcodebuild test"), 1);
+        assert_eq!(runs("echo '$(xcodebuild test)'"), 0);
+        assert_eq!(runs("echo \"built: $(xcodebuild test)\""), 1);
+        assert_eq!(runs("echo `xcodebuild -scheme X test`"), 1);
+        assert_eq!(runs("xcodebu\\\nild test"), 1);
+        assert_eq!(runs("((n = 1 << 2))\nxcodebuild test"), 1);
+        assert_eq!(runs("env CI=1 timeout --signal=TERM 600 xcrun --sdk iphonesimulator xcodebuild test"), 1);
+        assert_eq!(runs("bash -o pipefail -c 'xcodebuild test'"), 1);
+        assert_eq!(runs("2>/dev/null xcodebuild test"), 1);
+        assert_eq!(runs("xcodebuild -destination-timeout 60 >/dev/null test"), 1);
+        assert_eq!(runs("ls app  # later; xcodebuild test"), 0);
+    }
+
+    #[test]
+    fn finds_xcodebuild_in_ps_lines() {
+        assert!(xcodebuild_end("/Applications/Xcode 26.app/Contents/Developer/usr/bin/xcodebuild test -scheme X").is_some());
+        assert!(xcodebuild_end("rg xcodebuild test AGENTS.md").is_none());
+        assert_eq!(xcodebuild_end("xcodebuild"), Some(10));
+    }
+
+    #[test]
+    fn flag_and_destinations() {
+        let ok = "xcodebuild test -scheme X -destination 'platform=iOS Simulator,name=A' -parallel-testing-enabled NO";
+        assert!(problems(&test_runs(ok, 0).0[0]).is_empty());
+        assert_eq!(problems(&test_runs(&format!("{ok} -destination B"), 0).0[0]).len(), 1);
+        assert!(test_runs(&format!("{ok} & {ok}"), 0).1);
+    }
+}
