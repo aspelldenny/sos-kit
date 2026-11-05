@@ -17,7 +17,8 @@ pass=0; fail=0
 expect() { if [ "$2" = 0 ]; then pass=$((pass + 1)); echo "ok   $1"; else fail=$((fail + 1)); echo "FAIL $1: ${3:0:600}"; fi; }
 
 "$PY" "$KIT/tests/usage/agent-usage.py" --projects-dir "$F/claude/-w-app" --since 2026-09-01 > "$T/oracle.txt"
-"$SOS" usage --dir "$F/claude" --project /w/app --since 2026-09-01 --by model --json \
+# MSYS_NO_PATHCONV: Git Bash would turn /w/app into a Windows path (it is a cwd inside the fixture).
+MSYS_NO_PATHCONV=1 "$SOS" usage --dir "$F/claude" --project /w/app --since 2026-09-01 --by model --json \
   --prices "$KIT/crates/sos-cli/src/usage/prices.toml" > "$T/sos.json"
 out=$("$PY" - "$T/oracle.txt" "$T/sos.json" <<'PY'
 import json, sys
@@ -63,6 +64,8 @@ if /usr/bin/time -v true >/dev/null 2>&1; then
 elif /usr/bin/time -l true >/dev/null 2>&1; then
   /usr/bin/time -l "$SOS" usage --dir "$T/big" --since 2026-10-01 --json --max-line-bytes 8388608 > "$T/big.json" 2> "$T/time.txt"
   rss_kb=$(( $(awk '/maximum resident set size/ {print $1}' "$T/time.txt") / 1024 ))
+else
+  "$SOS" usage --dir "$T/big" --since 2026-10-01 --json --max-line-bytes 8388608 > "$T/big.json"
 fi
 calls=$("$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); m=d["meta"]["agents"]["claude"]; print(m["calls"], m["skipped"]["oversize_lines"])' "$T/big.json")
 [ "$calls" = "60000 1" ]; expect "large transcript: every call counted, the oversize line skipped" $? "$calls"
