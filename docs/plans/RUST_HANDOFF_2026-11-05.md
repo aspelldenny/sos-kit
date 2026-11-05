@@ -88,7 +88,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 ## Việc còn mở (không chặn đợt sau)
 
 1. **WSL thiếu gitleaks.** Vì vậy test `install_sets_a_reviewer_from_the_other_family_when_both_clis_exist` (`crates/sos-cli/tests/kit.rs`) đỏ ở WSL. Đây là chuyện môi trường, không phải lỗi code. Cài gitleaks vào WSL, hoặc để nguyên.
-2. **4 ca Codex trên Windows thật** (sos mới, sos cũ, thiếu sos, sos hỏng) với launcher `python -c` của 1b. Đây là điều kiện trước khi phát hành. Nếu cần Sếp thao tác tay, gom vào một tin CẦN SẾP lúc phát hành.
+2. ~~**4 ca Codex trên Windows thật**~~ — xong 05/11 khi phát hành v0.4.0: `codex exec` thật trên Windows 11 (codex 0.162, `--dangerously-bypass-hook-trust`, `-s danger-full-access`). sos mới: sửa `README.md` đi qua, sửa `.env` bị env guard chặn. sos 0.3.13 ("sos exited 2 … Upgrade sos"), thiếu sos ("sos is not on PATH"), sos.exe hỏng ("SOS Kit hook failed: OSError(22 …)"): mọi `apply_patch` bị chặn, `.env` và `README.md` không đổi. SessionStart: Completed với sos mới, Failed với ba ca còn lại (không chặn phiên).
 3. **Settings của chính kit.** `.claude/settings.json` của sos-kit vẫn gọi adapter Python. Chỉ đổi sang `sos hook` sau khi bản phát hành có `sos hook` đã cài trên Mac: bản 0.3.13 trả exit 2 với lệnh lạ, và Claude Code coi exit 2 là chặn.
 4. **`sos usage`, hai việc đã ghi trong BACKLOG:**
    - đọc kết quả subagent chạy nền (về qua task-notification, chưa đếm);
