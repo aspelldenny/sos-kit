@@ -13,6 +13,7 @@ mod gate;
 mod guards;
 mod hook;
 mod kit;
+mod predict;
 mod role;
 mod sim;
 mod status;
@@ -111,6 +112,9 @@ enum Cmd {
         #[command(subcommand)]
         which: sim::SimCmd,
     },
+    /// List written predictions and pass thresholds in a repo with their age, for the depth-check
+    /// skill: which were later graded against the actual result? Read-only; always exits 0.
+    Predict(predict::Args),
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
@@ -130,6 +134,7 @@ fn main() {
         Cmd::Advise(a) => advise::run(a),
         Cmd::Bite(a) => bite::run(a),
         Cmd::Sim { which } => sim::run(which),
+        Cmd::Predict(a) => predict::run(a),
         Cmd::Filter => Ok(gate::filter()),
     };
     match code {
