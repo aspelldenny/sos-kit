@@ -125,8 +125,9 @@ check "claude: wrapped test cmd counts #1"     0 -          claude post-bash <<<
 check "claude: wrapped test cmd counts #2"     0 "STUB ADVICE" claude post-bash <<<"$(line $C 1 'd["session_id"]="k4"; d["tool_input"]["command"]="cd app && CI=1 timeout 60 python3 -m pytest -q"')"
 check "claude: .Env.Local (case) blocked"      2 "BLOCKED"  claude pre-edit <<<"$(line $C 3 'd["tool_input"]["file_path"]="/REPO/.Env.Local"')"
 # Review 05/11/2026: on POSIX a backslash is part of the name, so this file IS a .env.* file.
-check "claude: '.env.local\\x' (POSIX name) blocked" 2 "BLOCKED" claude pre-edit <<<"$(line $C 3 'd["tool_input"]["file_path"]="/REPO/.env.local\\notes.txt"')"
-check "claude: notebook '.env.local\\x' blocked" 2 "BLOCKED"   claude pre-edit <<<"$(line $C 3 'd["tool_input"]={"notebook_path":"/REPO/.env.local\\n.ipynb"}')"
+# On Windows it is a separator (notes.txt inside a folder .env.local), so these cases are POSIX only.
+[ -z "$WIN" ] && check "claude: '.env.local\\x' (POSIX name) blocked" 2 "BLOCKED" claude pre-edit <<<"$(line $C 3 'd["tool_input"]["file_path"]="/REPO/.env.local\\notes.txt"')"
+[ -z "$WIN" ] && check "claude: notebook '.env.local\\x' blocked" 2 "BLOCKED"   claude pre-edit <<<"$(line $C 3 'd["tool_input"]={"notebook_path":"/REPO/.env.local\\n.ipynb"}')"
 # Intended difference: only `sos hook` also splits on a backslash (Windows paths); bash basename does not.
 [ -n "${SOS_HOOK_BIN:-}" ] && check "sos hook: Windows path to .env blocked" 2 "BLOCKED" claude pre-edit <<<"$(line $C 3 'd["tool_input"]["file_path"]="C:\\work\\app\\.env"')"
 # Relative CLAUDE_PROJECT_DIR from a subfolder: the advisor still runs (review 05/11/2026).
@@ -250,7 +251,7 @@ check "codex: CR/VT/EM-space prefix blocked"   2 "BLOCKED"  codex pre-edit <<<"$
 check "codex: .ENV (case) blocked"             2 "BLOCKED"  codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Add File: .ENV\n+T=x\n*** End Patch"')"
 check "codex: U+2028 inside path blocked"     2 "BLOCKED"  codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Update File: dir\u2028/.env\n@@\n-A=1\n+A=2\n*** End Patch"')"
 check "codex: unparseable patch blocked"       2 "could not find" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="garbage"')"
-check "codex: '.env.local\\x' (POSIX name) blocked" 2 "BLOCKED" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Update File: .env.local\\notes.txt\n@@\n-A=1\n+A=2\n*** End Patch"')"
+[ -z "$WIN" ] && check "codex: '.env.local\\x' (POSIX name) blocked" 2 "BLOCKED" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Update File: .env.local\\notes.txt\n@@\n-A=1\n+A=2\n*** End Patch"')"
 check "codex: NUL in a path blocked"          2 "BLOCKED"  codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]="*** Begin Patch\n*** Add File: notes\u0000.txt\n+hi\n*** End Patch"')"
 check "codex: patch text not a string blocked" 2 "BLOCKED" codex pre-edit <<<"$(line $X 4 'd["tool_input"]["command"]=None')"
 for n in 1 2 3; do

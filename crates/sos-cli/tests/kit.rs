@@ -433,7 +433,13 @@ fn hooks_call_sos_and_need_no_python() {
     let c = out(&sos_env(p, &["check"], &[("SOS_PYTHON", py)]));
     assert!(!c.contains(&format!("{py} not found on PATH")), "{c}");
     // No sos on PATH while the hooks call it: every edit would be blocked.
-    let c = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(p).arg("check").env("PATH", "/usr/bin:/bin").output().unwrap();
+    // A PATH holding only git: /usr/bin is not enough, Ubuntu runners ship an unrelated
+    // /usr/bin/sos (sosreport).
+    let bare = d.path().join("bare-path");
+    std::fs::create_dir(&bare).unwrap();
+    let real_git = std::env::split_paths(&std::env::var_os("PATH").unwrap()).map(|d| d.join("git")).find(|g| g.is_file()).unwrap();
+    std::os::unix::fs::symlink(real_git, bare.join("git")).unwrap();
+    let c = Command::new(env!("CARGO_BIN_EXE_sos")).current_dir(p).arg("check").env("PATH", &bare).output().unwrap();
     assert!(out(&c).contains("sos is not on PATH"), "{}", out(&c));
 }
 
