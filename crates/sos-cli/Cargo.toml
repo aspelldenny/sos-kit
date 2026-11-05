@@ -17,6 +17,7 @@ sha2 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["preserve_order"] }  # `sos update --wiring` keeps the key order of project files
 regex = "1"
+unicode-normalization = "0.1"  # `sos check-links` slugs headings like the script (NFKD)
 sos-gates = { path = "../sos-gates" }
 sos-rules = { path = "../sos-rules" }
 toml = { workspace = true }

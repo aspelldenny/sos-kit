@@ -1,4 +1,4 @@
-# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau 3.1)
+# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau 3.2)
 
 Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (Sếp duyệt 05/11). Ghi chú này đủ để làm tiếp mà không cần đọc transcript cũ.
 
@@ -19,6 +19,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 | 2.3 | commit «sos-dev: the kit's trust gate, docs check and hook installer in Rust» | crate `crates/sos-dev` (không phát hành): `sos-dev trust-gate\|docs-check\|install-hooks`; `hooks/pre-commit` gọi bản Rust, bản cũ để cạnh; `tests/sos-dev.sh` so hai bản. Astra soát 5 lượt, MERGE |
 | 2.5 | commit «sos sim: boot, settle and destination for one simulator» | `sos sim boot\|settle\|destination` (`crates/sos-cli/src/sim.rs`) thay `sim-boot.sh`, `wait-settled.sh`, `resolve-simulator-destination.sh`; test với `xcrun`/`sysctl` giả. Astra soát 2 lượt, MERGE |
 | 3.1 | commit «sos predict: written predictions and their age» | `sos predict` (`crates/sos-cli/src/predict.rs`) thay `skills/depth-check/scripts/predictions.py` (script để cạnh, skill gọi `sos predict` trước); chỉ đọc, không chạy lệnh từ git config, không fetch trong partial clone. Astra soát 6 lượt, MERGE |
+| 3.2 | commit «sos check-links: relative links and anchors in Markdown» | `sos check-links <dir>` (`crates/sos-cli/src/check_links.rs`) thay `references/check-links.py` của skill product-description (chỗ gọi chưa đổi: nằm ở `~/.claude/skills`). Astra soát 3 lượt, MERGE |
 
 - **Việc tiếp theo (sau 2.2):**
   1. **Đổi chỗ gọi ở từng repo, mỗi repo một nhánh riêng**, chép `tests/rules/<tên>/rules.toml` sang repo đó, hook gọi `sos hook claude rules --file <đường dẫn>` (Codex: `sos hook codex rules …`), bản cũ để cạnh đến bản phát hành sau:
@@ -28,7 +29,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
      - tarot: `merge-guard.toml` thay `block-unsafe-merge.sh`, kèm một helper `scripts/merge-check <PR>` (phần gọi `gh`; trong ca kiểm nó là `fake`);
      - mọi repo: `hub-audit.toml` thay `~/.claude/hooks/hub-audit.sh`.
      Điều kiện: bản `sos` có `sos hook … rules` đã phát hành và cài (bản 0.3.13 trả exit 2 với lệnh lạ = chặn mọi thứ). Không đụng lucilius, reel.
-  2. Tiếp theo trong sos-kit: đợt 3 (3.1 `sos predict` xong; 3.2 `sos check-links`; 3.3–3.5 chỉ ghi).
+  2. Tiếp theo trong sos-kit: đợt 3 (3.1 `sos predict`, 3.2 `sos check-links` xong; 3.3–3.5 chỉ ghi).
 - **Bản 1d hẹp hơn đặc tả §2** (không allow/scope, first_positional, case_insensitive, when.file_exists/env; ask bị từ chối): ghi ở `RUST_ARCHITECTURE_2026-11-05.md`, đoạn «Bản 1d hẹp hơn đặc tả». Thêm khi một luật thật cần.
 
 ## File cần đọc
@@ -67,6 +68,8 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 
 2. **2.6 — turnsigil bỏ `tools/agent_role.py`** (kế hoạch ghi «bỏ»: trùng `sos role`). Chỗ gọi: `tools/agent-bin/claude`, `tools/agent_hook.py`, `.codex/config.toml`, `AGENTS.md`, test `tools/tests/test_agent_harness.py`. Đổi sang `sos role`, so lệnh sinh ra bằng `sos role --dry-run` trước khi xoá.
 3. **2.7 — tarot** (`scripts/security-gate.sh`, `scripts/check-hardcoded-secrets.py`, `scripts/refresh-docs-stats.sh`; gọi từ `package.json`, `docs/TOOLS.md`, `docs/security/INVARIANTS.md`, `scripts/test-inv004-history.sh`): bỏ phần tìm khoá trùng `sos gate secrets` (gitleaks); INV-001→010 còn lại thành luật `sos-rules` nếu đủ, không thì Rust trong tarot. Chứng minh: chạy INV cả hai bản trên cùng cây và trên các commit cũ từng bị bắt.
+
+4. **3.2 — skill product-description** (`~/.claude/skills/product-description/SKILL.md`, dòng 18 và 83 gọi `python3 {skill dir}/references/check-links.py {repo}`): đổi sang `sos check-links <dir>` khi bản có lệnh này đã phát hành và cài; script để cạnh làm dự phòng như depth-check. Cùng dòng báo, số đếm, mã thoát; khác có chủ ý ở CHANGELOG.
 
 ## Việc còn mở (không chặn đợt sau)
 

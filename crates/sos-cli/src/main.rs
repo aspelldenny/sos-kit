@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 mod advise;
 mod bite;
+mod check_links;
 mod gate;
 mod guards;
 mod hook;
@@ -115,6 +116,9 @@ enum Cmd {
     /// List written predictions and pass thresholds in a repo with their age, for the depth-check
     /// skill: which were later graded against the actual result? Read-only; always exits 0.
     Predict(predict::Args),
+    /// Relative links and heading anchors in every Markdown file under a folder: the linked file
+    /// must exist and a `#anchor` must match a heading. Exits 1 and lists what is broken.
+    CheckLinks(check_links::Args),
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
@@ -135,6 +139,7 @@ fn main() {
         Cmd::Bite(a) => bite::run(a),
         Cmd::Sim { which } => sim::run(which),
         Cmd::Predict(a) => predict::run(a),
+        Cmd::CheckLinks(a) => check_links::run(a),
         Cmd::Filter => Ok(gate::filter()),
     };
     match code {
