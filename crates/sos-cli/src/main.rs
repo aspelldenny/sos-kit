@@ -8,8 +8,11 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 mod gate;
+mod hook;
 mod kit;
 mod role;
+mod sim_guard;
+mod status;
 
 #[derive(Parser)]
 #[command(name = "sos", version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("SOS_KIT_COMMIT"), ")"),
@@ -73,6 +76,12 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Agent hooks: `sos hook claude|codex <session-start|pre-edit|pre-bash|post-bash>` (payload on
+    /// stdin; exit 2 blocks), plus the agent-neutral `env-guard`, `sim-guard` and `status`.
+    Hook {
+        #[command(subcommand)]
+        which: hook::HookCmd,
+    },
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
@@ -87,6 +96,7 @@ fn main() {
         Cmd::Gate { which } => Ok(gate::run(which)),
         Cmd::Role { role, from, brief, out, timeout, dry_run } =>
             role::run(&role::Args { role, from, brief, out, timeout, dry_run }),
+        Cmd::Hook { which } => Ok(hook::run(which)),
         Cmd::Filter => Ok(gate::filter()),
     };
     match code {

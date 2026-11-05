@@ -3,6 +3,7 @@
 # plus mutations of them, run through adapters/<agent>/hook.py in a throwaway git repo.
 # scripts/advise is replaced by a stub, so no model is called.
 # Usage: tests/adapters/run.sh
+#        SOS_HOOK_BIN=target/debug/sos tests/adapters/run.sh   # same cases through `sos hook` (Rust port)
 set -uo pipefail
 KIT=$(cd "$(dirname "$0")/../.." && pwd)
 FIX="$KIT/tests/adapters/fixtures"
@@ -49,7 +50,11 @@ EOF
 # check <name> <want-exit> <want-substring|-> <agent> <sub> <<< payload
 check() {
     local name=$1 want=$2 grep_for=$3 agent=$4 sub=$5 out rc
-    out=$("$PY" "adapters/$agent/hook.py" "$sub" 2>&1); rc=$?
+    if [ -n "${SOS_HOOK_BIN:-}" ]; then
+        out=$("$SOS_HOOK_BIN" hook "$agent" "$sub" 2>&1); rc=$?
+    else
+        out=$("$PY" "adapters/$agent/hook.py" "$sub" 2>&1); rc=$?
+    fi
     # Windows: the Codex adapter blocks with deny JSON and exit 0 (`powershell -Command` turns exit 2 into 1).
     if [ "$agent/${sub%-*}/$want" = codex/pre/2 ] && [ -n "$WIN" ]; then
         want=0; grep -q '"permissionDecision": "deny"' <<<"$out" || rc="$rc, no deny JSON"
@@ -63,6 +68,14 @@ check() {
     fi
 }
 C=claude-live-2026-10-09.jsonl X=codex-live-2026-10-09.jsonl
+# same_status <name>: with SOS_HOOK_BIN, the Rust session-start prints byte for byte what the Python one does
+same_status() {
+    [ -n "${SOS_HOOK_BIN:-}" ] || return 0
+    local a b
+    a=$("$PY" adapters/claude/hook.py session-start <<<"{}" 2>&1); b=$("$SOS_HOOK_BIN" hook claude session-start <<<"{}" 2>&1)
+    if [ "$a" = "$b" ]; then pass=$((pass + 1)); echo "ok   same status: $1"
+    else fail=$((fail + 1)); echo "FAIL same status: $1"; diff <(echo "$a") <(echo "$b") | head -20; fi
+}
 
 # ── Claude Code ──────────────────────────────────────────────
 check "claude: Write notes.txt allowed"        0 -          claude pre-edit <<<"$(line $C 3)"
@@ -162,11 +175,26 @@ mkdir -p docs && { echo "## Now"; for i in $(seq 90); do echo "- [ ] item $i"; d
 seq 210 > AGENTS.md
 check "claude: status notes oversized state"   0 "section is 91 lines" claude session-start <<<"{}"
 check "claude: status notes oversized entry"   0 "are 210 lines" claude session-start <<<"{}"
+same_status "oversized state and entry"
+{ echo "intro"; echo "## Now - long line $(printf 'word%.0s' $(seq 80))"; echo "  note"; echo "- [x] done"; echo "free text"; echo "## Later"; echo "- [ ] later"; } > docs/BACKLOG.md
+same_status "section without open items, long line"
+# Intended difference: status.sh cuts at 220 bytes on Linux (GNU cut), splitting Vietnamese letters;
+# `sos hook` cuts at 220 characters, as BSD cut does on macOS.
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    echo "## Hiện tại $(printf 'chữ%.0s' $(seq 100))" > docs/BACKLOG.md
+    o=$("$SOS_HOOK_BIN" hook status | sed -n 2p); n=$("$PY" -c 'import sys; print(len(sys.stdin.read().rstrip("\n")))' <<<"$o")
+    if [ "$n" = 220 ]; then pass=$((pass + 1)); echo "ok   sos hook status: long line cut at 220 characters"
+    else fail=$((fail + 1)); echo "FAIL sos hook status: long line cut at $n characters: $o"; fi
+fi
+printf '[state]\nfile = "docs/P.md" # c\n' > .sos.toml; printf '# P\n\n## Now\n- [ ] p1\n' > docs/P.md
+same_status "[state] file"
+rm -f .sos.toml docs/P.md
 rm -rf docs AGENTS.md
 printf '[roles.reviewer.claude]   # Claude built it\nbackend = "codex"\nmodel = "m"\n\n[roles.reviewer.codex]\nbackend = "claude"\n' > .sos.toml
 check "claude: status names the cross-family reviewer" 0 "claude-built work → codex; codex-built work → claude" claude session-start <<<"{}"
+same_status "cross-family reviewer"
 printf '[roles.reviewer]\nbackend = "claude"\n' > .sos.toml
-out=$("$PY" adapters/claude/hook.py session-start <<<"{}" 2>&1)
+out=$(if [ -n "${SOS_HOOK_BIN:-}" ]; then "$SOS_HOOK_BIN" hook claude session-start; else "$PY" adapters/claude/hook.py session-start; fi <<<"{}" 2>&1)
 if grep -q "Người soát" <<<"$out"; then fail=$((fail + 1)); echo "FAIL status: same-family reviewer named"; else pass=$((pass + 1)); echo "ok   status: quiet for a same-family reviewer"; fi
 rm -f .sos.toml
 
@@ -320,6 +348,9 @@ expect() { if [ "$2" = 0 ]; then pass=$((pass + 1)); echo "ok   $1"; else fail=$
 o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 "$PY" "$KIT/scripts/advise" --backend claude "why red?" 2>&1); rc=$?
 [ "$rc" = 3 ] && grep -q "/login" <<<"$o"; expect "advise: lost login -> exit 3 with the fix" $? "rc=$rc $o"
 o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); grep -q "advisor's last call failed" <<<"$o"; expect "status: names the broken advisor" $? "$o"
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    o=$(cd "$A/repo" && "$SOS_HOOK_BIN" hook status); grep -q "advisor's last call failed" <<<"$o"; expect "sos hook status: names the broken advisor" $? "$o"
+fi
 # Windows: `python3` on PATH is the Store alias that only fails; the adapter passes its own interpreter.
 PY3=$(command -v "$PY"); mkdir -p "$A/win"
 printf '#!/usr/bin/env bash\necho "Python was not found" >&2; exit 49\n' > "$A/win/python3"; chmod +x "$A/win/python3"
@@ -328,6 +359,9 @@ grep -q "advisor's last call failed" <<<"$o"; expect "windows: session-start sta
 o=$(cd "$A/repo" && PATH="$A/bin:$PATH" "$PY" "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
 [ "$rc" = 0 ] && grep -q "answers" <<<"$o"; expect "advise --check: answers after login" $? "rc=$rc $o"
 o=$(cd "$A/repo" && bash "$KIT/scripts/status.sh"); ! grep -q "advisor" <<<"$o"; expect "status: quiet once the advisor answers" $? "$o"
+if [ -n "${SOS_HOOK_BIN:-}" ]; then
+    o=$(cd "$A/repo" && "$SOS_HOOK_BIN" hook status); ! grep -q "advisor" <<<"$o"; expect "sos hook status: quiet once the advisor answers" $? "$o"
+fi
 o=$(cd "$A/repo" && PATH="$A/bin:$PATH" CLAUDE_LOGGED_OUT=1 "$PY" "$KIT/scripts/advise" --backend claude --check 2>&1); rc=$?
 [ "$rc" = 3 ]; expect "advise --check: logged out -> exit 3" $? "rc=$rc $o"
 mkdir -p "$A/repo/.advise-state" && touch "$A/repo/.advise-state/unavailable"

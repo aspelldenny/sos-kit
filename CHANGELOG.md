@@ -2,6 +2,10 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+- **`sos hook` — the agent hooks in Rust** (Chủ nhà 04/11/2026: all agent tooling code moves to Rust; plan `docs/plans/RUST_ALL_TOOLS_2026-11-04.md`, wave 1a). `sos hook claude|codex <session-start|pre-edit|pre-bash|post-bash>` does what `adapters/{claude,codex}/hook.py` do, with the `.env` guard, the simulator guard and the session-start status written in Rust (agent-neutral forms: `sos hook env-guard`, `sim-guard --cmd`, `status`). `post-bash` still runs `scripts/test-watch.py` (moves with `advise` in wave 2). Proof: `tests/adapters/run.sh` runs every case through both (`SOS_HOOK_BIN=…`), plus byte-for-byte checks of the status text. Two intended differences: the `.env` guard also splits Windows paths on `\`, and a long status line is cut at 220 characters, not bytes (GNU `cut` split Vietnamese letters). Not wired yet: the templates and the kit's own `.claude/settings.json` still call the Python adapters until a release carrying `sos hook` is installed (an older `sos` would reject the subcommand with exit 2, which Claude Code reads as a block).
+
 ## v0.3.13 — 2026-10-31
 
 - **Simulator guard (`scripts/sim-guard`).** An agent's `xcodebuild test` without `-parallel-testing-enabled NO` makes Xcode clone the simulator once per test worker: in tap-luyen this happened on 29/10 and again on 31/10/2026 (4 clones, load 490, CPU 98% on the 8 GB Mac), because the flag lived only in the agent's memory and a cross-session message. A `PreToolUse` Bash hook (Claude and Codex) now blocks, with the fix, an `xcodebuild test`/`test-without-building` that lacks the flag, names two `-destination`s, starts two runs, or starts while another `xcodebuild test` runs on the machine. `bite` checks its `[bite] test` command the same way, since its runs do not pass through the hook. A command inside a script is not seen. Wiring in `.claude/settings.json` and `.codex/hooks.json` is project-owned: `sos check` warns when it lacks the `pre-bash` hook; merge it from `harness-lite/templates/`.
