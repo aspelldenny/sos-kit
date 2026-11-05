@@ -1,0 +1,72 @@
+# Rust hoá — bàn giao cho session làm đợt 1d (05/11/2026)
+
+Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (Sếp duyệt 05/11). Ghi chú này đủ để làm tiếp mà không cần đọc transcript cũ.
+
+## Chỗ đứng
+
+- **Nhánh:** `claude/rust-all-tools-d1e85b`, worktree `~/sos-kit/.claude/worktrees/rust-all-tools-d1e85b`. **Chưa push**, chưa có PR. Không merge vào main khi chưa có lệnh.
+- **Các đợt đã xong trên nhánh** (cũ → mới):
+
+| Đợt | Commit | Nội dung |
+|---|---|---|
+| 1a | `eb13cfa` và các commit trước | `sos hook claude\|codex …` thay `adapters/*/hook.py`, `env-guard.sh`, `sim-guard`, `status.sh` |
+| 1b+1c | `d53e8b0` | mẫu hook gọi `sos hook … --protocol 1` qua launcher fail-closed; `sos gate pre-commit\|pre-push`; `sos update --wiring` |
+| 2.4 | `b917dc2`, `912dc09` | `sos usage`: token theo vai × model, từ transcript Claude và rollout Codex |
+| tách `hook/` | `29fc065` | `hook/{mod,claude,codex}.rs`, `guards/{env,sim}.rs`; không đổi hành vi |
+| 2.1 | `978cda4` | `sos advise` (`advise.rs`) và bộ kích advisor chạy trong `sos hook post-bash` (`watch.rs`): hook không còn gọi Python. Astra soát 4 lượt, MERGE |
+
+- **Việc tiếp theo:** đợt **1d**, máy luật khai báo trong crate mới `crates/sos-rules`, vỏ CLI `sos hook rules --file …`. Đặc tả ở `RUST_ARCHITECTURE_2026-11-05.md` §2: schema TOML, bộ đọc shell riêng (chuyển `lex()` từ `guards/sim.rs`), `Runner` giả, `--cases`. Thứ tự trong 1d:
+  1. vault `chan.toml` thay `chan.py`;
+  2. BOOK `win_heavy_guard.py`;
+  3. soulsign-marketing `worker-guard.sh`;
+  4. tarot `block-unsafe-merge.sh`;
+  5. `hub-audit.sh`.
+
+  Quy định:
+  - Mỗi ca phải có kết quả của bản cũ, ghi lại trước khi dịch luật.
+  - Chỗ gọi ở repo khác đi trên nhánh riêng của repo đó.
+  - Không đụng repo mà session khác đang làm (lucilius, reel).
+
+## File cần đọc
+
+- Kế hoạch và tiến độ: `docs/plans/RUST_ALL_TOOLS_2026-11-04.md` (mục «Tiến độ» ở cuối).
+- Kiến trúc đích và lý do thứ tự: `docs/plans/RUST_ARCHITECTURE_2026-11-05.md`. Mục 2 là 1d, mục 7 là `sos usage`.
+- Soát kiến trúc và soát 1b: `docs/plans/RUST_REVIEW_2026-11-05.md`.
+- Việc đang mở: `docs/BACKLOG.md`, mục đầu, dòng «Rust hoá tool agent».
+- Các bản soát của Astra cho 2.4 và 2.1 nằm trong scratchpad của session cũ (sẽ mất). Phần cốt lõi đã ghi vào CHANGELOG (mục Unreleased) và vào commit message.
+
+## Cách làm đã quen (giữ nguyên)
+
+- **Mac chỉ có 8 GB RAM.** Ở Mac chỉ chạy `cargo check`/`clippy`, không chạy `cargo build`/`test` nặng. Build và test trên máy Win, theo `~/VibeNotes/30_Resources/luat-may-win.md`:
+  - gửi tar mã nguồn: `ssh windows 'cat > /home/sep/rusthoa/src.tgz' < src.tgz`;
+  - chạy một file job qua `ssh windows 'cat > /tmp/job-x.sh && bash /tmp/job-x.sh; rm -f /tmp/job-x.sh' < job.sh`, trong tmux, bọc `/mnt/e/may-win/may-win chay --ten … --han … --`.
+- **Thư mục trên Win:**
+  - `/home/sep/rusthoa` (WSL, `CARGO_TARGET_DIR=/home/sep/rusthoa/target`);
+  - `C:\Users\Admin\rusthoa` (Windows native; `cargo test` qua `cmd.exe`; Git Bash ở `/mnt/c/Program Files/Git/bin/bash.exe`).
+  - Dọn cả hai khi xong toàn bộ Rust hoá.
+- **Bộ chạy trên Win:** build, `cargo test -p sos-cli`, `tests/adapters/run.sh` hai bản (Python, và `SOS_HOOK_BIN=…/sos`), `tests/docs-check.py <sos>`, clippy; Windows native `cargo test`; Git Bash `run.sh` với `sos.exe`.
+- **Soát độc lập:** `sos role reviewer --from claude --brief <file> --out <file>` (Codex gpt-6-astra), chạy nền. Bắt buộc theo luật 4 khi chạm `harness-lite/` hoặc `templates/app/`.
+- **Báo Tổng đài** đúng hai mẫu, mỗi mẫu một dòng:
+  - `[Rust hoá] XONG: … · file: …`
+  - `[Rust hoá] CẦN SẾP: … · lựa chọn: A / B`
+- **Sau mỗi đợt, ghi sổ ở bốn chỗ:**
+  - BACKLOG mục đầu;
+  - «Tiến độ» trong kế hoạch;
+  - một dòng đầu «Nhật ký bảng» trong `~/VibeNotes/10_Projects/README.md`;
+  - một dòng trong ghi chú chung `rust-hoa-dot-1a.md` (thư mục side-session-notes của Tổng đài).
+
+## Việc còn mở (không chặn 1d)
+
+1. **WSL thiếu gitleaks.** Vì vậy test `install_sets_a_reviewer_from_the_other_family_when_both_clis_exist` (`crates/sos-cli/tests/kit.rs`) đỏ ở WSL. Đây là chuyện môi trường, không phải lỗi code. Cài gitleaks vào WSL, hoặc để nguyên.
+2. **4 ca Codex trên Windows thật** (sos mới, sos cũ, thiếu sos, sos hỏng) với launcher `python -c` của 1b. Đây là điều kiện trước khi phát hành. Nếu cần Sếp thao tác tay, gom vào một tin CẦN SẾP lúc phát hành.
+3. **Settings của chính kit.** `.claude/settings.json` của sos-kit vẫn gọi adapter Python. Chỉ đổi sang `sos hook` sau khi bản phát hành có `sos hook` đã cài trên Mac: bản 0.3.13 trả exit 2 với lệnh lạ, và Claude Code coi exit 2 là chặn.
+4. **`sos usage`, hai việc đã ghi trong BACKLOG:**
+   - đọc kết quả subagent chạy nền (về qua task-notification, chưa đếm);
+   - bộ nhớ tăng theo số lần gọi (177 MB với 70 nghìn lần gọi), cần gom chuỗi trùng.
+5. **`run_limited` (hook/mod.rs) không giết process cháu** khi hết giờ. `role::capture` thì có giết. Chỉ `sim-guard` (`ps`) và notify còn dùng `run_limited`. Xem lại trước khi phát hành.
+6. **Git Bash trên Windows, 7 ca đỏ không thuộc advisor** (05/11, chưa kiểm xem có từ trước 2.1 hay không):
+   - Rust: 4 ca `same status` (so từng byte status Python với Rust; chữ hiện ra giống nhau, nghi khác ở xuống dòng hoặc encoding);
+   - Python: 3 ca `.env.local\x` (tên POSIX, Windows coi `\` là dấu phân cách).
+
+   Mọi ca advisor đều xanh ở Git Bash. CI có job `windows-2022`, sẽ thấy các ca này khi mở PR.
+7. **Python vẫn được ship** (`scripts/test-watch.py`, `scripts/advise`, `adapters/*/hook.py`) cho app còn wiring cũ. Bỏ khi mọi app đã chạy `sos update --wiring` (BACKLOG).
