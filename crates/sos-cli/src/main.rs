@@ -8,10 +8,10 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 mod gate;
+mod guards;
 mod hook;
 mod kit;
 mod role;
-mod sim_guard;
 mod status;
 mod usage;
 mod wiring;
