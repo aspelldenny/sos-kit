@@ -4,7 +4,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 
 ## Chỗ đứng
 
-- **Nhánh:** `claude/rust-all-tools-d1e85b`, worktree `~/sos-kit/.claude/worktrees/rust-all-tools-d1e85b`. **Chưa push**, chưa có PR. Không merge vào main khi chưa có lệnh.
+- **Nhánh:** `claude/rust-all-tools-d1e85b`, worktree `~/sos-kit/.claude/worktrees/rust-all-tools-d1e85b`. Đã push, PR https://github.com/aspelldenny/sos-kit/pull/49. Không merge vào main khi chưa có lệnh.
 - **Các đợt đã xong trên nhánh** (cũ → mới):
 
 | Đợt | Commit | Nội dung |
@@ -20,6 +20,9 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 | 2.5 | commit «sos sim: boot, settle and destination for one simulator» | `sos sim boot\|settle\|destination` (`crates/sos-cli/src/sim.rs`) thay `sim-boot.sh`, `wait-settled.sh`, `resolve-simulator-destination.sh`; test với `xcrun`/`sysctl` giả. Astra soát 2 lượt, MERGE |
 | 3.1 | commit «sos predict: written predictions and their age» | `sos predict` (`crates/sos-cli/src/predict.rs`) thay `skills/depth-check/scripts/predictions.py` (script để cạnh, skill gọi `sos predict` trước); chỉ đọc, không chạy lệnh từ git config, không fetch trong partial clone. Astra soát 6 lượt, MERGE |
 | 3.2 | commit «sos check-links: relative links and anchors in Markdown» | `sos check-links <dir>` (`crates/sos-cli/src/check_links.rs`) thay `references/check-links.py` của skill product-description (chỗ gọi chưa đổi: nằm ở `~/.claude/skills`). Astra soát 3 lượt, MERGE |
+| 4.3, 4.4 | `25d8f22` | `sos sessions idle\|count` (`crates/sos-cli/src/sessions.rs`): đọc file session của app, `count --hook --max 3` cho hook `start_session`. Astra soát 2 lượt, MERGE; `6ae10a0` sửa `idle` không `--over` |
+| 4.6 | `4017da3` | `sos hook word-limit` (`hook/word_limit.rs`): đo chữ tin cuối lượt, `--log` TSV; `--block` có nhưng không bật |
+| 4.1, 4.2, 4.3, 4.5, 4.7 | crate `~/code/tong-dai` (git ở máy, không push) | `chan.toml` + 53 ca; `tong-dai kiem` (`--cu` khớp `kiem.py`), Sổ giao ca phải có id/đường dẫn, ĐỨNG IM, `--hook` chặn `clear_session`; `tong-dai brief`. 4 commit ở máy (`12e2977`…`4798c51`). Astra soát 4 lượt, MERGE |
 
 - **Việc tiếp theo (sau 2.2):**
   1. **Đổi chỗ gọi ở từng repo, mỗi repo một nhánh riêng**, chép `tests/rules/<tên>/rules.toml` sang repo đó, hook gọi `sos hook claude rules --file <đường dẫn>` (Codex: `sos hook codex rules …`), bản cũ để cạnh đến bản phát hành sau:
@@ -29,7 +32,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
      - tarot: `merge-guard.toml` thay `block-unsafe-merge.sh`, kèm một helper `scripts/merge-check <PR>` (phần gọi `gh`; trong ca kiểm nó là `fake`);
      - mọi repo: `hub-audit.toml` thay `~/.claude/hooks/hub-audit.sh`.
      Điều kiện: bản `sos` có `sos hook … rules` đã phát hành và cài (bản 0.3.13 trả exit 2 với lệnh lạ = chặn mọi thứ). Không đụng lucilius, reel.
-  2. Đợt 3 xong phần trong sos-kit (3.1 `sos predict`, 3.2 `sos check-links`; 3.3–3.5 chỉ ghi, xem «Việc chờ Sếp»). Tiếp theo là đợt 4, 5 theo kế hoạch, chỉ khi Sếp giao.
+  2. Đợt 3 xong phần trong sos-kit (3.1 `sos predict`, 3.2 `sos check-links`; 3.3–3.5 chỉ ghi). Đợt 4 xong phần code (đổi chỗ gọi: «Việc chờ Sếp» mục 7). Đợt 5 không làm ở đây: Tổng đài mở dự án riêng.
 - **Bản 1d hẹp hơn đặc tả §2** (không allow/scope, first_positional, case_insensitive, when.file_exists/env; ask bị từ chối): ghi ở `RUST_ARCHITECTURE_2026-11-05.md`, đoạn «Bản 1d hẹp hơn đặc tả». Thêm khi một luật thật cần.
 
 ## File cần đọc
@@ -72,6 +75,15 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 4. **3.2 — skill product-description** (`~/.claude/skills/product-description/SKILL.md`, dòng 18 và 83 gọi `python3 {skill dir}/references/check-links.py {repo}`): đổi sang `sos check-links <dir>` khi bản có lệnh này đã phát hành và cài; script để cạnh làm dự phòng như depth-check. Cùng dòng báo, số đếm, mã thoát; khác có chủ ý ở CHANGELOG.
 5. **3.3 — thanhtra** (`thanhtra-pre-scan.py` + CLI `thanhtra`, repo công khai riêng): Rust hoá trong repo thanhtra, bộ test của thanhtra chạy cả hai bản trước khi đổi.
 6. **3.4 — bỏ plugin Codex `codex-claude-bridge`** (`bridge.py`, `ghostty_bridge.py`): trùng start_session/SendMessage; Sếp gỡ plugin, mã chuyển vào lưu trữ. 3.5 (skill đồng bộ của Anthropic, skill hệ thống Codex) **giữ**, không có việc.
+
+7. **Đợt 4 — đổi chỗ gọi của Tổng đài** (vault, `~/.claude`; session Rust hoá không sửa). Điều kiện chung: bản `sos` có `sos sessions`, `sos hook word-limit`, `sos hook rules` đã phát hành và cài; `tong-dai` build từ `~/code/tong-dai` (`cargo install --path ~/code/tong-dai`).
+   - `chan.py` → `sos hook claude rules --file ~/code/tong-dai/chan.toml` ở settings của vault (cùng matcher); `chan.py` để cạnh một thời gian.
+   - PreToolUse matcher `mcp__ccd_session__start_session` → `sos sessions count --hook --max 3` (thay câu «tối đa 3 session con» trong LUAT bằng một dòng trỏ tới hook).
+   - PreToolUse matcher `mcp__ccd_session_mgmt__clear_session` → `tong-dai kiem --hook` (bảng lỗi thì chặn xoá lịch sử).
+   - Stop → `sos hook word-limit --max 100 --log ~/.claude/word-limit.tsv`, **không** `--block`; vài ngày sau đếm dòng `over=1` rồi Sếp quyết có bật chặn không.
+   - `python3 10_Projects/tong-dai/kiem.py` → `tong-dai kiem` (khác: thêm kiểm Sổ giao ca và mục ĐỨNG IM; `--cu` cho đầu ra cũ).
+   - Brief cho session con: `tong-dai brief --du-an … --viec … --xong … --doc …`, hoặc `tong-dai brief --kiem FILE` cho brief viết tay.
+   - Bảng thật 05/11 đang có 2 dòng Sổ giao ca thiếu id/đường dẫn («Sếp đã chốt 05/11», «Desktop không dính lỗi…»): thêm chỗ lần lại trước khi bật hook `clear_session`, không thì hook chặn ngay.
 
 ## Việc còn mở (không chặn đợt sau)
 
