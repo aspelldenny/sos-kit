@@ -14,6 +14,7 @@ mod guards;
 mod hook;
 mod kit;
 mod role;
+mod sim;
 mod status;
 mod usage;
 mod watch;
@@ -104,6 +105,12 @@ enum Cmd {
     /// tests that kill no mutant. Settings: .sos.toml [bite]. (Same tool as scripts/bite.)
     #[command(long_about = bite::LONG_ABOUT)]
     Bite(bite::Args),
+    /// One iOS simulator, used gently: boot it, wait for the machine to settle before a UI-test
+    /// phase, or print the xcodebuild destination for it. Never creates or erases a device.
+    Sim {
+        #[command(subcommand)]
+        which: sim::SimCmd,
+    },
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
@@ -122,6 +129,7 @@ fn main() {
         Cmd::Usage(a) => usage::run(a),
         Cmd::Advise(a) => advise::run(a),
         Cmd::Bite(a) => bite::run(a),
+        Cmd::Sim { which } => sim::run(which),
         Cmd::Filter => Ok(gate::filter()),
     };
     match code {
