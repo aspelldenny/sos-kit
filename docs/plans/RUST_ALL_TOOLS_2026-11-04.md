@@ -93,6 +93,14 @@ Ký hiệu nơi đến: **sos** = lệnh con của `sos` · **repo** = đổi tr
 | Plugin `mac` (5.3) | API mod chỉ nhận TS/JS |
 | Server Reel, `hub` (5.1, 5.2) | Đề nghị cân nhắc: hai sản phẩm đang chạy, nút thắt là mạng và gọi model chứ không phải tốc độ Python; đổi tốn nhiều công, rủi ro hồi quy cao. Nếu đổi thì dự án riêng như trên |
 
+## Sau kiến trúc và soát 05/11 (đề xuất, chờ Sếp chốt)
+
+Kiến trúc: `RUST_ARCHITECTURE_2026-11-05.md` (Kiến trúc sư Fable 5.1). Soát: `RUST_REVIEW_2026-11-05.md` (Codex gpt-6-astra): sửa 1a MERGE (đã sửa, `eb13cfa`), kiến trúc và `sos usage` SOUND-WITH-CHANGES, Kiến trúc sư đã sửa theo cả 9 + 7 điểm (bản sửa chưa qua lượt soát thứ hai; lượt soát của 1b sẽ đi qua nó).
+
+Thứ tự đề nghị: 1a (xong) → **1b+1c** một PR, một bản phát hành (launcher fail-closed; Codex Windows giữ `python -c` gọi `sos hook … --protocol 1` cho tới khi thử thật 4 ca trong Codex Windows; `sos update --wiring` opt-in) → **2.4 `sos usage`** (Sếp duyệt 05/11, mục 7 kiến trúc) → **2.1** test-watch + advise (hook hết Python) → **1d** máy luật trong crate mới `sos-rules` → 2.2 → 2.3 → 2.5 → đợt 3 → đợt 4 → đợt 5.
+
+Khác kế hoạch ở trên: gộp 1c vào 1b; 2.1 lên trước 1d; 2.4 lên ngay sau 1b; thêm crate `sos-rules`; thêm `sos update --wiring`. Q1 A và Q3 A: Kiến trúc sư đồng ý. Q2: Kiến trúc sư đề xuất `hub` tách đôi (audit/verify/search sang Rust, OCR/convert giữ Python qua máy Win) và Reel chỉ bắt đầu khi có mục tiêu đo được — chờ Sếp.
+
 ## Câu hỏi cho Sếp
 
 - **Q1.** Code dính vault (đọc bảng `10_Projects/README.md`, sổ giao ca) để ở đâu? sos-kit đang **công khai** trên GitHub. Em đề nghị: phần chung (máy luật, đếm session, giới hạn chữ) vào `sos`; phần dính vault vào crate Rust riêng tư `~/code/tong-dai` (không push lên repo công khai). Lựa chọn: A crate riêng tư / B crate trong workspace sos-kit (công khai).
