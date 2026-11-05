@@ -13,6 +13,7 @@ mod kit;
 mod role;
 mod sim_guard;
 mod status;
+mod usage;
 mod wiring;
 
 #[derive(Parser)]
@@ -87,6 +88,9 @@ enum Cmd {
         #[command(subcommand)]
         which: hook::HookCmd,
     },
+    /// Token use by role × model from local Claude Code transcripts (and Codex rollouts), with a
+    /// comparison price and suggestions. Read-only: nothing is sent, written or run.
+    Usage(usage::Args),
     /// Strip banned wording, AI-vendor leaks and <thinking> blocks from stdin
     /// (runtime filter for LLM output; rules from .sos.toml [text]).
     Filter,
@@ -102,6 +106,7 @@ fn main() {
         Cmd::Role { role, from, brief, out, timeout, dry_run } =>
             role::run(&role::Args { role, from, brief, out, timeout, dry_run }),
         Cmd::Hook { which } => Ok(hook::run(which)),
+        Cmd::Usage(a) => usage::run(a),
         Cmd::Filter => Ok(gate::filter()),
     };
     match code {

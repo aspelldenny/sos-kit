@@ -39,6 +39,7 @@ jobs:
       - run: tests/adapters/run.sh
       - run: tests/bite.sh
       - run: cargo build --locked -p sos-cli
+      - run: tests/usage.sh target/debug/sos   # `sos usage` vs the old agent-usage.py, and its memory ceiling
       - run: SOS_HOOK_BIN=target/debug/sos tests/adapters/run.sh   # the same cases through `sos hook` (Rust port)
       - run: tests/smoke.sh target/debug/sos
       - run: py=python3; $py -c '' 2>/dev/null || py=python; $py tests/docs-check.py target/debug/sos

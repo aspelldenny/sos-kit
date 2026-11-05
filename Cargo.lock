@@ -412,6 +412,7 @@ dependencies = [
  "sha2",
  "sos-gates",
  "tempfile",
+ "toml",
 ]
 
 [[package]]

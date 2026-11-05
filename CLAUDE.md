@@ -10,7 +10,7 @@ SOS Kit is a solo developer's harness for building with AI agents. The human own
 | `scripts/` | Agent-neutral scripts shipped into apps (`env-guard.sh`, `sim-guard`, `status.sh`, `advise`, `test-watch.py`, `bite`) plus kit-only tooling (`trust-gate.sh`, `install-hooks.sh`, npm postinstall). |
 | `adapters/` | One thin translator per agent (`claude/`, `codex/`): hook payload → `scripts/` call. No policy; every check has a git backstop. Tests: `tests/adapters/run.sh`. |
 | `templates/app/` | What `sos install` writes besides the core: app git hooks, `AGENTS.md`/`CLAUDE.md`/`.sos.toml` templates, Claude/Codex wiring, Claude agent wrappers. |
-| `crates/` | The `sos` binary: `sos-cli` (`install / update / check`, every installed file embedded at build time; ownership rules in `kit.rs`) and `sos-gates` (`sos gate …`, `sos filter`; config `.sos.toml`). |
+| `crates/` | The `sos` binary: `sos-cli` (`install / update / check`, every installed file embedded at build time; ownership rules in `kit.rs`; `sos hook`; `sos usage` in `usage/`) and `sos-gates` (`sos gate …`, `sos filter`; config `.sos.toml`). |
 | `hooks/` | This repo's own git gates: `cargo check`, trust gate, `sos gate all` (pre-commit); `sos gate local-secrets` (pre-push). |
 | `recipes/` + `skills/apply/` | Implementation patterns verified in shipped projects, and the skill that applies one. |
 | `skills/depth-check/` | Read-only check of a project, plan or role against Rieseberg's speed/altitude/depth/range lens: rawest source, real instruments, independent judge, closed loop. Not installed by `sos install`; link or copy into the agent's skills folder. |
@@ -33,6 +33,6 @@ The former sister tools quality-gate, doc-rotate (cap-check), doctor (runtime-sc
 ## Working here
 
 - Commits in English; talk with the maintainer in Vietnamese (em/anh). Role names (Chủ nhà, Quản đốc, Kiến trúc sư, Thợ, Người soát) are fixed terms, not forms of address.
-- `cargo test`, `tests/adapters/run.sh`, `tests/bite.sh`, `tests/docs-check.py` and `tests/npm.sh` must stay green (CI runs them on every PR, plus `tests/smoke.sh`; a release also runs `tests/npm.sh --real`). The pre-commit runs `cargo check`, the trust gate, `sos gate all` and the docs check; do not bypass with `--no-verify`. After a reviewed change to an auto-exec file: `scripts/trust-gate.sh rebaseline`.
+- `cargo test`, `tests/adapters/run.sh`, `tests/bite.sh`, `tests/usage.sh`, `tests/docs-check.py` and `tests/npm.sh` must stay green (CI runs them on every PR, plus `tests/smoke.sh`; a release also runs `tests/npm.sh --real`). The pre-commit runs `cargo check`, the trust gate, `sos gate all` and the docs check; do not bypass with `--no-verify`. After a reviewed change to an auto-exec file: `scripts/trust-gate.sh rebaseline`.
 - `sos hook <agent> <event> --protocol N` is a compatibility contract with every installed app: subcommands, events and protocol numbers are only added, never renamed or removed; a change to payload or output shape is a new protocol number.
 - Durable state belongs in the repo (BACKLOG, CHANGELOG, plans), not in private memory.
