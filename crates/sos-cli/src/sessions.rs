@@ -203,7 +203,8 @@ pub enum Row {
 }
 
 pub fn idle_rows(all: &[Session], ids: &[String], over: Option<Duration>, now_ms: f64) -> Vec<Row> {
-    let over = over.map(|d| d.as_secs()).unwrap_or(0);
+    // No --over: every unarchived session, including one active this very second (idle 0).
+    let quiet = |s: &Session| over.is_none_or(|d| s.idle_secs(now_ms) > d.as_secs());
     let row = |s: &Session, id: &str| Row::Quiet {
         id: id.to_string(),
         idle_secs: s.idle_secs(now_ms),
@@ -212,7 +213,7 @@ pub fn idle_rows(all: &[Session], ids: &[String], over: Option<Duration>, now_ms
         cwd: s.cwd.clone().unwrap_or_default(),
     };
     if ids.is_empty() {
-        let mut v: Vec<&Session> = all.iter().filter(|s| !s.is_archived && s.idle_secs(now_ms) > over).collect();
+        let mut v: Vec<&Session> = all.iter().filter(|s| !s.is_archived && quiet(s)).collect();
         v.sort_by(|a, b| b.idle_secs(now_ms).cmp(&a.idle_secs(now_ms)).then(a.session_id.cmp(&b.session_id)));
         return v.into_iter().map(|s| row(s, &s.session_id)).collect();
     }
@@ -220,7 +221,7 @@ pub fn idle_rows(all: &[Session], ids: &[String], over: Option<Duration>, now_ms
         None => Some(Row::Missing { id: id.clone() }),
         // An archived session is finished, not quiet: always reported, so a board that still
         // names it can be corrected.
-        Some(s) if s.is_archived || s.idle_secs(now_ms) > over => Some(row(s, id)),
+        Some(s) if s.is_archived || quiet(s) => Some(row(s, id)),
         Some(_) => None,
     }).collect()
 }
@@ -400,6 +401,10 @@ mod tests {
         let rows = idle_rows(&all, &[], None, NOW);
         let ids: Vec<_> = rows.iter().map(|r| match r { Row::Quiet { id, .. } | Row::Missing { id } => id.as_str() }).collect();
         assert_eq!(ids, ["local_a", "local_b"]);
+        // Without --over a session active this second (idle 0) is listed too.
+        let all = vec![s("local_now", 0, false)];
+        assert_eq!(idle_rows(&all, &[], None, NOW).len(), 1);
+        assert_eq!(idle_rows(&all, &["local_now".into()], None, NOW).len(), 1);
     }
 
     #[test]
