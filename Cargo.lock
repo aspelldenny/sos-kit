@@ -418,6 +418,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sos-dev"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "regex",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "sos-gates"
 version = "0.1.0"
 dependencies = [

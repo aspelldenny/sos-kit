@@ -70,7 +70,7 @@ Existing files are never overwritten; the only change to an existing file is thr
 |---|---|
 | [`harness-lite/`](harness-lite/README.md) | Contract and roles (installed into projects) |
 | [`adapters/`](adapters/README.md), `scripts/`, `templates/app/` | Agent adapters, agent-neutral scripts and the templates `sos install` writes |
-| `crates/` | The `sos` binary (installer and gates, Rust) |
+| `crates/` | The `sos` binary (installer and gates, Rust), and `sos-dev`, the kit's own trust gate and docs check (not released) |
 | [`recipes/`](recipes/README.md), `skills/apply/` | Implementation patterns taken from shipped code, and the skill that applies one |
 | [`skills/depth-check/`](skills/depth-check/SKILL.md) | Checks whether a project's expertise is real: rawest source, the field's instruments, a judge outside the model, a closed feedback loop |
 | [`docs/`](docs/PHILOSOPHY.md) | Philosophy, backlog, plans and research behind v3 |

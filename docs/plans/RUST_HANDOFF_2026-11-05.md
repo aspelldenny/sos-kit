@@ -1,4 +1,4 @@
-# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau 2.2)
+# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau 2.3)
 
 Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (Sếp duyệt 05/11). Ghi chú này đủ để làm tiếp mà không cần đọc transcript cũ.
 
@@ -14,9 +14,9 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 | 2.4 | `b917dc2`, `912dc09` | `sos usage`: token theo vai × model, từ transcript Claude và rollout Codex |
 | tách `hook/` | `29fc065` | `hook/{mod,claude,codex}.rs`, `guards/{env,sim}.rs`; không đổi hành vi |
 | 2.1 | `978cda4` | `sos advise` (`advise.rs`) và bộ kích advisor chạy trong `sos hook post-bash` (`watch.rs`): hook không còn gọi Python. Astra soát 4 lượt, MERGE |
-
 | 1d | commit «sos-rules: declarative hook rules» | crate `crates/sos-rules`, `sos hook [claude\|codex] rules --file F`, `--lint/--cases/--explain`; 5 luật dịch sang TOML trong `tests/rules/<tên>/rules.toml`, 111 ca có kết quả bản cũ. Astra soát 6 lượt |
 | 2.2 | commit «sos bite: the mutation check in Rust» | `sos bite` (`crates/sos-cli/src/bite.rs`) thay `scripts/bite` (bản Python để cạnh, chưa đổi chỗ gọi). `tests/bite.sh` chạy cả hai bản (`SOS_BITE_BIN=…/sos`), `tests/bite_parsers.py --sos BIN`. Khác có chủ ý: CHANGELOG mục Unreleased. Astra soát 3 lượt, MERGE |
+| 2.3 | commit «sos-dev: the kit's trust gate, docs check and hook installer in Rust» | crate `crates/sos-dev` (không phát hành): `sos-dev trust-gate\|docs-check\|install-hooks`; `hooks/pre-commit` gọi bản Rust, bản cũ để cạnh; `tests/sos-dev.sh` so hai bản. Astra soát 5 lượt, MERGE |
 
 - **Việc tiếp theo (sau 2.2):**
   1. **Đổi chỗ gọi ở từng repo, mỗi repo một nhánh riêng**, chép `tests/rules/<tên>/rules.toml` sang repo đó, hook gọi `sos hook claude rules --file <đường dẫn>` (Codex: `sos hook codex rules …`), bản cũ để cạnh đến bản phát hành sau:
@@ -26,7 +26,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
      - tarot: `merge-guard.toml` thay `block-unsafe-merge.sh`, kèm một helper `scripts/merge-check <PR>` (phần gọi `gh`; trong ca kiểm nó là `fake`);
      - mọi repo: `hub-audit.toml` thay `~/.claude/hooks/hub-audit.sh`.
      Điều kiện: bản `sos` có `sos hook … rules` đã phát hành và cài (bản 0.3.13 trả exit 2 với lệnh lạ = chặn mọi thứ). Không đụng lucilius, reel.
-  2. Tiếp theo là 2.3 (crate `sos-dev`: trust-gate, install-hooks, docs-check) → 2.5 (`sos sim boot|settle|destination`).
+  2. Tiếp theo trong sos-kit: 2.5 (`sos sim boot|settle|destination`) → 2.6, 2.7 (chỉ ghi) → đợt 3 (3.1 `sos predict`, 3.2 `sos check-links`; 3.3–3.5 chỉ ghi).
 - **Bản 1d hẹp hơn đặc tả §2** (không allow/scope, first_positional, case_insensitive, when.file_exists/env; ask bị từ chối): ghi ở `RUST_ARCHITECTURE_2026-11-05.md`, đoạn «Bản 1d hẹp hơn đặc tả». Thêm khi một luật thật cần.
 
 ## File cần đọc

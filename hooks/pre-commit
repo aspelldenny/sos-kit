@@ -3,11 +3,14 @@
 # Install: git config core.hooksPath hooks
 #
 #   1. Type check   (cargo check when Cargo.toml exists)
-#   2. Trust gate   (auto-exec surfaces vs .sos-trust-baseline + hidden unicode) — kit only
+#   2. Trust gate   (auto-exec surfaces vs .sos-trust-baseline + hidden unicode: sos-dev trust-gate) — kit only
 #   3. sos gates    (`sos gate all` from the freshly built binary: gitleaks on the staged diff,
 #                    .env commits, case collisions, default branch, wording, doc caps,
 #                    FEATURES.json — config .sos.toml)
-#   4. Docs check   (every path and `sos` command named in live docs exists: tests/docs-check.py)
+#   4. Docs check   (every path and `sos` command named in live docs exists: sos-dev docs-check)
+#
+# Gates 2 and 4 run the kit's own dev binary (crates/sos-dev, never shipped). The older
+# scripts/trust-gate.sh and tests/docs-check.py stay beside it; tests/sos-dev.sh checks they agree.
 #
 # v2 gates (docs-gate freshness, phiếu/Discovery checks, lane-check, INV security-gate) and the
 # v3.0 bash gates (block-env-commit, check-case-collision, no-code-on-default) are archived:
@@ -38,17 +41,15 @@ if [ -f Cargo.toml ]; then
         cargo check --quiet
 fi
 
-gate "2/4 trust gate" "review the auto-exec diff shown above; if it is intended, run \`scripts/trust-gate.sh rebaseline\` and stage .sos-trust-baseline" \
-    bash -c '[ -f scripts/trust-gate.sh ] || { echo "  missing scripts/trust-gate.sh"; exit 1; }; bash scripts/trust-gate.sh'
+gate "2/4 trust gate" "review the auto-exec diff shown above; if it is intended, run \`cargo run -q -p sos-dev -- trust-gate rebaseline\` and stage .sos-trust-baseline" \
+    cargo run --quiet -p sos-dev -- trust-gate
 
 # The kit runs its own freshly built binary; app repos call the installed `sos`.
 gate "3/4 sos gates" "follow the → How to fix lines above; config lives in .sos.toml" \
     cargo run --quiet -p sos-cli -- gate all
 
-# Windows: `python3` is often the Store alias that only fails.
-PY=python3; "$PY" -c '' >/dev/null 2>&1 || PY=python
 gate "4/4 docs match the repo" "fix the path or command named above (or move the doc to archive/ if it is history)" \
-    "$PY" tests/docs-check.py target/debug/sos
+    cargo run --quiet -p sos-dev -- docs-check target/debug/sos
 
 echo ""
 if [ "$FAILED" -eq 0 ]; then
