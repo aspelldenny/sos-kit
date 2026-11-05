@@ -87,10 +87,11 @@ check() {
 }
 C=claude-live-2026-10-09.jsonl X=codex-live-2026-10-09.jsonl
 # same_status <name>: with SOS_HOOK_BIN, the Rust session-start prints byte for byte what the Python one does
+# (line endings aside: Python on Windows writes CRLF to a pipe, Rust writes LF).
 same_status() {
     [ -n "${SOS_HOOK_BIN:-}" ] || return 0
     local a b
-    a=$("$PY" adapters/claude/hook.py session-start <<<"{}" 2>&1); b=$("$SOS_HOOK_BIN" hook claude session-start <<<"{}" 2>&1)
+    a=$("$PY" adapters/claude/hook.py session-start <<<"{}" 2>&1 | tr -d '\r'); b=$("$SOS_HOOK_BIN" hook claude session-start <<<"{}" 2>&1 | tr -d '\r')
     if [ "$a" = "$b" ]; then pass=$((pass + 1)); echo "ok   same status: $1"
     else fail=$((fail + 1)); echo "FAIL same status: $1"; diff <(echo "$a") <(echo "$b") | head -20; fi
 }

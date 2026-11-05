@@ -18,8 +18,11 @@ expect() { if [ "$2" = 0 ]; then pass=$((pass + 1)); echo "ok   $1"; else fail=$
 
 "$PY" "$KIT/tests/usage/agent-usage.py" --projects-dir "$F/claude/-w-app" --since 2026-09-01 > "$T/oracle.txt"
 # MSYS_NO_PATHCONV: Git Bash would turn /w/app into a Windows path (it is a cwd inside the fixture).
-MSYS_NO_PATHCONV=1 "$SOS" usage --dir "$F/claude" --project /w/app --since 2026-09-01 --by model --json \
-  --prices "$KIT/crates/sos-cli/src/usage/prices.toml" > "$T/sos.json"
+# That also stops it converting the real paths, so convert those ourselves (cygpath exists only there).
+PRICES="$KIT/crates/sos-cli/src/usage/prices.toml"; FDIR="$F/claude"
+if command -v cygpath >/dev/null 2>&1; then PRICES=$(cygpath -m "$PRICES"); FDIR=$(cygpath -m "$FDIR"); fi
+MSYS_NO_PATHCONV=1 "$SOS" usage --dir "$FDIR" --project /w/app --since 2026-09-01 --by model --json \
+  --prices "$PRICES" > "$T/sos.json"
 out=$("$PY" - "$T/oracle.txt" "$T/sos.json" <<'PY'
 import json, sys
 from collections import defaultdict
