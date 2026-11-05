@@ -1,4 +1,4 @@
-# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau 3.2)
+# Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau đợt 3)
 
 Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (Sếp duyệt 05/11). Ghi chú này đủ để làm tiếp mà không cần đọc transcript cũ.
 
@@ -29,7 +29,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
      - tarot: `merge-guard.toml` thay `block-unsafe-merge.sh`, kèm một helper `scripts/merge-check <PR>` (phần gọi `gh`; trong ca kiểm nó là `fake`);
      - mọi repo: `hub-audit.toml` thay `~/.claude/hooks/hub-audit.sh`.
      Điều kiện: bản `sos` có `sos hook … rules` đã phát hành và cài (bản 0.3.13 trả exit 2 với lệnh lạ = chặn mọi thứ). Không đụng lucilius, reel.
-  2. Tiếp theo trong sos-kit: đợt 3 (3.1 `sos predict`, 3.2 `sos check-links` xong; 3.3–3.5 chỉ ghi).
+  2. Đợt 3 xong phần trong sos-kit (3.1 `sos predict`, 3.2 `sos check-links`; 3.3–3.5 chỉ ghi, xem «Việc chờ Sếp»). Tiếp theo là đợt 4, 5 theo kế hoạch, chỉ khi Sếp giao.
 - **Bản 1d hẹp hơn đặc tả §2** (không allow/scope, first_positional, case_insensitive, when.file_exists/env; ask bị từ chối): ghi ở `RUST_ARCHITECTURE_2026-11-05.md`, đoạn «Bản 1d hẹp hơn đặc tả». Thêm khi một luật thật cần.
 
 ## File cần đọc
@@ -70,6 +70,8 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 3. **2.7 — tarot** (`scripts/security-gate.sh`, `scripts/check-hardcoded-secrets.py`, `scripts/refresh-docs-stats.sh`; gọi từ `package.json`, `docs/TOOLS.md`, `docs/security/INVARIANTS.md`, `scripts/test-inv004-history.sh`): bỏ phần tìm khoá trùng `sos gate secrets` (gitleaks); INV-001→010 còn lại thành luật `sos-rules` nếu đủ, không thì Rust trong tarot. Chứng minh: chạy INV cả hai bản trên cùng cây và trên các commit cũ từng bị bắt.
 
 4. **3.2 — skill product-description** (`~/.claude/skills/product-description/SKILL.md`, dòng 18 và 83 gọi `python3 {skill dir}/references/check-links.py {repo}`): đổi sang `sos check-links <dir>` khi bản có lệnh này đã phát hành và cài; script để cạnh làm dự phòng như depth-check. Cùng dòng báo, số đếm, mã thoát; khác có chủ ý ở CHANGELOG.
+5. **3.3 — thanhtra** (`thanhtra-pre-scan.py` + CLI `thanhtra`, repo công khai riêng): Rust hoá trong repo thanhtra, bộ test của thanhtra chạy cả hai bản trước khi đổi.
+6. **3.4 — bỏ plugin Codex `codex-claude-bridge`** (`bridge.py`, `ghostty_bridge.py`): trùng start_session/SendMessage; Sếp gỡ plugin, mã chuyển vào lưu trữ. 3.5 (skill đồng bộ của Anthropic, skill hệ thống Codex) **giữ**, không có việc.
 
 ## Việc còn mở (không chặn đợt sau)
 
