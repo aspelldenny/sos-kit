@@ -10,6 +10,7 @@
 //!   sos hook claude|codex rules --file F  declarative rules (crate sos-rules; rules.rs)
 //!   sos hook rules --file F [--lint | --cases C.jsonl | --explain]   same, agent-neutral, plus lint and cases
 //!   sos hook env-guard <path>…  |  sim-guard --cmd <command>  |  status   agent-neutral forms
+//!   sos hook word-limit --max N [--log F] [--block]   Claude Stop: words in the closing message
 //!
 //! Blocking: exit 2 with the reason on stderr. Codex on Windows may run hooks under
 //! `powershell -Command`, which turns any nonzero exit into 1 (does not block), so there it answers
@@ -29,6 +30,7 @@ use crate::status;
 mod claude;
 mod codex;
 mod rules;
+mod word_limit;
 
 use claude::claude;
 use codex::{codex, codex_block};
@@ -90,6 +92,17 @@ pub enum HookCmd {
     },
     /// Print the session-start status of the repo in the current directory.
     Status,
+    /// Claude Code Stop hook: count the words of the turn's closing message. Default: a note on
+    /// stderr and exit 0 when over `--max`; `--log F` appends one TSV line per turn; `--block`
+    /// exits 2 when over (not on a stop that already comes from a block). Errors never block.
+    WordLimit {
+        #[arg(long, default_value_t = 100)]
+        max: usize,
+        #[arg(long)]
+        block: bool,
+        #[arg(long)]
+        log: Option<String>,
+    },
 }
 
 /// The `sos hook <agent> <event>` contract version. Append-only: names, events and this flag are
@@ -194,6 +207,7 @@ pub fn run(cmd: HookCmd) -> i32 {
             print!("{}", status::render(Path::new(".")));
             0
         }
+        HookCmd::WordLimit { max, block, log } => word_limit::run(max, block, log.as_deref()),
     }
 }
 
