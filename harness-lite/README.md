@@ -21,9 +21,9 @@ An adversarial pass by a different model family before acceptance is optional.
 
 | Layer | Files | Applies to |
 |---|---|---|
-| **Git gates** (the real boundary) | `hooks/pre-commit` → `sos gate all`; `hooks/pre-push` → `sos gate local-secrets` | Every agent and every person |
+| **Git gates** (the real boundary) | `hooks/pre-commit` → `sos gate pre-commit` (= `sos gate all`, then `pre-commit.local`); `hooks/pre-push` → `sos gate pre-push` (= `sos gate local-secrets`, then `pre-push.local`) | Every agent and every person |
 | Agent-neutral scripts | `scripts/env-guard.sh`, `sim-guard`, `status.sh`, `test-watch.py`, `advise`, `bite` | Anything that runs a command |
-| Agent adapters (earlier feedback) | `adapters/claude/hook.py`, `adapters/codex/hook.py` | That agent only; see `adapters/README.md` |
+| Agent hooks (earlier feedback) | `.claude/settings.json`, `.codex/hooks.json` → `sos hook claude\|codex <event> --protocol 1`; a guard that cannot run `sos` blocks. Apps wired before this call `adapters/*/hook.py`: `sos update --wiring` rewrites those commands (shown first; other entries untouched) | That agent only; see `adapters/README.md` |
 
 `sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps and `FEATURES.json` identity. Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` (executable, project-owned).
 

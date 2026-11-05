@@ -93,13 +93,13 @@ Ký hiệu nơi đến: **sos** = lệnh con của `sos` · **repo** = đổi tr
 | Plugin `mac` (5.3) | API mod chỉ nhận TS/JS |
 | Server Reel, `hub` (5.1, 5.2) | Đề nghị cân nhắc: hai sản phẩm đang chạy, nút thắt là mạng và gọi model chứ không phải tốc độ Python; đổi tốn nhiều công, rủi ro hồi quy cao. Nếu đổi thì dự án riêng như trên |
 
-## Sau kiến trúc và soát 05/11 (đề xuất, chờ Sếp chốt)
+## Sau kiến trúc và soát 05/11 (Sếp chốt 05/11: «Theo Fable»)
 
 Kiến trúc: `RUST_ARCHITECTURE_2026-11-05.md` (Kiến trúc sư Fable 5.1). Soát: `RUST_REVIEW_2026-11-05.md` (Codex gpt-6-astra): sửa 1a MERGE (đã sửa, `eb13cfa`), kiến trúc và `sos usage` SOUND-WITH-CHANGES, Kiến trúc sư đã sửa theo cả 9 + 7 điểm (bản sửa chưa qua lượt soát thứ hai; lượt soát của 1b sẽ đi qua nó).
 
 Thứ tự đề nghị: 1a (xong) → **1b+1c** một PR, một bản phát hành (launcher fail-closed; Codex Windows giữ `python -c` gọi `sos hook … --protocol 1` cho tới khi thử thật 4 ca trong Codex Windows; `sos update --wiring` opt-in) → **2.4 `sos usage`** (Sếp duyệt 05/11, mục 7 kiến trúc) → **2.1** test-watch + advise (hook hết Python) → **1d** máy luật trong crate mới `sos-rules` → 2.2 → 2.3 → 2.5 → đợt 3 → đợt 4 → đợt 5.
 
-Khác kế hoạch ở trên: gộp 1c vào 1b; 2.1 lên trước 1d; 2.4 lên ngay sau 1b; thêm crate `sos-rules`; thêm `sos update --wiring`. Q1 A và Q3 A: Kiến trúc sư đồng ý. Q2: Kiến trúc sư đề xuất `hub` tách đôi (audit/verify/search sang Rust, OCR/convert giữ Python qua máy Win) và Reel chỉ bắt đầu khi có mục tiêu đo được — chờ Sếp.
+Khác kế hoạch ở trên: gộp 1c vào 1b; 2.1 lên trước 1d; 2.4 lên ngay sau 1b; thêm crate `sos-rules`; thêm `sos update --wiring`. **Sếp chốt 05/11 (qua Tổng đài): thứ tự trên; Q1 A (crate riêng tư `~/code/tong-dai`); Q3 A (keo `pre-commit.local` giữ Bash); Q2 A kèm hai đề xuất của Kiến trúc sư: `hub` tách đôi (audit/verify/search sang Rust, OCR/convert giữ Python qua máy Win), Reel chỉ bắt đầu khi có mục tiêu đo được, ghi vào BACKLOG của Reel.**
 
 ## Câu hỏi cho Sếp
 
@@ -119,3 +119,4 @@ Khác kế hoạch ở trên: gộp 1c vào 1b; 2.1 lên trước 1d; 2.4 lên n
 
 - 04–05/11: kế hoạch này.
 - 05/11: **đợt 1a xong** (`crates/sos-cli/src/{hook,sim_guard,status}.rs`). Trên WSL: `tests/adapters/run.sh` bản Python 171/171, `SOS_HOOK_BIN=…/sos` 178/178 (thêm 3 ca so từng byte chữ status và 1 ca cắt 220 ký tự), `tests/bite.sh` 26/26, test đơn vị Rust xanh; một test `kit.rs` đỏ vì WSL thiếu gitleaks (không liên quan). Khác có chủ ý: `.env` guard tách cả `\` của đường dẫn Windows; status cắt dòng theo ký tự (GNU `cut` cắt byte, làm vỡ chữ Việt). Chưa đổi chỗ gọi: phải chờ bản phát hành có `sos hook` (bản 0.3.13 sẽ báo lỗi tham số, mã 2, Claude Code hiểu là chặn mọi lệnh sửa). Trên Mac (bản debug do pre-commit build): bản Rust 178/178. Windows native chưa chạy: CI của PR chạy (đã thêm bước `SOS_HOOK_BIN=target/debug/sos tests/adapters/run.sh`).
+- 05/11: **đợt 1b+1c xong** (chưa push). Mẫu `templates/app/` gọi `sos hook <agent> <event> --protocol 1`; pre-edit/pre-bash qua launcher biến mọi lỗi chạy `sos` thành chặn, `sos hook` tự chặn sau 30 giây; Codex Windows giữ launcher `python -c` gọi `sos`; `sos update --wiring` (sửa JSON theo cấu trúc, giữ thứ tự khoá); `sos update` không xoá file kit bị bỏ khi wiring còn gọi; `sos gate pre-commit|pre-push` + vỏ hook ngắn. Soát Astra lượt 4: 9 điểm, đã sửa (`RUST_REVIEW_2026-11-05.md`). Test: WSL `cargo test --locked` xanh trừ 1 ca cần gitleaks, adapters Python 180/180, Rust 189/189, bite 26/26, docs-check, npm, clippy; **Windows native** `cargo test -p sos-cli` xanh (kit 20/20, gồm launcher Codex qua cmd và PowerShell). Còn mở: 4 ca trong Codex Windows thật (điều kiện phát hành); `run_limited` chưa dọn tiến trình cháu.

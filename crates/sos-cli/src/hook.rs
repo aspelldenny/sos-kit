@@ -32,9 +32,19 @@ pub enum Event {
 #[derive(Subcommand)]
 pub enum HookCmd {
     /// Claude Code hook (payload on stdin): session-start, pre-edit, pre-bash, post-bash.
-    Claude { event: Event },
+    Claude {
+        event: Event,
+        /// Hook protocol the caller speaks (event names, output shape). This binary runs only the
+        /// versions it knows; an older one rejects the flag, which the launcher turns into a block.
+        #[arg(long, default_value_t = PROTOCOL)]
+        protocol: u32,
+    },
     /// Codex hook (payload on stdin): session-start, pre-edit, pre-bash, post-bash.
-    Codex { event: Event },
+    Codex {
+        event: Event,
+        #[arg(long, default_value_t = PROTOCOL)]
+        protocol: u32,
+    },
     /// Exit 2 when any path is a real .env file (.env.example is allowed).
     EnvGuard { paths: Vec<String> },
     /// Exit 2 when the shell command would start an xcodebuild test run that clones the simulator.
@@ -46,10 +56,52 @@ pub enum HookCmd {
     Status,
 }
 
+/// The `sos hook <agent> <event>` contract version. Append-only: names, events and this flag are
+/// only ever added; a change to the payload or output shape is a new number (docs/plans/RUST_ARCHITECTURE_2026-11-05.md §3).
+pub const PROTOCOL: u32 = 1;
+
+fn protocol_ok(p: u32) -> bool {
+    if p == PROTOCOL {
+        return true;
+    }
+    eprintln!("BLOCKED: this hook speaks protocol {p}, but sos {} knows only protocol {PROTOCOL}.\n\
+               How to fix: install the sos version that matches the wiring (https://github.com/aspelldenny/sos-kit#quick-start), \
+               or run `sos update --wiring` to rewrite the hook commands for this sos.", env!("CARGO_PKG_VERSION"));
+    false
+}
+
+/// A guard that has not decided within this time blocks. The agent's own hook timeout counts as
+/// "continue" (Claude: a timed-out command hook does not block), so the decision must come from
+/// here, well inside the `timeout` the templates give the guard entries (60 s; review 05/11/2026 1b, point 1).
+pub const GUARD_DEADLINE: Duration = Duration::from_secs(30);
+
+fn guard_deadline(event: Event, codex: bool) {
+    if !matches!(event, Event::PreEdit | Event::PreBash) {
+        return;
+    }
+    std::thread::spawn(move || {
+        std::thread::sleep(GUARD_DEADLINE);
+        let msg = format!("BLOCKED: SOS Kit hook did not decide within {} s, so the action is blocked. Retry; if it repeats, \
+                           run the same `sos hook` by hand to see where it hangs.", GUARD_DEADLINE.as_secs());
+        let code = if codex { codex_block(&msg) } else {
+            eprintln!("{msg}");
+            2
+        };
+        std::process::exit(code);
+    });
+}
+
 pub fn run(cmd: HookCmd) -> i32 {
     match cmd {
-        HookCmd::Claude { event } => claude(event),
-        HookCmd::Codex { event } => codex(event),
+        HookCmd::Claude { protocol, .. } | HookCmd::Codex { protocol, .. } if !protocol_ok(protocol) => 2,
+        HookCmd::Claude { event, .. } => {
+            guard_deadline(event, false);
+            claude(event)
+        }
+        HookCmd::Codex { event, .. } => {
+            guard_deadline(event, true);
+            codex(event)
+        }
         HookCmd::EnvGuard { paths } => match env_guard(&paths) {
             Some(msg) => {
                 eprintln!("{msg}");

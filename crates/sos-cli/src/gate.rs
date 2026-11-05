@@ -30,6 +30,24 @@ pub enum GateCmd {
     Branch,
     /// Everything the pre-commit runs: secrets, env-commit, case, branch, text --staged, docs, features.
     All,
+    /// The app's git pre-commit: `all`, then the project's own pre-commit.local if there is one.
+    PreCommit {
+        /// The project's extra hook (default harness-lite/hooks/pre-commit.local).
+        #[arg(long)]
+        local: Option<PathBuf>,
+        /// Passed on to the local hook.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// The app's git pre-push: `local-secrets`, then the project's own pre-push.local if there is
+    /// one (it gets git's arguments and the ref list on stdin).
+    PrePush {
+        /// The project's extra hook (default harness-lite/hooks/pre-push.local).
+        #[arg(long)]
+        local: Option<PathBuf>,
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
 }
 
 fn root() -> PathBuf {
@@ -44,6 +62,55 @@ fn root() -> PathBuf {
 
 /// Exit code: 0 ok, 1 a gate blocked, 2 config or runtime error.
 pub fn run(which: GateCmd) -> i32 {
+    let (first, name, local, args) = match which {
+        GateCmd::PreCommit { local, args } => (GateCmd::All, "pre-commit", local, args),
+        GateCmd::PrePush { local, args } => (GateCmd::LocalSecrets, "pre-push", local, args),
+        other => return gates(other),
+    };
+    let rc = gates(first);
+    if rc != 0 {
+        return rc;
+    }
+    let local = local.unwrap_or_else(|| root().join(format!("harness-lite/hooks/{name}.local")));
+    run_local(&local, &args)
+}
+
+/// The project's own hook after the gates. Present but unable to run is a failure, never a skip:
+/// a check the project relies on must not vanish silently (Windows has no exec bit to look at,
+/// so there the spawn itself decides).
+fn run_local(path: &std::path::Path, args: &[String]) -> i32 {
+    let shown = path.display().to_string().replace('\\', "/");
+    if !path.exists() {
+        return 0;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if std::fs::metadata(path).map(|m| m.permissions().mode() & 0o111 == 0).unwrap_or(true) {
+            eprintln!("⛔ {shown} exists but is not executable.\n  → How to fix: chmod +x {shown} (or delete it if it is not meant to run).");
+            return 1;
+        }
+    }
+    let abs = if path.is_absolute() { path.to_path_buf() } else { std::env::current_dir().unwrap_or_default().join(path) };
+    // Windows has no exec bit and no kernel #!: let Git's sh exec it, which reads the #! line the
+    // way git does for hooks (a Python .local stays Python; review 1b point 7).
+    let mut cmd = if cfg!(windows) {
+        let mut c = std::process::Command::new("sh");
+        c.args(["-c", "exec \"$0\" \"$@\""]).arg(&abs);
+        c
+    } else {
+        std::process::Command::new(&abs)
+    };
+    match cmd.args(args).status() {
+        Ok(s) => s.code().unwrap_or(1),
+        Err(e) => {
+            eprintln!("⛔ {shown} exists but could not run ({e}).\n  → How to fix: give it a #! line and make it runnable, or delete it.");
+            1
+        }
+    }
+}
+
+fn gates(which: GateCmd) -> i32 {
     let root = root();
     let cfg = match config::load(&root) {
         Ok(c) => c,
@@ -71,6 +138,7 @@ pub fn run(which: GateCmd) -> i32 {
                 docs::gate(&root, &cfg.docs),
                 features::gate(&root, &cfg.features)?,
             ],
+            GateCmd::PreCommit { .. } | GateCmd::PrePush { .. } => unreachable!("handled in run"),
         })
     })();
     match reports {

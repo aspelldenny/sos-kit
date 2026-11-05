@@ -42,3 +42,19 @@ Nên sửa (10): giữ luật «không build trên Mac»; Q2 (`hub` tách đôi,
 ## Lượt 3 — `sos usage` (mục 7 bản kiến trúc)
 
 **SOUND-WITH-CHANGES**, đối chiếu trường trên transcript thật (đã xác nhận `message.usage` 4 cột, `output_tokens_details.thinking_tokens`, `cache_creation.ephemeral_5m/1h`, `api-request.querySource` nối `requestRef`, `agentType` + `toolUseId` trong meta, khử trùng theo `message.id`). Năm điểm chặn: (1) Codex: cộng `last_token_usage` mọi dòng dư 78.217 token ở một rollout thật, và compaction (246.204 token) nằm ở `token_usage_record` ngoài `token_count`; (2) «kết quả subagent làm phình cha» đặt tên quá đại lượng đo được (chỉ đo ký tự văn bản trả về; có kết quả async); (3) ngưỡng 80% không xác định được token do fork; (4) `originator` không phải vai Codex, dùng `source.subagent.thread_spawn`; (5) `agent-usage.py` chỉ là chuẩn so cho phần giao nhau (nó gán vai khác, bỏ sidechain và `<synthetic>`). Nên sửa: chính sách trùng giữa file/resume; ngân sách bộ nhớ đo được (file lớn nhất ≈1 GB, dòng lớn nhất ≈4 MB); test riêng tư bằng chuỗi bí mật giả. Kiến trúc sư sửa mục 7 theo các điểm này.
+
+## Lượt 4 — đợt 1b+1c (hook gọi `sos`, `sos gate pre-commit|pre-push`, `sos update --wiring`): FIX-THEN-MERGE
+
+Soát độc lập theo luật 4 (đổi `templates/app/`). Người soát dò launcher của mẫu qua `sh`/`bash` trên Mac: thiếu binary, exit 1/2, binary cũ, npm shim thật không có binary đều ra 2 và không tải mạng. Chín điểm, đã sửa cả chín:
+
+| # | Mức | Phát hiện | Sửa |
+|---|---|---|---|
+| 1 | lọt cổng | `sos` treo quá timeout của agent: Claude coi hook hết giờ là cho qua | `sos hook` tự chặn sau 30 giây với pre-edit/pre-bash (Codex Windows: deny JSON); mẫu đặt `timeout: 60` cho hai guard |
+| 2 | lọt cổng | `policy_check&&python3 ".../hook.py" pre-edit` bị nhận là lệnh kit và thay cả dòng, mất guard riêng | Chỉ nhận đúng dạng kit cũ ghi: một từ `[A-Za-z0-9_./:-]` hoặc nháy đơn quanh chuỗi không có nháy; ca test |
+| 3 | mất dữ liệu | File tạm đi theo symlink; thư mục `.codex` là symlink ra ngoài repo vẫn được ghi | File tạm `create_new` (không theo symlink), thư mục phải nằm trong repo sau khi giải symlink; ca test |
+| 4 | sai | Settings không đọc được (quyền, UTF-8 hỏng) bị coi như không tham chiếu | Chỉ `NotFound` là vắng; lỗi đọc khác → giữ file, thoát 1; ca test |
+| 5 | sai | Lệnh dùng `\` (Windows) lọt kiểm tham chiếu | So sau khi đổi `\` → `/` và bỏ hoa/thường (thiên về giữ); ca test |
+| 6 | sai | Giữ adapter nhưng xoá script nó gọi (env-guard, sim-guard, status) | Còn file nào trong `adapters/` hay `scripts/` bị giữ thì giữ cả nhóm bị bỏ; ca test |
+| 7 | sai | Windows chạy `.local` bằng `sh FILE`, bỏ dòng `#!` (hook Python hỏng) | `sh -c 'exec "$0" "$@"'`: sh của Git đọc `#!` như git làm với hook |
+| 8 | sai | `Cargo.lock` thiếu cạnh `serde_json → indexmap` (CI chạy `--locked`) | Cập nhật lock; test chạy `--locked` |
+| 9 | thiếu bằng chứng | Test Windows chỉ tìm chuỗi deny | Parse toàn bộ stdout thành đúng một object; thêm ca `sos` crash có rác trên stdout. Vẫn còn mở: chạy native Windows và 4 ca trong Codex Windows thật (điều kiện phát hành) |

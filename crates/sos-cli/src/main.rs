@@ -13,6 +13,7 @@ mod kit;
 mod role;
 mod sim_guard;
 mod status;
+mod wiring;
 
 #[derive(Parser)]
 #[command(name = "sos", version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("SOS_KIT_COMMIT"), ")"),
@@ -43,6 +44,10 @@ enum Cmd {
         dir: PathBuf,
         #[arg(long)]
         dry_run: bool,
+        /// Also rewrite the kit's own hook commands in .claude/settings.json and .codex/hooks.json
+        /// (old forms → `sos hook`, missing kit events added); other entries are left alone.
+        #[arg(long)]
+        wiring: bool,
     },
     /// Check an installed repo: kit files, hooks, required tools, .sos.toml, agent wiring.
     Check {
@@ -90,8 +95,8 @@ enum Cmd {
 fn main() {
     let cli = Cli::parse();
     let code = match cli.command {
-        Cmd::Install { dir, dry_run, force_hooks } => kit::install(&dir, &kit::Opts { dry_run, force_hooks }),
-        Cmd::Update { dir, dry_run } => kit::update(&dir, &kit::Opts { dry_run, force_hooks: false }),
+        Cmd::Install { dir, dry_run, force_hooks } => kit::install(&dir, &kit::Opts { dry_run, force_hooks, wiring: false }),
+        Cmd::Update { dir, dry_run, wiring } => kit::update(&dir, &kit::Opts { dry_run, force_hooks: false, wiring }),
         Cmd::Check { dir } => kit::check(&dir),
         Cmd::Gate { which } => Ok(gate::run(which)),
         Cmd::Role { role, from, brief, out, timeout, dry_run } =>

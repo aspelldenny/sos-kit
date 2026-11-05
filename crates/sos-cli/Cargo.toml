@@ -15,7 +15,7 @@ clap = { workspace = true }
 anyhow = { workspace = true }
 sha2 = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["preserve_order"] }  # `sos update --wiring` keeps the key order of project files
 sos-gates = { path = "../sos-gates" }
 
 [target.'cfg(unix)'.dependencies]

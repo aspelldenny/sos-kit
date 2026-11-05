@@ -48,7 +48,7 @@ Existing files are never overwritten; the only change to an existing file is thr
 
 `sos filter` applies the wording rules to text on stdin, for filtering model output at runtime.
 
-`sos hook claude|codex <session-start|pre-edit|pre-bash|post-bash>` is the Rust form of the agent adapters (payload on stdin, exit 2 blocks); the installed hooks still call `harness-lite/adapters/*/hook.py` until the templates switch over.
+`sos hook claude|codex <session-start|pre-edit|pre-bash|post-bash> --protocol 1` is what the agent hooks call (payload on stdin, exit 2 blocks); the guards (pre-edit, pre-bash) block when `sos` is missing, too old or fails. Apps installed before call `harness-lite/adapters/*/hook.py`: `sos update --wiring` rewrites those commands in `.claude/settings.json` and `.codex/hooks.json` (shown first, `--dry-run` to only look; other entries untouched), and `sos check` warns until it is done. The project-owned files are otherwise never overwritten by `sos update`.
 
 `sos role <worker|reviewer|architect> --from <claude|codex> --brief <file>` runs a role on the model and effort `.sos.toml` `[roles]` names (for a reviewer, keyed by the family that built the work), from any agent: prompt on stdin with stdin closed, a time limit, the final message in `evidence/roles/`, one line in `.advise-state/calls.jsonl`.
 
