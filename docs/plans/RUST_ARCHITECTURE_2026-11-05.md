@@ -1,5 +1,8 @@
 # Kiến trúc Rust cho tool đi kèm agent — bản Kiến trúc sư 05/11/2026
 
+> **Trạng thái 06/11/2026:** đã làm và phát hành ở v0.4.0. Code là chuẩn nếu có chỗ khác bản này. Thứ tự đợt và các đề nghị dưới đây là hồ sơ lúc viết.
+
+
 > Trả lời cho kế hoạch `RUST_ALL_TOOLS_2026-11-04.md`. Đọc: code đợt 1a (`crates/sos-cli/src/{hook,sim_guard,status,kit}.rs`, `tests/adapters/run.sh`), bản cũ (`adapters/*/hook.py`, `scripts/*`, `templates/app/*`), và ngoài kit: `chan.py`, `kiem.py`, `win_heavy_guard.py`, `worker-guard.sh`, `block-unsafe-merge.sh`, `hub-audit.sh`, `harness-cong-cu.md`, `kiem-ke-tool-2026-11-04.md`. Không build, không chạy test. Chỗ chưa tự kiểm được ghi **[chưa kiểm]**.
 >
 > **Kết luận trước:** đây là thay đổi **NHỎ** so với kế hoạch. Giữ 5 đợt và cách chứng minh. Đổi năm điểm: (1) gộp 1c vào 1b, một bản phát hành và một lần soát; (2) kéo 2.4 `sos usage` lên ngay sau 1b (Sếp duyệt 05/11, mục 7); (3) đưa 2.1 (`test-watch` + `advise`) lên trước 1d, để hook agent hết Python trước khi làm máy luật; (4) thêm crate thư viện `sos-rules`; (5) `sos update --wiring` sửa chuỗi lệnh hook mà nó nhận ra, thay cho «chỉ nhắc». Q1 A, Q2 A, Q3 A đồng ý; hai đề xuất thêm cho Q2 (mục tiêu đo được cho Reel, tách đôi `hub`) chờ Sếp. Soát 05/11 (mục 8) làm đặc tả chặt hơn nhưng không đổi phán quyết.
@@ -205,7 +208,7 @@ sos-kit công khai; vault chứa tên dự án, đường dẫn máy, sổ giao 
 | Tin ≤100 chữ (4.6) | `sos hook word-limit --max 100` (hook Stop; đếm chữ, không biết nội dung) | — |
 | Bảng, mốc, mục đích, sổ giao ca (4.2, 4.5), brief (4.7), don-rac (2.9) | — | toàn bộ |
 
-Crate riêng không `depend` Rust vào sos-kit (không git-dep, không publish): nó gọi `sos` qua process như mọi app, đúng luật 5 «CLI first», và sos-kit đổi nội bộ không làm nó vỡ. Cái giá của Q1-A: binary Mac phải build ở đâu đó, và giới hạn hiện hành của kế hoạch là **không build trên Mac 8 GB** — bản này giữ giới hạn đó. Cách làm trong giới hạn: repo GitHub riêng tư cho `tong-dai` với `release.yml` chép từ sos-kit (job `macos-14` build và đính binary; Actions cho repo riêng có 2.000 phút/tháng miễn phí), Mac chỉ tải binary về như với `sos`. Việc pre-commit của sos-kit đang `cargo run` trên Mac là chuyện có sẵn, không phải cớ để nới luật; nếu Sếp muốn nới thì đó là một quyết định riêng, ghi vào kế hoạch gốc.
+Crate riêng không `depend` Rust vào sos-kit (không git-dep, không publish): nó gọi `sos` qua process như mọi app, đúng luật 5 «CLI first», và sos-kit đổi nội bộ không làm nó vỡ. Cái giá của Q1-A: binary Mac phải build ở đâu đó, và giới hạn hiện hành của kế hoạch là **không build trên Mac 8 GB** — bản này giữ giới hạn đó. Cách làm trong giới hạn: repo GitHub riêng tư cho `tong-dai` với `release.yml` chép từ sos-kit (job macOS, nay là `macos-15`, build và đính binary; Actions cho repo riêng có 2.000 phút/tháng miễn phí), Mac chỉ tải binary về như với `sos`. Việc pre-commit của sos-kit đang `cargo run` trên Mac là chuyện có sẵn, không phải cớ để nới luật; nếu Sếp muốn nới thì đó là một quyết định riêng, ghi vào kế hoạch gốc.
 
 ## 5. Ý kiến về Q1–Q3
 

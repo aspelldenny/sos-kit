@@ -1,5 +1,8 @@
 # Hướng 1–5 sau khi đọc 85 bài về harness, 06/11/2026
 
+> **Trạng thái 06/11/2026:** hướng 1–5 đã xong, phát hành v0.4.1. Hướng 6 và 7 chưa làm, đang chờ điều kiện nêu dưới đây.
+
+
 Chủ nhà duyệt phương án B ("làm cả 1 đến 5, gồm `[ready]`") ngày 06/11/2026. Hướng 6 và 7 có điều kiện, chưa làm. Mỗi phần dưới đây ghi lỗi đã thấy và quyết định, theo rule 2 của `CLAUDE.md`.
 
 ## 1. Đo chữ tự nạp, rồi cắt một lượt
@@ -12,7 +15,7 @@ Chủ nhà duyệt phương án B ("làm cả 1 đến 5, gồm `[ready]`") ngà
 ## 2. `[ready]`
 
 - **Lỗi đã thấy:** Payquill F35 và F31 mỗi cái xanh riêng, ghép vào main thì đỏ. CONTRACT đã ghi phải chạy E2E nhưng mới là chữ.
-- **Quyết định:** một lệnh do app khai, chạy ở ranh giới bàn giao, không thuộc `sos gate all`, không có timeout (chưa có lỗi thật đòi hỏi). Log là văn bản thuần để `scripts/status.sh` đọc được mà không cần parser JSON.
+- **Quyết định:** một lệnh do app khai, chạy ở ranh giới bàn giao, không thuộc `sos gate all`, không có timeout (chưa có lỗi thật đòi hỏi). Log là văn bản thuần để status của `sos` đọc được mà không cần parser JSON.
 
 - **Kit, chạy thật:** `PASS 9954f25+dirty 2026-11-06T08:32:06 48s exit=0` với lệnh ở `.sos.toml`. Sandbox của Người soát không chạy được lệnh này nên dòng trên là do Thợ chạy.
 - **Người soát (codex, ba lượt):** bắt PASS cũ hiện như còn đúng khi cây đã đổi, câu lease bị xoá nhầm, `--by skill` im lặng khi không đọc được gì, và lệnh trong ba dấu nháy bị đọc thành trống; cả bốn đã sửa. Lượt ba còn nêu ba ca banner đọc là "có lệnh": `cmd = """` không đóng, `cmd = make`, và `"""\` nối dòng ra chuỗi rỗng. Không sửa: `sos gate ready` đã chạy thật và chặn cả ba (hai ca TOML hỏng, exit 2; ca chuỗi rỗng, exit 1), còn banner chỉ là lời nhắc viết bằng awk, không nên thành parser TOML.

@@ -1,11 +1,14 @@
 # Rust hoá — bàn giao cho session làm đợt tiếp theo (05/11/2026, cập nhật sau đợt 3)
 
+> **Trạng thái 06/11/2026:** PR 49 đã gộp, phát hành v0.4.0 (05/11). Mọi «đã phát hành và cài» bên dưới: bản phát hành đã có, còn cài thì tuỳ máy. Bảng đợt là hồ sơ; việc còn lại là «Việc chờ Sếp» và «Việc còn mở».
+
+
 Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (Sếp duyệt 05/11). Ghi chú này đủ để làm tiếp mà không cần đọc transcript cũ.
 
 ## Chỗ đứng
 
-- **Nhánh:** `claude/rust-all-tools-d1e85b`, worktree `~/sos-kit/.claude/worktrees/rust-all-tools-d1e85b`. Đã push, PR https://github.com/aspelldenny/sos-kit/pull/49. Không merge vào main khi chưa có lệnh.
-- **Các đợt đã xong trên nhánh** (cũ → mới):
+- **Nhánh:** `claude/rust-all-tools-d1e85b`, đã gộp vào `main` ở PR https://github.com/aspelldenny/sos-kit/pull/49.
+- **Các đợt đã xong** (cũ → mới):
 
 | Đợt | Commit | Nội dung |
 |---|---|---|
@@ -15,7 +18,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 | tách `hook/` | `29fc065` | `hook/{mod,claude,codex}.rs`, `guards/{env,sim}.rs`; không đổi hành vi |
 | 2.1 | `978cda4` | `sos advise` (`advise.rs`) và bộ kích advisor chạy trong `sos hook post-bash` (`watch.rs`): hook không còn gọi Python. Astra soát 4 lượt, MERGE |
 | 1d | commit «sos-rules: declarative hook rules» | crate `crates/sos-rules`, `sos hook [claude\|codex] rules --file F`, `--lint/--cases/--explain`; 5 luật dịch sang TOML trong `tests/rules/<tên>/rules.toml`, 111 ca có kết quả bản cũ. Astra soát 6 lượt |
-| 2.2 | commit «sos bite: the mutation check in Rust» | `sos bite` (`crates/sos-cli/src/bite.rs`) thay `scripts/bite` (bản Python để cạnh, chưa đổi chỗ gọi). `tests/bite.sh` chạy cả hai bản (`SOS_BITE_BIN=…/sos`), `tests/bite_parsers.py --sos BIN`. Khác có chủ ý: CHANGELOG mục Unreleased. Astra soát 3 lượt, MERGE |
+| 2.2 | commit «sos bite: the mutation check in Rust» | `sos bite` (`crates/sos-cli/src/bite.rs`) thay `scripts/bite` (bản Python để cạnh, chưa đổi chỗ gọi). `tests/bite.sh` chạy cả hai bản (`SOS_BITE_BIN=…/sos`), `tests/bite_parsers.py --sos BIN`. Khác có chủ ý: CHANGELOG mục v0.4.0. Astra soát 3 lượt, MERGE |
 | 2.3 | commit «sos-dev: the kit's trust gate, docs check and hook installer in Rust» | crate `crates/sos-dev` (không phát hành): `sos-dev trust-gate\|docs-check\|install-hooks`; `hooks/pre-commit` gọi bản Rust, bản cũ để cạnh; `tests/sos-dev.sh` so hai bản. Astra soát 5 lượt, MERGE |
 | 2.5 | commit «sos sim: boot, settle and destination for one simulator» | `sos sim boot\|settle\|destination` (`crates/sos-cli/src/sim.rs`) thay `sim-boot.sh`, `wait-settled.sh`, `resolve-simulator-destination.sh`; test với `xcrun`/`sysctl` giả. Astra soát 2 lượt, MERGE |
 | 3.1 | commit «sos predict: written predictions and their age» | `sos predict` (`crates/sos-cli/src/predict.rs`) thay `skills/depth-check/scripts/predictions.py` (script để cạnh, skill gọi `sos predict` trước); chỉ đọc, không chạy lệnh từ git config, không fetch trong partial clone. Astra soát 6 lượt, MERGE |
@@ -41,7 +44,7 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 - Kiến trúc đích và lý do thứ tự: `docs/plans/RUST_ARCHITECTURE_2026-11-05.md`. Mục 2 là 1d, mục 7 là `sos usage`.
 - Soát kiến trúc và soát 1b: `docs/plans/RUST_REVIEW_2026-11-05.md`.
 - Việc đang mở: `docs/BACKLOG.md`, mục đầu, dòng «Rust hoá tool agent».
-- Các bản soát của Astra cho 2.4 và 2.1 nằm trong scratchpad của session cũ (sẽ mất). Phần cốt lõi đã ghi vào CHANGELOG (mục Unreleased) và vào commit message.
+- Các bản soát của Astra cho 2.4 và 2.1 nằm trong scratchpad của session cũ (sẽ mất). Phần cốt lõi đã ghi vào CHANGELOG (mục v0.4.0) và vào commit message.
 
 ## Cách làm đã quen (giữ nguyên)
 
@@ -89,14 +92,10 @@ Session 2.1 dừng ở đây theo chỉ đạo «giữ ngữ cảnh ngắn» (S�
 
 1. **WSL thiếu gitleaks.** Vì vậy test `install_sets_a_reviewer_from_the_other_family_when_both_clis_exist` (`crates/sos-cli/tests/kit.rs`) đỏ ở WSL. Đây là chuyện môi trường, không phải lỗi code. Cài gitleaks vào WSL, hoặc để nguyên.
 2. ~~**4 ca Codex trên Windows thật**~~ — xong 05/11 khi phát hành v0.4.0: `codex exec` thật trên Windows 11 (codex 0.162, `--dangerously-bypass-hook-trust`, `-s danger-full-access`). sos mới: sửa `README.md` đi qua, sửa `.env` bị env guard chặn. sos 0.3.13 ("sos exited 2 … Upgrade sos"), thiếu sos ("sos is not on PATH"), sos.exe hỏng ("SOS Kit hook failed: OSError(22 …)"): mọi `apply_patch` bị chặn, `.env` và `README.md` không đổi. SessionStart: Completed với sos mới, Failed với ba ca còn lại (không chặn phiên).
-3. **Settings của chính kit.** `.claude/settings.json` của sos-kit vẫn gọi adapter Python. Chỉ đổi sang `sos hook` sau khi bản phát hành có `sos hook` đã cài trên Mac: bản 0.3.13 trả exit 2 với lệnh lạ, và Claude Code coi exit 2 là chặn.
+3. **Settings của chính kit.** `.claude/settings.json` của sos-kit vẫn gọi adapter Python. Điều kiện đã đạt (Mac đang cài 0.4.0), chưa đổi.
 4. **`sos usage`, hai việc đã ghi trong BACKLOG:**
    - đọc kết quả subagent chạy nền (về qua task-notification, chưa đếm);
    - bộ nhớ tăng theo số lần gọi (177 MB với 70 nghìn lần gọi), cần gom chuỗi trùng.
-5. **`run_limited` (hook/mod.rs) không giết process cháu** (`sos bite` đã dùng job object của 1d trên Windows, nhóm process trên Unix; `run_limited` có thể dùng lại cách đó) khi hết giờ. `role::capture` thì có giết. Chỉ `sim-guard` (`ps`) và notify còn dùng `run_limited`. Xem lại trước khi phát hành.
-6. **Git Bash trên Windows, 7 ca đỏ không thuộc advisor** (05/11, chưa kiểm xem có từ trước 2.1 hay không):
-   - Rust: 4 ca `same status` (so từng byte status Python với Rust; chữ hiện ra giống nhau, nghi khác ở xuống dòng hoặc encoding);
-   - Python: 3 ca `.env.local\x` (tên POSIX, Windows coi `\` là dấu phân cách).
-
-   Mọi ca advisor đều xanh ở Git Bash. CI có job `windows-2022`, sẽ thấy các ca này khi mở PR.
+5. **`run_limited` (hook/mod.rs) không giết process cháu** (`sos bite` đã dùng job object của 1d trên Windows, nhóm process trên Unix; `run_limited` có thể dùng lại cách đó) khi hết giờ. `role::capture` thì có giết. Chỉ `sim-guard` (`ps`) và notify còn dùng `run_limited`. Đã chuyển thành việc trong `docs/BACKLOG.md`.
+6. ~~**Git Bash trên Windows, 7 ca đỏ**~~ — xong: CI `windows-2022` chạy `tests/adapters/run.sh` cả hai bản trong Git Bash và xanh; `same status` bỏ qua khác biệt xuống dòng, ca `.env.local\x` chỉ chạy trên POSIX.
 7. **Python vẫn được ship** (`scripts/test-watch.py`, `scripts/advise`, `adapters/*/hook.py`) cho app còn wiring cũ. Bỏ khi mọi app đã chạy `sos update --wiring` (BACKLOG).
