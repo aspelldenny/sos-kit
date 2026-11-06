@@ -2,6 +2,10 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+- **`sos update --wiring` on Windows no longer breaks Codex hooks.** It rewrote older commands to the shell form (`rc=$?`), which PowerShell cannot run; only `sos install` wrote the `python -c` launcher. On Windows it now writes that launcher too, and repairs the shell form a 0.4.x `--wiring` left. Other machines keep the shell form, and a file already in the Windows form keeps it and its interpreter. Found updating POD-agent to 0.4.2.
+
 ## v0.4.2 — 2026-11-06 — the kit says what is true now
 
 - **Text sent into apps matches current wiring.** `harness-lite/README.md`, `harness-lite/roles/reviewer.md` and `templates/app/sos.toml` now name `sos bite`, and Python is no longer listed as required. The `sos` code itself did not change.

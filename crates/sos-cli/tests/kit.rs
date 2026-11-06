@@ -569,6 +569,26 @@ fn update_wiring_rewrites_only_kit_commands_and_is_idempotent() {
     assert_eq!(std::fs::read_to_string(p.join(".codex/hooks.json")).unwrap(), "{ not json");
 }
 
+#[cfg(windows)]
+#[test]
+fn update_wiring_on_windows_writes_the_launcher_every_shell_can_run() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let file = p.join(".codex/hooks.json");
+    let installed = std::fs::read_to_string(&file).unwrap();
+    assert!(installed.contains(" -c "), "{installed}");
+    let hook = "\\\"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\\\"";
+    let old = format!(r#"{{"hooks":{{"PreToolUse":[{{"matcher":"apply_patch","hooks":[{{"type":"command","command":"python {hook} pre-edit"}}]}}]}}}}"#);
+    std::fs::write(&file, old).unwrap();
+    let o = sos(p, &["update", "--wiring"]);
+    assert!(o.status.success(), "{}", out(&o));
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(!text.contains("rc=$?") && !text.contains("hook.py"), "{text}");
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert!(v["hooks"]["PreToolUse"][0]["hooks"][0]["command"].as_str().unwrap().starts_with("python -c "), "{text}");
+}
+
 #[test]
 fn update_keeps_a_dropped_file_the_wiring_still_calls() {
     // Someone jumps straight to the release that drops the adapters (review 05/11/2026, point 9).

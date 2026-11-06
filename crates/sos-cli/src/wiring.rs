@@ -173,12 +173,23 @@ fn short(c: &str) -> String {
 
 /// What `--wiring` would change in one file: the new JSON text and the lines describing it.
 pub fn rewrite(agent: &str, src: &str, template: &str) -> Result<Option<(String, Vec<String>)>> {
+    rewrite_on((agent == "codex" && cfg!(windows)).then(crate::kit::hook_python), agent, src, template)
+}
+
+/// `host`: the interpreter for the Windows Codex form when this machine needs it. The shell form
+/// does not run under PowerShell, so a Windows host writes what `sos install` writes there, and
+/// repairs the shell form an earlier `--wiring` left (POD-agent, 06/11/2026).
+fn rewrite_on(host: Option<String>, agent: &str, src: &str, template: &str) -> Result<Option<(String, Vec<String>)>> {
     let mut v: Value = serde_json::from_str(src)?;
     let tpl: Value = serde_json::from_str(template)?;
     let mut changes = Vec::new();
+    let on_windows = host.is_some();
     // Windows form when the file already uses it (a repo committed from Windows keeps it on any machine).
-    let mut windows: Option<String> = None;
-    let mut any_kit = false;
+    let in_file = commands(&v).iter().find_map(|(_, c)| match recognise(agent, c) {
+        Some((_, Form::CurrentWindows(py) | Form::OldWindows(py))) => Some(py),
+        _ => None,
+    });
+    let windows = in_file.or(host);
     // (a) Old kit commands → the current ones, same family.
     if let Some(events) = v.get_mut("hooks").and_then(Value::as_object_mut) {
         for (key, entries) in events.iter_mut() {
@@ -186,19 +197,12 @@ pub fn rewrite(agent: &str, src: &str, template: &str) -> Result<Option<(String,
                 for h in e.get_mut("hooks").and_then(Value::as_array_mut).into_iter().flatten() {
                     let Some(cmd) = h.get("command").and_then(Value::as_str).map(str::to_string) else { continue };
                     let Some((ev, form)) = recognise(agent, &cmd) else { continue };
-                    any_kit = true;
-                    let new = match form {
-                        Form::Current => continue,
-                        Form::CurrentWindows(py) => {
-                            windows = Some(py);
-                            continue;
-                        }
-                        Form::Old(_) => command(agent, ev),
-                        Form::OldWindows(py) => {
-                            let c = codex_windows(ev, &py)?;
-                            windows = Some(py);
-                            c
-                        }
+                    let new = match (form, &windows) {
+                        (Form::CurrentWindows(_), _) => continue,
+                        (Form::Current, _) if !on_windows => continue,
+                        (Form::OldWindows(py), _) => codex_windows(ev, &py)?,
+                        (Form::Current | Form::Old(_), Some(py)) => codex_windows(ev, py)?,
+                        (Form::Current | Form::Old(_), None) => command(agent, ev),
                     };
                     changes.push(format!("{key}: {} → {}", short(&cmd), short(&new)));
                     h["command"] = Value::String(new);
@@ -206,7 +210,6 @@ pub fn rewrite(agent: &str, src: &str, template: &str) -> Result<Option<(String,
             }
         }
     }
-    let windows = windows.or_else(|| (agent == "codex" && !any_kit && cfg!(windows)).then(crate::kit::hook_python));
     // (b) Kit events the file lacks (0.3.13 wiring had no pre-bash): the template's entry, appended.
     // A command that still calls the adapter in a way not recognised above counts as present.
     let present = |v: &Value, key: &str, ev: &str| commands(v).iter().any(|(k, c)| {
@@ -355,6 +358,56 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&victim).unwrap(), "keep me");
         assert_eq!(std::fs::read_to_string(root.join(".claude/settings.json")).unwrap(), "{}");
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    const TEMPLATE: &str = include_str!("../../../templates/app/codex-hooks.json");
+
+    /// Every event wired the way `form` writes it, plus a project's own hook.
+    fn hooks_file(form: impl Fn(&str) -> String) -> String {
+        let entry = |c: String| serde_json::json!({ "hooks": [{ "type": "command", "command": c }] });
+        serde_json::to_string_pretty(&serde_json::json!({ "hooks": {
+            "SessionStart": [entry(form("session-start"))],
+            "PreToolUse": [entry(form("pre-edit")), entry(form("pre-bash"))],
+            "PostToolUse": [entry(form("post-bash")), entry("my-audit.sh".into())],
+        }})).unwrap()
+    }
+
+    fn old(ev: &str) -> String {
+        format!("python3 \"$(git rev-parse --show-toplevel)/harness-lite/adapters/codex/hook.py\" {ev}")
+    }
+
+    fn wired(src: &str) -> Vec<(&'static str, Form)> {
+        let v = serde_json::from_str(src).unwrap();
+        commands(&v).iter().filter_map(|(_, c)| recognise("codex", c)).collect()
+    }
+
+    #[test]
+    fn a_windows_host_writes_the_windows_form_and_repairs_the_shell_form() {
+        for start in [hooks_file(old), hooks_file(|ev| command("codex", ev))] {
+            let (text, _) = rewrite_on(Some("python".into()), "codex", &start, TEMPLATE).unwrap().unwrap();
+            let forms = wired(&text);
+            assert_eq!(forms.len(), EVENTS.len(), "{text}");
+            assert!(forms.iter().all(|(_, f)| *f == Form::CurrentWindows("python".into())), "{text}");
+            assert!(text.contains("my-audit.sh"), "{text}");
+            assert_eq!(rewrite_on(Some("python".into()), "codex", &text, TEMPLATE).unwrap(), None, "idempotent");
+        }
+    }
+
+    #[test]
+    fn the_interpreter_in_the_file_wins_over_the_host_default() {
+        let py = "C:/Py/python.exe";
+        let start = hooks_file(|ev| if ev == "pre-edit" { codex_windows(ev, py).unwrap() } else { old(ev) });
+        let (text, _) = rewrite_on(Some("python".into()), "codex", &start, TEMPLATE).unwrap().unwrap();
+        assert!(wired(&text).iter().all(|(_, f)| *f == Form::CurrentWindows(py.into())), "{text}");
+    }
+
+    #[test]
+    fn other_hosts_keep_the_shell_form_and_a_file_already_in_the_windows_form() {
+        let (text, _) = rewrite_on(None, "codex", &hooks_file(old), TEMPLATE).unwrap().unwrap();
+        assert!(wired(&text).iter().all(|(_, f)| *f == Form::Current), "{text}");
+        let win = hooks_file(|ev| codex_windows(ev, "python").unwrap());
+        assert_eq!(rewrite_on(None, "codex", &win, TEMPLATE).unwrap(), None);
+        assert_eq!(rewrite_on(None, "codex", &hooks_file(|ev| command("codex", ev)), TEMPLATE).unwrap(), None);
     }
 
     #[test]
