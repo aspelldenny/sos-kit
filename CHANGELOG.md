@@ -2,6 +2,10 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+- **`install.sh` no longer asks for Python.** Current wiring calls `sos` directly, so the installer warned about something most machines do not need. `sos check` still names the interpreter in repos that use one (Codex hooks on Windows, apps on older wiring).
+
 ## v0.4.1 — 2026-11-06 — measure what the harness loads
 
 - **macOS jobs on `macos-15`.** GitHub retired the `macos-14` images for Actions on 02/11/2026, so `ci.yml` and `release.yml` move to `macos-15`. This is the first release built there; the Mac binary is still `aarch64-apple-darwin`.

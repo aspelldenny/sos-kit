@@ -12,7 +12,8 @@
 #   SOS_VERSION  release tag to install   (default: the tag this script was published with)
 #   SOS_BIN_DIR  install directory        (default ~/.local/bin)
 #
-# Requirements checked afterwards (not installed for you): git, gitleaks, python3 (Windows: python).
+# Requirements checked afterwards (not installed for you): git, gitleaks. `sos check` names Python
+# in the repos that need it (Codex hooks on Windows, apps on older wiring).
 # Windows: run it from Git Bash; the binary lands in ~/.local/bin/sos.exe.
 # Developers can build instead: cargo install --path crates/sos-cli
 set -eu
@@ -73,10 +74,8 @@ case ":$PATH:" in
   *) echo "⚠ $BIN_DIR is not on PATH. Add to your shell profile: export PATH=\"$BIN_DIR:\$PATH\"" ;;
 esac
 missing=""
-# Windows: `python3` is usually the Store alias that only fails; the hooks there call `python`.
-PY=python3; [ -n "$EXE" ] && PY=python
-for t in git gitleaks "$PY"; do command -v "$t" >/dev/null 2>&1 || missing="$missing $t"; done
+for t in git gitleaks; do command -v "$t" >/dev/null 2>&1 || missing="$missing $t"; done
 if [ -n "$missing" ]; then
-  echo "⚠ Still needed:$missing   (macOS: brew install gitleaks; Windows: winget install Gitleaks.Gitleaks Python.Python.3.12)"
+  echo "⚠ Still needed:$missing   (macOS: brew install gitleaks; Windows: winget install Gitleaks.Gitleaks)"
 fi
 echo "Next, inside a git repo:  sos install --dry-run   then   sos install"
