@@ -13,6 +13,13 @@
 //! files = ["docs/STATE.md", "docs/BACKLOG.md"]
 //! soft = 1000                  # warn at or above (lines)
 //! hard = 1500                  # block at or above
+//! sized = ["docs/BACKLOG.md"]  # files agents load: also held to the two limits below
+//! max_bytes = 32768            # block above this size
+//! max_item_chars = 1000        # block on a longer line (a list item written as one line)
+//! links = ["AGENTS.md"]        # docs agents read: `sos gate links` blocks a dead link in them
+//!
+//! [ready]                      # the check that says the whole product still works
+//! cmd = "make ready"           # run by `sos gate ready`, which records revision and result
 //!
 //! [features]                   # FEATURES.json identity rules (was features-guard)
 //! file = "docs/FEATURES.json"
@@ -69,6 +76,8 @@ pub struct Config {
     pub text: TextConfig,
     #[serde(default)]
     pub docs: DocsConfig,
+    #[serde(default)]
+    pub ready: ReadyConfig,
     #[serde(default)]
     pub features: FeaturesConfig,
     #[serde(default)]
@@ -235,12 +244,40 @@ pub struct DocsConfig {
     pub soft: usize,
     #[serde(default = "hard_default")]
     pub hard: usize,
+    /// Files agents load, held to `max_bytes` and `max_item_chars`. Separate from `files`: a
+    /// changelog needs a line cap but nobody loads it whole. Empty = not measured.
+    #[serde(default)]
+    pub sized: Vec<String>,
+    #[serde(default = "max_bytes_default")]
+    pub max_bytes: usize,
+    #[serde(default = "max_item_chars_default")]
+    pub max_item_chars: usize,
+    /// Docs agents read: `sos gate links` checks their relative links. Empty = gate off.
+    #[serde(default)]
+    pub links: Vec<String>,
 }
 
 impl Default for DocsConfig {
     fn default() -> Self {
-        Self { files: vec![], soft: soft_default(), hard: hard_default() }
+        Self {
+            files: vec![],
+            soft: soft_default(),
+            hard: hard_default(),
+            sized: vec![],
+            max_bytes: max_bytes_default(),
+            max_item_chars: max_item_chars_default(),
+            links: vec![],
+        }
     }
+}
+
+/// `sos gate ready`: end-to-end check before handing work over. Slices can each be green while the
+/// combined product is red (Payquill F35 and F31); only the project knows what proves it whole.
+#[derive(Debug, Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ReadyConfig {
+    #[serde(default)]
+    pub cmd: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -266,6 +303,12 @@ fn soft_default() -> usize {
 }
 fn hard_default() -> usize {
     1500
+}
+fn max_bytes_default() -> usize {
+    32 * 1024
+}
+fn max_item_chars_default() -> usize {
+    1000
 }
 fn features_default() -> String {
     "docs/FEATURES.json".into()
@@ -340,6 +383,9 @@ pub fn parse(src: &str) -> Result<Config> {
                 bail!("{at}: sandbox and service_tier apply to the codex backend only");
             }
         }
+    }
+    if cfg.docs.max_bytes == 0 || cfg.docs.max_item_chars == 0 {
+        bail!("[docs] max_bytes and max_item_chars must be at least 1 (to measure nothing, leave `sized` empty)");
     }
     if cfg.docs.soft == 0 || cfg.docs.soft >= cfg.docs.hard {
         bail!("[docs] needs 0 < soft < hard (got soft={}, hard={})", cfg.docs.soft, cfg.docs.hard);
@@ -436,6 +482,8 @@ mod tests {
     #[test]
     fn bad_caps_rejected() {
         assert!(parse("[docs]\nsoft = 10\nhard = 5\n").is_err());
+        assert!(parse("[docs]\nmax_bytes = 0\n").is_err());
+        assert!(parse("[docs]\nmax_item_chars = 0\n").is_err());
     }
 
     #[test]

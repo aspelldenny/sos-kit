@@ -1,6 +1,11 @@
 # SOS Kit's own gate config (format: crates/sos-gates/src/config.rs).
 [docs]
 files = ["docs/BACKLOG.md", "CHANGELOG.md"]
+sized = ["docs/BACKLOG.md"]
+links = ["CLAUDE.md", "docs/BACKLOG.md"]
+
+[ready]
+cmd = 'cargo test --locked --workspace && tests/adapters/run.sh && cargo build -q -p sos-cli && tests/smoke.sh "${CARGO_TARGET_DIR:-target}/debug/sos"'
 
 [git]
 protect_default_branch = true

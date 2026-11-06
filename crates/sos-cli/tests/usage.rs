@@ -192,3 +192,21 @@ fn claude_does_not_follow_a_linked_session_folder() {
     assert!(d["meta"]["agents"]["claude"]["coverage_warnings"].to_string().contains("symlink not followed"));
     let _ = std::fs::remove_dir_all(&t);
 }
+
+/// A reader takes an empty row as "unused", so a scan that read nothing has to say so.
+#[test]
+fn by_skill_says_when_it_read_nothing() {
+    let t = std::env::temp_dir().join(format!("sos-usage-nothing-{}", std::process::id()));
+    let (dir, codex) = (t.join("no-claude"), t.join("no-codex"));
+    let args = ["--dir", dir.to_str().unwrap(), "--codex-dir", codex.to_str().unwrap(), "--by", "skill"];
+    let (rc, out, err) = usage(&[&args[..], &["--json"]].concat());
+    assert_eq!(rc, 0, "{err}");
+    let w = serde_json::from_str::<Value>(&out).unwrap()["meta"]["coverage_warnings"].to_string();
+    assert!(w.contains("no Claude transcripts folder") && w.contains("no transcript was read"), "{w}");
+    let (_, text, _) = usage(&args);
+    assert!(text.contains("coverage: no transcript was read"), "{text}");
+
+    let (rc, out, err) = usage(&["--dir", fixtures().join("claude").to_str().unwrap(), "--agent", "claude", "--json", "--since", "2026-09-01", "--by", "skill"]);
+    assert_eq!(rc, 0, "{err}");
+    assert!(!serde_json::from_str::<Value>(&out).unwrap()["meta"]["coverage_warnings"].to_string().contains("no transcript was read"));
+}

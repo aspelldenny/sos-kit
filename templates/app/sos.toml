@@ -14,6 +14,18 @@ leaks = []
 files = ["docs/BACKLOG.md"]
 soft = 1000
 hard = 1500
+# Docs agents load at session start: the banner shows only the start of each line, and all of it costs
+# tokens every session. Over a limit blocks the commit. Empty `sized` = off.
+sized = ["docs/BACKLOG.md"]
+max_bytes = 32768
+max_item_chars = 1000
+# Docs whose relative links and anchors must resolve (`sos gate links`). Empty = off.
+links = ["AGENTS.md", "docs/BACKLOG.md"]
+
+[ready]
+# The one command that checks the whole product (build plus end-to-end), run before a handover by
+# `sos gate ready`, which records revision and result in evidence/ready/. e.g. "make ready"
+cmd = ""
 
 [features]
 file = "docs/FEATURES.json"

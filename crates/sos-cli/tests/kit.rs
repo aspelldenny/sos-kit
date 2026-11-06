@@ -786,3 +786,20 @@ fn unreadable_wiring_keeps_dropped_files_and_wiring_never_writes_through_symlink
     assert_eq!(std::fs::read_to_string(outside.path().join("hooks.json")).unwrap(), OLD_SETTINGS.replace("claude", "codex"));
     assert!(!std::fs::read_to_string(p.join(".claude/settings.json")).unwrap().contains("hook.py"), "the in-repo file is still rewritten");
 }
+
+// The number says what every session starts from: the first section of the state doc, not all of it.
+#[test]
+fn check_counts_the_bytes_a_session_loads() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    std::fs::write(p.join("AGENTS.md"), "a\n").unwrap();
+    std::fs::write(p.join("CLAUDE.md"), "b\n").unwrap();
+    std::fs::write(p.join("harness-lite/CONTRACT.md"), "c\n").unwrap();
+    std::fs::write(p.join("harness-lite/roles/orchestrator.md"), "d\n").unwrap();
+    std::fs::create_dir_all(p.join("docs")).unwrap();
+    std::fs::write(p.join("docs/BACKLOG.md"), format!("# B\n\n## Now\n- [ ] x\n## Later\n{}\n", "y".repeat(5000))).unwrap();
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains("loaded at session start: 23 bytes"), "{c}");
+    assert!(c.contains("first section of docs/BACKLOG.md"), "{c}");
+}

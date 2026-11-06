@@ -4,7 +4,7 @@
 //! "- [ ]" items, or its first lines when it has none), and a note when that section or the entry
 //! files outgrow their budget (same numbers as `sos check`). State doc: $SOS_STATE_FILE, else
 //! .sos.toml [state] file, else docs/BACKLOG.md, else STATE.md. Also names the cross-family reviewer
-//! and a broken advisor. Outside a git repo it prints nothing.
+//! the last `sos gate ready` result, and a broken advisor. Outside a git repo it prints nothing.
 
 use std::path::Path;
 use std::process::Command;
@@ -50,6 +50,32 @@ fn toml_values(text: &str, tables: &[&str], key: &str) -> Vec<(String, String)> 
         }
     }
     out
+}
+
+/// Whether the first `cmd` of `[ready]` holds a command, in the same reading as status.sh's awk: it
+/// has to follow TOML's quoting, since `"" # note` is empty, `"""make"""` is not, and a triple-quoted
+/// value may run over the next lines.
+fn ready_set(text: &str) -> bool {
+    let (mut t, mut at) = (String::new(), 0);
+    for line in text.split('\n') {
+        if let Some(h) = header(line) {
+            t = h;
+        }
+        if t == "[ready]" && value_of(line, "cmd").is_some() {
+            let v = text[at + line.find('=').map_or(0, |i| i + 1)..].trim_start_matches([' ', '\t']);
+            let Some(q) = v.chars().next().filter(|c| matches!(c, '"' | '\'')) else {
+                return !v.lines().next().unwrap_or("").trim().is_empty();
+            };
+            let triple = q.to_string().repeat(3);
+            let inner = match v.strip_prefix(triple.as_str()) {
+                Some(rest) => rest.split(triple.as_str()).next().unwrap_or(""),
+                None => v[1..].lines().next().unwrap_or("").split(q).next().unwrap_or(""),
+            };
+            return !inner.trim().is_empty();
+        }
+        at += line.len() + 1;
+    }
+    false
 }
 
 fn cut(line: &str) -> String {
@@ -181,6 +207,15 @@ pub fn render(dir: &Path) -> String {
             out.push(format!("Người soát: {} — run it with `sos role reviewer --from <builder> --brief <file>`.", route.join("; ")));
         }
     }
+    // Green slices do not prove the combined product works (Payquill F35 and F31): name the last
+    // end-to-end result, or that nothing runs one.
+    if let Some(t) = &sos_toml {
+        if !ready_set(t) {
+            out.push("Note: .sos.toml [ready] cmd is empty: nothing checks the whole product before handover.".into());
+        } else if let Some(note) = crate::ready::last_note(root) {
+            out.push(note);
+        }
+    }
     let entry: usize = ["AGENTS.md", "CLAUDE.md"].iter()
         .filter_map(|f| std::fs::read(root.join(f)).ok())
         .map(|b| b.iter().filter(|&&c| c == b'\n').count())
@@ -207,5 +242,18 @@ mod tests {
         assert_eq!(toml_values(t, &["[state]"], "file"), vec![("[state]".into(), "docs/PROGRESS.md".into())]);
         assert_eq!(toml_values(t, &["[roles.reviewer.claude]"], "backend")[0].1, "codex");
         assert!(toml_values("[state]\nfiles = \"x\"\n", &["[state]"], "file").is_empty());
+    }
+
+    #[test]
+    fn reads_the_ready_command_in_each_toml_quoting() {
+        let set = |v: &str| ready_set(&format!("[ready] # c\ncmd = {v}\n"));
+        for v in ["\"make\"", "'make \"e2e\"'", "\"\"\"make ready\"\"\"", "'''make'''", "\"\"\"\nmake\n\"\"\""] {
+            assert!(set(v), "{v}");
+        }
+        for v in ["\"\"", "''", "\"  \"", "\"\" # later", "\"\"\" \"\"\"", "\"\"\"\n\"\"\"", "\"\"\"\n  \n\"\"\""] {
+            assert!(!set(v), "{v}");
+        }
+        assert!(!ready_set("[other]\ncmd = \"x\"\n"));
+        assert!(!ready_set("[ready]\nscmd = \"x\"\n"));
     }
 }

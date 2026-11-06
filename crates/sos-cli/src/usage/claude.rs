@@ -12,7 +12,7 @@
 //!   without one it is kept, with the meta role or `unknown` (agent-usage.py drops all of them).
 //! - `<synthetic>` or no usage: skipped and counted.
 
-use super::{close, entries, lines_of, prices::Tokens, utc_day, utc_key, Call, Filter, LargeContext, Scan};
+use super::{close, entries, lines_of, prices::Tokens, utc_day, utc_key, Call, Filter, LargeContext, Scan, SkillUse};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -166,6 +166,12 @@ pub fn read(lines: impl Iterator<Item = Option<String>>, file_session: &str, kin
                 let null = Value::Null;
                 let msg = e.get("message").unwrap_or(&null);
                 for c in msg.get("content").and_then(Value::as_array).into_iter().flatten() {
+                    if c.get("type").and_then(Value::as_str) == Some("tool_use") && c.get("name").and_then(Value::as_str) == Some("Skill") {
+                        let (id, name) = (c.get("id").and_then(Value::as_str), c.pointer("/input/skill").and_then(Value::as_str));
+                        if let (Some(id), Some(name), true, true) = (id, name, filter.day_ok(&utc_day(&s("timestamp"))), filter.project_ok(&s("cwd"))) {
+                            scan.skills.entry(id.to_string()).or_insert(SkillUse { name: name.to_string(), session: session.clone(), failed: false });
+                        }
+                    }
                     let is_agent = matches!(c.get("name").and_then(Value::as_str), Some("Agent" | "Task"));
                     if c.get("type").and_then(Value::as_str) == Some("tool_use") && is_agent {
                         if let Some(id) = c.get("id").and_then(Value::as_str) {
@@ -207,6 +213,11 @@ pub fn read(lines: impl Iterator<Item = Option<String>>, file_session: &str, kin
                 for c in e.pointer("/message/content").and_then(Value::as_array).into_iter().flatten() {
                     if c.get("type").and_then(Value::as_str) != Some("tool_result") {
                         continue;
+                    }
+                    if c.get("is_error").and_then(Value::as_bool) == Some(true) {
+                        if let Some(u) = c.get("tool_use_id").and_then(Value::as_str).and_then(|id| scan.skills.get_mut(id)) {
+                            u.failed = true;
+                        }
                     }
                     let Some((_, call_day, a)) = c.get("tool_use_id").and_then(Value::as_str).and_then(|id| agents.get_mut(id)) else { continue };
                     // The result's own day; a line without a timestamp falls back to the call's.
@@ -390,6 +401,16 @@ pub fn scan_dir(dir: &Path, filter: &Filter, max: usize, large_context: u64) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn skill_calls_count_once_with_their_outcome() {
+        let call = |id: &str, name: &str, day: &str| format!(r#"{{"type":"assistant","sessionId":"S","timestamp":"{day}T10:00:00Z","cwd":"/w/app","message":{{"content":[{{"type":"tool_use","id":"{id}","name":"Skill","input":{{"skill":"{name}"}}}}]}}}}"#);
+        let bad = r#"{"type":"user","sessionId":"S","timestamp":"2026-11-05T10:00:01Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","is_error":true}]}}"#.to_string();
+        let lines = [call("t1", "qa", "2026-11-05"), call("t1", "qa", "2026-11-05"), call("t2", "retro", "2026-11-05"), bad, call("t3", "qa", "2025-01-01")];
+        let scan = run(&lines, Kind::Main { subagents: &Subagents::default() });
+        let got: Vec<_> = scan.skills.iter().map(|(id, u)| (id.as_str(), u.name.as_str(), u.failed)).collect();
+        assert_eq!(got, [("t1", "qa", false), ("t2", "retro", true)]);
+    }
 
     fn f() -> Filter {
         Filter { since: "2026-01-01".into(), until: None, project: None }

@@ -6,7 +6,7 @@ SOS Kit is a solo developer's harness for building with AI agents. The human own
 
 | Path | What it is |
 |---|---|
-| `harness-lite/` | **The core prompts.** `CONTRACT.md` (shared rules) + `roles/` (orchestrator, architect, worker, reviewer) + the README apps receive. `sos install` copies it into a repo's `harness-lite/` together with `scripts/`, `adapters/` and `templates/app/hooks/`. |
+| `harness-lite/` | **The core prompts.** `CONTRACT.md` (shared rules) + `VERIFY.md` (tests and checks, read on demand) + `roles/` (orchestrator, architect, worker, reviewer) + the README apps receive. `sos install` copies it into a repo's `harness-lite/` together with `scripts/`, `adapters/` and `templates/app/hooks/`. |
 | `scripts/` | Agent-neutral scripts shipped into apps (`env-guard.sh`, `sim-guard`, `status.sh`, `advise`, `test-watch.py`, `bite`) plus kit-only tooling (`trust-gate.sh`, `install-hooks.sh`, npm postinstall). |
 | `adapters/` | One thin translator per agent (`claude/`, `codex/`): hook payload → `scripts/` call. No policy; every check has a git backstop. Tests: `tests/adapters/run.sh`. |
 | `templates/app/` | What `sos install` writes besides the core: app git hooks, `AGENTS.md`/`CLAUDE.md`/`.sos.toml` templates, Claude/Codex wiring, Claude agent wrappers. |
@@ -23,7 +23,7 @@ The former sister tools quality-gate, doc-rotate (cap-check), doctor (runtime-sc
 ## Rules
 
 1. **Mechanical rules go in a gate; judgment stays guidance.** Do not restate a gated rule in prose. A new gate must fail closed and print how to fix the failure.
-2. **Add only what a real failure demands.** Every file, rule, hook or role line must point to an observed failure or a decision in `docs/plans/`. Remove scaffolding a newer model no longer needs, and record why.
+2. **Add only what a real failure demands.** Every file, rule, hook or role line must point to an observed failure or a decision in `docs/plans/`. Remove scaffolding a newer model no longer needs, and record why. Before keeping or removing a skill, role or advisor, read `sos usage --by skill` run inside the app that uses it (add `--since` and `--project <path>` to narrow a long scan).
 3. **No hardcoded personal paths** in shipped files. Use `~/` or a placeholder. (gitleaks/trust-gate do not catch this — check before committing.)
 4. **Changing `harness-lite/` or `templates/app/` changes how agents behave in every app.** Get one independent look (fresh-context reviewer or Chủ nhà) before committing, unless Chủ nhà's request is itself the approval; note which in the commit.
 5. **Tools are CLI first.** A check any project needs goes into `sos gate`; MCP is only an optional wrapper.

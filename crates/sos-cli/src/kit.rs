@@ -67,6 +67,7 @@ pub const KIT_FILES: &[File] = &[
     kit!("harness-lite/README.md", "harness-lite/README.md"),
     kit!("harness-lite/.gitattributes", "templates/app/harness-lite.gitattributes"),
     kit!("harness-lite/CONTRACT.md", "harness-lite/CONTRACT.md"),
+    kit!("harness-lite/VERIFY.md", "harness-lite/VERIFY.md"),
     kit!("harness-lite/roles/orchestrator.md", "harness-lite/roles/orchestrator.md"),
     kit!("harness-lite/roles/architect.md", "harness-lite/roles/architect.md"),
     kit!("harness-lite/roles/worker.md", "harness-lite/roles/worker.md"),
@@ -109,7 +110,7 @@ pub const PROJECT_FILES: &[File] = &[
     kit!(".claude/agents/reviewer.md", "templates/app/claude-agents/reviewer.md"),
 ];
 
-pub const GITIGNORE_LINES: &[&str] = &[".advise-state/", "evidence/advice/", "evidence/roles/", "evidence/bite/", "*.sos-new"];
+pub const GITIGNORE_LINES: &[&str] = &[".advise-state/", "evidence/advice/", "evidence/roles/", "evidence/bite/", "evidence/ready/", "*.sos-new"];
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Upstream {
@@ -785,6 +786,9 @@ pub fn check(dir: &Path) -> Result<i32> {
             if !root.join(&cfg.features.file).exists() {
                 warns.push(format!("{} missing (template: harness-lite/templates/FEATURES.example.json)", cfg.features.file));
             }
+            if cfg.ready.cmd.trim().is_empty() {
+                warns.push("[ready] cmd is empty in .sos.toml: set what exercises the whole product, then `sos gate ready` before handing over".into());
+            }
         }
     }
     let mut calls_sos = false;
@@ -904,6 +908,13 @@ pub fn check(dir: &Path) -> Result<i32> {
     for e in &errors {
         say!("error: {e}");
     }
+    // Bytes, not lines: a few very long lines cost as much as a long file (Tarot's rule file).
+    if let Some(state) = cfg.as_ref().map(|c| c.state.file.as_str()) {
+        let (n, files) = loaded_bytes(&root, state);
+        if n > 0 {
+            say!("loaded at session start: {n} bytes, about {} tokens ({})", n / 4, files.join(" + "));
+        }
+    }
     if errors.is_empty() {
         say!("sos check: ok ({} warning(s))", warns.len());
         Ok(0)
@@ -917,13 +928,36 @@ pub fn check(dir: &Path) -> Result<i32> {
 const ENTRY_MAX: usize = 200;
 const STATE_MAX: usize = 80;
 
-/// Lines from the first `## ` heading up to the next one; the part status.sh shows.
-fn first_section_lines(text: &str) -> usize {
+/// The first `## ` heading and the lines up to the next one; the part status.sh shows.
+fn first_section(text: &str) -> Vec<&str> {
     let mut lines = text.lines().skip_while(|l| !l.starts_with("## "));
     match lines.next() {
-        None => 0,
-        Some(_) => 1 + lines.take_while(|l| !l.starts_with("## ")).count(),
+        None => Vec::new(),
+        Some(head) => std::iter::once(head).chain(lines.take_while(|l| !l.starts_with("## "))).collect(),
     }
+}
+
+fn first_section_lines(text: &str) -> usize {
+    first_section(text).len()
+}
+
+/// Total size of the text every session or Quản đốc turn starts from, and the files it counted.
+fn loaded_bytes(root: &Path, state: &str) -> (usize, Vec<String>) {
+    let (mut total, mut files) = (0, Vec::new());
+    for f in ["AGENTS.md", "CLAUDE.md", "harness-lite/CONTRACT.md", "harness-lite/roles/orchestrator.md"] {
+        if let Ok(b) = std::fs::read(root.join(f)) {
+            total += b.len();
+            files.push(f.to_string());
+        }
+    }
+    if let Ok(s) = std::fs::read_to_string(root.join(state)) {
+        let section = first_section(&s);
+        if !section.is_empty() {
+            total += section.iter().map(|l| l.len() + 1).sum::<usize>();
+            files.push(format!("first section of {state}"));
+        }
+    }
+    (total, files)
 }
 
 /// Tools merged into `sos gate` or moved in v3, and what replaced them.
