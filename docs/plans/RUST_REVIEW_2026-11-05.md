@@ -1,5 +1,8 @@
 # Soát độc lập — đợt 1a và kiến trúc Rust (05/11/2026)
 
+> **Trạng thái 06/11/2026:** bản ghi soát, các điểm FIX đã xử lý trước khi gộp PR 49 (v0.4.0).
+
+
 > Người soát: Codex gpt-6-astra, effort high, chỉ đọc, chạy qua `sos role reviewer --from claude` (Sếp duyệt «Gọi cả hai» qua Tổng đài). Hai lượt: (1) diff đợt 1a `2a9e314` + `c93d48d`; (2) bản kiến trúc `RUST_ARCHITECTURE_2026-11-05.md` kèm các sửa của lượt 1. Bản đầy đủ của Người soát ở thư mục tạm của phiên làm (không commit, có đường dẫn máy); dưới đây là phần cần giữ.
 
 ## Lượt 1 — diff đợt 1a: FIX-THEN-MERGE

@@ -45,7 +45,7 @@ max = 2
 tests = []                # your own test commands besides pytest, npm test, cargo test …, e.g. ["node scripts/check.mjs"]
 
 [bite]
-# `harness-lite/scripts/bite`: do the tests of a change catch a wrong version of it? Run by Người soát
+# `sos bite`: do the tests of a change catch a wrong version of it? Run by Người soát
 # on slices that add or change logic. Empty `test` = not set up. Per-test verdicts need verbose output.
 test = ""                 # e.g. "python3 -m unittest discover -s tests -t . -v", "swift test", "npx vitest run --reporter=verbose src/lib/", "cargo test -p core"
 cwd = "."                 # where `test` runs

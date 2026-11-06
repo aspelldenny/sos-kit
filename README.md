@@ -14,7 +14,7 @@ sos install                # add the harness
 sos check                  # confirm it is wired
 ```
 
-Needs `git`, `gitleaks` and `python3`, and `~/.local/bin` on `PATH`. Prebuilt binaries: macOS on Apple silicon, Linux x64 and Windows x64 (run `install.sh` from Git Bash). Also on npm: `npm install -g sos-kit`; when npm skips the package's install script (the default from npm 12), the first `sos` command (other than `sos gate`/`sos filter`, which never download) fetches the binary, checksum-verified, and says so. Elsewhere install Rust, clone this repo and run `cargo install --path crates/sos-cli`. On Windows (Git for Windows), the hooks call `python`, since `python3` there is usually the Microsoft Store alias; `SOS_PYTHON` picks another interpreter. Run `sos install` at the top level of a git repository (`git init` first for a new project).
+Needs `git` and `gitleaks`, and `~/.local/bin` on `PATH`. Hooks call `sos` directly; Python is needed only for Codex hooks on Windows and for apps still on older wiring, though `install.sh` lists it either way. Prebuilt binaries: macOS on Apple silicon, Linux x64 and Windows x64 (run `install.sh` from Git Bash). Also on npm: `npm install -g sos-kit`; when npm skips the package's install script (the default from npm 12), the first `sos` command (other than `sos gate`/`sos filter`, which never download) fetches the binary, checksum-verified, and says so. Elsewhere install Rust, clone this repo and run `cargo install --path crates/sos-cli`. On Windows (Git for Windows), those hooks call `python`, since `python3` there is usually the Microsoft Store alias; `SOS_PYTHON` picks another interpreter. Run `sos install` at the top level of a git repository (`git init` first for a new project).
 
 Then fill in the placeholders in `AGENTS.md` (what the project is, where its sources of truth live, how to build and test), write the first item in `docs/BACKLOG.md`, and start your agent in the repo. The main session takes the Quản đốc role and delegates as the role file says.
 
@@ -59,6 +59,8 @@ Existing files are never overwritten; the only change to an existing file is thr
 
 `sos role <worker|reviewer|architect> --from <claude|codex> --brief <file>` runs a role on the model and effort `.sos.toml` `[roles]` names (for a reviewer, keyed by the family that built the work), from any agent: prompt on stdin with stdin closed, a time limit, the final message in `evidence/roles/`, one line in `.advise-state/calls.jsonl`.
 
+`sos bite` measures whether a change's tests catch a wrong version of it (`--audit` does the same for the tests that exist), in a throwaway worktree; `.sos.toml` `[bite]` sets the test command. `sos sim boot|settle|destination` uses one iOS simulator gently. `sos predict` lists written predictions and thresholds by age, for the depth-check skill. `sos check-links <dir>` checks relative links and anchors in Markdown. `sos sessions idle|count` reads the Claude desktop app's session files. `sos hook rules --file <toml>` runs declarative hook rules, and `sos hook word-limit` counts the words of a turn's closing message.
+
 ## How work runs
 
 1. **Brief.** Chủ nhà states the outcome, scope, references and how it will be accepted.
@@ -72,8 +74,8 @@ Existing files are never overwritten; the only change to an existing file is thr
 | Path | What it is |
 |---|---|
 | [`harness-lite/`](harness-lite/README.md) | Contract and roles (installed into projects) |
-| [`adapters/`](adapters/README.md), `scripts/`, `templates/app/` | Agent adapters, agent-neutral scripts and the templates `sos install` writes |
-| `crates/` | The `sos` binary (installer and gates, Rust), and `sos-dev`, the kit's own trust gate and docs check (not released) |
+| [`adapters/`](adapters/README.md), `scripts/`, `templates/app/` | Agent adapters and agent-neutral scripts (kept for apps on older wiring), and the templates `sos install` writes |
+| `crates/` | The `sos` binary (`sos-cli`, `sos-gates`, `sos-rules`; Rust), and `sos-dev`, the kit's own trust gate and docs check (not released) |
 | [`recipes/`](recipes/README.md), `skills/apply/` | Implementation patterns taken from shipped code, and the skill that applies one |
 | [`skills/depth-check/`](skills/depth-check/SKILL.md) | Checks whether a project's expertise is real: rawest source, the field's instruments, a judge outside the model, a closed feedback loop |
 | [`docs/`](docs/PHILOSOPHY.md) | Philosophy, backlog, plans and research behind v3 |

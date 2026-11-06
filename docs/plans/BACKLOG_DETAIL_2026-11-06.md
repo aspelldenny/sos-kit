@@ -1,5 +1,8 @@
 # Chi tiết dời khỏi BACKLOG, 06/11/2026
 
+> **Trạng thái 06/11/2026:** các đoạn dưới là lịch sử giữ nguyên chữ. Ghi chú «chưa push» đã hết hiệu lực: tất cả nằm trong v0.4.0. Việc còn mở xem `docs/BACKLOG.md`.
+
+
 Gate `[docs] max_item_chars` giữ mỗi mục BACKLOG dưới 1.000 ký tự, vì banner đầu phiên chỉ in phần đầu mỗi dòng. Các đoạn dưới đây giữ nguyên chữ.
 
 ## Rust hoá tool agent
