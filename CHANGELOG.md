@@ -2,8 +2,9 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## Unreleased
+## v0.4.1 — 2026-11-06 — measure what the harness loads
 
+- **macOS jobs on `macos-15`.** GitHub retired the `macos-14` images for Actions on 02/11/2026, so `ci.yml` and `release.yml` move to `macos-15`. This is the first release built there; the Mac binary is still `aarch64-apple-darwin`.
 - **`sos gate ready` and `[ready] cmd`.** One declared command that checks the whole product, run at the handover boundary, never on every slice; revision and result go to `evidence/ready/runs.log`. `sos check` and the session-start status say when it is empty; the status otherwise shows the last result and marks one that no longer speaks for the current tree (another HEAD, or a tree that differs), and Quản đốc's report quotes that line or says "chưa kiểm xuyên suốt". Why: Payquill F35 and F31 were each green and red once combined.
 - **`[docs] sized`, `max_bytes`, `max_item_chars`.** The docs gate now measures total size and line length for the docs agents load, not only lines: the kit's BACKLOG had 51 lines, 17,976 bytes and one line of 4,256 bytes, of which the banner shows 220 characters. Off until listed, so existing apps do not change. `sos check` prints the bytes every session starts from.
 - **`sos gate links`, in `all`.** The docs in `[docs] links` must have relative links and anchors that resolve, judged on what will be committed. An anchor passes on the script's slug or GitHub's, because GitHub keeps Vietnamese diacritics.
