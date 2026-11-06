@@ -15,10 +15,16 @@
 //! reported as not a regular file instead of blocking; output lines end in LF on Windows too; a
 //! file name that is not UTF-8 is printed with U+FFFD (the script crashed printing it); exit 1
 //! when stdout cannot be written.
+//!
+//! `sos gate links` runs the same parsing on `.sos.toml [docs] links`, the few docs agents read at
+//! the start of work, where a dead link is a wrong turn for every session. It judges what will be
+//! committed: the doc as staged, and targets by the index, so a file left untracked or deleted in
+//! the same commit is dead even though it is on disk here.
 
 use anyhow::Result;
 use std::io::Write;
 use regex::Regex;
+use sos_gates::{config::DocsConfig, git, Report};
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 use unicode_normalization::UnicodeNormalization;
@@ -41,6 +47,7 @@ struct Pats {
     inner_link: Regex,
     emphasis: Regex,
     not_slug: Regex,
+    not_github: Regex,
 }
 
 impl Pats {
@@ -58,6 +65,7 @@ impl Pats {
             emphasis: Regex::new(r"[*_]").unwrap(),
             // Python's `isalnum`: letters and numbers.
             not_slug: Regex::new(r"[^\p{L}\p{N} \-]").unwrap(),
+            not_github: Regex::new(r"[^\p{L}\p{M}\p{N} \-_]").unwrap(),
         }
     }
 
@@ -84,6 +92,14 @@ impl Pats {
         let t = self.emphasis.replace_all(&t, "");
         let t: String = t.nfkd().collect::<String>().to_lowercase();
         self.not_slug.replace_all(&t, "").replace(' ', "-")
+    }
+
+    /// The anchor GitHub renders, which keeps Vietnamese letters and `_` where `slugify` drops them.
+    /// The gate accepts both: a blocking check must not reject a link that works where it is read.
+    fn github_slug(&self, text: &str) -> String {
+        let t = self.code.replace_all(text, "$1");
+        let t = self.inner_link.replace_all(&t, "$1").replace('*', "").to_lowercase();
+        self.not_github.replace_all(&t, "").replace(' ', "-")
     }
 }
 
@@ -116,12 +132,15 @@ fn read_text(path: &Path) -> Result<String, String> {
 }
 
 fn headings_of(p: &Pats, path: &Path) -> HashSet<String> {
-    let Ok(text) = read_text(path) else { return HashSet::new() };
+    read_text(path).map(|t| headings_in(p, &t, |h| p.slugify(h))).unwrap_or_default()
+}
+
+fn headings_in(p: &Pats, text: &str, slug: impl Fn(&str) -> String) -> HashSet<String> {
     let mut seen: HashMap<String, usize> = HashMap::new();
     let mut slugs = HashSet::new();
-    for line in strip_fences(p, splitlines(&text)) {
+    for line in strip_fences(p, splitlines(text)) {
         let Some(c) = p.heading.captures(line) else { continue };
-        let base = p.slugify(c.get(2).unwrap().as_str());
+        let base = slug(c.get(2).unwrap().as_str());
         let n = seen.entry(base.clone()).or_insert(0);
         slugs.insert(if *n == 0 { base.clone() } else { format!("{base}-{n}") });
         *n += 1;
@@ -245,9 +264,117 @@ pub fn run(a: Args) -> Result<i32> {
     Ok(emit(&out, if problems.is_empty() { 0 } else { 1 }))
 }
 
+/// `target` relative to the folder `base` of a repo-relative doc, as a repo-relative `/` path
+/// ("" = the root). None when it leaves the repository.
+fn repo_path(base: &str, target: &str) -> Option<String> {
+    if target.starts_with(['/', '\\']) {
+        return None;
+    }
+    let mut parts: Vec<&str> = base.split('/').filter(|s| !s.is_empty()).collect();
+    for seg in target.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            s => parts.push(s),
+        }
+    }
+    Some(parts.join("/"))
+}
+
+pub fn gate(root: &Path, cfg: &DocsConfig) -> Result<Report> {
+    let mut r = Report::new("links");
+    r.fix = "point the link at a tracked file and an existing heading, `git add` the target, or remove \
+             the link; a doc agents read must not send them to a file that is not there"
+        .into();
+    if cfg.links.is_empty() {
+        r.skipped = Some("no [docs].links in .sos.toml".into());
+        return Ok(r);
+    }
+    let tracked = git::tracked_files(root)?;
+    let mut known: HashSet<&str> = HashSet::from([""]);
+    for f in &tracked {
+        known.insert(f);
+        known.extend(f.match_indices('/').map(|(i, _)| &f[..i]));
+    }
+    let p = Pats::new();
+    for doc in &cfg.links {
+        let Some(text) = git::committed_view(root, doc)? else { continue }; // not written yet
+        let base = doc.rsplit_once('/').map_or("", |x| x.0);
+        for (i, line) in strip_fences(&p, splitlines(&text)).into_iter().enumerate() {
+            for target in p.links(line) {
+                if p.scheme.is_match(target) {
+                    continue;
+                }
+                let (file_part, anchor) = target.split_once('#').unwrap_or((target, ""));
+                let dest = if file_part.is_empty() { Some(doc.clone()) } else { repo_path(base, file_part) };
+                let Some(dest) = dest else {
+                    r.errors.push(format!("{doc}:{}: leaves the repository: {target}", i + 1));
+                    continue;
+                };
+                if !file_part.is_empty() && !known.contains(dest.as_str()) {
+                    r.errors.push(format!("{doc}:{}: missing file: {target}", i + 1));
+                    continue;
+                }
+                if !anchor.is_empty() && dest.ends_with(".md") {
+                    let body = if dest == *doc { Some(text.clone()) } else { git::committed_view(root, &dest)? };
+                    let body = body.unwrap_or_default();
+                    let a = anchor.to_lowercase();
+                    if !headings_in(&p, &body, |h| p.slugify(h)).contains(&a) && !headings_in(&p, &body, |h| p.github_slug(h)).contains(&a) {
+                        r.errors.push(format!("{doc}:{}: missing anchor: {target}", i + 1));
+                    }
+                }
+            }
+        }
+    }
+    Ok(r)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn git_in(d: &Path, args: &[&str]) {
+        assert!(std::process::Command::new("git").current_dir(d).args(args).status().unwrap().success());
+    }
+
+    #[test]
+    fn gate_judges_what_will_be_committed() {
+        let d = tempfile::tempdir().unwrap();
+        let root = d.path();
+        git_in(root, &["init", "-q"]);
+        std::fs::create_dir_all(root.join("docs/plans")).unwrap();
+        std::fs::write(root.join("docs/plans/a.md"), "# Bước một\n").unwrap();
+        std::fs::write(root.join("docs/gone.md"), "x\n").unwrap();
+        std::fs::write(root.join("notes.md"), "ignored by nobody, never added\n").unwrap();
+        std::fs::write(root.join("docs/BACKLOG.md"), "\
+# T\n[plan](plans/a.md#bước-một) [ascii](plans/a.md#buoc-mot) [dir](plans/) [self](#t) [root](../docs/plans/a.md) [web](https://x.test/n)\n\
+![img](none.png)\n```\n[fenced](none.md)\n```\n\
+[dead](plans/none.md)\n[anchor](plans/a.md#none)\n[out](../../x.md)\n[abs](/etc/hosts)\n\
+[untracked](../notes.md)\n[deleted](gone.md)\n[selfdead](#none)\n").unwrap();
+        git_in(root, &["add", "docs"]);
+        git_in(root, &["rm", "-q", "--cached", "docs/gone.md"]);
+        let mut cfg = DocsConfig { links: vec!["docs/BACKLOG.md".into(), "AGENTS.md".into()], ..Default::default() };
+        let r = gate(root, &cfg).unwrap();
+        assert_eq!(r.errors, [
+            "docs/BACKLOG.md:7: missing file: plans/none.md",
+            "docs/BACKLOG.md:8: missing anchor: plans/a.md#none",
+            "docs/BACKLOG.md:9: leaves the repository: ../../x.md",
+            "docs/BACKLOG.md:10: leaves the repository: /etc/hosts",
+            "docs/BACKLOG.md:11: missing file: ../notes.md",
+            "docs/BACKLOG.md:12: missing file: gone.md",
+            "docs/BACKLOG.md:13: missing anchor: #none",
+        ]);
+        assert!(!r.fix.is_empty());
+        // The staged version counts: fixing the working copy alone changes nothing.
+        std::fs::write(root.join("docs/BACKLOG.md"), "# T\n").unwrap();
+        assert_eq!(gate(root, &cfg).unwrap().errors.len(), 7);
+        git_in(root, &["add", "docs/BACKLOG.md"]);
+        assert!(gate(root, &cfg).unwrap().ok());
+        cfg.links.clear();
+        assert!(gate(root, &cfg).unwrap().skipped.is_some());
+    }
 
     #[test]
     fn slugs_like_the_script() {

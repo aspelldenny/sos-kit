@@ -35,4 +35,4 @@ Before planning or building screens or wording, read this. If it is empty for th
 | Purpose | Command |
 |---|---|
 | Build / test | <e.g. `make check`> |
-| Ready to hand over | <e.g. `make ready`> |
+| Ready to hand over | `sos gate ready` (runs `.sos.toml` [ready] cmd, records the result) |

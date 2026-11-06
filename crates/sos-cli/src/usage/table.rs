@@ -95,7 +95,7 @@ fn usd(v: Option<f64>) -> String {
     }
 }
 
-fn grid(lines: &[Vec<String>], left: usize) -> String {
+pub fn grid(lines: &[Vec<String>], left: usize) -> String {
     let w: Vec<usize> = (0..lines[0].len()).map(|i| lines.iter().map(|l| l[i].chars().count()).max().unwrap_or(0)).collect();
     let mut s = String::new();
     for l in lines {
@@ -183,7 +183,7 @@ pub fn render(scans: &[(&'static str, Scan)], a: &Args, f: &Filter, prices: &Pri
     s
 }
 
-fn coverage(scan: &Scan) -> Vec<String> {
+pub fn coverage(scan: &Scan) -> Vec<String> {
     let k = &scan.skipped;
     let mut v = scan.coverage.clone();
     if k.oversize_lines > 0 {

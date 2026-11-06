@@ -25,7 +25,9 @@ An adversarial pass by a different model family before acceptance is optional.
 | Agent-neutral scripts | `scripts/env-guard.sh`, `sim-guard`, `status.sh`, `test-watch.py`, `advise`, `bite` (`sos hook` does the guards, the status and the advisor trigger itself; the scripts stay for older wiring) | Anything that runs a command |
 | Agent hooks (earlier feedback) | `.claude/settings.json`, `.codex/hooks.json` → `sos hook claude\|codex <event> --protocol 1`; a guard that cannot run `sos` blocks. Apps wired before this call `adapters/*/hook.py`: `sos update --wiring` rewrites those commands (shown first; other entries untouched) | That agent only; see `adapters/README.md` |
 
-`sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps and `FEATURES.json` identity. Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` (executable, project-owned).
+`sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps, dead links in the docs agents read and `FEATURES.json` identity. Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` (executable, project-owned).
+
+**Ready.** `sos gate ready` runs `.sos.toml` `[ready] cmd` before a handover and records revision and result in `evidence/ready/`; the session-start status shows the last result, says when it no longer speaks for the current tree, or that nothing checks the whole product yet. Not part of `sos gate all`.
 
 **Models.** `.sos.toml` `[roles]` sets backend, model and effort per role; the Claude wrappers in `.claude/agents/` mirror it and `sos check` compares them. `sos role` runs a role from any agent on that table (stdin closed, time limit, logged); use it instead of hand-written `codex exec` / `claude -p` calls.
 

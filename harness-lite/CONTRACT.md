@@ -8,9 +8,9 @@ Chủ nhà owns product intent, taste, scope and final acceptance. AI owns the m
 
 ## Work from a bounded brief
 
-Know the outcome, allowed changes, relevant sources, acceptance criteria and limits. Before implementation, identify credible failure cases in the brief; no separate test-plan document is required. Inspect the actual code, text or data and current state before assuming the brief describes reality. Resolve technical choices yourself within scope. Size the work by uncertainty, dependencies and observed performance, not model brand. Run on the model and effort the project assigns to your role (`.sos.toml` [roles]), or where it assigns none, the runtime's configured model; do not invent aliases or silently replace a requested model.
+Know the outcome, allowed changes, relevant sources, acceptance criteria and limits. Before implementation, identify credible failure cases in the brief; no separate test-plan document is required. Inspect the actual code, text or data and current state before assuming the brief describes reality. Resolve technical choices yourself within scope. Size the work by uncertainty, dependencies and observed performance, not model brand.
 
-Load project entry instructions, current state and relevant sources; follow links on demand. Do not require full history on every handoff. Keep one canonical current state in the project's existing location; link detailed evidence rather than duplicating it.
+Do not require full history on every handoff. Keep one canonical current state in the project's existing location; link detailed evidence rather than duplicating it.
 
 ## Close feedback loops
 
@@ -26,15 +26,13 @@ Each additional loop must answer a specific unresolved question. Choose the smal
 
 Carry the assigned outcome through execution and relevant verification. A plan, code diff or builder's confidence is not completion evidence. Check the actual artifact. Check meaning, units and edge cases against expectations independent of the implementation (for writing: facts against sources); never change expected results merely to match output.
 
-Each test protects an observable behavior or invariant against a credible regression that existing coverage misses; extend cases rather than duplicate a proof, and avoid tautologies, copies of source shape and production seams added only for a test. For bug fixes, show fail-before/pass-after where feasible. Before deleting a test, keep any unique proof it held; a test that kills no sampled mutant is a candidate, not proof of waste: security, API, protocol, migration, storage, config-default and other independent contracts stay.
-
-Use fast local/unit/integration checks at the smallest adequate boundary during work. Use targeted UI checks for UI-specific bugs, interactions or layout. Where the work has connected journeys, run E2E when one first becomes available, after relevant risky cross-component changes and before product/candidate handoff to Chủ nhà, not every worker return; reuse valid evidence rather than rerunning whole suites by slice count or agent stop. Assert persisted/output data as well as visible flow: a screenshot or open share sheet alone does not prove saved/exported content. For UI changes, inspect rendered output against agreed references, hierarchy, density, content and states. For documents, the artifact is what the reader receives (rendered page, PDF, published post), not the source file.
+Before writing tests or choosing what to run, read [VERIFY.md](VERIFY.md).
 
 Match the environment to the claim: a simulator pass is not device verification; a build is not a release. Record repeatable command/setup, artifact/revision, environment and observed outcome with an appropriate result artifact. Missing critical checks block readiness claims. Distinguish a work item implemented from the combined candidate verified; state what remains unverified and why.
 
 Preserve historical evidence, but invalidate current readiness when a change or finding affects it. Reuse checks only with an explicit reason their artifact, scope, configuration and environment still apply. Respect existing schemas and gates; report and reproduce a suspected gate defect instead of bypassing it. Changes to gates need verification of the gate itself.
 
-Reuse existing leases for shared resources (simulators, devices, test databases) and resource limits. At meaningful runs, briefly record duration, findings and observed misses or redundant checks in existing evidence. Do not invent savings or add paperwork for each test invocation.
+At meaningful runs, briefly record duration, findings and observed misses or redundant checks in existing evidence. Do not invent savings or add paperwork for each test invocation.
 
 ## Continue, challenge and stop
 

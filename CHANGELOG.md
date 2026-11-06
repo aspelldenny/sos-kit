@@ -2,6 +2,16 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+- **`sos gate ready` and `[ready] cmd`.** One declared command that checks the whole product, run at the handover boundary, never on every slice; revision and result go to `evidence/ready/runs.log`. `sos check` and the session-start status say when it is empty; the status otherwise shows the last result and marks one that no longer speaks for the current tree (another HEAD, or a tree that differs), and Quản đốc's report quotes that line or says "chưa kiểm xuyên suốt". Why: Payquill F35 and F31 were each green and red once combined.
+- **`[docs] sized`, `max_bytes`, `max_item_chars`.** The docs gate now measures total size and line length for the docs agents load, not only lines: the kit's BACKLOG had 51 lines, 17,976 bytes and one line of 4,256 bytes, of which the banner shows 220 characters. Off until listed, so existing apps do not change. `sos check` prints the bytes every session starts from.
+- **`sos gate links`, in `all`.** The docs in `[docs] links` must have relative links and anchors that resolve, judged on what will be committed. An anchor passes on the script's slug or GitHub's, because GitHub keeps Vietnamese diacritics.
+- **`sos usage --by skill`.** Runs and failures of skills (`Skill` tool calls), subagents, the advisor and `sos role`, from data already on disk. A skill typed as a slash command is not counted.
+- **Worker resume rule without fixed numbers.** Quản đốc's "300K tokens / idle over an hour" becomes a principle, after measuring 51,245 consecutive call pairs in 814 subagent transcripts (`docs/plans/HARNESS_DIRECTIONS_2026-11-06.md`): with a 5-minute cache 74% of gaps of 5–30 minutes missed; with a 1-hour cache 0.6% did.
+- **Shorter auto-loaded text.** `CONTRACT.md` drops two sentences the runtime already covers; the test-writing, which-check and shared-resource parts move to `harness-lite/VERIFY.md`, read on demand.
+- **Upgrade note.** A `sos` older than this release rejects `[ready]` and the new `[docs]` keys, because unknown keys are errors: update the binary before adding them to `.sos.toml`.
+
 ## v0.4.0 — 2026-11-05 — agent tooling in Rust
 
 - **Why 0.4.0, not 0.3.14.** The installed hook contract changed: new installs (and `sos update --wiring`) wire `sos hook <agent> <event> --protocol 1`, which a 0.3.x `sos` rejects with exit 2 — and Claude Code reads exit 2 as "block". Pre-1.0, a contract change takes the minor number. Apps installed earlier keep their wiring (project-owned files) and the Python adapters still ship for them; install this `sos` first, then run `sos update --wiring`. Checked in real `codex exec` sessions on native Windows 11 (codex 0.162, `python -c` launcher, 05/11): with this `sos`, an `apply_patch` to `README.md` goes through and one to `.env` is blocked by the env guard; with the v0.3.13 `sos`, no `sos` on PATH, or a broken `sos.exe`, every `apply_patch` is blocked with the reason and `.env`/`README.md` stay unchanged.

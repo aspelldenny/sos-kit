@@ -2,11 +2,12 @@
 //! Design and the review behind it: docs/plans/RUST_ARCHITECTURE_2026-11-05.md §7.
 //!
 //! Privacy: nothing is sent, written or spawned. Only ids, numbers and short metadata (model,
-//! role, project path, day) are kept while reading; prompt and tool text are measured and dropped.
+//! role, skill name, project path, day) are kept while reading; prompt and tool text are measured and dropped.
 
 pub mod claude;
 pub mod codex;
 pub mod prices;
+pub mod skills;
 pub mod table;
 
 use prices::{Prices, Tokens};
@@ -26,8 +27,8 @@ pub struct Args {
     /// Only this project: a path (matches the session's cwd or below) or a folder name.
     #[arg(long)]
     pub project: Option<String>,
-    /// Rows by: role, model, project, day, session.
-    #[arg(long, default_value = "role", value_parser = ["role", "model", "project", "day", "session"])]
+    /// Rows by: role, model, project, day, session; or skill: runs of skills, subagents, the advisor and `sos role`, not tokens.
+    #[arg(long, default_value = "role", value_parser = ["role", "model", "project", "day", "session", "skill"])]
     pub by: String,
     /// claude, codex or all.
     #[arg(long, default_value = "claude", value_parser = ["claude", "codex", "all"])]
@@ -100,6 +101,14 @@ pub struct LargeContext {
     pub parent_tool_use: String,
 }
 
+/// One `Skill` tool call.
+#[derive(Debug)]
+pub struct SkillUse {
+    pub name: String,
+    pub session: String,
+    pub failed: bool,
+}
+
 #[derive(Default)]
 pub struct Scan {
     pub calls: Vec<Call>,
@@ -112,6 +121,8 @@ pub struct Scan {
     /// Agent tool calls of every file, per (session, tool_use_id): copies of the same history in
     /// resumed files merge here, so a result counts once.
     pub(crate) agents: BTreeMap<(String, String), claude::AgentCall>,
+    /// `Skill` tool calls by tool_use id, so the copies in resumed files count once.
+    pub skills: BTreeMap<String, SkillUse>,
     /// --explain lines (no content, only ids and counts).
     pub explain: Vec<String>,
 }
@@ -341,7 +352,7 @@ pub fn run(a: Args) -> anyhow::Result<i32> {
         let dir = a.codex_dir.clone().unwrap_or_else(|| home.join(".codex/sessions"));
         scans.push(("codex", codex::scan_dir(&dir, &filter, a.max_line_bytes)?));
     }
-    let out = table::render(&scans, &a, &filter, &prices);
+    let out = if a.by == "skill" { skills::render(&scans, &a, &filter) } else { table::render(&scans, &a, &filter, &prices) };
     let mut stdout = std::io::stdout();
     let _ = std::io::Write::write_all(&mut stdout, out.as_bytes());
     Ok(0)

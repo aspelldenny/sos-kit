@@ -15,6 +15,7 @@ mod guards;
 mod hook;
 mod kit;
 mod predict;
+mod ready;
 mod role;
 mod sessions;
 mod sim;

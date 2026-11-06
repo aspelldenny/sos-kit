@@ -14,8 +14,13 @@ pub enum GateCmd {
         #[arg(long)]
         staged: bool,
     },
-    /// Line caps on [docs].files.
+    /// Line caps on [docs].files; bytes and item length on [docs].sized.
     Docs,
+    /// Relative links and anchors in [docs].links, against what will be committed.
+    Links,
+    /// Run [ready].cmd, the end-to-end check, and record revision and result in evidence/ready/.
+    /// Not part of `all`: run it before handing work over.
+    Ready,
     /// FEATURES.json identity rules on the staged file vs HEAD.
     Features,
     /// Tokens in .git/config and agent config files; .env files ignored and untracked.
@@ -28,7 +33,7 @@ pub enum GateCmd {
     Case,
     /// [git] protect_default_branch: no non-Markdown commit on the default branch.
     Branch,
-    /// Everything the pre-commit runs: secrets, env-commit, case, branch, text --staged, docs, features.
+    /// Everything the pre-commit runs: secrets, env-commit, case, branch, text --staged, docs, links, features.
     All,
     /// The app's git pre-commit: `all`, then the project's own pre-commit.local if there is one.
     PreCommit {
@@ -119,10 +124,14 @@ fn gates(which: GateCmd) -> i32 {
             return 2;
         }
     };
+    if matches!(which, GateCmd::Ready) {
+        return crate::ready::run(&root, &cfg.ready);
+    }
     let reports: anyhow::Result<Vec<Report>> = (|| {
         Ok(match which {
             GateCmd::Text { files, staged } => vec![text::gate(&root, &cfg.text, &files, staged)?],
             GateCmd::Docs => vec![docs::gate(&root, &cfg.docs)],
+            GateCmd::Links => vec![crate::check_links::gate(&root, &cfg.docs)?],
             GateCmd::Features => vec![features::gate(&root, &cfg.features)?],
             GateCmd::LocalSecrets => vec![local_secrets::gate(&root)?],
             GateCmd::Secrets => vec![repo::secrets(&root)?],
@@ -136,9 +145,10 @@ fn gates(which: GateCmd) -> i32 {
                 repo::branch(&root, &cfg.git)?,
                 text::gate(&root, &cfg.text, &[], true)?,
                 docs::gate(&root, &cfg.docs),
+                crate::check_links::gate(&root, &cfg.docs)?,
                 features::gate(&root, &cfg.features)?,
             ],
-            GateCmd::PreCommit { .. } | GateCmd::PrePush { .. } => unreachable!("handled in run"),
+            GateCmd::Ready | GateCmd::PreCommit { .. } | GateCmd::PrePush { .. } => unreachable!("handled above"),
         })
     })();
     match reports {

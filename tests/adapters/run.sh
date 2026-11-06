@@ -234,6 +234,30 @@ rm -rf docs AGENTS.md
 printf '[roles.reviewer.claude]   # Claude built it\nbackend = "codex"\nmodel = "m"\n\n[roles.reviewer.codex]\nbackend = "claude"\n' > .sos.toml
 check "claude: status names the cross-family reviewer" 0 "claude-built work → codex; codex-built work → claude" claude session-start <<<"{}"
 same_status "cross-family reviewer"
+printf '[ready]\ncmd = ""\n' > .sos.toml
+check "claude: status notes an empty [ready] cmd" 0 "nothing checks the whole product" claude session-start <<<"{}"
+same_status "empty [ready] cmd"
+printf "[ready]\ncmd = 'make \"e2e\"'\n" > .sos.toml
+same_status "[ready] set, never run"
+for v in '"""make ready"""' $'"""\nmake\n"""' $'"""\n"""' $'"""\n  \n"""' '"" # later'; do
+    printf '[ready]\ncmd = %s\n' "$v" > .sos.toml
+    same_status "[ready] cmd = $v"
+done
+printf '[ready]\ncmd = """make ready"""\n' > .sos.toml
+out=$(if [ -n "${SOS_HOOK_BIN:-}" ]; then "$SOS_HOOK_BIN" hook claude session-start; else "$PY" adapters/claude/hook.py session-start; fi <<<"{}" 2>&1)
+if grep -q "nothing checks the whole product" <<<"$out"; then fail=$((fail + 1)); echo "FAIL status: triple-quoted [ready] cmd read as empty"; else pass=$((pass + 1)); echo "ok   status: triple-quoted [ready] cmd is a command"; fi
+printf '[ready]\ncmd = "" # later\n' > .sos.toml
+check "claude: status notes an empty [ready] cmd with a comment" 0 "nothing checks the whole product" claude session-start <<<"{}"
+printf '[ready]\ncmd = """\n  \n"""\n' > .sos.toml
+check "claude: status notes an empty multi-line [ready] cmd" 0 "nothing checks the whole product" claude session-start <<<"{}"
+printf "[ready]\ncmd = 'make \"e2e\"'\n" > .sos.toml
+mkdir -p evidence/ready; printf 'FAIL abc123 2026-11-06 10:00 1s exit=1 — make\n\nPASS abc123+dirty 2026-11-06 10:05 2s exit=0 — make\n' > evidence/ready/runs.log
+check "claude: status shows the last ready run" 0 "PASS abc123+dirty" claude session-start <<<"{}"
+same_status "last [ready] run"
+printf 'PASS %s 2026-11-06 10:05 2s exit=0 — make\n' "$(git rev-parse --short HEAD 2>/dev/null)" > evidence/ready/runs.log
+check "claude: status marks a run the tree has moved past" 0 "the tree may differ from that run" claude session-start <<<"{}"
+same_status "[ready] run, tree changed since"
+rm -rf evidence
 printf '[roles.reviewer]\nbackend = "claude"\n' > .sos.toml
 out=$(if [ -n "${SOS_HOOK_BIN:-}" ]; then "$SOS_HOOK_BIN" hook claude session-start; else "$PY" adapters/claude/hook.py session-start; fi <<<"{}" 2>&1)
 if grep -q "Người soát" <<<"$out"; then fail=$((fail + 1)); echo "FAIL status: same-family reviewer named"; else pass=$((pass + 1)); echo "ok   status: quiet for a same-family reviewer"; fi

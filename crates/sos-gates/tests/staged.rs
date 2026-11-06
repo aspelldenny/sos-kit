@@ -97,7 +97,7 @@ fn docs_cap_reads_the_staged_version() {
     std::fs::write(p.join("STATE.md"), "x\n".repeat(20)).unwrap();
     git(p, &["add", "."]);
     std::fs::write(p.join("STATE.md"), "short\n").unwrap(); // unstaged shrink must not hide it
-    let cfg = DocsConfig { files: vec!["STATE.md".into()], soft: 5, hard: 10 };
+    let cfg = DocsConfig { files: vec!["STATE.md".into()], soft: 5, hard: 10, ..Default::default() };
     assert!(!docs::gate(p, &cfg).ok());
 }
 
@@ -147,7 +147,7 @@ fn staged_removal_of_config_and_doc_is_respected() {
     git(p, &["rm", "-q", "--cached", ".sos.toml", "STATE.md"]); // working copies stay
     let cfg = config::load(p).unwrap();
     assert!(cfg.text.banned.is_empty(), "removed config must not apply");
-    let docs_cfg = DocsConfig { files: vec!["STATE.md".into()], soft: 5, hard: 10 };
+    let docs_cfg = DocsConfig { files: vec!["STATE.md".into()], soft: 5, hard: 10, ..Default::default() };
     assert!(docs::gate(p, &docs_cfg).ok());
 }
 
@@ -163,7 +163,7 @@ fn unreadable_doc_dir_is_an_error() {
     std::fs::create_dir_all(p.join("private")).unwrap();
     std::fs::write(p.join("private/STATE.md"), "x").unwrap();
     std::fs::set_permissions(p.join("private"), std::fs::Permissions::from_mode(0o000)).unwrap();
-    let r = docs::gate(p, &DocsConfig { files: vec!["private/STATE.md".into()], soft: 5, hard: 10 });
+    let r = docs::gate(p, &DocsConfig { files: vec!["private/STATE.md".into()], soft: 5, hard: 10, ..Default::default() });
     std::fs::set_permissions(p.join("private"), std::fs::Permissions::from_mode(0o755)).unwrap();
     assert!(!r.ok(), "{:?}", r);
 }

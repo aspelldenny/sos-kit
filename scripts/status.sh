@@ -45,6 +45,28 @@ if [ -f .sos.toml ]; then
         }' .sos.toml)
     [ -n "$route" ] && echo "Người soát: ${route} — run it with \`sos role reviewer --from <builder> --brief <file>\`."
 fi
+# Green slices do not prove the combined product works (Payquill F35 and F31): name the last
+# end-to-end result, or that nothing runs one.
+if [ -f .sos.toml ]; then
+    ready=$(awk 'm {i=index($0,q q q); if (i) $0=substr($0,1,i-1); if ($0 ~ /[^[:space:]]/) {print "multi-line"; exit}; if (i) exit; next}
+        /^[[:space:]]*\[/{t=$0; sub(/#.*/,"",t); gsub(/[[:space:]]/,"",t)}
+        t=="[ready]" && /^[[:space:]]*cmd[[:space:]]*=/{sub(/^[^=]*=[[:space:]]*/,""); sub(/[[:space:]]*$/,""); q=substr($0,1,1)
+            if (q!="\"" && q!="\047") {print; exit}
+            if (substr($0,1,3)==q q q) {rest=substr($0,4); i=index(rest,q q q); if (i) {print substr(rest,1,i-1); exit}; if (rest ~ /[^[:space:]]/) {print "multi-line"; exit}; m=1; next}
+            rest=substr($0,2); i=index(rest,q); print (i ? substr(rest,1,i-1) : rest); exit}' .sos.toml | tr -d ' \t\r')
+    if [ -z "$ready" ]; then
+        echo "Note: .sos.toml [ready] cmd is empty: nothing checks the whole product before handover."
+    elif [ -f evidence/ready/runs.log ]; then
+        last=$(awk 'NF{l=$0} END{print l}' evidence/ready/runs.log)
+        logged=$(echo "$last" | cut -d' ' -f2); rev=${logged%+dirty}
+        head=$(git rev-parse --short HEAD 2>/dev/null)
+        if [ -z "$last" ]; then :
+        elif [ "$rev" != "$head" ]; then echo "Ready: $last (HEAD is now $head)"
+        elif [ "$rev" != "$logged" ] || [ -n "$(git status --porcelain -- . ':!evidence/ready' 2>/dev/null)" ]; then
+            echo "Ready: $last (the tree may differ from that run: rerun before handover)"
+        else echo "Ready: $last"; fi
+    fi
+fi
 entry=$(cat AGENTS.md CLAUDE.md 2>/dev/null | wc -l | tr -d ' ')
 [ "$entry" -gt 200 ] && echo "Note: AGENTS.md + CLAUDE.md are $entry lines (keep under 200): route to docs, move reference into them."
 # The advisor fails silently from a hook (a lost login, 15–17/10/2026): say so where Quản đốc looks.

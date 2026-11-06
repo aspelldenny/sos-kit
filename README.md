@@ -42,13 +42,16 @@ Existing files are never overwritten; the only change to an existing file is thr
 | `case` | Two paths that differ only by letter case (breaks macOS and Windows checkouts) |
 | `branch` | Non-Markdown commits on the default branch, when `[git] protect_default_branch = true` |
 | `text` | In files you list in `[text].files`: your banned phrases and leak patterns, a built-in list of AI vendor and model names (`[text] base = false` turns it off), and `<thinking>`/`<reflection>` blocks |
-| `docs` | State documents past a line limit (`[docs]`) |
+| `docs` | State documents past a line limit, and docs listed in `[docs] sized` past a total size or with one line too long (`[docs]`) |
+| `links` | In docs listed in `[docs] links`: a relative link or heading anchor that does not resolve, judged on what will be committed |
 | `features` | Deleting or malforming entries in `docs/FEATURES.json` |
 | `local-secrets` (push) | Tokens in `.git/config` and agent config files (gitleaks rules); a real `.env` file tracked anywhere, or one at the repo root that is not ignored |
 
+`sos gate ready` runs `.sos.toml` `[ready] cmd`, the one command that checks the whole product, and records revision and result in `evidence/ready/`. It is not part of `all`: run it before a handover. `sos check` and the session-start status say when it is empty; the session-start status otherwise shows the last result, and says when that run no longer speaks for the current tree.
+
 `sos filter` applies the wording rules to text on stdin, for filtering model output at runtime.
 
-`sos usage` shows where tokens went, read from the agents' local transcripts (`~/.claude/projects`, subagent files included, and with `--agent codex|all` the Codex rollouts in `~/.codex/sessions`): calls and tokens by role, model, project, day or session (`--by`), filtered with `--since`, `--until` and `--project`, with an estimated cost from a dated price table (`--prices FILE` to use your own), what each subagent handed back to its parent, and a few savings hints. `--json` for scripts, `--explain` for how each number was found. Read-only: nothing is sent, written or run, and no prompt or tool text is kept, only ids and counts.
+`sos usage` shows where tokens went, read from the agents' local transcripts (`~/.claude/projects`, subagent files included, and with `--agent codex|all` the Codex rollouts in `~/.codex/sessions`): calls and tokens by role, model, project, day or session (`--by`); `--by skill` instead counts runs of skills, subagents, the advisor and `sos role`, from the transcripts and the repo's `.advise-state/calls.jsonl`, filtered with `--since`, `--until` and `--project`, with an estimated cost from a dated price table (`--prices FILE` to use your own), what each subagent handed back to its parent, and a few savings hints. `--json` for scripts, `--explain` for how each number was found. Read-only: nothing is sent, written or run, and no prompt or tool text is kept, only ids and counts.
 
 `sos hook claude|codex <session-start|pre-edit|pre-bash|post-bash> --protocol 1` is what the agent hooks call (payload on stdin, exit 2 blocks); the guards (pre-edit, pre-bash) block when `sos` is missing, too old or fails. Apps installed before call `harness-lite/adapters/*/hook.py`: `sos update --wiring` rewrites those commands in `.claude/settings.json` and `.codex/hooks.json` (shown first, `--dry-run` to only look; other entries untouched), and `sos check` warns until it is done. The project-owned files are otherwise never overwritten by `sos update`.
 
