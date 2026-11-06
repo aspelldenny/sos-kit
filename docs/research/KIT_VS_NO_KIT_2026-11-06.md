@@ -1,12 +1,20 @@
-# Có kit và chưa có kit: đo trên các app thật (06/11/2026)
+# So sánh các đời kit trên app thật (06/11/2026)
 
 Câu hỏi của Chủ nhà: làm app nhà và app tập luyện có nhiều lúc ức chế vì code sai, bug lọt tới tay. Code bằng SOS Kit và code chay hơn kém nhau ở đâu, xét tốc độ, độ chính xác, tiết kiệm.
 
-**Kết luận.** Kit thắng rõ về độ chính xác ở lỗi logic và dữ liệu, hòa về tốc độ, chưa chứng minh được tiết kiệm. Lỗi lọt ở app nhà là lỗi tích hợp với thiết bị thật, loại kit chưa kiểm.
+**Đính chính của Chủ nhà, cùng ngày.** Bản đầu xếp Lucilius, Thirty, Tally vào nhóm "chưa có kit". Sai: ba app này dùng kit đời cũ từ đầu, trước khi lên v3 ngày 15/10. Code chay thật chỉ có Tập luyện (18–29/8). Bảng dưới đã chia lại theo ba đời.
+
+| Nhóm | App | Ghi chú từ git |
+|---|---|---|
+| Chay | Tập luyện đến 29/8 | Không có file harness hay agent nào trước 26/10 |
+| Kit đời cũ | Lucilius, Thirty, Tally trước 15/10 | Lucilius: SOS v2 từ 02/09. Thirty: harness-lite v0.2 từ 02/09. Tally: mẫu từ Thirty, từ 22/09 |
+| v3 | App nhà, TurnSigil, Reel từ đầu; Tập luyện từ 26/10; ba app trên từ 15/10 | TurnSigil lên v3 ngay ngày đầu |
+
+**Kết luận.** So với code chay, kit thắng rõ về độ chính xác ở lỗi logic và dữ liệu; bằng chứng trực tiếp chỉ đến từ một app là Tập luyện. Kit không làm chậm đi. Tiết kiệm chưa chứng minh được, và v3 chưa hơn rõ đời cũ. App nhà lọt lỗi một phần vì chưa đi thử hành trình, một phần vì đụng phần cứng thật mà simulator không thay được.
 
 | Tiêu chí | Kết quả | Bằng chứng chính |
 |---|---|---|
-| Tốc độ | Hòa | Trung bình chưa có kit ~18 commit/ngày, có từ đầu ~16 |
+| Tốc độ | Kit không chậm hơn | Commit/ngày: chay 9, đời cũ ~20,5, v3 từ đầu ~16 |
 | Độ chính xác | Kit thắng | Ít nhất 108 lỗi chặn bị bắt trước Chủ nhà ở hai app |
 | Tiết kiệm | Chưa rõ | Ở Tập luyện, theo commit là ngang, theo dòng code đắt hơn 2–3 lần |
 
@@ -16,7 +24,8 @@ Nguồn: lịch sử git từng repo, transcript Claude và Codex, `.advise-stat
 
 Đây là thí nghiệm tự nhiên, không có đối chứng:
 
-- **Không có đối chứng chay cho app nhà.** App nhà có kit từ ngày đầu (25/10). Tập luyện là phép so sánh tốt nhất: chay 18–29/8, cài kit 0.3.12 ngày 26/10.
+- **Chỉ một mẫu chay.** Tập luyện là phép so sánh duy nhất đáng tin giữa chay và kit: chay 18–29/8, cài kit 0.3.12 ngày 26/10. FoamFit chay 2 ngày trên git, quá ít để so. App nhà có kit từ ngày đầu nên không có đối chứng chay.
+- **Loại sản phẩm khác nhau.** App nhà điều khiển phần cứng thật; các app kia gần như không. Số lỗi lọt của app nhà không so thẳng được với app khác.
 - Giai đoạn sau kit ngắn và lệch pha: dựng mới khác sửa và bảo trì. Tally, FoamFit, Tarot sau kit quá ít việc để so.
 - Tỷ lệ commit sửa lỗi phụ thuộc cách đặt tiêu đề.
 - Số dòng có cả code sinh ra.
@@ -26,16 +35,18 @@ Nguồn: lịch sử git từng repo, transcript Claude và Codex, `.advise-stat
 
 ## Tốc độ
 
-| App | Kit | Commit/ngày | Dòng code mới/ngày | Commit có test | Test:code |
+| App | Đời kit | Commit/ngày | Dòng code mới/ngày | Commit có test | Test:code |
 |---|---|---|---|---|---|
-| App nhà | từ đầu | 25,0 | 6.077 | 86% | 0,64 |
-| Reel | từ đầu | 14,0 | 4.657 | 67% | 0,32 |
-| TurnSigil | từ đầu | 10,2 | 1.260 | 75% | 0,98 |
-| Tally | chưa | 21,8 | 2.099 | 88% | 1,26 |
-| Thirty | chưa | 21,0 | 2.400 | 90% | 1,07 |
-| Lucilius | chưa | 19,7 | 7.810 | 33% | 0,12 |
-| Tập luyện trước kit | chưa | 9,0 | 2.308 | 4% | 0,01 |
-| Tập luyện sau kit | có | 10,0 | 1.356 | 80% | 0,53 |
+| App nhà | v3 từ đầu | 25,0 | 6.077 | 86% | 0,64 |
+| Reel | v3 từ đầu | 14,0 | 4.657 | 67% | 0,32 |
+| TurnSigil | v3 từ đầu | 10,2 | 1.260 | 75% | 0,98 |
+| Tally | đời cũ | 21,8 | 2.099 | 88% | 1,26 |
+| Thirty | đời cũ | 21,0 | 2.400 | 90% | 1,07 |
+| Lucilius | đời cũ | 19,7 | 7.810 | 33% | 0,12 |
+| Tập luyện trước kit | chay | 9,0 | 2.308 | 4% | 0,01 |
+| Tập luyện sau kit | v3 | 10,0 | 1.356 | 80% | 0,53 |
+
+Thirty và Tally đã có tỷ lệ test cao ở đời cũ, nên bước nhảy lớn về test là từ chay lên có kit, không phải riêng công của v3.
 
 Người soát Codex tốn 124 phút ở app nhà (32 lượt) và 146 phút ở Tập luyện (53 lượt), khoảng 11–13% số giờ máy chạy.
 
@@ -64,29 +75,30 @@ Lỗi không tắt được bàn phím lặp lại ở Tập luyện, Lucilius t
 **Khác biệt quyết định: có đi thử cả hành trình hay không**
 
 - Tập luyện: agent đi simulator theo J01–J08 ngày 30/10, tìm ra 25 lỗi (F1–F25) trước khi Chủ nhà đụng vào.
-- App nhà: 903 test đơn vị, không có test giao diện hay chạy thử đầu cuối, 7 ngày đầu chưa chạm thiết bị thật. Chủ nhà thành người kiểm thử cuối.
+- App nhà: 903 test đơn vị, không có test giao diện hay chạy thử đầu cuối. Bàn giao ngày đầu chốt "chưa sim/e2e, chỉ code + unit test đến khi thiết bị về", nên 7 ngày đầu chưa chạm thiết bị thật. Chủ nhà thành người kiểm thử cuối.
+- Hai app không ngang nhau: Tập luyện chạy trọn trên simulator, app nhà thì không. Đi simulator có thể bắt loại lỗi giao diện và code chưa nối (`mergedItems`, bấm không phản hồi, bàn phím đơ). Lỗi cần thiết bị thật thì không (mất lệnh, hộp FPT, đánh thức TV); dữ liệu `GET /devices` thật cũng chỉ lộ khi có bridge thật hoặc bản ghi từ nó.
 - `[ready] cmd` trống ở mọi app đã xem, nên chưa gì kiểm toàn bộ sản phẩm trước bàn giao.
 
 ## Tiết kiệm
 
 Commit code là commit có đụng code, không tính commit chỉ sửa tài liệu.
 
-| App | Kit | $/commit code | Token/commit code (giá cố định) |
+| App | Đời kit | $/commit code | Token/commit code (giá cố định) |
 |---|---|---|---|
-| Lucilius | chưa | 3,6 | 0,51M |
-| Tập luyện | chưa | 14,4 | 1,83M |
-| Thirty | chưa | 11,0 | 2,3M |
-| Tally | chưa | 21,5 | 7,1M |
-| TurnSigil | từ đầu | 3,2 | 1,19M |
-| App nhà | từ đầu | 4,1 (có phiên mẹ $78) | từ 1,26M, chưa tính Codex và phiên mẹ |
-| Tập luyện | sau kit | 3,6 | 1,25M, tới 1,75M nếu tính Codex |
+| Lucilius | đời cũ | 3,6 | 0,51M |
+| Tập luyện | chay | 14,4 | 1,83M |
+| Thirty | đời cũ | 11,0 | 2,3M |
+| Tally | đời cũ | 21,5 | 7,1M |
+| TurnSigil | v3 từ đầu | 3,2 | 1,19M |
+| App nhà | v3 từ đầu | 4,1 (có phiên mẹ $78) | từ 1,26M, chưa tính Codex và phiên mẹ |
+| Tập luyện | v3 | 3,6 | 1,25M, tới 1,75M nếu tính Codex |
 
-Cùng một app, Tập luyện: token/commit gần như ngang trước kit khi tính cả Codex. Theo 100 dòng code, 0,36M trước kit thành 0,75–1,07M sau kit, vì commit nhỏ hơn và nhiều vòng soát hơn. Lucilius chưa có kit mà rẻ nhất, nên kit không tự động rẻ hơn.
+Cùng một app, Tập luyện: token/commit gần như ngang trước kit khi tính cả Codex. Theo 100 dòng code, 0,36M trước kit thành 0,75–1,07M sau kit, vì commit nhỏ hơn và nhiều vòng soát hơn. Giữa các đời kit không có người thắng rõ: đời cũ từ 0,51M (Lucilius) tới 7,1M (Tally), v3 khoảng 1,2M. Các bước lên v3 cùng app cũng không so được, vì Lucilius và Thirty sau 15/10 chủ yếu là bảo trì.
 
 ## Việc rút ra
 
 Theo thứ tự ưu tiên, đã ghi vào `docs/BACKLOG.md`:
 
-1. Bắt buộc đi thử cả hành trình trước bàn giao: điền `[ready] cmd` cho từng app.
+1. Bắt buộc đi thử cả hành trình trước bàn giao: điền `[ready] cmd` cho từng app. Không thay được thiết bị thật ở app phần cứng.
 2. Với app có phần cứng hoặc API ngoài: test bằng dữ liệu thật (như `RealBridgeTests`), chạm thiết bị thật sớm.
 3. Gate phát hiện code không ai gọi, chặn sớm lỗi kiểu `mergedItems`.
