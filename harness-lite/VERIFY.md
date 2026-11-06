@@ -4,7 +4,7 @@ Read this before writing tests or choosing what to run. It extends the [shared c
 
 ## Writing tests
 
-Each test protects an observable behavior or invariant against a credible regression that existing coverage misses; extend cases rather than duplicate a proof, and avoid tautologies, copies of source shape and production seams added only for a test. For bug fixes, show fail-before/pass-after where feasible. Before deleting a test, keep any unique proof it held; a test that kills no sampled mutant is a candidate, not proof of waste: security, API, protocol, migration, storage, config-default and other independent contracts stay.
+Each test protects an observable behavior or invariant against a credible regression that existing coverage misses; extend cases rather than duplicate a proof, and avoid tautologies, copies of source shape and production seams added only for a test. For bug fixes, show fail-before/pass-after where feasible. Before deleting a test, keep any unique proof it held; a test that kills no sampled mutant is a candidate, not proof of waste: security, API, protocol, migration, storage, config-default and other independent contracts stay. Build a fake of a device or outside API from a recorded real response, and keep one test that reads that recording: a hand-written fake passes while the real system differs.
 
 ## Which check, when
 

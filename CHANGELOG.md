@@ -2,8 +2,9 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## Unreleased
+## v0.4.3 — 2026-11-06 — Codex hooks on Windows, fakes from real data
 
+- **Fakes come from real responses.** `harness-lite/VERIFY.md` now says to build a fake of a device or outside API from a recorded real response, and to keep one test that reads the recording. Home-control's hand-written demo data had fields the real `GET /devices` lacks, so tests and simulator screenshots passed while the app failed on real hardware (`docs/research/KIT_VS_NO_KIT_2026-11-06.md`).
 - **`sos update --wiring` on Windows no longer breaks Codex hooks.** It rewrote older commands to the shell form (`rc=$?`), which PowerShell cannot run; only `sos install` wrote the `python -c` launcher. On Windows it now writes that launcher too, and repairs the shell form a 0.4.x `--wiring` left. Other machines keep the shell form, and a file already in the Windows form keeps it and its interpreter. Found updating POD-agent to 0.4.2.
 
 ## v0.4.2 — 2026-11-06 — the kit says what is true now
