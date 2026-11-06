@@ -2,8 +2,9 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## Unreleased
+## v0.4.2 — 2026-11-06 — the kit says what is true now
 
+- **Text sent into apps matches current wiring.** `harness-lite/README.md`, `harness-lite/roles/reviewer.md` and `templates/app/sos.toml` now name `sos bite`, and Python is no longer listed as required. The `sos` code itself did not change.
 - **`install.sh` no longer asks for Python.** Current wiring calls `sos` directly, so the installer warned about something most machines do not need. `sos check` still names the interpreter in repos that use one (Codex hooks on Windows, apps on older wiring).
 
 ## v0.4.1 — 2026-11-06 — measure what the harness loads
