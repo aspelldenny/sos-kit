@@ -574,6 +574,15 @@ fn hook_plan(root: &Path, force: bool) -> Result<HookPlan> {
             other => format!("{HOOKS_PATH}/{other}"),
         };
         let src = dir.join(h);
+        // An unrecorded hook already in the kit's hook folder would move to the same .local
+        // (Act::Adopt) and be overwritten by this copy: refuse before writing anything.
+        let own = format!("{HOOKS_PATH}/{h}");
+        let kit_text = KIT_FILES.iter().find(|f| f.path == own).map(|f| f.text().into_owned());
+        if let Ok(existing) = std::fs::read(root.join(&own)) {
+            if kit_text.as_deref().map(str::as_bytes) != Some(&existing[..]) && existing != std::fs::read(&src)? {
+                bail!("{own} and {} are both your hooks and differ — merge them into one, then rerun", show(&src));
+            }
+        }
         if let Ok(existing) = std::fs::read(root.join(&dst)) {
             if existing != std::fs::read(&src)? {
                 bail!("{dst} already exists and differs from {} — merge them by hand, then rerun", show(&src));

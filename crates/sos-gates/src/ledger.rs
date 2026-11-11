@@ -52,16 +52,19 @@ impl Ledger {
         if Self::skipped(subject) {
             return e;
         }
-        // The trailer block: the last paragraph after the subject, every line `Key: value`.
+        // The trailer paragraphs: those at the end of the message made only of `Key: value` lines
+        // (a value may continue on an indented line, as git allows). Agents often put
+        // `Co-Authored-By:` in a paragraph of its own after `Caught-by:`, so more than git's
+        // single last paragraph is read; a paragraph with prose stops the walk.
         let body = &lines[subject_at.map_or(lines.len(), |i| i + 1)..];
-        let end = body.iter().rposition(|l| !l.trim().is_empty()).map_or(0, |i| i + 1);
-        let start = body[..end].iter().rposition(|l| l.trim().is_empty()).map_or(0, |i| i + 1);
-        let block = &body[start..end];
-        let is_trailer = |l: &&str| l.split_once(':').is_some_and(|(k, _)| !k.is_empty() && !k.contains(char::is_whitespace));
-        if block.is_empty() || !block.iter().all(is_trailer) {
-            return e;
-        }
-        for l in block {
+        let is_trailer = |l: &str| l.split_once(':').is_some_and(|(k, _)| !k.is_empty() && !k.contains(char::is_whitespace));
+        let continued = |l: &str| l.starts_with([' ', '\t']);
+        let paras: Vec<&[&str]> = body.split(|l| l.trim().is_empty()).filter(|p| !p.is_empty()).collect();
+        let block: Vec<&str> = paras.iter().rev()
+            .take_while(|p| is_trailer(p[0]) && p.iter().all(|l| is_trailer(l) || continued(l)))
+            .flat_map(|p| p.iter().copied())
+            .collect();
+        for l in block.iter().filter(|l| !continued(l)) {
             let Some((k, v)) = l.split_once(':') else { continue };
             let slot = match k.trim().to_ascii_lowercase().as_str() {
                 "caught-by" => &mut e.caught_by,
@@ -141,6 +144,10 @@ mod tests {
         assert_eq!(read("fix: y\n\nbody\n# ------------------------ >8 ------------------------\nCaught-by: test\n").caught_by, None);
         assert!(read("docs: y\n\nThe old Caught-by: luck rule is gone.\n").bad.is_empty());
         assert_eq!(read("fix: y\n\nCaught-by: test\nCo-Authored-By: A <a@b>\n").caught_by.as_deref(), Some("test"));
+        // A trailer paragraph followed by another trailer paragraph (Co-Authored-By on its own).
+        assert_eq!(read("fix: y\n\nbody\n\nCaught-by: reviewer\nShould-catch: test\n\nCo-Authored-By: A <a@b>\n").caught_by.as_deref(), Some("reviewer"));
+        // A folded value (git interpret-trailers reads both trailers here).
+        assert_eq!(read("fix: crash\n\nCaught-by: test\nReviewed-by: A <a@b>,\n B <b@c>\n").caught_by.as_deref(), Some("test"));
     }
 
     #[test]

@@ -317,6 +317,27 @@ fn hook_migration_conflict_stops_before_any_write() {
     assert!(!p.join("AGENTS.md").exists() && !p.join("harness-lite/CONTRACT.md").exists(), "nothing written");
 }
 
+#[cfg(unix)]
+#[test]
+fn force_hooks_refuses_two_different_own_hooks_before_any_write() {
+    // .git/hooks/commit-msg (A) would be copied to commit-msg.local, where Adopt moves B.
+    let d = repo();
+    let p = d.path();
+    exec_hook(&p.join(".git/hooks/commit-msg"), "#!/bin/sh
+echo A
+");
+    std::fs::create_dir_all(p.join("harness-lite/hooks")).unwrap();
+    exec_hook(&p.join("harness-lite/hooks/commit-msg"), "#!/bin/sh
+echo B
+");
+    let o = sos(p, &["install", "--force-hooks"]);
+    assert_eq!(o.status.code(), Some(2), "{}", out(&o));
+    assert!(out(&o).contains("merge them into one"), "{}", out(&o));
+    assert_eq!(std::fs::read_to_string(p.join("harness-lite/hooks/commit-msg")).unwrap(), "#!/bin/sh\necho B\n");
+    assert_eq!(std::fs::read_to_string(p.join(".git/hooks/commit-msg")).unwrap(), "#!/bin/sh\necho A\n");
+    assert!(!p.join("harness-lite/hooks/commit-msg.local").exists() && !p.join("AGENTS.md").exists(), "nothing written");
+}
+
 #[test]
 fn role_wrappers_carry_model_and_effort_and_check_flags_missing_ones() {
     let d = repo();
