@@ -15,7 +15,7 @@ SKIP = ("archive/", "docs/research/", "docs/plans/", "CHANGELOG.md")
 TOP = {p.name for p in ROOT.iterdir()} | {".claude", ".codex", ".github"}
 # Paths that exist only inside a project after `sos install`, or are examples, not kit files.
 APP_ONLY = re.compile(r"^(docs/(STATE|FEATURES|BACKLOG|DESIGN)|\.sos\.toml$|AGENTS\.md$|CLAUDE\.md$|harness-lite/(UPSTREAM\.json|hooks/|templates/)|"
-                      r"\.claude/(agents|settings)|\.codex/(hooks|config)|\.git/|\.env|evidence/|\.advise-state|hooks/(pre-commit|pre-push)\.local|"
+                      r"\.claude/(agents|settings)|\.codex/(hooks|config)|\.git/|\.env|evidence/|\.advise-state|hooks/(pre-commit|pre-push|commit-msg)\.local|"
                       r"~/|\$)")
 # Where a kit file lands in an app: harness-lite/<x> comes from these kit paths.
 APP_TO_KIT = {"harness-lite/scripts/": "scripts/", "harness-lite/adapters/": "adapters/",

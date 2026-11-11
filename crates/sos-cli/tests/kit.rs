@@ -823,3 +823,38 @@ fn check_counts_the_bytes_a_session_loads() {
     assert!(c.contains("loaded at session start: 23 bytes"), "{c}");
     assert!(c.contains("first section of docs/BACKLOG.md"), "{c}");
 }
+
+#[cfg(unix)]
+#[test]
+fn update_from_0_4_adopts_an_own_commit_msg_hook() {
+    // A 0.4.x app: hooksPath set, its own commit-msg in harness-lite/hooks, nothing recorded for it.
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let mut u = upstream(p);
+    u["files"].as_object_mut().unwrap().remove("harness-lite/hooks/commit-msg");
+    std::fs::write(p.join("harness-lite/UPSTREAM.json"), serde_json::to_string(&u).unwrap()).unwrap();
+    let mine = "#!/bin/sh\necho ran >> \"$(git rev-parse --show-toplevel)/mine-ran\"\n";
+    exec_hook(&p.join("harness-lite/hooks/commit-msg"), mine);
+
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains("`sos update` adds it"), "a warning, not an error: {c}");
+
+    let o = sos(p, &["update"]);
+    assert!(o.status.success(), "{}", out(&o));
+    assert_eq!(std::fs::read_to_string(p.join("harness-lite/hooks/commit-msg.local")).unwrap(), mine);
+    let hook = p.join("harness-lite/hooks/commit-msg");
+    assert!(std::fs::read_to_string(&hook).unwrap().contains("sos gate commit-msg"));
+    assert!(upstream(p)["files"].get("harness-lite/hooks/commit-msg").is_some());
+    let run = |msg: &str| {
+        std::fs::write(p.join("MSG"), msg).unwrap();
+        Command::new(&hook).arg(p.join("MSG")).current_dir(p).env("PATH", path_with_sos()).output().unwrap()
+    };
+    assert!(!run("fix: x\n").status.success(), "ledger runs");
+    assert!(run("fix: x\n\nCaught-by: test\n").status.success());
+    assert_eq!(std::fs::read_to_string(p.join("mine-ran")).unwrap(), "ran\n", "own hook ran once, after the ledger passed");
+    // Now recorded: a missing hook is an error again.
+    std::fs::remove_file(&hook).unwrap();
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains("commit-msg missing") || !c.contains("`sos update` adds it"), "{c}");
+}

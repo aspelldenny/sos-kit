@@ -4,7 +4,7 @@
 
 ## Đang chạy — SOS Kit v3 dùng thật
 
-> Nguồn: `docs/research/HARNESS_SURVEY_2026-10-08.md`, `docs/plans/V3_TRIAGE_2026-10-08.md`. Phát hành mới nhất: v0.4.3 (06/11/2026), xem `CHANGELOG.md`. Ruleset `protect-main` bắt buộc ba check `test (macos-15)`, `test (ubuntu-22.04)`, `test (windows-2022)` (từ 06/11/2026): đổi máy chạy CI thì sửa ruleset cùng lúc, không PR sẽ kẹt chờ check cũ.
+> Nguồn: `docs/research/HARNESS_SURVEY_2026-10-08.md`, `docs/plans/V3_TRIAGE_2026-10-08.md`. Phát hành mới nhất: v0.5.0 (11/11/2026), xem `CHANGELOG.md`. Ruleset `protect-main` bắt buộc ba check `test (macos-15)`, `test (ubuntu-22.04)`, `test (windows-2022)` (từ 06/11/2026): đổi máy chạy CI thì sửa ruleset cùng lúc, không PR sẽ kẹt chờ check cũ.
 
 - [ ] **Rust hoá tool agent (Chủ nhà 04/11/2026), kế hoạch `docs/plans/RUST_ALL_TOOLS_2026-11-04.md`.** Các đợt đã xong và phát hành ở v0.4.0. **Tiếp:** đổi chỗ gọi ở từng repo và ở vault, theo `docs/plans/RUST_HANDOFF_2026-11-05.md` «Việc chờ Sếp». Bản phát hành đã có đủ lệnh, nên điều kiện đổi chỗ gọi đã đạt. Python (`scripts/*`, `adapters/*/hook.py`) bỏ khi mọi app đã chạy `sos update --wiring`; settings của chính kit vẫn gọi adapter Python. Việc nhỏ còn lại cho `sos usage`: đọc kết quả subagent chạy nền; gom chuỗi trùng để bớt bộ nhớ. Lịch sử: `docs/plans/BACKLOG_DETAIL_2026-11-06.md`.
 - [ ] **Áp vào app mới** khi Chủ nhà brainstorm xong: `sos install`, đo token, thời gian, lỗi bắt được theo tầng (gate / advisor / người soát), số lần advisor bắn và đổi hướng thợ. Chốt model và effort cho advisor sau khi có số đo.

@@ -1,7 +1,8 @@
 //! `sos gate …` and `sos filter` — thin CLI over the sos-gates crate.
 
 use clap::Subcommand;
-use sos_gates::{config, docs, features, local_secrets, repo, text, Report};
+use sos_gates::{config, docs, features, ledger, local_secrets, repo, text, Report};
+use anyhow::Context;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
@@ -44,6 +45,15 @@ pub enum GateCmd {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
+    /// The app's git commit-msg: a fix commit must name what caught the defect (`Caught-by:`,
+    /// [ledger]), then the project's own commit-msg.local if there is one.
+    CommitMsg {
+        /// The file git passes with the message.
+        file: PathBuf,
+        /// The project's extra hook (default harness-lite/hooks/commit-msg.local).
+        #[arg(long)]
+        local: Option<PathBuf>,
+    },
     /// The app's git pre-push: `local-secrets`, then the project's own pre-push.local if there is
     /// one (it gets git's arguments and the ref list on stdin).
     PrePush {
@@ -70,6 +80,10 @@ pub fn run(which: GateCmd) -> i32 {
     let (first, name, local, args) = match which {
         GateCmd::PreCommit { local, args } => (GateCmd::All, "pre-commit", local, args),
         GateCmd::PrePush { local, args } => (GateCmd::LocalSecrets, "pre-push", local, args),
+        GateCmd::CommitMsg { file, local } => {
+            let arg = file.display().to_string();
+            (GateCmd::CommitMsg { file, local: None }, "commit-msg", local, vec![arg])
+        }
         other => return gates(other),
     };
     let rc = gates(first);
@@ -148,6 +162,10 @@ fn gates(which: GateCmd) -> i32 {
                 crate::check_links::gate(&root, &cfg.docs)?,
                 features::gate(&root, &cfg.features)?,
             ],
+            GateCmd::CommitMsg { file, .. } => {
+                let msg = std::fs::read_to_string(&file).with_context(|| format!("reading {}", file.display()))?;
+                vec![ledger::gate(&cfg.ledger, &msg)?]
+            }
             GateCmd::Ready | GateCmd::PreCommit { .. } | GateCmd::PrePush { .. } => unreachable!("handled above"),
         })
     })();

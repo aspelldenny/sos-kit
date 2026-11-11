@@ -22,14 +22,14 @@ Then fill in the placeholders in `AGENTS.md` (what the project is, where its sou
 
 | Added | Owner | What it is |
 |---|---|---|
-| `harness-lite/` | SOS Kit (`sos update` refreshes it) | The shared contract and four roles: **Quản đốc** (orchestrator), **Kiến trúc sư** (architect, only for structural questions), **Thợ** (worker), **Người soát** (independent reviewer). Plus the scripts, agent adapters and git hooks below. |
+| `harness-lite/` | SOS Kit (`sos update` refreshes it) | The shared contract and three roles: **Quản đốc** (orchestrator), **Thợ** (worker), **Người soát** (independent reviewer). Plus the scripts, agent adapters and git hooks below. |
 | Git hooks | SOS Kit | Every commit runs `sos gate all`; every push runs `sos gate local-secrets`. Project-specific checks (type checks, tests) go in `harness-lite/hooks/pre-commit.local`. |
 | `AGENTS.md`, `CLAUDE.md` | Your project | Project instructions; `CLAUDE.md` imports `AGENTS.md` so Claude Code and Codex read the same text. |
 | `.sos.toml` | Your project | Rules for the gates (wording, doc size, feature list, branch) and the advisor. |
 | `docs/BACKLOG.md`, `docs/FEATURES.json` | Your project | Current work (agents see its first section at session start) and the feature list with pass/fail status. |
 | `.claude/`, `.codex/` | Your project | Hooks for Claude Code and Codex: a status line at session start, a block on editing real `.env` files, and the advisor. |
 
-Existing files are never overwritten; the only change to an existing file is three lines appended to `.gitignore`. If the project already has git hooks, `sos install` leaves them active and tells you how to chain them; `--force-hooks` copies them to `harness-lite/hooks/` (`pre-commit` and `pre-push` become `*.local`, run after the gates) and switches git to the new hooks.
+Existing files are never overwritten; the only change to an existing file is three lines appended to `.gitignore`. If the project already has git hooks, `sos install` leaves them active and tells you how to chain them; `--force-hooks` copies them to `harness-lite/hooks/` (`pre-commit`, `pre-push` and `commit-msg` become `*.local`, run after the gates) and switches git to the new hooks.
 
 ## The gates
 

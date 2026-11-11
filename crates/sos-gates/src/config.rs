@@ -45,6 +45,10 @@
 //! tests = '^server/tests/'         # regex: test files
 //! mutants = 8                      # edits per run (each one runs `test`)
 //!
+//! [ledger]                       # Caught-by trailer on fix commits (commit-msg gate, `sos score`)
+//! require = true                   # false: never block a commit message
+//! fix = '^(fix|hotfix)\b'          # subject regex for a fix commit (empty: built-in)
+//!
 //! [state]
 //! file = "docs/BACKLOG.md"         # current-work doc: session-start status and advisor intent
 //!
@@ -89,6 +93,8 @@ pub struct Config {
     #[serde(default)]
     pub bite: BiteConfig,
     #[serde(default)]
+    pub ledger: LedgerConfig,
+    #[serde(default)]
     pub roles: std::collections::BTreeMap<String, RoleEntry>,
 }
 
@@ -106,6 +112,25 @@ pub struct BiteConfig {
     pub tests: String,
     #[serde(default)]
     pub mutants: Option<u32>,
+}
+
+/// The Caught-by ledger: every fix commit names the layer that caught the defect, so
+/// `sos score` can say where defects are caught and how many reach a person (plan 11/11/2026).
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct LedgerConfig {
+    /// false: the commit-msg gate passes every message (score still counts what is there).
+    #[serde(default = "yes")]
+    pub require: bool,
+    /// Regex on the subject line that marks a fix commit; empty: the built-in pattern.
+    #[serde(default)]
+    pub fix: String,
+}
+
+impl Default for LedgerConfig {
+    fn default() -> Self {
+        Self { require: true, fix: String::new() }
+    }
 }
 
 /// The doc that says what is being worked on now (status at session start, advisor intent).
@@ -354,6 +379,9 @@ pub fn parse(src: &str) -> Result<Config> {
     }
     if cfg.advisor.tests.iter().any(|t| t.trim().is_empty()) {
         bail!("[advisor] tests: an entry is empty (each is the start of a test command, e.g. \"node scripts/check.mjs\")");
+    }
+    if !cfg.ledger.fix.is_empty() {
+        regex::Regex::new(&cfg.ledger.fix).with_context(|| format!("[ledger] fix is not a valid regex: {:?}", cfg.ledger.fix))?;
     }
     for (role, entry) in &cfg.roles {
         if !ROLES.contains(&role.as_str()) {

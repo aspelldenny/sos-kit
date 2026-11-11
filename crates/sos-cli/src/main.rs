@@ -17,6 +17,7 @@ mod kit;
 mod predict;
 mod ready;
 mod role;
+mod score;
 mod sessions;
 mod sim;
 mod status;
@@ -100,6 +101,10 @@ enum Cmd {
     /// Token use by role × model from local Claude Code transcripts (and Codex rollouts), with a
     /// comparison price and suggestions. Read-only: nothing is sent, written or run.
     Usage(usage::Args),
+    /// One scorecard for an app or the kit, to compare runs (with the kit and without, before an
+    /// upgrade and after): fix commits by `Caught-by:` layer and the escape rate (share a person
+    /// found), `[ready]`, bite, advisor calls; `--tokens` adds `sos usage`. Read-only unless `--save`.
+    Score(score::Args),
     /// Ask a stronger model (the other family by default) for direction on the current work, from
     /// a snapshot: question, intent, latest failure, git state, relevant files. Exit 0 advice,
     /// 1 failed, 2 off or misconfigured, 3 unavailable (CLI not logged in). Settings: .sos.toml [advisor].
@@ -143,6 +148,7 @@ fn main() {
             role::run(&role::Args { role, from, brief, out, timeout, dry_run }),
         Cmd::Hook { which } => Ok(hook::run(which)),
         Cmd::Usage(a) => usage::run(a),
+        Cmd::Score(a) => score::run(a),
         Cmd::Advise(a) => advise::run(a),
         Cmd::Bite(a) => bite::run(a),
         Cmd::Sim { which } => sim::run(which),

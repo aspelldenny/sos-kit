@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# sos-kit commit-msg: a fix commit names what caught the defect (`Caught-by: <layer>`), the ledger
+# behind `sos score` (.sos.toml [ledger]). Runs the kit's freshly built binary (app repos call the
+# installed `sos`). Install: git config core.hooksPath hooks
+set -uo pipefail
+cargo run --quiet -p sos-cli -- gate commit-msg "$1"
