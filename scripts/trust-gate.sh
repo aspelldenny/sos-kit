@@ -41,6 +41,7 @@ SURFACE_GLOBS=(
     "bin/sos-npm"
     "hooks/pre-commit"
     "hooks/pre-push"
+    "hooks/commit-msg"
     "templates/app/hooks/*"
     "scripts/*"
     "install.sh"

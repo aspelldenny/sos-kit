@@ -11,27 +11,28 @@ Runtime input is the [contract](CONTRACT.md), one role, and the task brief. Do n
 | Who | Role file | When |
 |---|---|---|
 | Main session | [Quản đốc](roles/orchestrator.md) | Always: holds intent and state, delegates, integrates, reports to Chủ nhà |
-| Subagent | [Kiến trúc sư](roles/architect.md) | Only for real structural uncertainty |
 | Subagent | [Thợ](roles/worker.md) | Implementation |
 | Subagent or fresh session | [Người soát](roles/reviewer.md) | On events, not every slice: a journey first connects; data, money, privacy or sync is touched; before handoff |
 
-An adversarial pass by a different model family before acceptance is optional.
+An adversarial pass by a different model family before acceptance is optional. Kiến trúc sư ([roles/architect.md](roles/architect.md)) is now a planning step of Quản đốc; the file, `sos role architect` and `[roles.architect]` stay for apps that still call it.
 
 ## What runs automatically
 
 | Layer | Files | Applies to |
 |---|---|---|
-| **Git gates** (the real boundary) | `hooks/pre-commit` → `sos gate pre-commit` (= `sos gate all`, then `pre-commit.local`); `hooks/pre-push` → `sos gate pre-push` (= `sos gate local-secrets`, then `pre-push.local`) | Every agent and every person |
+| **Git gates** (the real boundary) | `hooks/pre-commit` → `sos gate pre-commit` (= `sos gate all`, then `pre-commit.local`); `hooks/pre-push` → `sos gate pre-push` (= `sos gate local-secrets`, then `pre-push.local`); `hooks/commit-msg` → `sos gate commit-msg` (a fix commit names what caught the defect, `Caught-by:`; then `commit-msg.local`) | Every agent and every person |
 | Agent-neutral scripts | `scripts/env-guard.sh`, `sim-guard`, `status.sh`, `test-watch.py`, `advise`, `bite` (`sos hook` does the guards, the status and the advisor trigger itself, `sos advise` and `sos bite` the rest; the scripts stay for older wiring) | Anything that runs a command |
 | Agent hooks (earlier feedback) | `.claude/settings.json`, `.codex/hooks.json` → `sos hook claude\|codex <event> --protocol 1`; a guard that cannot run `sos` blocks. Apps wired before this call `adapters/*/hook.py`: `sos update --wiring` rewrites those commands (shown first; other entries untouched) | That agent only; see `adapters/README.md` |
 
-`sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps, dead links in the docs agents read and `FEATURES.json` identity. Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` (executable, project-owned).
+`sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps, dead links in the docs agents read and `FEATURES.json` identity. Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` / `hooks/commit-msg.local` (executable, project-owned).
 
 **Ready.** `sos gate ready` runs `.sos.toml` `[ready] cmd` before a handover and records revision and result in `evidence/ready/`; the session-start status shows the last result, says when it no longer speaks for the current tree, or that nothing checks the whole product yet. Not part of `sos gate all`.
 
 **Models.** `.sos.toml` `[roles]` sets backend, model and effort per role; the Claude wrappers in `.claude/agents/` mirror it and `sos check` compares them. `sos role` runs a role from any agent on that table (stdin closed, time limit, logged); use it instead of hand-written `codex exec` / `claude -p` calls.
 
 **Test bite.** `sos bite` measures whether a change's tests catch a wrong version of it: with the changed source put back to the base, new or edited tests must fail; and one-token mutants (`==` → `!=`, `<` → `>=`, `n` → `n+1` …) on the changed lines must each turn some test red (a mutant that breaks the build counts as neither). Per-test results come from `unittest -v`, `pytest -v`, XCTest, `node --test`, `vitest --reporter=verbose`, `jest --verbose`, TAP and `cargo test` output; the checkout's `node_modules` is linked into the throwaway worktree. `sos bite --audit` does the same to the tests that already exist: mutants across a module, and the tests that killed none or only what another test killed, as candidates for an audit (OpenClaw reported deleting ~400k lines of tests with little coverage change). Người soát runs it on slices that change logic and reports survivors (`.sos.toml` `[bite]`: test command, source and test regexes; each mutant runs the test command once, so keep it narrow for slow suites).
+
+**Score.** `sos score` prints one scorecard for the repo: commits and active days; fix commits by the layer that caught them (from the `Caught-by:` trailer the commit-msg gate asks for: gate, test, bite, reviewer, advisor, owner, user, prod) and the escape rate, the share of recorded fixes a person found (owner, user, prod); the `[ready]` command and its runs; bite kill rate; advisor calls. `--since YYYY-MM-DD` narrows it, `--json` prints it for comparison, `--save` keeps it in `evidence/score/`, `--tokens` adds `sos usage` for this folder. Compare two runs (an app with the kit and one without, the same app before and after a kit upgrade): a falling escape rate means defects are caught earlier. `.sos.toml` `[ledger]` sets the fix-subject pattern or turns the gate off.
 
 **Advisor.** After two consecutive failing runs of the same test or build runner, the `sos hook` advisor trigger asks a stronger model (`sos advise`) for a direction and adds the answer to the worker's context; the advisor is shown the files the failure and the change point at. Each call needs two more failures; after the second call, the next two failures tell the worker to stop and report. Choose the backend in `.sos.toml` `[advisor]` (`claude`, `codex`, `auto` for the other model family, `off`), and list test commands the hook does not know (`tests = ["node scripts/check.mjs"]`); calls and costs are logged in `.advise-state/calls.jsonl`. An advisor that cannot run (its CLI is logged out) does not use up a call: Chủ nhà gets a desktop notification, the worker is told to report it at once, the session-start status and `sos check` repeat it until a call succeeds, and `sos advise --check` proves the fix.
 
@@ -44,6 +45,7 @@ sos update             # after upgrading sos
 sos gate all           # what the pre-commit runs
 sos role reviewer --from claude --brief brief.md   # run a role on its configured model
 sos bite --base <ref>  # do this change's tests catch a wrong version of it?
+sos score --since <day> --json   # where defects were caught, escape rate, ready, bite, advisor
 ```
 
 Requirements: `git`, `gitleaks` and the `sos` binary on `PATH`. Python only for Codex hooks on Windows and for apps on older wiring.

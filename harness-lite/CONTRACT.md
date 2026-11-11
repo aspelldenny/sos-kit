@@ -16,7 +16,7 @@ Do not require full history on every handoff. Keep one canonical current state i
 
 Before committing to an approach, compare the brief with actual code, dependencies and agreed product references. Challenge a material mismatch, unsupported assumption or cheaper adequate approach immediately; do not manufacture objections. A sound brief proceeds without a separate challenge round. Reopen the question when implementation or integration reveals new evidence.
 
-Use the existing handoff or report: observation/evidence → consequence → proposed correction or resolving check. Quản đốc resolves ordinary technical issues within authority, involving Kiến trúc sư only for structural uncertainty. Pause only dependent work; continue independent work. Product intent/taste changes still belong to Chủ nhà.
+Use the existing handoff or report: observation/evidence → consequence → proposed correction or resolving check. Quản đốc resolves technical issues within authority, structural ones included. Pause only dependent work; continue independent work. Product intent/taste changes still belong to Chủ nhà.
 
 A finding is closed by a correction plus affected verification, or by evidence explaining why it is not a defect. Agreement, a patch or a green unrelated suite is not closure. Keep unresolved consequential findings visible in current state and withhold readiness for the affected outcome. Check UI feedback against the rendered interaction and agreed references; distinguish functional defects, reference violations and optional taste suggestions.
 

@@ -24,7 +24,7 @@ Chủ nhà owns intent and taste at the start and acceptance at the end. Agents 
 
 **5. Evidence over assertions.** "Done" means a repeatable check on the combined result, with the command and its output. An old green log is not current quality. A test that seeds what production should produce proves nothing.
 
-**6. Tools for rules, models for judgment.** Deterministic checks belong in code: fast, testable, the same every time. Models handle what rules cannot: semantics, taste, finding what nobody wrote down.
+**6. Tools for rules, models for judgment.** Deterministic checks belong in code: fast, testable, the same every time. Models handle what rules cannot: semantics, taste, finding what nobody wrote down. As models get stronger, the kit gives them fewer words and more senses and judges: do not make a model remember what a tool can look up, estimate what a tool can measure, or certify its own work where an independent test can (plan `VAI-CHUYEN-GIA-2026-11-11`).
 
 **7. Solo-first.** No team ceremony. Every feature serves one person shipping real software.
 

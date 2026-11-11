@@ -317,6 +317,27 @@ fn hook_migration_conflict_stops_before_any_write() {
     assert!(!p.join("AGENTS.md").exists() && !p.join("harness-lite/CONTRACT.md").exists(), "nothing written");
 }
 
+#[cfg(unix)]
+#[test]
+fn force_hooks_refuses_two_different_own_hooks_before_any_write() {
+    // .git/hooks/commit-msg (A) would be copied to commit-msg.local, where Adopt moves B.
+    let d = repo();
+    let p = d.path();
+    exec_hook(&p.join(".git/hooks/commit-msg"), "#!/bin/sh
+echo A
+");
+    std::fs::create_dir_all(p.join("harness-lite/hooks")).unwrap();
+    exec_hook(&p.join("harness-lite/hooks/commit-msg"), "#!/bin/sh
+echo B
+");
+    let o = sos(p, &["install", "--force-hooks"]);
+    assert_eq!(o.status.code(), Some(2), "{}", out(&o));
+    assert!(out(&o).contains("merge them into one"), "{}", out(&o));
+    assert_eq!(std::fs::read_to_string(p.join("harness-lite/hooks/commit-msg")).unwrap(), "#!/bin/sh\necho B\n");
+    assert_eq!(std::fs::read_to_string(p.join(".git/hooks/commit-msg")).unwrap(), "#!/bin/sh\necho A\n");
+    assert!(!p.join("harness-lite/hooks/commit-msg.local").exists() && !p.join("AGENTS.md").exists(), "nothing written");
+}
+
 #[test]
 fn role_wrappers_carry_model_and_effort_and_check_flags_missing_ones() {
     let d = repo();
@@ -822,4 +843,39 @@ fn check_counts_the_bytes_a_session_loads() {
     let c = out(&sos(p, &["check"]));
     assert!(c.contains("loaded at session start: 23 bytes"), "{c}");
     assert!(c.contains("first section of docs/BACKLOG.md"), "{c}");
+}
+
+#[cfg(unix)]
+#[test]
+fn update_from_0_4_adopts_an_own_commit_msg_hook() {
+    // A 0.4.x app: hooksPath set, its own commit-msg in harness-lite/hooks, nothing recorded for it.
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let mut u = upstream(p);
+    u["files"].as_object_mut().unwrap().remove("harness-lite/hooks/commit-msg");
+    std::fs::write(p.join("harness-lite/UPSTREAM.json"), serde_json::to_string(&u).unwrap()).unwrap();
+    let mine = "#!/bin/sh\necho ran >> \"$(git rev-parse --show-toplevel)/mine-ran\"\n";
+    exec_hook(&p.join("harness-lite/hooks/commit-msg"), mine);
+
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains("`sos update` adds it"), "a warning, not an error: {c}");
+
+    let o = sos(p, &["update"]);
+    assert!(o.status.success(), "{}", out(&o));
+    assert_eq!(std::fs::read_to_string(p.join("harness-lite/hooks/commit-msg.local")).unwrap(), mine);
+    let hook = p.join("harness-lite/hooks/commit-msg");
+    assert!(std::fs::read_to_string(&hook).unwrap().contains("sos gate commit-msg"));
+    assert!(upstream(p)["files"].get("harness-lite/hooks/commit-msg").is_some());
+    let run = |msg: &str| {
+        std::fs::write(p.join("MSG"), msg).unwrap();
+        Command::new(&hook).arg(p.join("MSG")).current_dir(p).env("PATH", path_with_sos()).output().unwrap()
+    };
+    assert!(!run("fix: x\n").status.success(), "ledger runs");
+    assert!(run("fix: x\n\nCaught-by: test\n").status.success());
+    assert_eq!(std::fs::read_to_string(p.join("mine-ran")).unwrap(), "ran\n", "own hook ran once, after the ledger passed");
+    // Now recorded: a missing hook is an error again.
+    std::fs::remove_file(&hook).unwrap();
+    let c = out(&sos(p, &["check"]));
+    assert!(c.contains("commit-msg missing") || !c.contains("`sos update` adds it"), "{c}");
 }

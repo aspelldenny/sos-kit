@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# SOS Kit commit-msg. Kit-owned: `sos update` replaces this file; project rules live in .sos.toml [ledger].
+# `sos gate commit-msg` asks every fix commit to name what caught the defect (`Caught-by: <layer>`), so
+# `sos score` can count where defects are caught; then harness-lite/hooks/commit-msg.local if it exists.
+command -v sos >/dev/null 2>&1 || { echo "⛔ sos is not installed — commit refused."; echo "  → How to fix: install sos (https://github.com/aspelldenny/sos-kit#quick-start), then commit again."; exit 1; }
+sos gate commit-msg --local "$0.local" "$1" || { rc=$?; [ "$rc" = 2 ] && echo "  (exit 2: .sos.toml is invalid, or sos is older than this hook — upgrade: https://github.com/aspelldenny/sos-kit#quick-start)"; exit "$rc"; }

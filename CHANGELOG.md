@@ -2,6 +2,16 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## v0.5.0 — 2026-11-11 — fewer words, more judges
+
+- **Why 0.5.0.** Apps gain a new installed git hook (`harness-lite/hooks/commit-msg`) that can refuse a commit, and one role leaves the default team. Pre-1.0, a change to what an installed app enforces takes the minor number. Run `sos update` after installing this `sos`; an existing `commit-msg` hook is kept as `commit-msg.local` and still runs.
+- **Ledger: every fix says which layer caught it.** A commit whose subject starts with fix/bugfix/hotfix/sửa must carry `Caught-by: <gate|test|bite|reviewer|advisor|owner|user|prod>`, optionally `Should-catch: <layer>`. `sos gate commit-msg` checks it and prints how to fix; merges, reverts and fixup!/squash!/amend! are skipped. `.sos.toml` `[ledger] require = false` turns it off, `fix = "<regex>"` changes which subjects count. The kit's own `hooks/commit-msg` runs the same check.
+- **`sos score` — one scorecard for kit and app.** From git and the evidence already on disk: commits, fixes, which layer caught them, escape rate (fixes caught by owner, user or prod over classified fixes), `[ready]` runs, `bite` kill rate, advisor calls and, with `--tokens`, token use and comparison cost. `--json` for diffing, `--save` writes `evidence/score/<time>-<head>.json`, `--since <day>` starts the window. Why: Chủ nhà wants to know whether a kit change made apps better or worse, and the old reports had no denominator.
+- **Kiến trúc sư folds into Quản đốc.** Quản đốc settles structural decisions as a planning step and writes the invariant into the brief as a test or acceptance check. New installs no longer get `.claude/agents/architect.md` or `[roles.architect]`; `roles/architect.md` and `sos role architect` stay for apps that still call them. Measured use was under 2.4% of tokens.
+- **Principle 6 sharpened.** Do not make a model remember what a tool can look up, estimate what a tool can measure, or certify its own work where an independent test can.
+- **Price for `claude-fable-5-2`** in `sos usage`.
+- Plan: `docs/plans/VAI-CHUYEN-GIA-2026-11-11.md`.
+
 ## v0.4.3 — 2026-11-06 — Codex hooks on Windows, fakes from real data
 
 - **Fakes come from real responses.** `harness-lite/VERIFY.md` now says to build a fake of a device or outside API from a recorded real response, and to keep one test that reads the recording. Home-control's hand-written demo data had fields the real `GET /devices` lacks, so tests and simulator screenshots passed while the app failed on real hardware (`docs/research/KIT_VS_NO_KIT_2026-11-06.md`).

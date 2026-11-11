@@ -14,6 +14,7 @@ pub mod docs;
 pub mod features;
 pub mod git;
 pub mod glob;
+pub mod ledger;
 pub mod local_secrets;
 pub mod repo;
 pub mod text;

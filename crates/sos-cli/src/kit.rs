@@ -83,6 +83,7 @@ pub const KIT_FILES: &[File] = &[
     kit!("harness-lite/adapters/codex/hook.py", "adapters/codex/hook.py", exec),
     kit!("harness-lite/hooks/pre-commit", "templates/app/hooks/pre-commit", exec),
     kit!("harness-lite/hooks/pre-push", "templates/app/hooks/pre-push", exec),
+    kit!("harness-lite/hooks/commit-msg", "templates/app/hooks/commit-msg", exec),
     kit!("harness-lite/templates/AGENTS.md", "templates/app/AGENTS.md"),
     kit!("harness-lite/templates/CLAUDE.md", "templates/app/CLAUDE.md"),
     kit!("harness-lite/templates/sos.toml", "templates/app/sos.toml"),
@@ -105,12 +106,11 @@ pub const PROJECT_FILES: &[File] = &[
     kit!("docs/FEATURES.json", "templates/app/FEATURES.json"),
     kit!(".claude/settings.json", "templates/app/claude-settings.json"),
     kit!(".codex/hooks.json", "templates/app/codex-hooks.json"),
-    kit!(".claude/agents/architect.md", "templates/app/claude-agents/architect.md"),
     kit!(".claude/agents/worker.md", "templates/app/claude-agents/worker.md"),
     kit!(".claude/agents/reviewer.md", "templates/app/claude-agents/reviewer.md"),
 ];
 
-pub const GITIGNORE_LINES: &[&str] = &[".advise-state/", "evidence/advice/", "evidence/roles/", "evidence/bite/", "evidence/ready/", "*.sos-new"];
+pub const GITIGNORE_LINES: &[&str] = &[".advise-state/", "evidence/advice/", "evidence/roles/", "evidence/bite/", "evidence/ready/", "evidence/score/", "*.sos-new"];
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Upstream {
@@ -286,6 +286,9 @@ pub enum Act {
     KeepModified,
     KeepReferenced,
     KeptEdited,
+    /// A git hook the kit did not own before (an app's own `commit-msg` in the hooks folder):
+    /// moved to `<hook>.local`, which the kit's hook still runs, then the kit's is written.
+    Adopt,
     Create,
     Exists,
 }
@@ -301,6 +304,7 @@ impl Act {
             Act::KeepModified => "keep (dropped upstream, but you edited it)",
             Act::KeepReferenced => "KEPT (dropped upstream, but the agent hooks still call it: run `sos update --wiring`, then `sos update`)",
             Act::KeptEdited => "kept (edited locally; kit version unchanged)",
+            Act::Adopt => "add (your hook moves to <hook>.local and still runs)",
             Act::Create => "create",
             Act::Exists => "exists, left as is",
         }
@@ -317,6 +321,12 @@ pub struct Plan {
 }
 
 /// Decide what install (`prev = None`) or update (`prev = Some`) would do. No writes.
+/// A kit hook whose path holds a file the kit never recorded, with no `.local` beside it yet.
+fn adoptable(root: &Path, path: &str) -> bool {
+    path.strip_prefix(&format!("{HOOKS_PATH}/")).is_some_and(|h| GIT_HOOKS.contains(&h))
+        && !root.join(format!("{path}.local")).exists()
+}
+
 pub fn plan(root: &Path, prev: Option<&Upstream>) -> Result<Plan> {
     // Refuse before writing anything if a target is a symlink (writes never follow them).
     for f in KIT_FILES.iter().chain(if prev.is_none() { PROJECT_FILES } else { &[] }) {
@@ -335,6 +345,7 @@ pub fn plan(root: &Path, prev: Option<&Upstream>) -> Result<Plan> {
             // Same text but a CRLF checkout of a script: bash cannot run it, so write it back with LF.
             (Some(l), _) if l == new && crlf_script(root, f) => Act::Update,
             (Some(l), _) if l == new => Act::Same,
+            (Some(_), None) if adoptable(root, f.path) => Act::Adopt,
             (Some(l), Some(r)) if l == r => Act::Update, // unmodified since last write
             (Some(_), Some(r)) if r == &new => Act::KeptEdited, // edited locally, kit unchanged
             _ => Act::Conflict,                          // edited locally and kit changed, or a legacy copy
@@ -459,6 +470,10 @@ fn apply_kit(root: &Path, p: &Plan) -> Result<BTreeMap<String, String>> {
         let file = KIT_FILES.iter().find(|f| f.path == path);
         match (act, file) {
             (Act::Add | Act::Update, Some(f)) => write(root, f, f.path)?,
+            (Act::Adopt, Some(f)) => {
+                std::fs::rename(safe_path(root, f.path)?, safe_path(root, &format!("{}.local", f.path))?)?;
+                write(root, f, f.path)?;
+            }
             (Act::Conflict, Some(f)) => {
                 let new = format!("{}.sos-new", f.path);
                 if root.join(&new).exists() {
@@ -520,7 +535,7 @@ enum HookPlan {
     Already,
     /// Active hooks elsewhere and no --force-hooks: leave git config alone.
     Keep { dir: PathBuf, hooks: Vec<String> },
-    /// --force-hooks: copy active hooks next to ours (pre-commit/pre-push become *.local,
+    /// --force-hooks: copy active hooks next to ours (pre-commit/pre-push/commit-msg become *.local,
     /// which our hooks run after the gates), then switch core.hooksPath.
     Migrate { dir: PathBuf, copies: Vec<(PathBuf, String)> },
 }
@@ -555,9 +570,19 @@ fn hook_plan(root: &Path, force: bool) -> Result<HookPlan> {
         let dst = match h.as_str() {
             "pre-commit" => format!("{HOOKS_PATH}/pre-commit.local"),
             "pre-push" => format!("{HOOKS_PATH}/pre-push.local"),
+            "commit-msg" => format!("{HOOKS_PATH}/commit-msg.local"),
             other => format!("{HOOKS_PATH}/{other}"),
         };
         let src = dir.join(h);
+        // An unrecorded hook already in the kit's hook folder would move to the same .local
+        // (Act::Adopt) and be overwritten by this copy: refuse before writing anything.
+        let own = format!("{HOOKS_PATH}/{h}");
+        let kit_text = KIT_FILES.iter().find(|f| f.path == own).map(|f| f.text().into_owned());
+        if let Ok(existing) = std::fs::read(root.join(&own)) {
+            if kit_text.as_deref().map(str::as_bytes) != Some(&existing[..]) && existing != std::fs::read(&src)? {
+                bail!("{own} and {} are both your hooks and differ — merge them into one, then rerun", show(&src));
+            }
+        }
         if let Ok(existing) = std::fs::read(root.join(&dst)) {
             if existing != std::fs::read(&src)? {
                 bail!("{dst} already exists and differs from {} — merge them by hand, then rerun", show(&src));
@@ -573,11 +598,11 @@ fn describe(hp: &HookPlan) -> String {
         HookPlan::Set => format!("git core.hooksPath → {HOOKS_PATH}"),
         HookPlan::Already => "git core.hooksPath already set".into(),
         HookPlan::Keep { dir, hooks } if hooks.is_empty() => format!(
-            "git core.hooksPath stays {} (set by you): call `sos gate all` from its pre-commit and `sos gate local-secrets` from its pre-push, or rerun with --force-hooks",
+            "git core.hooksPath stays {} (set by you): call `sos gate all` from its pre-commit, `sos gate local-secrets` from its pre-push and `sos gate commit-msg \"$1\"` from its commit-msg, or rerun with --force-hooks",
             show(dir)
         ),
         HookPlan::Keep { dir, hooks } => format!(
-            "existing hooks in {} stay active ({}); sos gates are NOT wired yet: rerun with --force-hooks to keep them as harness-lite/hooks/*.local and switch, or call `sos gate all` from your pre-commit and `sos gate local-secrets` from your pre-push",
+            "existing hooks in {} stay active ({}); sos gates are NOT wired yet: rerun with --force-hooks to keep them as harness-lite/hooks/*.local and switch, or call `sos gate all` from your pre-commit, `sos gate local-secrets` from your pre-push and `sos gate commit-msg \"$1\"` from your commit-msg",
             show(dir),
             hooks.join(", ")
         ),
@@ -726,10 +751,13 @@ pub fn check(dir: &Path) -> Result<i32> {
     let root = repo_root(dir)?;
     let mut errors: Vec<String> = Vec::new();
     let mut warns: Vec<String> = Vec::new();
+    // An app installed before 0.5.0 has no commit-msg hook until `sos update`: a warning, not an error.
+    let mut ledger_installed = true;
     match std::fs::read_to_string(root.join(UPSTREAM)) {
         Err(_) => errors.push(format!("{UPSTREAM} missing — run `sos install`")),
         Ok(src) => {
             let u: Upstream = serde_json::from_str(&src).with_context(|| format!("parsing {UPSTREAM}"))?;
+            ledger_installed = u.files.contains_key(&format!("{HOOKS_PATH}/commit-msg"));
             if u.version != VERSION || u.commit != COMMIT {
                 warns.push(format!("installed kit {} ({}) differs from this sos {VERSION} ({COMMIT}) — `sos update`", u.version, u.commit));
             }
@@ -761,10 +789,15 @@ pub fn check(dir: &Path) -> Result<i32> {
     if !pre_push.lines().map(str::trim).any(|l| !l.starts_with('#') && (l.contains("sos gate local-secrets") || l.contains("sos gate pre-push"))) {
         errors.push(format!("{hook_dir}/pre-push does not run `sos gate local-secrets`"));
     }
+    let commit_msg = std::fs::read_to_string(hooks.join("commit-msg")).unwrap_or_default();
+    if !commit_msg.lines().map(str::trim).any(|l| !l.starts_with('#') && l.contains("sos gate commit-msg")) {
+        let m = format!("{hook_dir}/commit-msg does not run `sos gate commit-msg` (the Caught-by ledger behind `sos score`)");
+        if ledger_installed { errors.push(m) } else { warns.push(format!("{m} — `sos update` adds it")) }
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        for h in ["pre-commit", "pre-push"] {
+        for h in ["pre-commit", "pre-push", "commit-msg"] {
             let p = hooks.join(h);
             if let Ok(m) = std::fs::metadata(&p) {
                 if m.permissions().mode() & 0o111 == 0 {
