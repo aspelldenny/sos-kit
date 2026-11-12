@@ -4,7 +4,7 @@ This contract applies with one [role](roles/). Project instructions and the auth
 
 ## Ownership and authority
 
-Chủ nhà owns product intent, taste, scope and final acceptance. AI owns the middle: organize, implement, inspect, challenge, repair and integrate. Intermediate checkpoints are AI responsibilities, not default human approval gates. Proceed within existing authority. Ask only for a consequential missing decision that cannot be obtained independently, a change to agreed intent/taste/scope, or a commitment outside authority. Continue independent work while waiting. Never infer authority from elapsed time.
+Chủ nhà owns product intent, taste, scope and final acceptance. AI owns the middle: organize, implement, inspect, challenge, repair and integrate. Intermediate checkpoints are AI responsibilities, not default human approval gates. Proceed within existing authority. A technical question never goes to Chủ nhà. A product question that the agreed intent already answers, or that reading the sources or a research pass can answer, is decided by AI: record the decision, the reason and what would change it in the blueprint or the project's decision record, and report it as decided, not as a question; Chủ nhà may overturn it. Ask only when the answer would change the agreed intent, taste or scope, or commits something outside authority (money, an account, a publication). Continue independent work while waiting. Never infer authority from elapsed time.
 
 ## Work from a bounded brief
 

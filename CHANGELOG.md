@@ -4,6 +4,8 @@ All notable changes to sos-kit. Format loosely follows Keep a Changelog. Version
 
 ## Unreleased
 
+- **Chủ nhà holds the two ends; open questions stop at Quản đốc.** In the first app on 0.6.0 Kiến trúc sư returned nine open questions (where a status line shows, whether a stop can be edited, device backup, platform and language …) and Quản đốc batched all nine to Chủ nhà, who answered that the intent page is his and the rest is not. Quản đốc then settled all nine from the intent page and research. The contract now says so: a technical question never goes to Chủ nhà; a product question the intent or research can answer is decided, recorded with its reason, and reported as decided; only a question that would change the agreed intent, taste or scope, or commit something outside authority, is asked. Kiến trúc sư hands open questions to Quản đốc with a recommended answer.
+
 - **`AGENTS.md` template no longer names the role models.** The sentence repeated the defaults (Kiến trúc sư `opus`, Thợ `sonnet`, Người soát `opus`) next to a pointer to `.sos.toml`. In the first app on 0.6.0 the models were changed in `.sos.toml` and the wrappers, `sos check` passed, and Quản đốc still told Chủ nhà the old models because it read the sentence at session start. The template now only points to `.sos.toml` [roles] and `advisorModel`. Apps installed earlier keep their own `AGENTS.md`; delete the names from that sentence by hand.
 
 ## v0.6.0 — 2026-11-12 — six stages, a gate where a stage ends
