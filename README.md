@@ -22,7 +22,7 @@ Then fill in the placeholders in `AGENTS.md` (what the project is, where its sou
 
 | Added | Owner | What it is |
 |---|---|---|
-| `harness-lite/` | SOS Kit (`sos update` refreshes it) | The shared contract and three roles: **Quản đốc** (orchestrator), **Thợ** (worker), **Người soát** (independent reviewer). Plus the scripts, agent adapters and git hooks below. |
+| `harness-lite/` | SOS Kit (`sos update` refreshes it) | The shared contract and four roles: **Quản đốc** (orchestrator), **Kiến trúc sư** (architect, writes the blueprint), **Thợ** (worker), **Người soát** (independent reviewer); and the screen craft floor `CRAFT-UI.md`. Plus the scripts, agent adapters and git hooks below. |
 | Git hooks | SOS Kit | Every commit runs `sos gate all`; every push runs `sos gate local-secrets`. Project-specific checks (type checks, tests) go in `harness-lite/hooks/pre-commit.local`. |
 | `AGENTS.md`, `CLAUDE.md` | Your project | Project instructions; `CLAUDE.md` imports `AGENTS.md` so Claude Code and Codex read the same text. |
 | `.sos.toml` | Your project | Rules for the gates (wording, doc size, feature list, branch) and the advisor. |
@@ -49,6 +49,8 @@ Existing files are never overwritten; the only change to an existing file is thr
 
 `sos gate ready` runs `.sos.toml` `[ready] cmd`, the one command that checks the whole product, and records revision and result in `evidence/ready/`. It is not part of `all`: run it before a handover. `sos check` and the session-start status say when it is empty; the session-start status otherwise shows the last result, and says when that run no longer speaks for the current tree.
 
+`sos gate blueprint` and `sos gate skeleton` are the two stage gates, also outside `all`: the blueprint (`[blueprint] file`, default `docs/BLUEPRINT.md`) has journeys with concrete examples, one marked as the skeleton, a data model and the irreversible actions; and the last recorded `sos gate ready` run passed, so one journey works end to end before a second is started. `sos gate commit-msg` asks every fix commit for `Caught-by:` (what found the defect) and `Escaped-from:` (the stage that let it through); `sos score` counts both.
+
 `sos filter` applies the wording rules to text on stdin, for filtering model output at runtime.
 
 `sos usage` shows where tokens went, read from the agents' local transcripts (`~/.claude/projects`, subagent files included, and with `--agent codex|all` the Codex rollouts in `~/.codex/sessions`): calls and tokens by role, model, project, day or session (`--by`); `--by skill` instead counts runs of skills, subagents, the advisor and `sos role`, from the transcripts and the repo's `.advise-state/calls.jsonl`, filtered with `--since`, `--until` and `--project`, with an estimated cost from a dated price table (`--prices FILE` to use your own), what each subagent handed back to its parent, and a few savings hints. `--json` for scripts, `--explain` for how each number was found. Read-only: nothing is sent, written or run, and no prompt or tool text is kept, only ids and counts.
@@ -64,10 +66,11 @@ Existing files are never overwritten; the only change to an existing file is thr
 ## How work runs
 
 1. **Brief.** Chủ nhà states the outcome, scope, references and how it will be accepted.
-2. **Build.** Quản đốc gives bounded work to Thợ (or does a small change itself), each checking the brief against the real code or text first and verifying with independently computed expectations.
-3. **Advice when stuck.** After two failing runs of the same test or build runner (pytest, cargo, swift, xcodebuild, npm/yarn/pnpm, vitest, jest, go, make check/test/ready/build; flags and log paths do not start a new count, and a script whose output carries an Xcode or cargo verdict counts too), the agent's hook asks a stronger model (Opus or Codex, configurable) for a direction. It is told the current work from the state doc (`.sos.toml` `[state] file`).
-4. **Independent review at the moments that matter**, not every slice: when a journey first works end to end, when data, money, privacy or sync is touched, and before handing over something meant for real use. Người soát uses the result as its user would.
-5. **Acceptance.** Chủ nhà uses the real thing. Reports say plainly what ran for real, what ran only on sample data, and what is unverified.
+2. **Blueprint, then its review.** For a new app or area, Kiến trúc sư writes journeys with concrete examples, the data model and the irreversible actions; Người soát reads it before anything is built, because a gap found there costs a paragraph and the same gap found in the running app costs a rebuild.
+3. **Build.** One journey end to end on real data first (the skeleton), then the others one at a time; screens are held to `harness-lite/CRAFT-UI.md`. Quản đốc gives bounded work to Thợ (or does a small change itself), each checking the brief against the real code or text first and verifying with independently computed expectations.
+4. **Advice when stuck.** After two failing runs of the same test or build runner (pytest, cargo, swift, xcodebuild, npm/yarn/pnpm, vitest, jest, go, make check/test/ready/build; flags and log paths do not start a new count, and a script whose output carries an Xcode or cargo verdict counts too), the agent's hook asks a stronger model (Opus or Codex, configurable) for a direction. It is told the current work from the state doc (`.sos.toml` `[state] file`).
+5. **Independent review at the moments that matter**, not every slice: when a blueprint is written, when a journey first works end to end, when data, money, privacy or sync is touched, and before handing over something meant for real use. Người soát uses the result as its user would.
+6. **Acceptance.** Chủ nhà uses the real thing. Reports say plainly what ran for real, what ran only on sample data, and what is unverified.
 
 ## This repository
 

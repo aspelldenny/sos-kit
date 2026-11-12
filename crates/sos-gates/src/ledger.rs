@@ -2,6 +2,9 @@
 //!
 //! Every fix commit carries `Caught-by: <layer>` naming what found the defect, and optionally
 //! `Should-catch: <layer>` naming the earliest layer that ought to have. The commit-msg gate
+//! A fix commit also carries `Escaped-from: <stage>`: the stage of the work that let the defect
+//! through (plan `docs/plans/QUY-TRINH-LAM-APP-NHAP-2026-11-12.md`, change 5), so the stage that
+//! leaks most is visible from real use instead of from reading the process. The commit-msg gate
 //! enforces it; `sos score` counts it. Without the record nobody can tell whether a kit change
 //! catches more defects earlier or lets more reach a person.
 
@@ -13,6 +16,11 @@ use regex::Regex;
 /// Layers, cheapest first. `owner`, `user` and `prod` mean the defect reached a person: an escape.
 pub const LAYERS: [&str; 8] = ["gate", "test", "bite", "reviewer", "advisor", "owner", "user", "prod"];
 pub const ESCAPES: [&str; 3] = ["owner", "user", "prod"];
+
+/// Stages of the work, in order. `blueprint`: the design was wrong or silent about it. `skeleton`:
+/// the first end-to-end journey. `growth`: building after the skeleton (also the answer for work
+/// that had no blueprint). `review`: a reviewer saw the area and passed it.
+pub const STAGES: [&str; 4] = ["blueprint", "skeleton", "growth", "review"];
 
 /// Conventional `fix:` / `fix(scope):` / `hotfix:`, plain "Fix the …", and Vietnamese "Sửa …"
 /// (how the maintainer's apps write it: 6 of home-control's subjects in Oct–Nov 2026).
@@ -28,7 +36,8 @@ pub struct Entry {
     pub fix: bool,
     pub caught_by: Option<String>,
     pub should_catch: Option<String>,
-    /// Trailer values outside [`LAYERS`], as written.
+    pub escaped_from: Option<String>,
+    /// Trailer values outside [`LAYERS`] (or [`STAGES`] for `Escaped-from:`), as written.
     pub bad: Vec<String>,
 }
 
@@ -66,13 +75,14 @@ impl Ledger {
             .collect();
         for l in block.iter().filter(|l| !continued(l)) {
             let Some((k, v)) = l.split_once(':') else { continue };
-            let slot = match k.trim().to_ascii_lowercase().as_str() {
-                "caught-by" => &mut e.caught_by,
-                "should-catch" => &mut e.should_catch,
+            let (slot, allowed): (_, &[&str]) = match k.trim().to_ascii_lowercase().as_str() {
+                "caught-by" => (&mut e.caught_by, &LAYERS),
+                "should-catch" => (&mut e.should_catch, &LAYERS),
+                "escaped-from" => (&mut e.escaped_from, &STAGES),
                 _ => continue,
             };
             let v = v.trim().to_ascii_lowercase();
-            if !LAYERS.contains(&v.as_str()) {
+            if !allowed.contains(&v.as_str()) {
                 e.bad.push(l.trim().to_string());
             }
             *slot = Some(v);
@@ -95,17 +105,30 @@ pub fn gate(cfg: &LedgerConfig, msg: &str) -> Result<Report> {
     }
     let e = Ledger::new(cfg)?.read(msg);
     for b in &e.bad {
-        r.errors.push(format!("unknown layer in `{b}`"));
+        r.errors.push(format!("unknown value in `{b}`"));
     }
     if e.fix && e.caught_by.is_none() {
         r.errors.push("this is a fix commit but has no `Caught-by:` trailer".into());
     }
+    if e.fix && cfg.stage && e.escaped_from.is_none() {
+        r.errors.push("this is a fix commit but has no `Escaped-from:` trailer".into());
+    }
     if !r.errors.is_empty() {
         r.fix = format!(
             "end the message with a line `Caught-by: <layer>` naming what found the defect, one of {} \
-             (owner = Chủ nhà found it, user = a user, prod = production logs). Optional: `Should-catch: <layer>`, \
+             (owner = Chủ nhà found it, user = a user, prod = production logs){}. Optional: `Should-catch: <layer>`, \
              the earliest layer that ought to have caught it. Not a fix? Start the subject with another word.",
-            LAYERS.join(", ")
+            LAYERS.join(", "),
+            if cfg.stage {
+                format!(
+                    ", and a line `Escaped-from: <stage>` naming the stage of the work that let it through, one of {} \
+                     (blueprint = the design was wrong or silent about it, skeleton = the first end-to-end journey, \
+                     growth = building after that, or work that had no blueprint, review = a reviewer saw it and passed it)",
+                    STAGES.join(", ")
+                )
+            } else {
+                String::new()
+            }
         );
     }
     Ok(r)
@@ -163,12 +186,32 @@ mod tests {
     fn gate_blocks_unrecorded_fix_and_unknown_layer() {
         let c = LedgerConfig::default();
         assert!(gate(&c, "feat: x").unwrap().ok());
-        assert!(gate(&c, "fix: x\n\nCaught-by: owner").unwrap().ok());
+        assert!(gate(&c, "fix: x\n\nCaught-by: owner\nEscaped-from: growth").unwrap().ok());
         let r = gate(&c, "fix: x").unwrap();
-        assert!(!r.ok() && r.fix.contains("Caught-by: <layer>"));
+        assert!(!r.ok() && r.fix.contains("Caught-by: <layer>") && r.fix.contains("Escaped-from: <stage>"));
         assert!(!gate(&c, "feat: x\n\nCaught-by: luck").unwrap().ok());
-        assert!(gate(&LedgerConfig { require: false, fix: String::new() }, "fix: x").unwrap().ok());
-        assert!(gate(&LedgerConfig { require: true, fix: "^repair".into() }, "fix: x").unwrap().ok());
-        assert!(!gate(&LedgerConfig { require: true, fix: "^repair".into() }, "repair: x").unwrap().ok());
+        assert!(gate(&LedgerConfig { require: false, ..Default::default() }, "fix: x").unwrap().ok());
+        assert!(gate(&LedgerConfig { fix: "^repair".into(), ..Default::default() }, "fix: x").unwrap().ok());
+        assert!(!gate(&LedgerConfig { fix: "^repair".into(), ..Default::default() }, "repair: x").unwrap().ok());
+    }
+
+    #[test]
+    fn gate_asks_which_stage_let_the_defect_through() {
+        let c = LedgerConfig::default();
+        // The stage is required beside the layer, and must be a known one.
+        let r = gate(&c, "fix: x\n\nCaught-by: owner").unwrap();
+        assert!(!r.ok() && r.errors.iter().any(|e| e.contains("Escaped-from")), "{:?}", r.errors);
+        assert!(!gate(&c, "fix: x\n\nCaught-by: owner\nEscaped-from: design").unwrap().ok());
+        assert!(!gate(&c, "fix: x\n\nEscaped-from: blueprint").unwrap().ok());
+        assert_eq!(read("fix: x\n\nCaught-by: owner\nEscaped-from: Blueprint\n\nCo-Authored-By: A <a@b>\n").escaped_from.as_deref(), Some("blueprint"));
+        // A layer name is not a stage, and the reverse.
+        assert!(!gate(&c, "fix: x\n\nCaught-by: review\nEscaped-from: growth").unwrap().ok());
+        assert!(!gate(&c, "fix: x\n\nCaught-by: test\nEscaped-from: test").unwrap().ok());
+        // [ledger] stage = false: the layer alone is enough, the hint does not mention the stage,
+        // and a stage that is written must still be a known one.
+        let off = LedgerConfig { stage: false, ..Default::default() };
+        assert!(gate(&off, "fix: x\n\nCaught-by: owner").unwrap().ok());
+        assert!(!gate(&off, "fix: x").unwrap().fix.contains("Escaped-from"));
+        assert!(!gate(&off, "fix: x\n\nCaught-by: owner\nEscaped-from: nowhere").unwrap().ok());
     }
 }

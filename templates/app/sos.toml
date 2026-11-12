@@ -27,6 +27,11 @@ links = ["AGENTS.md", "docs/BACKLOG.md"]
 # `sos gate ready`, which records revision and result in evidence/ready/. e.g. "make ready"
 cmd = ""
 
+[blueprint]
+# Journeys with concrete examples, data model, irreversible actions (template: harness-lite/templates/BLUEPRINT.md).
+# `sos gate blueprint` checks the three parts are filled, before Người soát reviews it and before building.
+file = "docs/BLUEPRINT.md"
+
 [features]
 file = "docs/FEATURES.json"
 allow_regression = true   # a passed slice may honestly go back to false; ids may never be deleted
@@ -36,8 +41,10 @@ protect_default_branch = false   # true: non-Markdown commits must be made on a 
 
 [ledger]
 # Every fix commit (subject "fix…", "hotfix…", "Sửa…") ends with `Caught-by: <layer>`: what found the defect
-# (gate, test, bite, reviewer, advisor, owner, user, prod). The commit-msg hook enforces it; `sos score` counts it.
+# (gate, test, bite, reviewer, advisor, owner, user, prod), and `Escaped-from: <stage>`: the stage of the work
+# that let it through (blueprint, skeleton, growth, review). The commit-msg hook enforces it; `sos score` counts it.
 require = true
+stage = true              # false: do not ask for `Escaped-from:`
 fix = ""                  # subject regex for a fix commit; empty: the built-in one above
 
 [advisor]
@@ -67,6 +74,11 @@ file = "docs/BACKLOG.md"
 # prompt on closed stdin, with a timeout), `sos check` (compares .claude/agents/*.md with it).
 # Builders at medium, checks at high. When codex is on PATH, `sos install` writes Người soát from the other
 # model family, keyed by who built the work ([roles.reviewer.claude] backend = "codex", and the reverse).
+[roles.architect]
+backend = "claude"
+model = "opus"
+effort = "high"
+
 [roles.worker]
 backend = "claude"
 model = "sonnet"

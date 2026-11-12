@@ -76,7 +76,7 @@ fn prompt(root: &Path, role: &str, spec: &RoleSpec, state: &str, brief: &str) ->
     let rules = match role {
         "reviewer" => "You are Người soát. Read only: do not edit files. If you cannot run the product here, \
                        say so and label your review static. Rank each finding blocking or non-blocking.",
-        "architect" => "You are Kiến trúc sư. Change only the design document the brief names; no product code.",
+        "architect" => "You are Kiến trúc sư. Change only the blueprint or design document the brief names; no product code.",
         _ => "You are Thợ. Work only in this worktree; run your checks in the foreground before you hand back. \
               If the sandbox blocks `git commit`, leave the changes uncommitted and say so.",
     };

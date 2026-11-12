@@ -1,7 +1,7 @@
 //! `sos score` — one scorecard for an app (or the kit itself), so two runs can be compared:
 //! with the kit and without, before an upgrade and after (plan `docs/plans/VAI-CHUYEN-GIA-2026-11-11.md`, N2).
 //!
-//! Read-only on the repo: git history (fix commits by their `Caught-by:` layer), `.sos.toml`,
+//! Read-only on the repo: git history (fix commits by their `Caught-by:` layer and `Escaped-from:` stage), `.sos.toml`,
 //! `evidence/ready/runs.log`, `evidence/bite/*.json`, `.advise-state/calls.jsonl`; with `--tokens`,
 //! `sos usage` for this folder. `--save` writes the JSON to `evidence/score/`.
 //!
@@ -12,7 +12,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Args as ClapArgs;
 use serde_json::{json, Map, Value};
-use sos_gates::ledger::{Ledger, ESCAPES, LAYERS};
+use sos_gates::ledger::{Ledger, ESCAPES, LAYERS, STAGES};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -71,6 +71,7 @@ fn fixes(root: &Path, cfg: &sos_gates::config::Config, since: Option<&str>) -> R
     let cs = commits(root, since)?;
     let mut by: BTreeMap<&str, usize> = LAYERS.iter().map(|l| (*l, 0)).collect();
     let mut should: BTreeMap<String, usize> = BTreeMap::new();
+    let mut from: BTreeMap<&str, usize> = STAGES.iter().map(|s| (*s, 0)).collect();
     let (mut fixes, mut unclassified, mut first_recorded) = (0, 0, None);
     let mut days: Vec<&str> = cs.iter().map(|(d, _)| d.as_str()).collect();
     days.dedup();
@@ -90,6 +91,9 @@ fn fixes(root: &Path, cfg: &sos_gates::config::Config, since: Option<&str>) -> R
         if let Some(s) = e.should_catch {
             *should.entry(s).or_default() += 1;
         }
+        if let Some(n) = e.escaped_from.as_deref().and_then(|s| from.get_mut(s)) {
+            *n += 1;
+        }
     }
     let classified: usize = by.values().sum();
     let escapes: usize = ESCAPES.iter().map(|l| by[l]).sum();
@@ -107,6 +111,7 @@ fn fixes(root: &Path, cfg: &sos_gates::config::Config, since: Option<&str>) -> R
         "escapes": escapes,
         "escape_rate": ratio(escapes, classified),
         "should_catch": should,
+        "escaped_from": from,
     }))
 }
 
@@ -267,6 +272,11 @@ fn table(s: &Value) -> String {
     if let Some(m) = h["should_catch"].as_object().filter(|m| !m.is_empty()) {
         o += &format!("  should catch {}\n", m.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(" · "));
     }
+    // Stages in the order of the work, so the table reads from design to review.
+    let from: Vec<String> = STAGES.iter().filter_map(|st| h["escaped_from"][st].as_u64().filter(|n| *n > 0).map(|n| format!("{st} {n}"))).collect();
+    if !from.is_empty() {
+        o += &format!("  escaped from {} (the stage that let each defect through; repair the largest)\n", from.join(" · "));
+    }
     let r = &s["ready"];
     o += &format!(
         "  ready        {}; {} runs, {} pass, {} fail{}\n",
@@ -337,8 +347,8 @@ mod tests {
         let empty = score(d.path(), None, false).unwrap();
         assert_eq!(empty["history"]["commits"], 0);
         assert!(empty["history"]["escape_rate"].is_null());
-        for m in ["feat: a", "fix: old bug", "fix: b\n\nCaught-by: test", "fix: c\n\nCaught-by: owner\nShould-catch: test",
-                  "Fix d\n\nCaught-by: reviewer", "fixup! fix: b", "fix: e\n\nCaught-by: user"] {
+        for m in ["feat: a", "fix: old bug", "fix: b\n\nCaught-by: test", "fix: c\n\nCaught-by: owner\nShould-catch: test\nEscaped-from: blueprint",
+                  "Fix d\n\nCaught-by: reviewer\nEscaped-from: growth", "fixup! fix: b", "fix: e\n\nCaught-by: user\nEscaped-from: blueprint"] {
             commit(d.path(), m);
         }
         let s = score(d.path(), None, false).unwrap();
@@ -356,6 +366,11 @@ mod tests {
         assert_eq!(s["kit"], false);
         let t = table(&s);
         assert!(t.contains("ESCAPE RATE  50% (2 of 4"), "{t}");
+        // Stage that let each defect through; a fix without the trailer is in none of them.
+        assert_eq!(h["escaped_from"]["blueprint"], 2);
+        assert_eq!(h["escaped_from"]["growth"], 1);
+        assert_eq!(h["escaped_from"]["skeleton"], 0);
+        assert!(t.contains("escaped from blueprint 2 · growth 1 ("), "{t}");
         // A day after every commit leaves nothing counted.
         let later = score(d.path(), Some("2999-01-01"), false).unwrap();
         assert_eq!(later["history"]["commits"], 0);

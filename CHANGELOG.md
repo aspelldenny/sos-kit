@@ -2,6 +2,19 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased — six stages, a gate where a stage ends
+
+- **What changes for an installed app (takes the minor number when released).** From the moment this `sos` is installed, before any `sos update`, a fix commit must also carry `Escaped-from: <blueprint|skeleton|growth|review>` (the 0.5.0 hook already calls `sos gate commit-msg`); `.sos.toml` `[ledger] stage = false` turns that off. An app installed with 0.5.0 has no Kiến trúc sư wiring: `sos check` warns until `[roles.architect]` is in `.sos.toml` and `.claude/agents/architect.md` exists, and prints where to copy both from; `sos update` does not touch those project-owned files. A `sos` older than this rejects the new keys `[blueprint]` and `[ledger] stage`: update the binary before adding them.
+- **Why.** Chủ nhà read the roles of 0.5.0 as not yet experts in their craft, and asked for one standard way to build an app with each role's part in it. Commits and feedback in four apps showed the same order of failure: a drawing nobody reviewed until building had started, many journeys half built with none working end to end, and basic screen defects (no way back, a keyboard that will not close) reaching Chủ nhà. Plan: `docs/plans/QUY-TRINH-LAM-APP-NHAP-2026-11-12.md`. The stages are a hypothesis to test in the next real app.
+- **Stages in Quản đốc's role.** Blueprint, blueprint review, skeleton, growth, review of the running product, then Chủ nhà.
+- **Kiến trúc sư is a role again** (reverses 0.5.0). It writes the blueprint in three parts: journeys each with a concrete example, the data model, the irreversible actions. New installs get `.claude/agents/architect.md`, `[roles.architect]` and `harness-lite/templates/BLUEPRINT.md`.
+- **`sos gate blueprint`.** Fails until the blueprint file (`[blueprint] file`, default `docs/BLUEPRINT.md`) has the three parts filled, every journey a named heading and an `Example:`, and one journey marked `(skeleton)`. It checks presence, not quality.
+- **Người soát is called when the blueprint is written**, before building. Every reviewer brief opens with `Reviewing:` (blueprint, diff or running product) and `Goals:` (the written goals, by path); the role says what each object can and cannot show.
+- **`sos gate skeleton`.** Passes only when the last recorded `sos gate ready` run passed. The session-start status says when `[ready] cmd` is set and no run has ever passed. Limit: the kit cannot see which journey the ready command walks or that a second journey is being started; Quản đốc runs the gate before briefing one.
+- **`harness-lite/CRAFT-UI.md`: a floor per component type** (sheet, text field, button, list, error, permission prompt …), checked by operating the component. Thợ and Người soát report each line as met, not applicable or not checked.
+- **`Escaped-from:` and `sos score`.** The scorecard counts fixes by the stage that let the defect through; the largest is the stage to repair, in the app or in the kit.
+- Not in this version: `sos memory`.
+
 ## v0.5.0 — 2026-11-11 — fewer words, more judges
 
 - **Why 0.5.0.** Apps gain a new installed git hook (`harness-lite/hooks/commit-msg`) that can refuse a commit, and one role leaves the default team. Pre-1.0, a change to what an installed app enforces takes the minor number. Run `sos update` after installing this `sos`; an existing `commit-msg` hook is kept as `commit-msg.local` and still runs.

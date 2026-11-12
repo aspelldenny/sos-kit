@@ -212,8 +212,13 @@ pub fn render(dir: &Path) -> String {
     if let Some(t) = &sos_toml {
         if !ready_set(t) {
             out.push("Note: .sos.toml [ready] cmd is empty: nothing checks the whole product before handover.".into());
-        } else if let Some(note) = crate::ready::last_note(root) {
-            out.push(note);
+        } else {
+            out.extend(crate::ready::last_note(root));
+            // A product that has never run end to end is still a skeleton being built: say so each
+            // session, so a second journey is not started on top of it.
+            if !crate::ready::ever_passed(root) {
+                out.push(crate::ready::NO_PASS.into());
+            }
         }
     }
     let entry: usize = ["AGENTS.md", "CLAUDE.md"].iter()

@@ -1,7 +1,7 @@
 //! `sos gate …` and `sos filter` — thin CLI over the sos-gates crate.
 
 use clap::Subcommand;
-use sos_gates::{config, docs, features, ledger, local_secrets, repo, text, Report};
+use sos_gates::{blueprint, config, docs, features, ledger, local_secrets, repo, text, Report};
 use anyhow::Context;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -22,6 +22,12 @@ pub enum GateCmd {
     /// Run [ready].cmd, the end-to-end check, and record revision and result in evidence/ready/.
     /// Not part of `all`: run it before handing work over.
     Ready,
+    /// The blueprint ([blueprint].file) has journeys with concrete examples and one marked skeleton,
+    /// a data model and the irreversible actions. Not part of `all`: run it before the blueprint review.
+    Blueprint,
+    /// The skeleton stands: [ready].cmd is set and its last recorded run passed. Not part of `all`:
+    /// run it before briefing a second journey.
+    Skeleton,
     /// FEATURES.json identity rules on the staged file vs HEAD.
     Features,
     /// Tokens in .git/config and agent config files; .env files ignored and untracked.
@@ -45,8 +51,8 @@ pub enum GateCmd {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
-    /// The app's git commit-msg: a fix commit must name what caught the defect (`Caught-by:`,
-    /// [ledger]), then the project's own commit-msg.local if there is one.
+    /// The app's git commit-msg: a fix commit must name what caught the defect and the stage that let
+    /// it through (`Caught-by:`, `Escaped-from:`, [ledger]), then the project's own commit-msg.local if there is one.
     CommitMsg {
         /// The file git passes with the message.
         file: PathBuf,
@@ -141,10 +147,14 @@ fn gates(which: GateCmd) -> i32 {
     if matches!(which, GateCmd::Ready) {
         return crate::ready::run(&root, &cfg.ready);
     }
+    if matches!(which, GateCmd::Skeleton) {
+        return crate::ready::skeleton(&root, &cfg.ready);
+    }
     let reports: anyhow::Result<Vec<Report>> = (|| {
         Ok(match which {
             GateCmd::Text { files, staged } => vec![text::gate(&root, &cfg.text, &files, staged)?],
             GateCmd::Docs => vec![docs::gate(&root, &cfg.docs)],
+            GateCmd::Blueprint => vec![blueprint::gate(&root, &cfg.blueprint)],
             GateCmd::Links => vec![crate::check_links::gate(&root, &cfg.docs)?],
             GateCmd::Features => vec![features::gate(&root, &cfg.features)?],
             GateCmd::LocalSecrets => vec![local_secrets::gate(&root)?],
@@ -166,7 +176,7 @@ fn gates(which: GateCmd) -> i32 {
                 let msg = std::fs::read_to_string(&file).with_context(|| format!("reading {}", file.display()))?;
                 vec![ledger::gate(&cfg.ledger, &msg)?]
             }
-            GateCmd::Ready | GateCmd::PreCommit { .. } | GateCmd::PrePush { .. } => unreachable!("handled above"),
+            GateCmd::Ready | GateCmd::Skeleton | GateCmd::PreCommit { .. } | GateCmd::PrePush { .. } => unreachable!("handled above"),
         })
     })();
     match reports {

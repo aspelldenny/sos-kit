@@ -238,7 +238,12 @@ printf '[ready]\ncmd = ""\n' > .sos.toml
 check "claude: status notes an empty [ready] cmd" 0 "nothing checks the whole product" claude session-start <<<"{}"
 same_status "empty [ready] cmd"
 printf "[ready]\ncmd = 'make \"e2e\"'\n" > .sos.toml
+check "claude: status says nothing has passed end to end yet" 0 "has never passed here" claude session-start <<<"{}"
 same_status "[ready] set, never run"
+mkdir -p evidence/ready; printf 'FAIL abc123 2026-11-06 10:00 1s exit=1 — make\n' > evidence/ready/runs.log
+check "claude: status says so after only failed runs" 0 "has never passed here" claude session-start <<<"{}"
+same_status "[ready] set, only failed runs"
+rm -rf evidence
 for v in '"""make ready"""' $'"""\nmake\n"""' $'"""\n"""' $'"""\n  \n"""' '"" # later'; do
     printf '[ready]\ncmd = %s\n' "$v" > .sos.toml
     same_status "[ready] cmd = $v"
@@ -253,6 +258,8 @@ check "claude: status notes an empty multi-line [ready] cmd" 0 "nothing checks t
 printf "[ready]\ncmd = 'make \"e2e\"'\n" > .sos.toml
 mkdir -p evidence/ready; printf 'FAIL abc123 2026-11-06 10:00 1s exit=1 — make\n\nPASS abc123+dirty 2026-11-06 10:05 2s exit=0 — make\n' > evidence/ready/runs.log
 check "claude: status shows the last ready run" 0 "PASS abc123+dirty" claude session-start <<<"{}"
+out=$(if [ -n "${SOS_HOOK_BIN:-}" ]; then "$SOS_HOOK_BIN" hook claude session-start; else "$PY" adapters/claude/hook.py session-start; fi <<<"{}" 2>&1)
+if grep -q "has never passed here" <<<"$out"; then fail=$((fail + 1)); echo "FAIL status: a recorded PASS still reported as never passed"; else pass=$((pass + 1)); echo "ok   status: quiet about the skeleton once a run passed"; fi
 same_status "last [ready] run"
 printf 'PASS %s 2026-11-06 10:05 2s exit=0 — make\n' "$(git rev-parse --short HEAD 2>/dev/null)" > evidence/ready/runs.log
 check "claude: status marks a run the tree has moved past" 0 "the tree may differ from that run" claude session-start <<<"{}"

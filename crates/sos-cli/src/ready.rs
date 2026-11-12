@@ -63,6 +63,78 @@ pub fn run(root: &Path, cfg: &ReadyConfig) -> i32 {
     }
 }
 
+/// What the banner says while nothing has ever passed. Same text as `scripts/status.sh`.
+pub const NO_PASS: &str = "Note: `sos gate ready` has never passed here: get one journey working end to end (`sos gate skeleton`) before starting another.";
+
+/// Whether any recorded run passed.
+pub fn ever_passed(root: &Path) -> bool {
+    std::fs::read_to_string(root.join(LOG)).is_ok_and(|l| l.lines().any(|l| l.starts_with("PASS ")))
+}
+
+/// `sos gate skeleton` — the skeleton stands: one journey runs end to end, proven by the last
+/// recorded `sos gate ready`. Growing a second journey on a skeleton that does not run is how an
+/// app ends up with every screen drawn and nothing working (plan
+/// `docs/plans/QUY-TRINH-LAM-APP-NHAP-2026-11-12.md`, change 3). It reads the record and runs
+/// nothing; it cannot know which journey the command walks, only that one was run and passed.
+pub fn skeleton(root: &Path, cfg: &ReadyConfig) -> i32 {
+    const HOW: &str = "finish the skeleton journey of the blueprint end to end on real data with a test that walks it, \
+                       set `.sos.toml` [ready] cmd to run that test, and run `sos gate ready` until it passes. Do not start a second journey before that.";
+    if cfg.cmd.trim().is_empty() {
+        eprintln!("⛔ sos gate skeleton: .sos.toml [ready] cmd is empty, so nothing shows that one journey works end to end.\n  → How to fix: {HOW}");
+        return 1;
+    }
+    let log = std::fs::read_to_string(root.join(LOG)).unwrap_or_default();
+    match log.lines().rev().find(|l| !l.trim().is_empty()) {
+        Some(last) => match stands(last, cfg.cmd.trim()) {
+            Ok(()) => {
+                eprintln!("sos gate skeleton: ok — {}", last_note(root).unwrap_or_else(|| last.to_string()));
+                0
+            }
+            Err(why) => {
+                eprintln!("⛔ sos gate skeleton: the last end-to-end record {why}: {last}\n  → How to fix: {HOW}");
+                1
+            }
+        },
+        None => {
+            eprintln!("⛔ sos gate skeleton: `sos gate ready` has never been run here ({LOG} has no run).\n  → How to fix: {HOW}");
+            1
+        }
+    }
+}
+
+/// Whether a line of the log is a pass of the command configured now: the shape `run` writes
+/// (`PASS <rev> <time> <secs>s exit=0 — <cmd>`) and the same command. A pass of another command
+/// says nothing about the one the app now calls its end-to-end check.
+fn stands(line: &str, cmd: &str) -> Result<(), &'static str> {
+    let Some((head, ran)) = line.split_once(" — ") else { return Err("is not a line `sos gate ready` writes") };
+    let f: Vec<&str> = head.split(' ').collect();
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let rev = |s: &str| s == "no-commit" || (s.len() >= 4 && s.bytes().all(|b| b.is_ascii_hexdigit()));
+    // 2026-11-12T10:00:00
+    let time = |s: &str| s.len() == 19 && s.bytes().enumerate().all(|(i, b)| match i {
+        4 | 7 => b == b'-',
+        10 => b == b'T',
+        13 | 16 => b == b':',
+        _ => b.is_ascii_digit(),
+    });
+    let shaped = f.len() == 5
+        && ["PASS", "FAIL"].contains(&f[0])
+        && rev(f[1].strip_suffix("+dirty").unwrap_or(f[1]))
+        && (time(f[2]) || digits(f[2])) // Unix seconds where `date` is not available
+        && f[3].strip_suffix('s').is_some_and(digits)
+        && f[4].strip_prefix("exit=").is_some_and(|c| digits(c.strip_prefix('-').unwrap_or(c)));
+    if !shaped {
+        return Err("is not a line `sos gate ready` writes");
+    }
+    if f[0] != "PASS" || f[4] != "exit=0" {
+        return Err("did not pass");
+    }
+    if ran != cmd.split_whitespace().collect::<Vec<_>>().join(" ") {
+        return Err("is for another command than `.sos.toml` [ready] cmd now names (run `sos gate ready` again)");
+    }
+    Ok(())
+}
+
 /// The tree is the record's own business: its log must not count as a change.
 fn tree_changed(root: &Path) -> bool {
     git(root, &["status", "--porcelain", "--", ".", ":!evidence/ready"]).is_some_and(|s| !s.is_empty())
@@ -127,6 +199,42 @@ mod tests {
             .args(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "y"]).status().unwrap().success());
         let now = git(d.path(), &["rev-parse", "--short", "HEAD"]).unwrap();
         assert!(last_note(d.path()).unwrap().ends_with(&format!("(HEAD is now {now})")));
+    }
+
+    #[test]
+    fn skeleton_stands_only_when_the_last_recorded_run_passed() {
+        let d = repo();
+        let cfg = |c: &str| ReadyConfig { cmd: c.into() };
+        // No command, then a command never run: both block.
+        assert_eq!(skeleton(d.path(), &cfg("")), 1);
+        assert_eq!(skeleton(d.path(), &cfg("true")), 1);
+        assert!(!ever_passed(d.path()));
+        // A failed run blocks; a pass opens it; a later failure closes it again.
+        assert_eq!(run(d.path(), &cfg("false")), 1);
+        assert_eq!(skeleton(d.path(), &cfg("false")), 1);
+        assert!(!ever_passed(d.path()));
+        assert_eq!(run(d.path(), &cfg("true")), 0);
+        assert_eq!(skeleton(d.path(), &cfg("true")), 0);
+        assert!(ever_passed(d.path()));
+        assert_eq!(run(d.path(), &cfg("false")), 1);
+        assert_eq!(skeleton(d.path(), &cfg("true")), 1);
+        // The record still holds the command: an emptied [ready] cmd blocks whatever the log says.
+        assert_eq!(run(d.path(), &cfg("true")), 0);
+        assert_eq!(skeleton(d.path(), &cfg(" ")), 1);
+        // A pass of another command, or a line `sos gate ready` did not write, proves nothing.
+        assert_eq!(skeleton(d.path(), &cfg("true && true")), 1);
+        assert_eq!(skeleton(d.path(), &cfg("true")), 0);
+        std::fs::write(d.path().join(LOG), "PASS garbage\n").unwrap();
+        assert_eq!(skeleton(d.path(), &cfg("true")), 1);
+        for bad in ["PASS garbage garbage garbage exit=0 — true", "PASS abc1234 yesterday 1s exit=0 — true",
+                    "PASS abc1234 2026-11-12T10:00:00 fast exit=0 — true", "PASS not-a-rev 2026-11-12T10:00:00 1s exit=0 — true"] {
+            std::fs::write(d.path().join(LOG), format!("{bad}\n")).unwrap();
+            assert_eq!(skeleton(d.path(), &cfg("true")), 1, "{bad}");
+        }
+        std::fs::write(d.path().join(LOG), "FAIL abc1234 2026-11-12T10:00:00 1s exit=1 — true\nPASS abc1234+dirty 1794477600 1s exit=0 — true\n").unwrap();
+        assert_eq!(skeleton(d.path(), &cfg("true")), 0);
+        std::fs::write(d.path().join(LOG), "PASS abc1234 2026-11-12T10:00:00 1s exit=1 — true\n").unwrap();
+        assert_eq!(skeleton(d.path(), &cfg("true")), 1);
     }
 
     #[test]
