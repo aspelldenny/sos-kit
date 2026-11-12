@@ -2,6 +2,10 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
+## Unreleased
+
+- **`AGENTS.md` template no longer names the role models.** The sentence repeated the defaults (Kiến trúc sư `opus`, Thợ `sonnet`, Người soát `opus`) next to a pointer to `.sos.toml`. In the first app on 0.6.0 the models were changed in `.sos.toml` and the wrappers, `sos check` passed, and Quản đốc still told Chủ nhà the old models because it read the sentence at session start. The template now only points to `.sos.toml` [roles] and `advisorModel`. Apps installed earlier keep their own `AGENTS.md`; delete the names from that sentence by hand.
+
 ## v0.6.0 — 2026-11-12 — six stages, a gate where a stage ends
 
 - **What changes for an installed app (why 0.6.0: pre-1.0, a change to what an installed app enforces takes the minor number).** From the moment this `sos` is installed, before any `sos update`, a fix commit must also carry `Escaped-from: <blueprint|skeleton|growth|review>` (the 0.5.0 hook already calls `sos gate commit-msg`); `.sos.toml` `[ledger] stage = false` turns that off. An app installed with 0.5.0 has no Kiến trúc sư wiring: `sos check` warns until `[roles.architect]` is in `.sos.toml` and `.claude/agents/architect.md` exists, and prints where to copy both from; `sos update` does not touch those project-owned files. A `sos` older than this rejects the new keys `[blueprint]` and `[ledger] stage`: update the binary before adding them.
