@@ -6,8 +6,8 @@
 
 This repo uses SOS Kit's harness (`harness-lite/`). Chủ nhà owns intent, taste and final acceptance; the agents do the middle (plan, build, check, repair).
 
-- Main session: apply `harness-lite/CONTRACT.md` and take the role in `harness-lite/roles/orchestrator.md` (Quản đốc): delegate when it pays, do small changes directly, call the reviewer on the events the role lists.
-- Give each subagent the contract, its own role file (`worker.md`, `reviewer.md`) and a bounded brief. Model and effort per role: `.sos.toml` [roles] (Thợ `sonnet` medium; Người soát `opus` high), mirrored in the Claude wrappers `.claude/agents/` (`sos check` compares them); the advisor is `opus` (`advisorModel` in `.claude/settings.json`). Change them there, not per call. When `[roles.reviewer.<family that built the work>]` names the other family, Người soát runs through `sos role reviewer --from <builder> --brief <file>`, not the session's own reviewer subagent.
+- Main session: apply `harness-lite/CONTRACT.md` and take the role in `harness-lite/roles/orchestrator.md` (Quản đốc): delegate when it pays, do small changes directly, call the reviewer on the events the role lists. A new app or area follows the stages there: blueprint (the file `.sos.toml` `[blueprint]` names, `sos gate blueprint`), its review, one skeleton journey (`sos gate skeleton`), growth, review of the running product.
+- Give each subagent the contract, its own role file (`architect.md`, `worker.md`, `reviewer.md`) and a bounded brief. Model and effort per role: `.sos.toml` [roles] (Kiến trúc sư `opus` high; Thợ `sonnet` medium; Người soát `opus` high), mirrored in the Claude wrappers `.claude/agents/` (`sos check` compares them); the advisor is `opus` (`advisorModel` in `.claude/settings.json`). Change them there, not per call. When `[roles.reviewer.<family that built the work>]` names the other family, Người soát runs through `sos role reviewer --from <builder> --brief <file>`, not the session's own reviewer subagent.
 - Gates run at commit and push (`sos gate all`, `sos gate local-secrets`); rules in `.sos.toml`. Do not bypass with `--no-verify`.
 - After repeated failing tests, advice from a stronger model may appear in your context (`.sos.toml` `[advisor]`); weigh it against your evidence.
 
@@ -17,6 +17,7 @@ This repo uses SOS Kit's harness (`harness-lite/`). Chủ nhà owns intent, tast
 |---|---|
 | Current state and next steps | `docs/BACKLOG.md` (first section) |
 | Scope and pass/fail status | `docs/FEATURES.json` |
+| Journeys, data model, irreversible actions | the blueprint (`.sos.toml` `[blueprint] file`), once written |
 | <design, wording, architecture> | <paths> |
 
 Keep this file and `CLAUDE.md` short (under 200 lines together): point to the file that holds a fact instead of copying it here. Docs layers: `harness-lite/README.md` "Docs".

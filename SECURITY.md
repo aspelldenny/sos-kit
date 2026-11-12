@@ -10,7 +10,7 @@ The v2 policy (sister-tool binaries, Codex adapter guards, rendered backstop hoo
 |---|---|---|
 | `hooks/pre-commit` | `git commit` | `cargo check`, the trust gate (`sos-dev trust-gate`), `sos gate all` from the freshly built binary, and the docs check (`sos-dev docs-check`) |
 | `hooks/pre-push` | `git push` | `sos gate local-secrets` |
-| `hooks/commit-msg` | `git commit` (after the message is written) | `sos gate commit-msg` (the `Caught-by:` ledger) |
+| `hooks/commit-msg` | `git commit` (after the message is written) | `sos gate commit-msg` (the `Caught-by:` / `Escaped-from:` ledger) |
 | `.claude/settings.json`, `.codex/hooks.json` | Agent session in this folder | Session status line; `.env` edit guard (via `adapters/`) |
 | `scripts/*`, `adapters/*/*` | Called by the hooks above | Agent-neutral checks and payload translators |
 | `crates/sos-dev/*` | Built and run by `hooks/pre-commit` | The trust gate and docs check themselves (kit only; never released or installed into apps) |

@@ -45,8 +45,12 @@
 //! tests = '^server/tests/'         # regex: test files
 //! mutants = 8                      # edits per run (each one runs `test`)
 //!
-//! [ledger]                       # Caught-by trailer on fix commits (commit-msg gate, `sos score`)
+//! [blueprint]                    # `sos gate blueprint`: journeys with examples, data model, irreversible actions
+//! file = "docs/BLUEPRINT.md"
+//!
+//! [ledger]                       # Caught-by and Escaped-from trailers on fix commits (commit-msg gate, `sos score`)
 //! require = true                   # false: never block a commit message
+//! stage = true                     # false: do not ask for `Escaped-from: <stage>`
 //! fix = '^(fix|hotfix)\b'          # subject regex for a fix commit (empty: built-in)
 //!
 //! [state]
@@ -95,6 +99,8 @@ pub struct Config {
     #[serde(default)]
     pub ledger: LedgerConfig,
     #[serde(default)]
+    pub blueprint: BlueprintConfig,
+    #[serde(default)]
     pub roles: std::collections::BTreeMap<String, RoleEntry>,
 }
 
@@ -114,6 +120,25 @@ pub struct BiteConfig {
     pub mutants: Option<u32>,
 }
 
+/// `sos gate blueprint`: where the blueprint is. The gate checks that its three parts are filled
+/// before it is reviewed or built on (plan 12/11/2026).
+#[derive(Debug, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct BlueprintConfig {
+    #[serde(default = "blueprint_default")]
+    pub file: String,
+}
+
+fn blueprint_default() -> String {
+    "docs/BLUEPRINT.md".into()
+}
+
+impl Default for BlueprintConfig {
+    fn default() -> Self {
+        Self { file: blueprint_default() }
+    }
+}
+
 /// The Caught-by ledger: every fix commit names the layer that caught the defect, so
 /// `sos score` can say where defects are caught and how many reach a person (plan 11/11/2026).
 #[derive(Debug, Deserialize, Clone)]
@@ -125,11 +150,14 @@ pub struct LedgerConfig {
     /// Regex on the subject line that marks a fix commit; empty: the built-in pattern.
     #[serde(default)]
     pub fix: String,
+    /// false: a fix commit need not name the stage that let the defect through (`Escaped-from:`).
+    #[serde(default = "yes")]
+    pub stage: bool,
 }
 
 impl Default for LedgerConfig {
     fn default() -> Self {
-        Self { require: true, fix: String::new() }
+        Self { require: true, fix: String::new(), stage: true }
     }
 }
 

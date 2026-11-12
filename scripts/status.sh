@@ -66,6 +66,9 @@ if [ -f .sos.toml ]; then
             echo "Ready: $last (the tree may differ from that run: rerun before handover)"
         else echo "Ready: $last"; fi
     fi
+    if [ -n "$ready" ] && ! grep -q '^PASS ' evidence/ready/runs.log 2>/dev/null; then
+        echo "Note: \`sos gate ready\` has never passed here: get one journey working end to end (\`sos gate skeleton\`) before starting another."
+    fi
 fi
 entry=$(cat AGENTS.md CLAUDE.md 2>/dev/null | wc -l | tr -d ' ')
 [ "$entry" -gt 200 ] && echo "Note: AGENTS.md + CLAUDE.md are $entry lines (keep under 200): route to docs, move reference into them."

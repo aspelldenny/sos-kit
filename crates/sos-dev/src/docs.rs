@@ -29,7 +29,7 @@ const APP_TO_KIT: &[(&str, &str)] = &[
     ("harness-lite/templates/", "templates/app/"),
 ];
 /// Paths that exist only inside a project after `sos install`, or are examples, not kit files.
-const APP_ONLY: &str = r"^(docs/(STATE|FEATURES|BACKLOG|DESIGN)|\.sos\.toml$|AGENTS\.md$|CLAUDE\.md$|harness-lite/(UPSTREAM\.json|hooks/|templates/)|\.claude/(agents|settings)|\.codex/(hooks|config)|\.git/|\.env|evidence/|\.advise-state|hooks/(pre-commit|pre-push|commit-msg)\.local|~/|\$)";
+const APP_ONLY: &str = r"^(docs/(STATE|FEATURES|BACKLOG|DESIGN|BLUEPRINT)|\.sos\.toml$|AGENTS\.md$|CLAUDE\.md$|harness-lite/(UPSTREAM\.json|hooks/|templates/)|\.claude/(agents|settings)|\.codex/(hooks|config)|\.git/|\.env|evidence/|\.advise-state|hooks/(pre-commit|pre-push|commit-msg)\.local|~/|\$)";
 
 /// Python's `str.isspace()` set differs from Rust's `char::is_whitespace` only in U+001C–U+001F.
 fn py_space(c: char) -> bool {

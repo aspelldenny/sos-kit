@@ -68,6 +68,8 @@ pub const KIT_FILES: &[File] = &[
     kit!("harness-lite/.gitattributes", "templates/app/harness-lite.gitattributes"),
     kit!("harness-lite/CONTRACT.md", "harness-lite/CONTRACT.md"),
     kit!("harness-lite/VERIFY.md", "harness-lite/VERIFY.md"),
+    kit!("harness-lite/CRAFT-UI.md", "harness-lite/CRAFT-UI.md"),
+    kit!("harness-lite/templates/BLUEPRINT.md", "templates/app/BLUEPRINT.md"),
     kit!("harness-lite/roles/orchestrator.md", "harness-lite/roles/orchestrator.md"),
     kit!("harness-lite/roles/architect.md", "harness-lite/roles/architect.md"),
     kit!("harness-lite/roles/worker.md", "harness-lite/roles/worker.md"),
@@ -106,6 +108,7 @@ pub const PROJECT_FILES: &[File] = &[
     kit!("docs/FEATURES.json", "templates/app/FEATURES.json"),
     kit!(".claude/settings.json", "templates/app/claude-settings.json"),
     kit!(".codex/hooks.json", "templates/app/codex-hooks.json"),
+    kit!(".claude/agents/architect.md", "templates/app/claude-agents/architect.md"),
     kit!(".claude/agents/worker.md", "templates/app/claude-agents/worker.md"),
     kit!(".claude/agents/reviewer.md", "templates/app/claude-agents/reviewer.md"),
 ];
@@ -791,7 +794,7 @@ pub fn check(dir: &Path) -> Result<i32> {
     }
     let commit_msg = std::fs::read_to_string(hooks.join("commit-msg")).unwrap_or_default();
     if !commit_msg.lines().map(str::trim).any(|l| !l.starts_with('#') && l.contains("sos gate commit-msg")) {
-        let m = format!("{hook_dir}/commit-msg does not run `sos gate commit-msg` (the Caught-by ledger behind `sos score`)");
+        let m = format!("{hook_dir}/commit-msg does not run `sos gate commit-msg` (the Caught-by / Escaped-from ledger behind `sos score`)");
         if ledger_installed { errors.push(m) } else { warns.push(format!("{m} — `sos update` adds it")) }
     }
     #[cfg(unix)]
@@ -859,6 +862,12 @@ pub fn check(dir: &Path) -> Result<i32> {
     // Role model and effort are decisions; unset, a subagent silently runs the main session's
     // model (TurnSigil's first worker ran Opus). .sos.toml [roles] is the one table they follow.
     let cfg = sos_gates::config::load(&root).ok();
+    // An app installed while Kiến trúc sư was folded into Quản đốc (0.5.0) has the role file but no
+    // model for it: the orchestrator now hands the blueprint to that role, and `sos role` would stop.
+    if cfg.as_ref().is_some_and(|c| !c.roles.contains_key("architect")) && root.join("harness-lite/roles/architect.md").exists() {
+        warns.push("`.sos.toml` has no [roles.architect], and Quản đốc hands the blueprint to Kiến trúc sư: copy the [roles.architect] block from \
+                    harness-lite/templates/sos.toml, and harness-lite/templates/claude-agents/architect.md to .claude/agents/architect.md".into());
+    }
     for role in sos_gates::config::ROLES {
         let path = format!(".claude/agents/{role}.md");
         let want = cfg.as_ref().and_then(|c| c.roles.get(role)).and_then(|e| e.for_family("claude"))

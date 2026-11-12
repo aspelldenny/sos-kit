@@ -102,7 +102,7 @@ enum Cmd {
     /// comparison price and suggestions. Read-only: nothing is sent, written or run.
     Usage(usage::Args),
     /// One scorecard for an app or the kit, to compare runs (with the kit and without, before an
-    /// upgrade and after): fix commits by `Caught-by:` layer and the escape rate (share a person
+    /// upgrade and after): fix commits by `Caught-by:` layer and `Escaped-from:` stage, and the escape rate (share a person
     /// found), `[ready]`, bite, advisor calls; `--tokens` adds `sos usage`. Read-only unless `--save`.
     Score(score::Args),
     /// Ask a stronger model (the other family by default) for direction on the current work, from

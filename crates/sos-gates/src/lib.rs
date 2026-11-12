@@ -9,6 +9,7 @@
 //!
 //! Every gate returns a [`Report`]; a failed report always carries a "how to fix" line.
 
+pub mod blueprint;
 pub mod config;
 pub mod docs;
 pub mod features;

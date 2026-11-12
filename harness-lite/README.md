@@ -11,16 +11,31 @@ Runtime input is the [contract](CONTRACT.md), one role, and the task brief. Do n
 | Who | Role file | When |
 |---|---|---|
 | Main session | [Quản đốc](roles/orchestrator.md) | Always: holds intent and state, delegates, integrates, reports to Chủ nhà |
-| Subagent | [Thợ](roles/worker.md) | Implementation |
-| Subagent or fresh session | [Người soát](roles/reviewer.md) | On events, not every slice: a journey first connects; data, money, privacy or sync is touched; before handoff |
+| Subagent | [Kiến trúc sư](roles/architect.md) | Before building a new app or area: writes the blueprint (journeys with concrete examples, data model, irreversible actions) and corrects it after review |
+| Subagent | [Thợ](roles/worker.md) | Implementation: the skeleton journey first, then the rest one at a time |
+| Subagent or fresh session | [Người soát](roles/reviewer.md) | On events, not every slice: a blueprint is written, before anything is built on it; a journey first connects; data, money, privacy or sync is touched; before handoff |
 
-An adversarial pass by a different model family before acceptance is optional. Kiến trúc sư ([roles/architect.md](roles/architect.md)) is now a planning step of Quản đốc; the file, `sos role architect` and `[roles.architect]` stay for apps that still call it.
+An adversarial pass by a different model family before acceptance is optional. Work on screens is held to [CRAFT-UI](CRAFT-UI.md), a floor counted per component type.
+
+## Stages
+
+A new app, or a new area of one, goes through five stages; [Quản đốc](roles/orchestrator.md) holds the order. Two of them have a gate, run by hand at the boundary and not part of `sos gate all`:
+
+| Stage | Who | Gate |
+|---|---|---|
+| 1. Blueprint | Kiến trúc sư | `sos gate blueprint`: the file in `.sos.toml` `[blueprint] file` (template: `templates/BLUEPRINT.md`) has journeys, each with a concrete example and one marked `(skeleton)`, a data model and the irreversible actions. Presence only; whether they are right is the review |
+| 2. Blueprint review | Người soát | none; the brief opens with `Reviewing:` and `Goals:` |
+| 3. Skeleton | Thợ | `sos gate skeleton`: the last recorded `sos gate ready` run passed, so one journey works end to end. Until one has, the session-start status says so |
+| 4. Growth | Thợ | each journey adds its test to `[ready] cmd` |
+| 5. Review of the running product, then Chủ nhà | Người soát | `sos gate ready` |
+
+The gates cannot see which journey the ready command walks, or that a second journey is being started; Quản đốc runs `sos gate skeleton` before briefing one and quotes its line.
 
 ## What runs automatically
 
 | Layer | Files | Applies to |
 |---|---|---|
-| **Git gates** (the real boundary) | `hooks/pre-commit` → `sos gate pre-commit` (= `sos gate all`, then `pre-commit.local`); `hooks/pre-push` → `sos gate pre-push` (= `sos gate local-secrets`, then `pre-push.local`); `hooks/commit-msg` → `sos gate commit-msg` (a fix commit names what caught the defect, `Caught-by:`; then `commit-msg.local`) | Every agent and every person |
+| **Git gates** (the real boundary) | `hooks/pre-commit` → `sos gate pre-commit` (= `sos gate all`, then `pre-commit.local`); `hooks/pre-push` → `sos gate pre-push` (= `sos gate local-secrets`, then `pre-push.local`); `hooks/commit-msg` → `sos gate commit-msg` (a fix commit names what caught the defect and the stage that let it through, `Caught-by:` and `Escaped-from:`; then `commit-msg.local`) | Every agent and every person |
 | Agent-neutral scripts | `scripts/env-guard.sh`, `sim-guard`, `status.sh`, `test-watch.py`, `advise`, `bite` (`sos hook` does the guards, the status and the advisor trigger itself, `sos advise` and `sos bite` the rest; the scripts stay for older wiring) | Anything that runs a command |
 | Agent hooks (earlier feedback) | `.claude/settings.json`, `.codex/hooks.json` → `sos hook claude\|codex <event> --protocol 1`; a guard that cannot run `sos` blocks. Apps wired before this call `adapters/*/hook.py`: `sos update --wiring` rewrites those commands (shown first; other entries untouched) | That agent only; see `adapters/README.md` |
 
@@ -32,7 +47,7 @@ An adversarial pass by a different model family before acceptance is optional. K
 
 **Test bite.** `sos bite` measures whether a change's tests catch a wrong version of it: with the changed source put back to the base, new or edited tests must fail; and one-token mutants (`==` → `!=`, `<` → `>=`, `n` → `n+1` …) on the changed lines must each turn some test red (a mutant that breaks the build counts as neither). Per-test results come from `unittest -v`, `pytest -v`, XCTest, `node --test`, `vitest --reporter=verbose`, `jest --verbose`, TAP and `cargo test` output; the checkout's `node_modules` is linked into the throwaway worktree. `sos bite --audit` does the same to the tests that already exist: mutants across a module, and the tests that killed none or only what another test killed, as candidates for an audit (OpenClaw reported deleting ~400k lines of tests with little coverage change). Người soát runs it on slices that change logic and reports survivors (`.sos.toml` `[bite]`: test command, source and test regexes; each mutant runs the test command once, so keep it narrow for slow suites).
 
-**Score.** `sos score` prints one scorecard for the repo: commits and active days; fix commits by the layer that caught them (from the `Caught-by:` trailer the commit-msg gate asks for: gate, test, bite, reviewer, advisor, owner, user, prod) and the escape rate, the share of recorded fixes a person found (owner, user, prod); the `[ready]` command and its runs; bite kill rate; advisor calls. `--since YYYY-MM-DD` narrows it, `--json` prints it for comparison, `--save` keeps it in `evidence/score/`, `--tokens` adds `sos usage` for this folder. Compare two runs (an app with the kit and one without, the same app before and after a kit upgrade): a falling escape rate means defects are caught earlier. `.sos.toml` `[ledger]` sets the fix-subject pattern or turns the gate off.
+**Score.** `sos score` prints one scorecard for the repo: commits and active days; fix commits by the layer that caught them (from the `Caught-by:` trailer the commit-msg gate asks for: gate, test, bite, reviewer, advisor, owner, user, prod), by the stage that let the defect through (`Escaped-from:` blueprint, skeleton, growth, review; the stage with the most is the one to repair) and the escape rate, the share of recorded fixes a person found (owner, user, prod); the `[ready]` command and its runs; bite kill rate; advisor calls. `--since YYYY-MM-DD` narrows it, `--json` prints it for comparison, `--save` keeps it in `evidence/score/`, `--tokens` adds `sos usage` for this folder. Compare two runs (an app with the kit and one without, the same app before and after a kit upgrade): a falling escape rate means defects are caught earlier. `.sos.toml` `[ledger]` sets the fix-subject pattern, drops the stage question (`stage = false`) or turns the gate off.
 
 **Advisor.** After two consecutive failing runs of the same test or build runner, the `sos hook` advisor trigger asks a stronger model (`sos advise`) for a direction and adds the answer to the worker's context; the advisor is shown the files the failure and the change point at. Each call needs two more failures; after the second call, the next two failures tell the worker to stop and report. Choose the backend in `.sos.toml` `[advisor]` (`claude`, `codex`, `auto` for the other model family, `off`), and list test commands the hook does not know (`tests = ["node scripts/check.mjs"]`); calls and costs are logged in `.advise-state/calls.jsonl`. An advisor that cannot run (its CLI is logged out) does not use up a call: Chủ nhà gets a desktop notification, the worker is told to report it at once, the session-start status and `sos check` repeat it until a call succeeds, and `sos advise --check` proves the fix.
 
@@ -43,6 +58,8 @@ sos install            # once per repo (--dry-run to preview)
 sos check              # kit files, hooks, tools, .sos.toml, agent wiring
 sos update             # after upgrading sos
 sos gate all           # what the pre-commit runs
+sos gate blueprint     # the blueprint has its three parts (before its review)
+sos gate skeleton      # one journey works end to end (before a second one)
 sos role reviewer --from claude --brief brief.md   # run a role on its configured model
 sos bite --base <ref>  # do this change's tests catch a wrong version of it?
 sos score --since <day> --json   # where defects were caught, escape rate, ready, bite, advisor
@@ -52,7 +69,7 @@ Requirements: `git`, `gitleaks` and the `sos` binary on `PATH`. Python only for 
 
 ## Templates
 
-`templates/` holds the starting versions of project-owned files (`AGENTS.md`, `CLAUDE.md`, `.sos.toml`, `docs/BACKLOG.md`, `docs/FEATURES.json` with a filled example in `FEATURES.example.json`, `.claude/settings.json`, `.codex/hooks.json`, `.claude/agents/*`). `sos install` copies each one only if the project lacks it; compare with them when merging by hand.
+`templates/` holds the starting versions of project-owned files (`AGENTS.md`, `CLAUDE.md`, `.sos.toml`, `docs/BACKLOG.md`, `docs/FEATURES.json` with a filled example in `FEATURES.example.json`, `.claude/settings.json`, `.codex/hooks.json`, `.claude/agents/*`) and `BLUEPRINT.md`, which Kiến trúc sư copies to `docs/BLUEPRINT.md` when a new app or area starts. `sos install` copies each project-owned file only if the project lacks it; compare with them when merging by hand.
 
 ## Docs
 

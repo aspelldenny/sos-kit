@@ -872,7 +872,7 @@ fn update_from_0_4_adopts_an_own_commit_msg_hook() {
         Command::new(&hook).arg(p.join("MSG")).current_dir(p).env("PATH", path_with_sos()).output().unwrap()
     };
     assert!(!run("fix: x\n").status.success(), "ledger runs");
-    assert!(run("fix: x\n\nCaught-by: test\n").status.success());
+    assert!(run("fix: x\n\nCaught-by: test\nEscaped-from: growth\n").status.success());
     assert_eq!(std::fs::read_to_string(p.join("mine-ran")).unwrap(), "ran\n", "own hook ran once, after the ledger passed");
     // Now recorded: a missing hook is an error again.
     std::fs::remove_file(&hook).unwrap();
