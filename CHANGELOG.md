@@ -2,7 +2,7 @@
 
 All notable changes to sos-kit. Format loosely follows Keep a Changelog. Versions are wave-based, not date-based.
 
-## Unreleased
+## v0.6.1 — 2026-11-12 — first fixes from an app on 0.6.0
 
 - **Chủ nhà holds the two ends; open questions stop at Quản đốc.** In the first app on 0.6.0 Kiến trúc sư returned nine open questions (where a status line shows, whether a stop can be edited, device backup, platform and language …) and Quản đốc batched all nine to Chủ nhà, who answered that the intent page is his and the rest is not. Quản đốc then settled all nine from the intent page and research. The contract now says so: a technical question never goes to Chủ nhà; a product question the intent or research can answer is decided, recorded with its reason, and reported as decided; only a question that would change the agreed intent, taste or scope, or commit something outside authority, is asked. Kiến trúc sư hands open questions to Quản đốc with a recommended answer.
 
