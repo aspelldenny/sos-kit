@@ -1,6 +1,6 @@
 # Quy trình làm một app (bản nháp một trang, 12/11/2026)
 
-Trạng thái: Chủ nhà đọc và bảo làm (12/11/2026). Năm chỗ đổi đã vào kit, xem `CHANGELOG.md` mục Unreleased; sáu chặng vẫn là giả thuyết cho tới khi chạy qua một app thật.
+Trạng thái: Chủ nhà đọc và bảo làm (12/11/2026). Năm chỗ đổi đã vào kit, phát hành ở v0.6.0 (xem `CHANGELOG.md`); sáu chặng vẫn là giả thuyết cho tới khi chạy qua một app thật.
 Nguồn: hai gói Hub `NEN-NGHE-UIUX-SOS-KIT-2026-11-12` và `QUY-TRINH-LAM-APP-SOS-KIT-2026-11-12`, cộng lịch sử commit của năm app.
 
 ## Đổi gì so với bây giờ
