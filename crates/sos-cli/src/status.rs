@@ -194,7 +194,7 @@ pub fn render(dir: &Path) -> String {
         }
     }
     // Where the app is in the A→K process, so nobody has to remember it (board drift, 13/11/2026).
-    if let Some(line) = sos_gates::config::load(root).ok().and_then(|c| crate::stage::status_line(&c.stage)) {
+    if let Some(line) = crate::stage::working(root).ok().and_then(|c| crate::stage::status_line(&c.stage)) {
         out.push(line);
     }
     // A reviewer from the other family runs through `sos role`, not the session's own subagent: say so

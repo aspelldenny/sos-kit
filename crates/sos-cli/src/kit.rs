@@ -822,7 +822,10 @@ pub fn check(dir: &Path) -> Result<i32> {
             if !root.join(&cfg.features.file).exists() {
                 warns.push(format!("{} missing (template: harness-lite/templates/FEATURES.example.json)", cfg.features.file));
             }
-            let st = sos_gates::stage::gate(&cfg.stage);
+            // The table as it is being edited, like `sos stage`; an unreadable working file falls back
+            // to what the gates read.
+            let stage_cfg = crate::stage::working(&root).map(|c| c.stage).unwrap_or_else(|_| cfg.stage.clone());
+            let st = sos_gates::stage::gate(&stage_cfg);
             if st.skipped.is_some() {
                 warns.push("[stage] current is empty in .sos.toml: set the app's stage (A…K) and backfill the earlier ones; \
                             `sos stage` says how (no [stage] table? copy it from harness-lite/templates/sos.toml)".into());

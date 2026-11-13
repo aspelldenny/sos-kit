@@ -95,15 +95,22 @@ pub fn status_line(cfg: &sos_gates::config::StageConfig) -> Option<String> {
     Some(format!("Stage: {c} {} — next: {} (`sos stage`)", s.name, next(&r)))
 }
 
+/// The config as it is being edited: the working `.sos.toml` when there is one, else what the gates
+/// read. `sos stage`, `sos check` and the session-start status all read this, so they agree before
+/// the file is staged (tradejournal 13/11/2026: check said "current is empty" while stage said H);
+/// only `sos gate stage` reads the staged file, because it judges what will be committed.
+pub fn working(root: &Path) -> anyhow::Result<sos_gates::config::Config> {
+    let file = root.join(sos_gates::config::FILE);
+    if file.exists() {
+        Ok(sos_gates::config::parse(&std::fs::read_to_string(&file)?)?)
+    } else {
+        sos_gates::config::load(root)
+    }
+}
+
 pub fn run(a: Args) -> anyhow::Result<i32> {
     let root = root(&a.dir);
-    // The file as it is being edited; `sos gate stage` checks what will be committed.
-    let file = root.join(sos_gates::config::FILE);
-    let cfg = if file.exists() {
-        sos_gates::config::parse(&std::fs::read_to_string(&file)?)?
-    } else {
-        sos_gates::config::load(&root)?
-    };
+    let cfg = working(&root)?;
     let r = stage::read(&cfg.stage);
     let cur = r.current.and_then(stage::get);
     let nt = target(&r).and_then(stage::get);
