@@ -120,9 +120,27 @@ pub fn parse_mark(key: char, value: &str) -> Result<Mark, String> {
     }
     let date = Regex::new(r"^\d{4}-\d{2}-\d{2}$").expect("static regex");
     if date.is_match(head) {
+        if !real_date(head) {
+            return Err(format!("{key} = {value:?}: {head} is not a calendar date (YYYY-MM-DD)"));
+        }
         return Ok(Mark::Done { date: head.into(), evidence: tail.into() });
     }
     Err(format!("{key} = {value:?}: before `|` comes a date (YYYY-MM-DD) or \"bỏ qua\"; write {want}"))
+}
+
+/// A YYYY-MM-DD string that names a real day (month 1–12, day within that month, leap years).
+fn real_date(d: &str) -> bool {
+    let n = |r: std::ops::Range<usize>| d[r].parse::<u32>().unwrap_or(0);
+    let (y, m, day) = (n(0..4), n(5..7), n(8..10));
+    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let last = match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=last).contains(&day)
 }
 
 /// The table read: the current stage, what is recorded, and every problem.
@@ -274,8 +292,9 @@ mod tests {
         assert_eq!(parse_mark('B', "2026-11-12 | SOUL.md"), Ok(Mark::Done { date: "2026-11-12".into(), evidence: "SOUL.md".into() }));
         assert_eq!(parse_mark('C', "Bỏ qua | build now"), Ok(Mark::Skipped("build now".into())));
         assert_eq!(parse_mark('C', "skip | x"), Ok(Mark::Skipped("x".into())));
+        assert!(parse_mark('B', "2028-02-29 | leap day").is_ok());
         assert_eq!(parse_mark('F', "mặc định | chosen 13/11"), Ok(Mark::Default("chosen 13/11".into())));
-        for (k, v) in [('E', "mặc định | x"), ('B', "2026-11-12"), ('B', "2026-11-12 |  "), ('B', "12/11 | SOUL.md"), ('B', "done | SOUL.md"), ('B', "")] {
+        for (k, v) in [('E', "mặc định | x"), ('B', "2026-11-12"), ('B', "2026-11-12 |  "), ('B', "12/11 | SOUL.md"), ('B', "done | SOUL.md"), ('B', ""), ('B', "2026-13-45 | x"), ('B', "2026-02-29 | x"), ('B', "2026-04-31 | x"), ('B', "2026-00-10 | x")] {
             assert!(parse_mark(k, v).is_err(), "{k} = {v:?}");
         }
     }
