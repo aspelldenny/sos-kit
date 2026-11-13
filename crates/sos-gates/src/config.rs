@@ -53,6 +53,13 @@
 //! stage = true                     # false: do not ask for `Escaped-from: <stage>`
 //! fix = '^(fix|hotfix)\b'          # subject regex for a fix commit (empty: built-in)
 //!
+//! [stage]                        # where the app is in the A→K process (`sos stage`, `sos gate stage`)
+//! current = "G"                    # one of A…K; empty: not set yet
+//! [stage.gates]                    # a stage = "YYYY-MM-DD | evidence", "bỏ qua | reason" (skip), F also "mặc định | reason"
+//! E = "2026-11-12 | docs/BLUEPRINT.md"
+//! [stage.reads]                    # optional: what this app reads at a stage, besides the kit's files
+//! I = ["<path to your launch checklist>"]
+//!
 //! [state]
 //! file = "docs/BACKLOG.md"         # current-work doc: session-start status and advisor intent
 //!
@@ -101,6 +108,8 @@ pub struct Config {
     #[serde(default)]
     pub blueprint: BlueprintConfig,
     #[serde(default)]
+    pub stage: StageConfig,
+    #[serde(default)]
     pub roles: std::collections::BTreeMap<String, RoleEntry>,
 }
 
@@ -137,6 +146,24 @@ impl Default for BlueprintConfig {
     fn default() -> Self {
         Self { file: blueprint_default() }
     }
+}
+
+/// `[stage]`: where the app is in the A→K process and what each passed stage left as proof
+/// (plan `docs/plans/QUY-TRINH-LAM-APP-NHAP-2026-11-12.md`, «Bản đầy đủ A→K»). Read by `sos stage`
+/// and by the board that lists the apps; `sos gate stage` checks that no stage is recorded over a hole.
+#[derive(Debug, Deserialize, Clone, Default, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StageConfig {
+    /// One of A…K; empty: not set yet (a fresh install).
+    #[serde(default)]
+    pub current: String,
+    /// Stage letter → "YYYY-MM-DD | evidence", "bỏ qua | reason", or for F "mặc định | reason".
+    #[serde(default)]
+    pub gates: std::collections::BTreeMap<String, String>,
+    /// Stage letter → what this app's people read at that stage besides the kit's own files
+    /// (research notes, a launch playbook); `sos stage` prints them with the next step.
+    #[serde(default)]
+    pub reads: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 /// The Caught-by ledger: every fix commit names the layer that caught the defect, so

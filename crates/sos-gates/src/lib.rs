@@ -18,6 +18,7 @@ pub mod glob;
 pub mod ledger;
 pub mod local_secrets;
 pub mod repo;
+pub mod stage;
 pub mod text;
 
 /// Outcome of one gate.

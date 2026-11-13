@@ -45,11 +45,12 @@ Existing files are never overwritten; the only change to an existing file is thr
 | `docs` | State documents past a line limit, and docs listed in `[docs] sized` past a total size or with one line too long (`[docs]`) |
 | `links` | In docs listed in `[docs] links`: a relative link or heading anchor that does not resolve, judged on what will be committed |
 | `features` | Deleting or malforming entries in `docs/FEATURES.json` |
+| `stage` | When `.sos.toml` is staged: a stage recorded in `[stage.gates]`, or `current` moved on, while an earlier stage has neither `"date | evidence"` nor `"bỏ qua | reason"` |
 | `local-secrets` (push) | Tokens in `.git/config` and agent config files (gitleaks rules); a real `.env` file tracked anywhere, or one at the repo root that is not ignored |
 
 `sos gate ready` runs `.sos.toml` `[ready] cmd`, the one command that checks the whole product, and records revision and result in `evidence/ready/`. It is not part of `all`: run it before a handover. `sos check` and the session-start status say when it is empty; the session-start status otherwise shows the last result, and says when that run no longer speaks for the current tree.
 
-`sos gate blueprint` and `sos gate skeleton` are the two stage gates, also outside `all`: the blueprint (`[blueprint] file`, default `docs/BLUEPRINT.md`) has journeys with concrete examples, one marked as the skeleton, a data model and the irreversible actions; and the last recorded `sos gate ready` run passed, so one journey works end to end before a second is started. `sos gate commit-msg` asks every fix commit for `Caught-by:` (what found the defect) and `Escaped-from:` (the stage that let it through); `sos score` counts both.
+`sos gate blueprint` and `sos gate skeleton` are the two stage gates, also outside `all`: the blueprint (`[blueprint] file`, default `docs/BLUEPRINT.md`) has journeys with concrete examples, one marked as the skeleton, a data model and the irreversible actions; and the last recorded `sos gate ready` run passed, so one journey works end to end before a second is started. `.sos.toml` `[stage]` records where the app is in the full A→K order (research to keep-or-stop; blueprint is E, skeleton G, growth and review H): `sos stage` prints it with what is missing and who acts next, and the pre-commit (`sos gate stage`) blocks a stage recorded over an earlier one that has neither a date and evidence nor a reason it was skipped. `sos gate commit-msg` asks every fix commit for `Caught-by:` (what found the defect) and `Escaped-from:` (the stage that let it through); `sos score` counts both.
 
 `sos filter` applies the wording rules to text on stdin, for filtering model output at runtime.
 

@@ -21,13 +21,13 @@ APP_ONLY = re.compile(r"^(docs/(STATE|FEATURES|BACKLOG|DESIGN|BLUEPRINT)|\.sos\.
 APP_TO_KIT = {"harness-lite/scripts/": "scripts/", "harness-lite/adapters/": "adapters/",
               "harness-lite/hooks/": "templates/app/hooks/", "harness-lite/templates/": "templates/app/"}
 
-files = [ROOT / f for f in subprocess.run(["git", "ls-files", "*.md"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+files = [ROOT / f for f in subprocess.run(["git", "ls-files", "*.md"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8").stdout.split()
          if not f.startswith(SKIP)]
 
 def sos_commands():
     try:
-        out = subprocess.run([str(SOS), "--help"], capture_output=True, text=True).stdout
-        gate = subprocess.run([str(SOS), "gate", "--help"], capture_output=True, text=True).stdout
+        out = subprocess.run([str(SOS), "--help"], capture_output=True, text=True, encoding="utf-8").stdout
+        gate = subprocess.run([str(SOS), "gate", "--help"], capture_output=True, text=True, encoding="utf-8").stdout
     except OSError:
         sys.exit(f"docs-check: build sos first ({SOS} not found)")
     names = lambda s: set(re.findall(r"^\s{2}([a-z][a-z-]+)\s", s.split("Commands:")[1].split("Options:")[0], re.M))

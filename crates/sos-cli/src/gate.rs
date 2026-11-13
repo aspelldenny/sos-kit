@@ -1,7 +1,7 @@
 //! `sos gate …` and `sos filter` — thin CLI over the sos-gates crate.
 
 use clap::Subcommand;
-use sos_gates::{blueprint, config, docs, features, ledger, local_secrets, repo, text, Report};
+use sos_gates::{blueprint, config, docs, features, ledger, local_secrets, repo, stage, text, Report};
 use anyhow::Context;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -28,6 +28,10 @@ pub enum GateCmd {
     /// The skeleton stands: [ready].cmd is set and its last recorded run passed. Not part of `all`:
     /// run it before briefing a second journey.
     Skeleton,
+    /// The [stage] table: no stage recorded, and `current` not moved on, while an earlier stage
+    /// has neither "date | evidence" nor "bỏ qua | reason". In `all` it checks the staged
+    /// .sos.toml, and only when that file is staged.
+    Stage,
     /// FEATURES.json identity rules on the staged file vs HEAD.
     Features,
     /// Tokens in .git/config and agent config files; .env files ignored and untracked.
@@ -40,7 +44,7 @@ pub enum GateCmd {
     Case,
     /// [git] protect_default_branch: no non-Markdown commit on the default branch.
     Branch,
-    /// Everything the pre-commit runs: secrets, env-commit, case, branch, text --staged, docs, links, features.
+    /// Everything the pre-commit runs: secrets, env-commit, case, branch, text --staged, docs, links, features, stage.
     All,
     /// The app's git pre-commit: `all`, then the project's own pre-commit.local if there is one.
     PreCommit {
@@ -157,6 +161,7 @@ fn gates(which: GateCmd) -> i32 {
             GateCmd::Blueprint => vec![blueprint::gate(&root, &cfg.blueprint)],
             GateCmd::Links => vec![crate::check_links::gate(&root, &cfg.docs)?],
             GateCmd::Features => vec![features::gate(&root, &cfg.features)?],
+            GateCmd::Stage => vec![stage::gate(&cfg.stage)],
             GateCmd::LocalSecrets => vec![local_secrets::gate(&root)?],
             GateCmd::Secrets => vec![repo::secrets(&root)?],
             GateCmd::EnvCommit => vec![repo::env_commit(&root)?],
@@ -171,6 +176,7 @@ fn gates(which: GateCmd) -> i32 {
                 docs::gate(&root, &cfg.docs),
                 crate::check_links::gate(&root, &cfg.docs)?,
                 features::gate(&root, &cfg.features)?,
+                stage::gate_staged(&root)?,
             ],
             GateCmd::CommitMsg { file, .. } => {
                 let msg = std::fs::read_to_string(&file).with_context(|| format!("reading {}", file.display()))?;
