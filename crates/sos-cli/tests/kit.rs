@@ -898,6 +898,10 @@ fn install_writes_the_stage_table_and_update_keeps_it() {
     // The app records its stage; update must not touch it.
     let edited = toml.replacen("current = \"\"", "current = \"E\"", 1).replacen("[stage.gates]\n", &format!("[stage.gates]\n{}", &STAGE_AE["[stage]\ncurrent = \"E\"\n[stage.gates]\n".len()..]), 1);
     std::fs::write(p.join(".sos.toml"), &edited).unwrap();
+    // Not staged yet: check reads the file being edited, as `sos stage` does (tradejournal 13/11/2026:
+    // check still said "current is empty" until `git add`).
+    let c = sos(p, &["check"]);
+    assert!(!out(&c).contains("[stage] current is empty"), "{}", out(&c));
     let u = sos(p, &["update"]);
     assert!(u.status.success(), "{}", out(&u));
     assert_eq!(std::fs::read_to_string(p.join(".sos.toml")).unwrap(), edited);
