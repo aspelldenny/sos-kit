@@ -20,6 +20,7 @@ mod role;
 mod score;
 mod sessions;
 mod sim;
+mod stage;
 mod status;
 mod usage;
 mod watch;
@@ -105,6 +106,10 @@ enum Cmd {
     /// upgrade and after): fix commits by `Caught-by:` layer and `Escaped-from:` stage, and the escape rate (share a person
     /// found), `[ready]`, bite, advisor calls; `--tokens` adds `sos usage`. Read-only unless `--save`.
     Score(score::Args),
+    /// Where the app is in the A→K process (.sos.toml [stage]): the current stage, who does it and
+    /// what they read, what each stage recorded, what is missing, and the next step. Read-only;
+    /// exit 1 when the table has a hole (`sos gate stage` blocks the commit that writes one).
+    Stage(stage::Args),
     /// Ask a stronger model (the other family by default) for direction on the current work, from
     /// a snapshot: question, intent, latest failure, git state, relevant files. Exit 0 advice,
     /// 1 failed, 2 off or misconfigured, 3 unavailable (CLI not logged in). Settings: .sos.toml [advisor].
@@ -149,6 +154,7 @@ fn main() {
         Cmd::Hook { which } => Ok(hook::run(which)),
         Cmd::Usage(a) => usage::run(a),
         Cmd::Score(a) => score::run(a),
+        Cmd::Stage(a) => stage::run(a),
         Cmd::Advise(a) => advise::run(a),
         Cmd::Bite(a) => bite::run(a),
         Cmd::Sim { which } => sim::run(which),

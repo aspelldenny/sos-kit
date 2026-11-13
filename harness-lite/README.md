@@ -31,6 +31,8 @@ A new app, or a new area of one, goes through five stages; [Quản đốc](roles
 
 The gates cannot see which journey the ready command walks, or that a second journey is being started; Quản đốc runs `sos gate skeleton` before briefing one and quotes its line.
 
+These five sit inside a longer order, A to K: A research, B intent page, C demand test, D harness, E blueprint and its review, F visual design (alongside G, needed before H), G skeleton, H growth and review, I hand-over, J launch, K keep-or-stop decision. `.sos.toml` `[stage]` records where the app is: `current` and one line per passed stage, `"YYYY-MM-DD | evidence"`, or `"bỏ qua | reason"` for a stage skipped on purpose (`"mặc định | reason"` for F's default UI). `sos stage` prints the table, what is missing, and who acts next with what they read (`--json` for a board); `[stage.reads]` adds the app's own reading per stage, for example a launch playbook kept outside the repo. The pre-commit (`sos gate stage`, when `.sos.toml` is staged) blocks a stage recorded, or `current` moved, over an earlier one with nothing; it checks presence, not whether the evidence is good. Right after `sos install`, set `current = "D"` and backfill A to C in the same commit.
+
 ## What runs automatically
 
 | Layer | Files | Applies to |
@@ -39,7 +41,7 @@ The gates cannot see which journey the ready command walks, or that a second jou
 | Agent-neutral scripts | `scripts/env-guard.sh`, `sim-guard`, `status.sh`, `test-watch.py`, `advise`, `bite` (`sos hook` does the guards, the status and the advisor trigger itself, `sos advise` and `sos bite` the rest; the scripts stay for older wiring) | Anything that runs a command |
 | Agent hooks (earlier feedback) | `.claude/settings.json`, `.codex/hooks.json` → `sos hook claude\|codex <event> --protocol 1`; a guard that cannot run `sos` blocks. Apps wired before this call `adapters/*/hook.py`: `sos update --wiring` rewrites those commands (shown first; other entries untouched) | That agent only; see `adapters/README.md` |
 
-`sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps, dead links in the docs agents read and `FEATURES.json` identity. Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` / `hooks/commit-msg.local` (executable, project-owned).
+`sos gate all` covers: staged secrets (gitleaks), `.env` commits, case collisions, the default-branch rule, wording rules, state-doc size caps, dead links in the docs agents read, `FEATURES.json` identity and the `[stage]` table (when `.sos.toml` is staged). Configure them in `.sos.toml` (template: `templates/sos.toml`). Extra project checks go in `hooks/pre-commit.local` / `hooks/pre-push.local` / `hooks/commit-msg.local` (executable, project-owned).
 
 **Ready.** `sos gate ready` runs `.sos.toml` `[ready] cmd` before a handover and records revision and result in `evidence/ready/`; the session-start status shows the last result, says when it no longer speaks for the current tree, or that nothing checks the whole product yet. Not part of `sos gate all`.
 
@@ -60,6 +62,7 @@ sos update             # after upgrading sos
 sos gate all           # what the pre-commit runs
 sos gate blueprint     # the blueprint has its three parts (before its review)
 sos gate skeleton      # one journey works end to end (before a second one)
+sos stage              # where the app is in A→K, what is missing, who acts next
 sos role reviewer --from claude --brief brief.md   # run a role on its configured model
 sos bite --base <ref>  # do this change's tests catch a wrong version of it?
 sos score --since <day> --json   # where defects were caught, escape rate, ready, bite, advisor

@@ -822,6 +822,12 @@ pub fn check(dir: &Path) -> Result<i32> {
             if !root.join(&cfg.features.file).exists() {
                 warns.push(format!("{} missing (template: harness-lite/templates/FEATURES.example.json)", cfg.features.file));
             }
+            let st = sos_gates::stage::gate(&cfg.stage);
+            if st.skipped.is_some() {
+                warns.push("[stage] current is empty in .sos.toml: set the app's stage (A…K) and backfill the earlier ones; \
+                            `sos stage` says how (no [stage] table? copy it from harness-lite/templates/sos.toml)".into());
+            }
+            errors.extend(st.errors.iter().map(|e| format!("[stage] {e} — `sos stage` shows the table")));
             if cfg.ready.cmd.trim().is_empty() {
                 warns.push("[ready] cmd is empty in .sos.toml: set what exercises the whole product, then `sos gate ready` before handing over".into());
             }

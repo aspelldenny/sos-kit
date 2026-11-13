@@ -193,6 +193,10 @@ pub fn render(dir: &Path) -> String {
             out.push(format!("Note: that section is {section} lines (keep under 80): open items only; done ones go to the changelog."));
         }
     }
+    // Where the app is in the A→K process, so nobody has to remember it (board drift, 13/11/2026).
+    if let Some(line) = sos_gates::config::load(root).ok().and_then(|c| crate::stage::status_line(&c.stage)) {
+        out.push(line);
+    }
     // A reviewer from the other family runs through `sos role`, not the session's own subagent: say so
     // where Quản đốc looks each session (0.3.6–0.3.7: `sos role` was never called in seven apps).
     if let Some(t) = &sos_toml {

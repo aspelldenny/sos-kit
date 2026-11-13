@@ -879,3 +879,64 @@ fn update_from_0_4_adopts_an_own_commit_msg_hook() {
     let c = out(&sos(p, &["check"]));
     assert!(c.contains("commit-msg missing") || !c.contains("`sos update` adds it"), "{c}");
 }
+
+const STAGE_AE: &str = "[stage]\ncurrent = \"E\"\n[stage.gates]\nA = \"2026-11-12 | docs/research/\"\nB = \"2026-11-12 | docs/SOUL.md\"\nC = \"bỏ qua | build now\"\nD = \"2026-11-12 | sos check\"\n";
+
+#[test]
+fn install_writes_the_stage_table_and_update_keeps_it() {
+    let d = repo();
+    let p = d.path();
+    assert!(sos(p, &["install"]).status.success());
+    let toml = std::fs::read_to_string(p.join(".sos.toml")).unwrap();
+    assert!(toml.contains("[stage]") && toml.contains("[stage.gates]"), "{toml}");
+    // A fresh install has no stage yet: check warns, stage says what to set, neither blocks.
+    let c = sos(p, &["check"]);
+    assert!(out(&c).contains("[stage]"), "{}", out(&c));
+    let s = sos(p, &["stage"]);
+    assert!(s.status.success() && out(&s).contains("Stage: not set") && out(&s).contains("current: \"D\""), "{}", out(&s));
+
+    // The app records its stage; update must not touch it.
+    let edited = toml.replacen("current = \"\"", "current = \"E\"", 1).replacen("[stage.gates]\n", &format!("[stage.gates]\n{}", &STAGE_AE["[stage]\ncurrent = \"E\"\n[stage.gates]\n".len()..]), 1);
+    std::fs::write(p.join(".sos.toml"), &edited).unwrap();
+    let u = sos(p, &["update"]);
+    assert!(u.status.success(), "{}", out(&u));
+    assert_eq!(std::fs::read_to_string(p.join(".sos.toml")).unwrap(), edited);
+
+    let s = sos(p, &["stage", "--json"]);
+    assert!(s.status.success(), "{}", out(&s));
+    let v: serde_json::Value = serde_json::from_slice(&s.stdout).unwrap();
+    assert_eq!(v["current"], "E");
+    assert_eq!(v["who"], "Kiến trúc sư, then Người soát");
+    assert_eq!(v["missing"], serde_json::json!([]));
+    assert!(v["next"].as_str().unwrap().contains("sos gate blueprint"), "{v}");
+    assert_eq!(v["next_stage"], "E");
+    assert!(v["next_reads"].as_array().unwrap().iter().any(|x| x == "harness-lite/roles/architect.md"), "{v}");
+    let text = out(&sos(p, &["stage"]));
+    assert!(text.contains("▶ E") && text.contains("Escaped-from: blueprint"), "{text}");
+}
+
+#[test]
+fn stage_gate_blocks_a_later_stage_over_an_empty_one() {
+    let d = repo();
+    let p = d.path();
+    std::fs::write(p.join(".sos.toml"), STAGE_AE).unwrap();
+    git(p, &["add", "."]);
+    assert!(sos(p, &["gate", "all"]).status.success());
+    git(p, &["commit", "-qm", "stage E"]);
+
+    // G recorded while E and F are empty: blocked, by `gate stage` and by the pre-commit `gate all`.
+    std::fs::write(p.join(".sos.toml"), format!("{}G = \"2026-11-20 | sos gate skeleton\"\n", STAGE_AE.replacen("\"E\"", "\"G\"", 1))).unwrap();
+    assert_eq!(sos(p, &["stage"]).status.code(), Some(1), "sos stage reads the file being edited");
+    git(p, &["add", ".sos.toml"]);
+    let g = sos(p, &["gate", "stage"]);
+    assert_eq!(g.status.code(), Some(1), "{}", out(&g));
+    assert!(out(&g).contains('E'), "{}", out(&g));
+    let a = sos(p, &["gate", "all"]);
+    assert_eq!(a.status.code(), Some(1), "{}", out(&a));
+
+    // E filled (F may wait until H): passes.
+    std::fs::write(p.join(".sos.toml"), format!("{}E = \"2026-11-13 | docs/BLUEPRINT.md\"\nG = \"2026-11-20 | sos gate skeleton\"\n", STAGE_AE.replacen("\"E\"", "\"G\"", 1))).unwrap();
+    git(p, &["add", ".sos.toml"]);
+    let a = sos(p, &["gate", "all"]);
+    assert!(a.status.success(), "{}", out(&a));
+}

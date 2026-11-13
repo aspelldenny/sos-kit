@@ -1,5 +1,25 @@
 # SOS Kit gate rules for this project. Reference: harness-lite/README.md. Unknown keys are errors.
 
+[stage]
+# Where this app is in the A→K process: A research, B product page (SOUL), C demand test, D repo,
+# E blueprint, F visual design, G skeleton, H growth and review, I launch prep, J launch and measure,
+# K decision. `sos stage` prints the table, what is missing and what comes next.
+# Right after `sos install`: current = "D", with A–C backfilled below in the same commit.
+current = ""
+
+[stage.gates]
+# One line per passed stage: X = "YYYY-MM-DD | evidence" (a path or a command), or "bỏ qua | reason"
+# when it was skipped; F may say "mặc định | reason" to keep the default UI (F runs alongside G, needed
+# before H). The pre-commit blocks a stage written over an earlier one with nothing (`sos gate stage`).
+# A = "2026-11-10 | research/SPY-notes.md"
+# B = "2026-11-12 | docs/SOUL.md"
+# C = "bỏ qua | build now, measure after launch"
+
+# [stage.reads]
+# What this app's people read at a stage besides the kit's own files; `sos stage` prints it with the
+# next step. Useful for A–C and I–K, whose playbooks live outside the kit.
+# I = ["<path to your launch checklist>"]
+
 [text]
 # Staged files whose wording is checked (globs). Empty = wording gate off.
 files = []
